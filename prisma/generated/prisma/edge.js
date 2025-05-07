@@ -33,11 +33,11 @@ exports.$Enums = {}
 
 /**
  * Prisma Client JS version: 6.6.0
- * Query Engine version: f676762280b54cd07c770017ed3711ddde35f37a
+ * Query Engine version: 173f8d54f8d52e692c7e27e72a88314ec7aeff60
  */
 Prisma.prismaVersion = {
   client: "6.6.0",
-  engine: "f676762280b54cd07c770017ed3711ddde35f37a"
+  engine: "173f8d54f8d52e692c7e27e72a88314ec7aeff60"
 }
 
 Prisma.PrismaClientKnownRequestError = PrismaClientKnownRequestError;
@@ -269,7 +269,7 @@ const config = {
   },
   "relativePath": "../..",
   "clientVersion": "6.6.0",
-  "engineVersion": "f676762280b54cd07c770017ed3711ddde35f37a",
+  "engineVersion": "173f8d54f8d52e692c7e27e72a88314ec7aeff60",
   "datasourceNames": [
     "db"
   ],
@@ -285,7 +285,7 @@ const config = {
   },
   "inlineSchema": "generator client {\n  provider = \"prisma-client-js\"\n  output   = \"./generated/prisma\"\n}\n\ndatasource db {\n  provider = \"postgresql\"\n  url      = env(\"DATABASE_URL\")\n}\n\nmodel User {\n  id                   String            @id @default(uuid())\n  name                 String\n  email                String            @unique\n  password             String\n  role                 UserRole\n  subrole              EmployeeSubrole?\n  companyId            String?\n  coins                Int? // Optional: Only used for SuperAdmin, Admin, and Operator roles\n  createdById          String?\n  createdAt            DateTime          @default(now())\n  updatedAt            DateTime          @updatedAt\n  targetActivityLogs   ActivityLog[]     @relation(\"TargetUserActivityLogs\")\n  activityLogs         ActivityLog[]     @relation(\"UserActivityLogs\")\n  sentTransactions     CoinTransaction[] @relation(\"SentTransactions\")\n  receivedTransactions CoinTransaction[] @relation(\"ReceivedTransactions\")\n  comments             Comment[]\n  verifiedSeals        Seal[]            @relation(\"SealVerifiedBy\")\n  createdSessions      Session[]         @relation(\"SessionCreatedBy\")\n  company              Company?          @relation(fields: [companyId], references: [id])\n  createdBy            User?             @relation(\"UserCreatedBy\", fields: [createdById], references: [id])\n  createdUsers         User[]            @relation(\"UserCreatedBy\")\n\n  @@map(\"users\")\n}\n\nmodel Company {\n  id        String    @id @default(uuid())\n  name      String\n  email     String    @unique\n  address   String?\n  phone     String?\n  createdAt DateTime  @default(now())\n  updatedAt DateTime  @updatedAt\n  sessions  Session[]\n  employees User[]\n\n  @@map(\"companies\")\n}\n\nmodel CoinTransaction {\n  id         String             @id @default(uuid())\n  fromUserId String\n  toUserId   String\n  amount     Int\n  reasonText String?\n  reason     TransactionReason?\n  createdAt  DateTime           @default(now())\n  fromUser   User               @relation(\"SentTransactions\", fields: [fromUserId], references: [id])\n  toUser     User               @relation(\"ReceivedTransactions\", fields: [toUserId], references: [id])\n\n  @@map(\"coin_transactions\")\n}\n\nmodel Session {\n  id          String        @id @default(uuid())\n  createdAt   DateTime      @default(now())\n  createdById String\n  companyId   String\n  source      String\n  destination String\n  status      SessionStatus @default(PENDING)\n  comments    Comment[]\n  seal        Seal?\n  company     Company       @relation(fields: [companyId], references: [id])\n  createdBy   User          @relation(\"SessionCreatedBy\", fields: [createdById], references: [id])\n\n  @@map(\"sessions\")\n}\n\nmodel Seal {\n  id           String    @id @default(uuid())\n  sessionId    String    @unique\n  barcode      String\n  scannedAt    DateTime?\n  verified     Boolean   @default(false)\n  verifiedById String?\n  session      Session   @relation(fields: [sessionId], references: [id])\n  verifiedBy   User?     @relation(\"SealVerifiedBy\", fields: [verifiedById], references: [id])\n\n  @@map(\"seals\")\n}\n\nmodel Comment {\n  id        String   @id @default(uuid())\n  sessionId String\n  userId    String\n  message   String\n  createdAt DateTime @default(now())\n  session   Session  @relation(fields: [sessionId], references: [id])\n  user      User     @relation(fields: [userId], references: [id])\n\n  @@map(\"comments\")\n}\n\nmodel ActivityLog {\n  id                 String         @id @default(uuid())\n  userId             String\n  action             ActivityAction\n  details            Json?\n  targetUserId       String?\n  targetResourceId   String?\n  targetResourceType String?\n  ipAddress          String?\n  userAgent          String?\n  createdAt          DateTime       @default(now())\n  targetUser         User?          @relation(\"TargetUserActivityLogs\", fields: [targetUserId], references: [id])\n  user               User           @relation(\"UserActivityLogs\", fields: [userId], references: [id])\n\n  @@map(\"activity_logs\")\n}\n\nenum UserRole {\n  SUPERADMIN\n  ADMIN\n  COMPANY\n  EMPLOYEE\n}\n\nenum EmployeeSubrole {\n  OPERATOR\n  DRIVER\n  TRANSPORTER\n  GUARD\n}\n\nenum SessionStatus {\n  PENDING\n  IN_PROGRESS\n  COMPLETED\n}\n\nenum TransactionReason {\n  ADMIN_CREATION\n  OPERATOR_CREATION\n  COIN_ALLOCATION\n  SESSION_CREATION\n}\n\nenum ActivityAction {\n  CREATE\n  UPDATE\n  DELETE\n  LOGIN\n  LOGOUT\n  TRANSFER\n  ALLOCATE\n  VIEW\n}\n",
   "inlineSchemaHash": "ca102281e16dbf64297440173fea65515ca0cf2c3521455679805205bc9f7e1e",
-  "copyEngine": false
+  "copyEngine": true
 }
 config.dirname = '/'
 
