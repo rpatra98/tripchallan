@@ -11,7 +11,8 @@
     "migrate": "prisma migrate dev",
     "migrate:deploy": "prisma migrate deploy",
     "db:seed": "npx ts-node --compiler-options {\\\"module\\\":\\\"CommonJS\\\"} prisma/seed.ts",
-    "vercel-build": "prisma generate && prisma migrate deploy && node prisma/seed.js && next build"
+    "db:seed:js": "node prisma/seed.js",
+    "vercel-build": "echo 'Running Vercel specific build' && prisma generate && prisma migrate deploy && node prisma/seed.js && next build"
   },
   "dependencies": {
     "@emotion/react": "^11.14.0",
