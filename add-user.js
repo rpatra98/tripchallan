@@ -1,4 +1,4 @@
-const { PrismaClient } = require('@prisma/client');
+const { PrismaClient } = require('./prisma/generated/prisma');
 const bcrypt = require('bcrypt');
 
 async function main() {
