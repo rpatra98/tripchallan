@@ -104,7 +104,7 @@ interface Session {
 }
 
 export default function AdminDetailsPage({ params }: { params: { id: string } }) {
-  const { data: session } = useSession();
+  const { data: session, status: sessionStatus } = useSession();
   const router = useRouter();
   const [admin, setAdmin] = useState<AdminDetails | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -119,11 +119,23 @@ export default function AdminDetailsPage({ params }: { params: { id: string } })
 
   const fetchAdminDetails = useCallback(async () => {
     try {
+      setIsLoading(true);
+      setError(null);
+      
       const response = await fetch(`/api/admins/${params.id}`);
+      
       if (!response.ok) {
-        throw new Error("Failed to fetch admin details");
+        const errorData = await response.json().catch(() => null);
+        const errorMessage = errorData?.error || `Failed to fetch admin details: ${response.status}`;
+        throw new Error(errorMessage);
       }
+      
       const data = await response.json();
+      
+      if (!data || !data.id) {
+        throw new Error("Invalid admin data received");
+      }
+      
       setAdmin(data);
     } catch (err) {
       console.error("Error fetching admin details:", err);
@@ -140,8 +152,12 @@ export default function AdminDetailsPage({ params }: { params: { id: string } })
   }, [session?.user, fetchAdminDetails]);
 
   useEffect(() => {
+    if (sessionStatus === 'loading') {
+      return; // Still determining session status
+    }
+    
     if (!session?.user) {
-      router.push("/auth/login");
+      router.push("/");
       return;
     }
 
@@ -149,7 +165,7 @@ export default function AdminDetailsPage({ params }: { params: { id: string } })
     if (session.user.role !== UserRole.SUPERADMIN) {
       router.push("/dashboard");
     }
-  }, [session?.user, router]);
+  }, [session?.user, sessionStatus, router]);
 
   const fetchSessions = useCallback(async () => {
     try {
@@ -254,34 +270,46 @@ export default function AdminDetailsPage({ params }: { params: { id: string } })
   // Calculate if admin can be deleted (no companies or employees created)
   const canDeleteAdmin = !admin?.stats?.totalCompanies && !admin?.stats?.totalEmployees;
 
-  if (!session?.user) {
-    return (
-      <Box sx={{ p: 3 }}>
-        <Alert severity="error">Please sign in to view admin details</Alert>
-      </Box>
-    );
-  }
-
-  if (isLoading) {
-    return (
-      <Box sx={{ display: "flex", justifyContent: "center", p: 3 }}>
-        <CircularProgress />
-      </Box>
-    );
-  }
-
+  // Show error UI if there's a problem
   if (error) {
     return (
-      <Box sx={{ p: 3 }}>
-        <Alert severity="error">{error.message}</Alert>
-      </Box>
+      <div className="flex flex-col items-center justify-center p-8 text-center">
+        <div className="max-w-md p-6 bg-white shadow-lg rounded-lg">
+          <Typography variant="h5" color="error" gutterBottom>
+            Error Loading Admin
+          </Typography>
+          <Typography variant="body1" gutterBottom>
+            {error.message || "Failed to load admin details. Please try again."}
+          </Typography>
+          <Box sx={{ mt: 4, display: 'flex', justifyContent: 'center', gap: 2 }}>
+            <Button
+              variant="contained"
+              color="primary"
+              onClick={() => fetchAdminDetails()}
+            >
+              Try Again
+            </Button>
+            <Button
+              variant="outlined"
+              component={Link}
+              href="/dashboard/admins"
+            >
+              Back to Admins
+            </Button>
+          </Box>
+        </div>
+      </div>
     );
   }
 
-  if (!admin) {
+  // Show loading state
+  if (isLoading || !admin) {
     return (
-      <Box sx={{ p: 3 }}>
-        <Alert severity="error">Admin not found</Alert>
+      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '70vh', flexDirection: 'column' }}>
+        <CircularProgress size={60} thickness={4} />
+        <Typography variant="h6" sx={{ mt: 2 }}>
+          Loading admin details...
+        </Typography>
       </Box>
     );
   }

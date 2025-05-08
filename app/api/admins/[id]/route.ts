@@ -20,6 +20,27 @@ async function handleGet(
 
     const adminId = context.params.id;
 
+    // First check if a user with this ID exists at all
+    const userExists = await prisma.user.findUnique({
+      where: { id: adminId },
+      select: { id: true, role: true }
+    });
+
+    if (!userExists) {
+      return NextResponse.json(
+        { error: "User not found" },
+        { status: 404 }
+      );
+    }
+
+    // If user exists but is not an admin
+    if (userExists.role !== UserRole.ADMIN) {
+      return NextResponse.json(
+        { error: "User exists but is not an admin" },
+        { status: 400 }
+      );
+    }
+
     // Get admin user details
     const admin = await prisma.user.findUnique({
       where: { 
@@ -63,6 +84,9 @@ async function handleGet(
         }
       },
       orderBy: { createdAt: "desc" },
+    }).catch((err: Error) => {
+      console.error("Error fetching companies:", err);
+      return [];
     });
 
     // Find employees created by this admin by querying users with createdById field
@@ -86,6 +110,9 @@ async function handleGet(
         }
       },
       orderBy: { createdAt: "desc" },
+    }).catch((err: Error) => {
+      console.error("Error fetching employees:", err);
+      return [];
     });
 
     return NextResponse.json({
@@ -99,8 +126,9 @@ async function handleGet(
     });
   } catch (error) {
     console.error("Error fetching admin details:", error);
+    const errorMessage = error instanceof Error ? error.message : "Unknown error occurred";
     return NextResponse.json(
-      { error: "Failed to fetch admin details" },
+      { error: `Failed to fetch admin details: ${errorMessage}` },
       { status: 500 }
     );
   }
