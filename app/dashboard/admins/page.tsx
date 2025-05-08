@@ -203,7 +203,7 @@ export default function AdminsPage() {
                 <TableRow key={admin.id}>
                   <TableCell>{admin.name}</TableCell>
                   <TableCell>{admin.email}</TableCell>
-                  <TableCell>{admin.coins.toLocaleString()}</TableCell>
+                  <TableCell>{(admin.coins || 0).toLocaleString()}</TableCell>
                   <TableCell>{formatDate(admin.createdAt)}</TableCell>
                   <TableCell>
                     <Chip 
