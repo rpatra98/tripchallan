@@ -3,6 +3,7 @@ import { getToken } from "next-auth/jwt";
 import { ActivityAction } from "@/prisma/enums";
 import { addActivityLog } from "@/lib/activity-logger";
 import { detectDevice } from "@/lib/utils";
+import { cookies } from "next/headers";
 
 // Client-side approach to logout
 // Just returns a simple HTML page with JavaScript to sign out
@@ -19,17 +20,22 @@ export async function GET(request: NextRequest) {
       const userAgent = request.headers.get("user-agent") || "unknown";
       const deviceInfo = detectDevice(userAgent);
       
-      await addActivityLog({
-        userId: token.id as string,
-        action: ActivityAction.LOGOUT,
-        details: {
-          method: "client-side",
-          device: deviceInfo.type,
-          deviceDetails: deviceInfo
-        },
-        ipAddress: request.headers.get("x-forwarded-for") || "unknown",
-        userAgent: userAgent
-      });
+      try {
+        await addActivityLog({
+          userId: token.id as string,
+          action: ActivityAction.LOGOUT,
+          details: {
+            method: "client-side",
+            device: deviceInfo.type,
+            deviceDetails: deviceInfo
+          },
+          ipAddress: request.headers.get("x-forwarded-for") || "unknown",
+          userAgent: userAgent
+        });
+      } catch (logError) {
+        console.error("Error logging logout activity:", logError);
+        // Continue with logout even if logging fails
+      }
     }
     
     // First check if this is an API request expecting JSON (from NextAuth)
@@ -111,7 +117,18 @@ export async function GET(request: NextRequest) {
                   // Set each cookie as expired in multiple paths to be thorough
                   document.cookie = name + '=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/';
                   document.cookie = name + '=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/;domain=' + window.location.hostname;
-                  document.cookie = name + '=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/;domain=localhost';
+                  
+                  // Also try with secure flag
+                  document.cookie = name + '=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/;secure';
+                  document.cookie = name + '=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/;domain=' + window.location.hostname + ';secure';
+                  
+                  // Try with top-level domain too
+                  const domain = window.location.hostname.split('.').slice(-2).join('.');
+                  if (domain !== window.location.hostname) {
+                    document.cookie = name + '=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/;domain=' + domain;
+                    document.cookie = name + '=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/;domain=' + domain + ';secure';
+                  }
+                  
                   debugLog('Cleared: ' + name);
                 }
               }
@@ -131,42 +148,58 @@ export async function GET(request: NextRequest) {
               nextAuthCookies.forEach(name => {
                 document.cookie = name + '=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/';
                 document.cookie = name + '=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/;domain=' + window.location.hostname;
-                document.cookie = name + '=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/;domain=localhost';
+                document.cookie = name + '=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/;secure';
+                document.cookie = name + '=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/;domain=' + window.location.hostname + ';secure';
+                
+                // Try with top-level domain
+                const domain = window.location.hostname.split('.').slice(-2).join('.');
+                if (domain !== window.location.hostname) {
+                  document.cookie = name + '=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/;domain=' + domain;
+                  document.cookie = name + '=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/;domain=' + domain + ';secure';
+                }
+                
                 debugLog('Explicitly cleared: ' + name);
               });
               
               return cookies.length;
             };
             
+            // Clear local/session storage
+            const clearStorage = () => {
+              try {
+                localStorage.clear();
+                sessionStorage.clear();
+                debugLog('Local/session storage cleared');
+              } catch (e) {
+                debugLog('Error clearing storage: ' + e.message);
+              }
+            };
+            
             // Clear cookies
             const cookiesCleared = clearCookies();
             debugLog('Total cookies found: ' + cookiesCleared);
             
-            // Try to clear local/session storage
-            try {
-              localStorage.clear();
-              sessionStorage.clear();
-              debugLog('Local/session storage cleared');
-            } catch (e) {
-              debugLog('Error clearing storage: ' + e.message);
-            }
+            // Clear storage
+            clearStorage();
             
             function forceRedirect() {
               debugLog('Force redirecting to: ${callbackUrl}');
+              // Use replace to ensure we don't keep the logout page in history
               window.location.replace("${callbackUrl}");
             }
             
             // Redirect after a short delay
-            setTimeout(forceRedirect, 1500);
+            setTimeout(forceRedirect, 1000);
             
             // Set a backup redirect in case the first one fails
             setTimeout(function() {
               if (document.cookie.length > 0) {
                 debugLog('Backup redirect needed');
                 clearCookies(); // Try again
+                clearStorage(); // Try again
                 window.location.href = "${callbackUrl}";
               }
-            }, 3000);
+            }, 2500);
           </script>
         </body>
       </html>
@@ -186,13 +219,38 @@ export async function GET(request: NextRequest) {
       'next-auth.session-token', 
       'next-auth.csrf-token',
       'next-auth.callback-url',
+      'next-auth.pkce.code-verifier',
       '__Secure-next-auth.session-token',
       '__Secure-next-auth.callback-url',
+      '__Secure-next-auth.csrf-token',
       '__Host-next-auth.csrf-token'
     ];
     
+    // Clear cookies with all possible domain variants
     cookieNames.forEach(name => {
-      response.cookies.set(name, '', { path: '/' });
+      // Basic clear
+      response.cookies.set(name, '', { 
+        path: '/',
+        expires: new Date(0),
+        maxAge: 0
+      });
+      
+      // With secure flag
+      response.cookies.set(name, '', { 
+        path: '/',
+        expires: new Date(0),
+        maxAge: 0,
+        secure: true
+      });
+      
+      // With additional httpOnly flag
+      response.cookies.set(name, '', { 
+        path: '/',
+        expires: new Date(0),
+        maxAge: 0,
+        secure: true,
+        httpOnly: true
+      });
     });
     
     return response;

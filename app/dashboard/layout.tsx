@@ -31,6 +31,7 @@ import {
   Logout, 
   History 
 } from "@mui/icons-material";
+import { useRouter } from "next/navigation";
 
 // Create a context to update coin balance
 export const SessionUpdateContext = createContext({
@@ -45,6 +46,7 @@ export default function DashboardLayout({
   const { data: session, update: updateSession } = useSession();
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const router = useRouter();
 
   const isMenuOpen = Boolean(anchorEl);
 
@@ -57,8 +59,8 @@ export default function DashboardLayout({
   };
 
   const handleLogout = () => {
-    // Use our dedicated logout page
-    window.location.href = '/logout?callbackUrl=/';
+    // Use our dedicated logout page with useRouter for better navigation
+    router.push('/logout?callbackUrl=/');
   };
 
   const toggleDrawer = () => {
