@@ -66,8 +66,8 @@ export const POST = withAuth(
         );
       }
       
-      // Generate a random password
-      const password = generateRandomPassword();
+      // Use the provided password or generate a random one
+      const password = body.password || generateRandomPassword();
       
       // Hash the password
       const hashedPassword = await hash(password, 10);

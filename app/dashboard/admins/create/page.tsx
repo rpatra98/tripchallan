@@ -70,6 +70,9 @@ export default function CreateAdminPage() {
         throw new Error(data.error || "Failed to create admin");
       }
 
+      // Show success message with the admin's credentials
+      alert(`Admin created successfully!\n\nEmail: ${data.user.email}\nPassword: ${formData.password}`);
+
       // Redirect to dashboard on success
       router.push("/dashboard");
       router.refresh();
