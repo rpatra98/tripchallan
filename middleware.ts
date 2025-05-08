@@ -3,7 +3,7 @@ import type { NextRequest } from "next/server";
 import { getToken } from "next-auth/jwt";
 
 // Path patterns that should be protected
-const protectedPaths = ["/dashboard", "/api/users", "/api/coins"];
+const protectedPaths = ["/dashboard", "/api/users", "/api/coins", "/api/admins"];
 
 // Paths that are public
 const publicPaths = ["/", "/api/auth"];
