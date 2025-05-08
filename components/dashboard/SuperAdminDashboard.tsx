@@ -3,12 +3,13 @@
 import { useState, useEffect, useContext } from "react";
 import Link from "next/link";
 import { SuperAdminDashboardProps } from "./types";
-import { CircularProgress, Card, CardContent, Typography, Box, Button } from "@mui/material";
+import { CircularProgress, Card, CardContent, Typography, Box, Button, Dialog, DialogTitle, DialogContent, DialogContentText, DialogActions } from "@mui/material";
 import { format } from "date-fns";
 import TransferCoinsForm from "../coins/TransferCoinsForm";
 import TransactionHistory from "../coins/TransactionHistory";
 import { useSession } from "next-auth/react";
 import { SessionUpdateContext } from "@/app/dashboard/layout";
+import { toast } from "react-hot-toast";
 
 interface AdminUser {
   id: string;
@@ -34,6 +35,11 @@ export default function SuperAdminDashboard({ user: initialUser }: SuperAdminDas
     totalCoins: 0,
   });
   const [refreshTransactions, setRefreshTransactions] = useState(0);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [adminToDelete, setAdminToDelete] = useState<string | null>(null);
+  const [adminToDeleteName, setAdminToDeleteName] = useState("");
+  const [deleteLoading, setDeleteLoading] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   // Fetch admins if on admins tab
   useEffect(() => {
@@ -147,6 +153,58 @@ export default function SuperAdminDashboard({ user: initialUser }: SuperAdminDas
     setRefreshTransactions(prev => prev + 1);
     // Fetch updated user data to get the new coin balance
     await fetchCurrentUser();
+  };
+
+  // Handle admin deletion
+  const handleDeleteAdmin = async () => {
+    if (!adminToDelete) return;
+    
+    setDeleteLoading(true);
+    setDeleteError(null);
+    
+    try {
+      console.log(`Attempting to delete admin with ID: ${adminToDelete}`);
+      
+      const response = await fetch(`/api/admins/${adminToDelete}`, {
+        method: 'DELETE',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+
+      console.log(`Delete API response status: ${response.status}`);
+      
+      const data = await response.json();
+      console.log("Delete API response data:", data);
+
+      if (!response.ok) {
+        // Check if this is a resource constraint error
+        if (data.resourceCount && data.resourceCount > 0) {
+          throw new Error(
+            `This admin has created ${data.resourceCount} resources. ` +
+            `Please reassign or delete their resources first.`
+          );
+        }
+        throw new Error(data.error || 'Failed to delete admin');
+      }
+
+      toast.success('Admin deleted successfully');
+      // Update the UI by removing the deleted admin
+      setAdmins(admins.filter((admin) => admin.id !== adminToDelete));
+      // Close the dialog after successful deletion
+      setDeleteDialogOpen(false);
+      setAdminToDelete(null);
+      setAdminToDeleteName("");
+    } catch (err) {
+      console.error('Error deleting admin:', err);
+      const errorMessage = err instanceof Error ? err.message : 'Failed to delete admin';
+      setDeleteError(errorMessage);
+      toast.error(errorMessage);
+      // Keep the dialog open if there was an error
+    } finally {
+      setDeleteLoading(false);
+    }
   };
 
   // Always fetch user data when this component tab is set to coins
@@ -308,12 +366,16 @@ export default function SuperAdminDashboard({ user: initialUser }: SuperAdminDas
                             Details
                           </Link>
                           {!admin.hasCreatedResources && (
-                            <Link 
-                              href={`/dashboard/admins/${admin.id}/delete`}
-                              className="text-red-600 hover:text-red-800"
+                            <button 
+                              onClick={() => {
+                                setAdminToDelete(admin.id);
+                                setAdminToDeleteName(admin.name);
+                                setDeleteDialogOpen(true);
+                              }}
+                              className="text-red-600 hover:text-red-800 bg-transparent border-none cursor-pointer p-0"
                             >
                               Delete
-                            </Link>
+                            </button>
                           )}
                         </Box>
                       </CardContent>
@@ -384,6 +446,51 @@ export default function SuperAdminDashboard({ user: initialUser }: SuperAdminDas
           )}
         </div>
       </div>
+      
+      {/* Delete Confirmation Dialog */}
+      <Dialog
+        open={deleteDialogOpen}
+        onClose={() => {
+          if (!deleteLoading) {
+            setDeleteDialogOpen(false);
+            setAdminToDelete(null);
+            setAdminToDeleteName("");
+            setDeleteError(null);
+          }
+        }}
+      >
+        <DialogTitle>Delete Admin User</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            Are you sure you want to delete admin <strong>{adminToDeleteName}</strong>? This action cannot be undone.
+          </DialogContentText>
+          {deleteError && (
+            <Box mt={2} p={2} bgcolor="error.light" color="error.dark" borderRadius={1}>
+              {deleteError}
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button 
+            onClick={() => {
+              setDeleteDialogOpen(false);
+              setAdminToDelete(null);
+              setAdminToDeleteName("");
+              setDeleteError(null);
+            }}
+            disabled={deleteLoading}
+          >
+            Cancel
+          </Button>
+          <Button 
+            onClick={handleDeleteAdmin}
+            color="error"
+            disabled={deleteLoading}
+          >
+            {deleteLoading ? "Deleting..." : "Delete"}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </div>
   );
 } 
