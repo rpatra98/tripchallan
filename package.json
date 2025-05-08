@@ -19,7 +19,7 @@
     "@emotion/styled": "^11.14.0",
     "@mui/icons-material": "^7.0.2",
     "@mui/material": "^7.0.2",
-    "@prisma/client": "^6.6.0",
+    "@prisma/client": "^6.7.0",
     "@prisma/extension-accelerate": "^0.6.3",
     "@tanstack/react-query": "^5.17.19",
     "@types/pdfkit": "^0.13.9",
