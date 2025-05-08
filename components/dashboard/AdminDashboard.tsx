@@ -296,7 +296,7 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
                 mb={3}
               >
                 <h3 className="text-lg font-medium">Companies</h3>
-                <Link href="/dashboard/companies/add">
+                <Link href="/dashboard/companies/create">
                   <Button variant="contained" color="primary">
                     Add Company
                   </Button>
@@ -316,7 +316,7 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
               ) : companies.length === 0 ? (
                 <div className="bg-gray-100 p-6 rounded-md text-center">
                   <p>No companies found. Start by adding a company.</p>
-                  <Link href="/dashboard/companies/add">
+                  <Link href="/dashboard/companies/create">
                     <Button variant="contained" color="primary" sx={{ mt: 2 }}>
                       Add Your First Company
                     </Button>
@@ -392,7 +392,7 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
                     }
                   </h3>
                 </Box>
-                <Link href="/dashboard/employees/add">
+                <Link href="/dashboard/employees/create">
                   <Button variant="contained" color="primary">
                     Add Employee
                   </Button>
