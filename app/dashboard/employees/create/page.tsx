@@ -9,6 +9,7 @@ import { useSession } from "next-auth/react";
 interface Company {
   id: string;
   name: string;
+  companyUserId?: string;
 }
 
 export default function CreateEmployeePage() {
@@ -61,7 +62,13 @@ export default function CreateEmployeePage() {
       }
       
       const data = await response.json();
-      console.log("Fetched companies:", data);
+      console.log("Fetched companies:", JSON.stringify(data, null, 2));
+      
+      if (data.length === 0) {
+        console.warn("No companies available for this admin");
+        setError("No companies available. Please create a company first.");
+      }
+      
       setCompanies(data);
     } catch (err) {
       console.error("Error fetching companies:", err);
@@ -289,7 +296,7 @@ export default function CreateEmployeePage() {
           >
             <option value="">Select a company</option>
             {companies.map((company) => (
-              <option key={company.id} value={company.id}>
+              <option key={company.id} value={company.companyUserId || company.id}>
                 {company.name}
               </option>
             ))}

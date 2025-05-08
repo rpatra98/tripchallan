@@ -121,20 +121,41 @@ export const POST = withAuth(
         
         // Verify company exists and is created by this admin if the creator is an ADMIN
         if (userRole === UserRole.ADMIN) {
-          const company = await prisma.user.findFirst({
+          console.log(`Checking company ID: ${body.companyId}`);
+          
+          // We need to check if the companyId is actually a User ID with role COMPANY
+          // First, look up the user with this ID
+          const companyUser = await prisma.user.findFirst({
             where: {
               id: body.companyId,
               role: UserRole.COMPANY,
               createdById: userId
+            },
+            include: {
+              company: true
             }
           });
           
-          if (!company) {
+          console.log("Company user lookup result:", companyUser ? "Found" : "Not found", 
+                      "Admin ID:", userId);
+          
+          if (!companyUser) {
             return NextResponse.json(
-              { error: "Invalid company ID or unauthorized" },
+              { error: "You are not authorized to add employees to this company" },
+              { status: 403 }
+            );
+          }
+          
+          // Use the actual company ID from the found user
+          if (!companyUser.companyId) {
+            return NextResponse.json(
+              { error: "Company configuration is incomplete" },
               { status: 400 }
             );
           }
+          
+          // Update the companyId to use the actual Company record ID
+          body.companyId = companyUser.companyId;
         }
         
         // Create the employee user
