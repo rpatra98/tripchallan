@@ -23,6 +23,9 @@ export const POST = withAuth(
       const session = await getServerSession(authOptions);
       const body = await req.json();
       
+      // Log the request body for debugging
+      console.log("Create user request body:", JSON.stringify(body, null, 2));
+      
       // Validate required fields
       if (!body.email || !body.name || !body.role) {
         return NextResponse.json(
@@ -72,13 +75,14 @@ export const POST = withAuth(
       // Hash the password
       const hashedPassword = await hash(password, 12);
       
-      // Create the user
-      const newUser = await prisma.$transaction(async (tx: any) => {
-        // First create the company if it's a COMPANY user
-        let companyId: string | undefined;
-        
-        if (body.role === UserRole.COMPANY) {
-          const company = await tx.company.create({
+      // Create user with role-specific data
+      let newUser;
+      
+      // For COMPANY role, create the company first then the user
+      if (body.role === UserRole.COMPANY) {
+        try {
+          // First create the company
+          const company = await prisma.company.create({
             data: {
               name: body.companyName || body.name,
               email: body.email,
@@ -86,56 +90,83 @@ export const POST = withAuth(
               phone: body.companyPhone || "",
             }
           });
-          companyId = company.id;
-        }
-        
-        // For EMPLOYEE role, validate the company exists
-        if (body.role === UserRole.EMPLOYEE) {
-          if (!body.companyId) {
-            throw new Error("Company ID is required for employee creation");
-          }
           
-          // Verify company exists and is created by this admin if the creator is an ADMIN
-          if (userRole === UserRole.ADMIN) {
-            const company = await tx.user.findFirst({
-              where: {
-                id: body.companyId,
-                role: UserRole.COMPANY,
-                createdById: userId
-              }
-            });
-            
-            if (!company) {
-              throw new Error("Invalid company ID or unauthorized");
+          // Then create the user with company reference
+          newUser = await prisma.user.create({
+            data: {
+              email: body.email,
+              name: body.name,
+              password: hashedPassword,
+              role: body.role,
+              createdById: userId,
+              companyId: company.id
+            },
+            include: {
+              company: true
             }
+          });
+        } catch (err) {
+          console.error("Error creating company:", err);
+          throw new Error(`Company creation failed: ${err instanceof Error ? err.message : String(err)}`);
+        }
+      } 
+      // For EMPLOYEE role
+      else if (body.role === UserRole.EMPLOYEE) {
+        if (!body.companyId) {
+          return NextResponse.json(
+            { error: "Company ID is required for employee creation" },
+            { status: 400 }
+          );
+        }
+        
+        // Verify company exists and is created by this admin if the creator is an ADMIN
+        if (userRole === UserRole.ADMIN) {
+          const company = await prisma.user.findFirst({
+            where: {
+              id: body.companyId,
+              role: UserRole.COMPANY,
+              createdById: userId
+            }
+          });
+          
+          if (!company) {
+            return NextResponse.json(
+              { error: "Invalid company ID or unauthorized" },
+              { status: 400 }
+            );
           }
         }
         
-        // Now create the user with the company ID if applicable
-        const userData = {
-          email: body.email,
-          name: body.name,
-          password: hashedPassword,
-          role: body.role,
-          createdById: userId,
-          ...(companyId ? { companyId } : {}),
-          // Include role-specific fields
-          ...(body.role === UserRole.EMPLOYEE ? {
+        // Create the employee user
+        newUser = await prisma.user.create({
+          data: {
+            email: body.email,
+            name: body.name,
+            password: hashedPassword,
+            role: body.role,
+            createdById: userId,
             companyId: body.companyId,
             subrole: body.subrole || EmployeeSubrole.OPERATOR,
             coins: 0
-          } : {})
-        };
-        
-        const user = await tx.user.create({
-          data: userData,
+          },
           include: {
             company: true
           }
         });
-        
-        return user;
-      });
+      } 
+      // For other roles (SuperAdmin, Admin)
+      else {
+        newUser = await prisma.user.create({
+          data: {
+            email: body.email,
+            name: body.name,
+            password: hashedPassword,
+            role: body.role,
+            createdById: userId,
+            coins: body.coins || 0
+          }
+        });
+      }
       
       // Log the activity
       await addActivityLog({
@@ -165,10 +196,18 @@ export const POST = withAuth(
       });
     } catch (error) {
       console.error("Error creating user:", error);
-      // Include more detailed error info
-      const errorMessage = error instanceof Error 
-        ? `Failed to create user: ${error.message}` 
-        : "Failed to create user";
+      
+      // Extract more detailed error information
+      let errorMessage = "Failed to create user";
+      let errorDetails = "";
+      
+      if (error instanceof Error) {
+        errorMessage = `Failed to create user: ${error.message}`;
+        errorDetails = error.stack || "";
+      }
+      
+      // Log the full error details for server debugging
+      console.error("Detailed error:", errorDetails);
       
       return NextResponse.json(
         { error: errorMessage },

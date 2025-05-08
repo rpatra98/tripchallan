@@ -78,6 +78,7 @@ export default function CreateCompanyPage() {
       });
 
       const data = await response.json();
+      console.log("API response:", data);
 
       if (!response.ok) {
         // Display the specific error message from the API if available
