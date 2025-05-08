@@ -111,32 +111,41 @@ export default function CreateEmployeePage() {
     }
 
     try {
+      // Log request payload
+      const payload = {
+        name: formData.name,
+        email: formData.email,
+        password: formData.password,
+        role: UserRole.EMPLOYEE,
+        subrole: formData.subrole,
+        companyId: formData.companyId,
+        coins: formData.subrole === EmployeeSubrole.OPERATOR ? formData.coins : undefined,
+      };
+      console.log("Sending employee creation request:", payload);
+      
       const response = await fetch("/api/users/create", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          name: formData.name,
-          email: formData.email,
-          password: formData.password,
-          role: UserRole.EMPLOYEE,
-          subrole: formData.subrole,
-          companyId: formData.companyId,
-          coins: formData.subrole === EmployeeSubrole.OPERATOR ? formData.coins : undefined,
-        }),
+        body: JSON.stringify(payload),
       });
 
       const data = await response.json();
+      console.log("API response:", data);
 
       if (!response.ok) {
         throw new Error(data.error || "Failed to create employee");
       }
 
+      // Show success message
+      alert("Employee created successfully!");
+      
       // Redirect to dashboard on success
       router.push("/dashboard");
       router.refresh();
     } catch (err) {
+      console.error("Error creating employee:", err);
       setError(err instanceof Error ? err.message : "An unknown error occurred");
     } finally {
       setIsLoading(false);
@@ -177,13 +186,6 @@ export default function CreateEmployeePage() {
           {error}
         </div>
       )}
-      
-      {/* DEBUG INFO */}
-      <div className="mb-4 p-3 bg-blue-100 text-blue-700 rounded-md">
-        Current subrole: {formData.subrole} <br/>
-        Is Operator? {formData.subrole === EmployeeSubrole.OPERATOR ? 'YES' : 'NO'} <br/>
-        EmployeeSubrole.OPERATOR value: {EmployeeSubrole.OPERATOR}
-      </div>
 
       <form onSubmit={handleSubmit}>
         <div className="mb-4">

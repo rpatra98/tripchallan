@@ -48,10 +48,10 @@ export const POST = withAuth(
       
       // Validate role hierarchy
       if (userRole === UserRole.ADMIN) {
-        // Admin can only create COMPANY users
-        if (body.role !== UserRole.COMPANY) {
+        // Admin can create COMPANY and EMPLOYEE users, but not other admins
+        if (body.role !== UserRole.COMPANY && body.role !== UserRole.EMPLOYEE) {
           return NextResponse.json(
-            { error: "Admin can only create COMPANY users" },
+            { error: "Admin can only create COMPANY and EMPLOYEE users" },
             { status: 403 }
           );
         }
