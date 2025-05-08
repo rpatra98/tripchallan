@@ -80,9 +80,13 @@ export default function CreateCompanyPage() {
       const data = await response.json();
 
       if (!response.ok) {
+        // Display the specific error message from the API if available
         throw new Error(data.error || "Failed to create company");
       }
 
+      // Show success message
+      alert("Company created successfully!");
+      
       // Redirect to companies list after success
       router.push("/dashboard?tab=companies");
       router.refresh();

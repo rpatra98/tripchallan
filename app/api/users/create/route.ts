@@ -72,43 +72,32 @@ export const POST = withAuth(
       // Hash the password
       const hashedPassword = await hash(password, 12);
       
-      // Create user with role-specific data
-      let userData: any = {
-        email: body.email,
-        name: body.name,
-        password: hashedPassword,
-        role: body.role,
-        createdById: userId,
-      };
-      
-      // Add role-specific fields
-      switch (body.role) {
-        case UserRole.COMPANY:
-          userData = {
-            ...userData,
-            company: {
-              create: {
-                name: body.companyName || body.name,
-                email: body.email,
-                address: body.companyAddress || "",
-                phone: body.companyPhone || "",
-                gstin: body.companyGstin || "",
-              }
+      // Create the user
+      const newUser = await prisma.$transaction(async (tx: any) => {
+        // First create the company if it's a COMPANY user
+        let companyId: string | undefined;
+        
+        if (body.role === UserRole.COMPANY) {
+          const company = await tx.company.create({
+            data: {
+              name: body.companyName || body.name,
+              email: body.email,
+              address: body.companyAddress || "",
+              phone: body.companyPhone || "",
             }
-          };
-          break;
-          
-        case UserRole.EMPLOYEE:
+          });
+          companyId = company.id;
+        }
+        
+        // For EMPLOYEE role, validate the company exists
+        if (body.role === UserRole.EMPLOYEE) {
           if (!body.companyId) {
-            return NextResponse.json(
-              { error: "Company ID is required for employee creation" },
-              { status: 400 }
-            );
+            throw new Error("Company ID is required for employee creation");
           }
           
-          // Verify company exists and is created by this admin
+          // Verify company exists and is created by this admin if the creator is an ADMIN
           if (userRole === UserRole.ADMIN) {
-            const company = await prisma.user.findFirst({
+            const company = await tx.user.findFirst({
               where: {
                 id: body.companyId,
                 role: UserRole.COMPANY,
@@ -117,28 +106,35 @@ export const POST = withAuth(
             });
             
             if (!company) {
-              return NextResponse.json(
-                { error: "Invalid company ID or unauthorized" },
-                { status: 400 }
-              );
+              throw new Error("Invalid company ID or unauthorized");
             }
           }
-          
-          userData = {
-            ...userData,
+        }
+        
+        // Now create the user with the company ID if applicable
+        const userData = {
+          email: body.email,
+          name: body.name,
+          password: hashedPassword,
+          role: body.role,
+          createdById: userId,
+          ...(companyId ? { companyId } : {}),
+          // Include role-specific fields
+          ...(body.role === UserRole.EMPLOYEE ? {
             companyId: body.companyId,
             subrole: body.subrole || EmployeeSubrole.OPERATOR,
             coins: 0
-          };
-          break;
-      }
-      
-      // Create the user
-      const newUser = await prisma.user.create({
-        data: userData,
-        include: {
-          company: true
-        }
+          } : {})
+        };
+        
+        const user = await tx.user.create({
+          data: userData,
+          include: {
+            company: true
+          }
+        });
+        
+        return user;
       });
       
       // Log the activity
@@ -169,8 +165,13 @@ export const POST = withAuth(
       });
     } catch (error) {
       console.error("Error creating user:", error);
+      // Include more detailed error info
+      const errorMessage = error instanceof Error 
+        ? `Failed to create user: ${error.message}` 
+        : "Failed to create user";
+      
       return NextResponse.json(
-        { error: "Failed to create user" },
+        { error: errorMessage },
         { status: 500 }
       );
     }
