@@ -47,6 +47,10 @@ export default function AdminsPage() {
   const [admins, setAdmins] = useState<AdminUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [adminToDelete, setAdminToDelete] = useState<string | null>(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchAdmins = async () => {
@@ -84,25 +88,41 @@ export default function AdminsPage() {
   };
 
   const handleDeleteAdmin = async (adminId: string) => {
+    setDeleteLoading(true);
+    setDeleteError(null);
+    
     try {
       const response = await fetch(`/api/admins/${adminId}`, {
-        method: 'DELETE'
+        method: 'DELETE',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json'
+        }
       });
 
-      if (!response.ok) {
-        throw new Error('Failed to delete admin');
-      }
-
       const data = await response.json();
-      if (data.success) {
-        toast.success('Admin deleted successfully');
-        setAdmins(admins.filter((admin) => admin.id !== adminId));
-      } else {
+
+      if (!response.ok) {
+        // Check if this is a resource constraint error
+        if (data.resourceCount && data.resourceCount > 0) {
+          throw new Error(
+            `This admin has created ${data.resourceCount} resources. ` +
+            `Please reassign or delete their companies and employees first.`
+          );
+        }
         throw new Error(data.error || 'Failed to delete admin');
       }
+
+      toast.success('Admin deleted successfully');
+      // Update the UI by removing the deleted admin
+      setAdmins(admins.filter((admin) => admin.id !== adminId));
     } catch (err) {
       console.error('Error deleting admin:', err);
-      setError('Failed to delete admin. Please try again later.');
+      const errorMessage = err instanceof Error ? err.message : 'Failed to delete admin';
+      setDeleteError(errorMessage);
+      toast.error(errorMessage);
+    } finally {
+      setDeleteLoading(false);
     }
   };
 
@@ -178,7 +198,10 @@ export default function AdminsPage() {
                     </IconButton>
                     <IconButton 
                       size="small"
-                      onClick={() => handleDeleteAdmin(admin.id)}
+                      onClick={() => {
+                        setDeleteConfirmOpen(true);
+                        setAdminToDelete(admin.id);
+                      }}
                       title="Delete Admin"
                     >
                       <Trash2 size={18} />
@@ -190,6 +213,55 @@ export default function AdminsPage() {
           </TableBody>
         </Table>
       </TableContainer>
+
+      <Dialog
+        open={deleteConfirmOpen}
+        onClose={() => {
+          if (!deleteLoading) {
+            setDeleteConfirmOpen(false);
+            setAdminToDelete(null);
+            setDeleteError(null);
+          }
+        }}
+        aria-labelledby="alert-dialog-title"
+        aria-describedby="alert-dialog-description"
+      >
+        <DialogTitle id="alert-dialog-title">{"Confirm Deletion"}</DialogTitle>
+        <DialogContent>
+          <DialogContentText id="alert-dialog-description">
+            Are you sure you want to delete this admin? This action cannot be undone.
+          </DialogContentText>
+          {deleteError && (
+            <Box mt={2} p={2} bgcolor="error.light" color="error.dark" borderRadius={1}>
+              {deleteError}
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button 
+            onClick={() => {
+              setDeleteConfirmOpen(false);
+              setAdminToDelete(null);
+              setDeleteError(null);
+            }} 
+            color="primary"
+            disabled={deleteLoading}
+          >
+            Cancel
+          </Button>
+          <Button 
+            onClick={() => {
+              if (adminToDelete) {
+                handleDeleteAdmin(adminToDelete);
+              }
+            }} 
+            color="error" 
+            disabled={deleteLoading}
+          >
+            {deleteLoading ? "Deleting..." : "Delete"}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </div>
   );
 } 
