@@ -64,24 +64,78 @@ async function handler() {
       
       // Get the company IDs associated with these users
       const companyIds = companyUsers
-        .filter(user => user.companyId)
-        .map(user => user.companyId);
-
-      companies = await prisma.company.findMany({
+        .filter((user: any) => user.companyId)
+        .map((user: any) => user.companyId as string);
+      
+      // Also find companies where the admin has created any users
+      const adminEmployeeCreations = await prisma.user.findMany({
         where: {
-          id: {
-            in: companyIds as string[]
+          role: UserRole.EMPLOYEE,
+          createdById: currentUser.id,
+          NOT: {
+            companyId: null
           }
         },
         select: {
-          id: true,
-          name: true,
-          email: true,
-          createdAt: true,
-          updatedAt: true,
+          companyId: true
         },
-        orderBy: { name: "asc" },
+        distinct: ['companyId']
       });
+      
+      // Add company IDs from employee creation relationships
+      const employeeCompanyIds = adminEmployeeCreations
+        .filter((user: any) => user.companyId)
+        .map((user: any) => user.companyId as string);
+      
+      // Combine both sets of company IDs without duplicates
+      const uniqueCompanyIds = [...new Set([...companyIds, ...employeeCompanyIds])];
+      
+      // Also check for custom permissions if that table exists
+      try {
+        const customPermCheck = await prisma.$queryRaw`
+          SELECT EXISTS (
+            SELECT 1 FROM information_schema.tables 
+            WHERE table_name = 'custom_permissions'
+          )`;
+          
+        if (customPermCheck && customPermCheck[0] && customPermCheck[0].exists) {
+          const customPerms = await prisma.$queryRaw`
+            SELECT resource_id FROM custom_permissions 
+            WHERE permission_type = 'ADMIN_COMPANY' 
+            AND user_id = ${currentUser.id}`;
+            
+          if (customPerms && customPerms.length > 0) {
+            // Add these company IDs to the list
+            customPerms.forEach((perm: any) => {
+              if (perm.resource_id && !uniqueCompanyIds.includes(perm.resource_id)) {
+                uniqueCompanyIds.push(perm.resource_id);
+              }
+            });
+          }
+        }
+      } catch (err) {
+        console.error("Error checking custom permissions for companies:", err);
+        // Continue without failing
+      }
+
+      // Get companies based on the combined IDs
+      if (uniqueCompanyIds.length > 0) {
+        companies = await prisma.company.findMany({
+          where: {
+            id: {
+              in: uniqueCompanyIds
+            }
+          },
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            createdAt: true,
+            updatedAt: true,
+          },
+          orderBy: { name: "asc" },
+        });
+      }
     } 
     // Other roles (like COMPANY) should see only their company
     else {

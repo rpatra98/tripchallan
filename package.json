@@ -32,7 +32,6 @@
     "jsonwebtoken": "^9.0.2",
     "jspdf": "^3.0.1",
     "lucide-react": "^0.503.0",
-    "next": "15.3.1",
     "next-auth": "^4.24.11",
     "pdfkit": "^0.17.0",
     "prisma": "^6.6.0",
@@ -53,6 +52,7 @@
     "@types/react-dom": "19.1.0",
     "eslint": "^9",
     "eslint-config-next": "15.3.1",
+    "next": "^15.3.2",
     "rimraf": "^6.0.1",
     "tailwindcss": "^4",
     "typescript": "^5.8.3"

@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "@/types/next-api";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-options";
 import { withAuth } from "@/lib/auth";
@@ -123,13 +123,14 @@ export const POST = withAuth(
         if (userRole === UserRole.ADMIN) {
           console.log(`Checking company ID: ${body.companyId}`);
           
-          // We need to check if the companyId is actually a User ID with role COMPANY
-          // First, look up the user with this ID
+          let isAuthorized = false;
+          let companyId = body.companyId;
+          
+          // First, check if the ID is a Company User ID
           const companyUser = await prisma.user.findFirst({
             where: {
               id: body.companyId,
               role: UserRole.COMPANY,
-              createdById: userId
             },
             include: {
               company: true
@@ -139,23 +140,71 @@ export const POST = withAuth(
           console.log("Company user lookup result:", companyUser ? "Found" : "Not found", 
                       "Admin ID:", userId);
           
-          if (!companyUser) {
+          // Check if companyUser exists and was created by this admin
+          if (companyUser && companyUser.createdById === userId && companyUser.companyId) {
+            isAuthorized = true;
+            companyId = companyUser.companyId;
+          } 
+          
+          // If not authorized yet, check if this is a direct Company ID
+          if (!isAuthorized) {
+            const directCompany = await prisma.company.findUnique({
+              where: { id: body.companyId }
+            });
+            
+            if (directCompany) {
+              // Check if the admin created any users linked to this company
+              const adminCreatedCompanyUsers = await prisma.user.findFirst({
+                where: {
+                  companyId: directCompany.id,
+                  createdById: userId,
+                }
+              });
+              
+              if (adminCreatedCompanyUsers) {
+                isAuthorized = true;
+                companyId = directCompany.id;
+              }
+            }
+          }
+          
+          // Final fallback - check for any custom permission mechanisms
+          if (!isAuthorized) {
+            try {
+              // Check custom_permissions table if it exists
+              const customPermCheck = await prisma.$queryRaw`
+                SELECT EXISTS (
+                  SELECT 1 FROM information_schema.tables 
+                  WHERE table_name = 'custom_permissions'
+                )`;
+                
+              if (customPermCheck && customPermCheck[0] && customPermCheck[0].exists) {
+                const customPerm = await prisma.$queryRaw`
+                  SELECT * FROM custom_permissions 
+                  WHERE permission_type = 'ADMIN_COMPANY' 
+                  AND user_id = ${userId} 
+                  AND resource_id = ${body.companyId}`;
+                  
+                if (customPerm && customPerm.length > 0) {
+                  isAuthorized = true;
+                }
+              }
+            } catch (err) {
+              console.error("Error checking custom permissions:", err);
+              // Continue without failing - just log the error
+            }
+          }
+          
+          // If still not authorized, reject the request
+          if (!isAuthorized) {
             return NextResponse.json(
               { error: "You are not authorized to add employees to this company" },
               { status: 403 }
             );
           }
           
-          // Use the actual company ID from the found user
-          if (!companyUser.companyId) {
-            return NextResponse.json(
-              { error: "Company configuration is incomplete" },
-              { status: 400 }
-            );
-          }
-          
-          // Update the companyId to use the actual Company record ID
-          body.companyId = companyUser.companyId;
+          // Update company ID to the actual company ID (not user ID)
+          body.companyId = companyId;
         }
         
         // Create the employee user

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { 
   Button, 
@@ -25,7 +25,15 @@ import {
   Tab,
   Box,
   CircularProgress,
-  Alert
+  Alert,
+  List,
+  ListItem,
+  ListItemText,
+  Divider,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem
 } from "@mui/material";
 import { ArrowLeft, Coins, Trash2 } from "lucide-react";
 import { format } from "date-fns";
@@ -103,7 +111,13 @@ interface Session {
   } | null;
 }
 
-export default function AdminDetailsPage({ params }: { params: { id: string } }) {
+interface AdminDetailsPageProps {
+  params: {
+    id: string;
+  };
+}
+
+export default function AdminDetailsPage({ params }: AdminDetailsPageProps) {
   const { data: session, status: sessionStatus } = useSession();
   const router = useRouter();
   const [admin, setAdmin] = useState<AdminDetails | null>(null);
@@ -116,6 +130,11 @@ export default function AdminDetailsPage({ params }: { params: { id: string } })
   const [sessions, setSessions] = useState<SessionEntity[]>([]);
   const [loadingSessions, setLoadingSessions] = useState(false);
   const [sessionsError, setSessionsError] = useState<string | null>(null);
+  const [companies, setCompanies] = useState<any[]>([]);
+  const [accessibleCompanies, setAccessibleCompanies] = useState<any[]>([]);
+  const [companyDialogOpen, setCompanyDialogOpen] = useState(false);
+  const [selectedCompany, setSelectedCompany] = useState("");
+  const [grantingAccess, setGrantingAccess] = useState(false);
 
   const fetchAdminDetails = useCallback(async () => {
     try {
@@ -142,6 +161,9 @@ export default function AdminDetailsPage({ params }: { params: { id: string } })
       }
       
       setAdmin(data);
+      
+      // Also fetch the companies this admin can access
+      fetchAccessibleCompanies();
     } catch (err) {
       console.error("Error fetching admin details:", err);
       setError(err instanceof Error ? err : new Error("Failed to fetch admin details"));
@@ -218,6 +240,44 @@ export default function AdminDetailsPage({ params }: { params: { id: string } })
     }
   }, [tabValue, params.id, fetchSessions]);
 
+  // Fetch all companies
+  const fetchCompanies = async () => {
+    try {
+      const response = await fetch("/api/companies");
+      if (!response.ok) {
+        throw new Error("Failed to fetch companies");
+      }
+      
+      const data = await response.json();
+      setCompanies(data);
+    } catch (error) {
+      console.error("Error fetching companies:", error);
+    }
+  };
+
+  // Fetch companies accessible to this admin
+  const fetchAccessibleCompanies = async () => {
+    try {
+      // Check if custom_permissions table exists and query it
+      // We'll use a proxy endpoint that checks permissions
+      const response = await fetch(`/api/admins/${params.id}/accessible-companies`);
+      
+      if (response.ok) {
+        const data = await response.json();
+        setAccessibleCompanies(data.companies || []);
+      } else {
+        // Fallback: check the companies this admin has created employees for
+        const employeeResponse = await fetch(`/api/admins/${params.id}/employee-companies`);
+        if (employeeResponse.ok) {
+          const employeeData = await employeeResponse.json();
+          setAccessibleCompanies(employeeData.companies || []);
+        }
+      }
+    } catch (error) {
+      console.error("Error fetching accessible companies:", error);
+    }
+  };
+
   // Format date for display
   const formatDate = (dateString: string) => {
     return format(new Date(dateString), "MMM d, yyyy");
@@ -283,6 +343,65 @@ export default function AdminDetailsPage({ params }: { params: { id: string } })
 
   // Calculate if admin can be deleted (no companies or employees created)
   const canDeleteAdmin = !admin?.stats?.totalCompanies && !admin?.stats?.totalEmployees;
+
+  // Open company dialog
+  const handleOpenCompanyDialog = () => {
+    setSelectedCompany("");
+    setCompanyDialogOpen(true);
+  };
+
+  // Close company dialog
+  const handleCloseCompanyDialog = () => {
+    setCompanyDialogOpen(false);
+  };
+
+  // Handle company selection
+  const handleCompanyChange = (event: any) => {
+    setSelectedCompany(event.target.value);
+  };
+
+  // Grant company access to admin
+  const handleGrantAccess = async () => {
+    if (!selectedCompany) {
+      toast.error("Please select a company");
+      return;
+    }
+    
+    setGrantingAccess(true);
+    
+    try {
+      const response = await fetch("/api/superadmin/grant-company-access", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          adminId: params.id,
+          companyId: selectedCompany,
+        }),
+      });
+      
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || "Failed to grant access");
+      }
+      
+      toast.success("Company access granted successfully");
+      handleCloseCompanyDialog();
+      fetchAccessibleCompanies();
+    } catch (error) {
+      console.error("Error granting company access:", error);
+      toast.error(error instanceof Error ? error.message : "Failed to grant access");
+    } finally {
+      setGrantingAccess(false);
+    }
+  };
+
+  // Filter out companies that admin already has access to
+  const getAvailableCompanies = () => {
+    const accessibleIds = accessibleCompanies.map(company => company.id);
+    return companies.filter(company => !accessibleIds.includes(company.id));
+  };
 
   // Show error UI if there's a problem
   if (error) {
@@ -634,6 +753,74 @@ export default function AdminDetailsPage({ params }: { params: { id: string } })
           )}
         </Box>
       </Box>
+      
+      {/* Company Access Management */}
+      <Box mb={4}>
+        <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+          <Typography variant="h5">Company Access</Typography>
+          <Button 
+            variant="contained" 
+            color="primary" 
+            onClick={handleOpenCompanyDialog}
+            disabled={getAvailableCompanies().length === 0}
+          >
+            Grant Access
+          </Button>
+        </Box>
+        
+        {accessibleCompanies.length === 0 ? (
+          <Typography variant="body1" color="text.secondary">
+            This admin does not have access to any companies yet.
+          </Typography>
+        ) : (
+          <List>
+            {accessibleCompanies.map((company, index) => (
+              <React.Fragment key={company.id}>
+                {index > 0 && <Divider />}
+                <ListItem>
+                  <ListItemText 
+                    primary={company.name} 
+                    secondary={company.email} 
+                  />
+                </ListItem>
+              </React.Fragment>
+            ))}
+          </List>
+        )}
+      </Box>
+      
+      {/* Grant Company Access Dialog */}
+      <Dialog open={companyDialogOpen} onClose={handleCloseCompanyDialog}>
+        <DialogTitle>Grant Company Access</DialogTitle>
+        <DialogContent sx={{ minWidth: 400 }}>
+          <FormControl fullWidth sx={{ mt: 2 }}>
+            <InputLabel id="company-select-label">Company</InputLabel>
+            <Select
+              labelId="company-select-label"
+              value={selectedCompany}
+              onChange={handleCompanyChange}
+              label="Company"
+            >
+              <MenuItem value="" disabled>Select a company</MenuItem>
+              {getAvailableCompanies().map((company) => (
+                <MenuItem key={company.id} value={company.id}>
+                  {company.name}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCloseCompanyDialog}>Cancel</Button>
+          <Button 
+            onClick={handleGrantAccess} 
+            color="primary"
+            disabled={!selectedCompany || grantingAccess}
+          >
+            {grantingAccess ? "Granting..." : "Grant Access"}
+          </Button>
+        </DialogActions>
+      </Dialog>
       
       {/* Delete Confirmation Dialog */}
       <Dialog
