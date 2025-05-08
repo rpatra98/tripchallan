@@ -454,7 +454,15 @@ export default function AdminDetailsPage({ params }: AdminDetailsPageProps) {
           <Button
             variant="outlined"
             size="small"
-            onClick={() => router.push("/dashboard/admins")}
+            onClick={() => {
+              try {
+                router.push("/dashboard/admins");
+              } catch (err) {
+                console.error("Navigation error:", err);
+                // Fallback to Link navigation
+                window.location.href = "/dashboard/admins";
+              }
+            }}
             startIcon={<ArrowLeft size={16} />}
           >
             Back
@@ -505,7 +513,7 @@ export default function AdminDetailsPage({ params }: AdminDetailsPageProps) {
           />
           <CardContent>
             <Typography variant="h4" fontWeight="bold" color="primary">
-              {admin.coins.toLocaleString()}
+              {(admin.coins || 0).toLocaleString()}
             </Typography>
           </CardContent>
         </Card>
@@ -676,7 +684,7 @@ export default function AdminDetailsPage({ params }: AdminDetailsPageProps) {
                       <TableCell>
                         {employee.role === 'GUARD' 
                           ? 'Not Applicable' 
-                          : employee.coins?.toLocaleString() || '0'}
+                          : (employee.coins || 0).toLocaleString()}
                       </TableCell>
                       <TableCell>{formatDate(employee.createdAt)}</TableCell>
                     </TableRow>
