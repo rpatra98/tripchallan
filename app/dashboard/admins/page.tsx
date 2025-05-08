@@ -44,6 +44,7 @@ interface AdminUser {
 
 export default function AdminsPage() {
   const router = useRouter();
+  const { data: session, status } = useSession();
   const [admins, setAdmins] = useState<AdminUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -53,27 +54,42 @@ export default function AdminsPage() {
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
   useEffect(() => {
-    const fetchAdmins = async () => {
-      try {
-        setLoading(true);
-        const response = await fetch('/api/admins');
-        
-        if (!response.ok) {
-          throw new Error('Failed to fetch admins');
-        }
-        
-        const data = await response.json();
-        setAdmins(data.admins || []);
-      } catch (err) {
-        console.error('Error fetching admins:', err);
-        setError('Failed to load admins. Please try again later.');
-      } finally {
-        setLoading(false);
-      }
-    };
+    // Redirect if not logged in or not a superadmin
+    if (status === 'loading') return;
+    
+    if (!session?.user) {
+      router.push('/login');
+      return;
+    }
+    
+    if (session.user.role !== UserRole.SUPERADMIN) {
+      router.push('/dashboard');
+      return;
+    }
     
     fetchAdmins();
-  }, []);
+  }, [status, session, router]);
+  
+  const fetchAdmins = async () => {
+    try {
+      setLoading(true);
+      const response = await fetch('/api/admins', {
+        credentials: 'include'
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch admins');
+      }
+      
+      const data = await response.json();
+      setAdmins(data.admins || []);
+    } catch (err) {
+      console.error('Error fetching admins:', err);
+      setError('Failed to load admins. Please try again later.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const formatDate = (dateString: string) => {
     return format(new Date(dateString), "MMM d, yyyy");
@@ -92,6 +108,8 @@ export default function AdminsPage() {
     setDeleteError(null);
     
     try {
+      console.log(`Attempting to delete admin with ID: ${adminId}`);
+      
       const response = await fetch(`/api/admins/${adminId}`, {
         method: 'DELETE',
         credentials: 'include',
@@ -100,7 +118,10 @@ export default function AdminsPage() {
         }
       });
 
+      console.log(`Delete API response status: ${response.status}`);
+      
       const data = await response.json();
+      console.log("Delete API response data:", data);
 
       if (!response.ok) {
         // Check if this is a resource constraint error
@@ -116,11 +137,15 @@ export default function AdminsPage() {
       toast.success('Admin deleted successfully');
       // Update the UI by removing the deleted admin
       setAdmins(admins.filter((admin) => admin.id !== adminId));
+      // Close the dialog after successful deletion
+      setDeleteConfirmOpen(false);
+      setAdminToDelete(null);
     } catch (err) {
       console.error('Error deleting admin:', err);
       const errorMessage = err instanceof Error ? err.message : 'Failed to delete admin';
       setDeleteError(errorMessage);
       toast.error(errorMessage);
+      // Keep the dialog open if there was an error
     } finally {
       setDeleteLoading(false);
     }

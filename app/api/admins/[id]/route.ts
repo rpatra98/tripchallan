@@ -155,6 +155,7 @@ async function handleDelete(
     }
 
     const adminId = context.params.id;
+    console.log(`API: Attempting to delete admin with ID: ${adminId}`);
 
     // Check if the admin exists and is actually an ADMIN
     const admin = await prisma.user.findUnique({
@@ -175,14 +176,18 @@ async function handleDelete(
     });
 
     if (!admin) {
+      console.log(`API: Admin with ID ${adminId} not found`);
       return NextResponse.json(
         { error: "Admin user not found" },
         { status: 404 }
       );
     }
 
+    console.log(`API: Found admin ${admin.name}, resource count: ${admin._count.createdUsers}`);
+
     // Check if admin has created any resources (companies, employees)
     if (admin._count.createdUsers > 0) {
+      console.log(`API: Cannot delete - admin has ${admin._count.createdUsers} resources`);
       return NextResponse.json(
         { 
           error: "Cannot delete admin user with created resources. Reassign or delete their resources first.",
@@ -198,6 +203,8 @@ async function handleDelete(
         id: adminId
       }
     });
+
+    console.log(`API: Successfully deleted admin ${admin.name}`);
 
     // Log the activity
     await addActivityLog({
