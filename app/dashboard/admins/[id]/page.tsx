@@ -122,7 +122,12 @@ export default function AdminDetailsPage({ params }: { params: { id: string } })
       setIsLoading(true);
       setError(null);
       
-      const response = await fetch(`/api/admins/${params.id}`);
+      const response = await fetch(`/api/admins/${params.id}`, {
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
       
       if (!response.ok) {
         const errorData = await response.json().catch(() => null);
@@ -172,7 +177,12 @@ export default function AdminDetailsPage({ params }: { params: { id: string } })
       setLoadingSessions(true);
       setSessionsError(null);
       
-      const response = await fetch(`/api/admins/${params.id}/sessions`);
+      const response = await fetch(`/api/admins/${params.id}/sessions`, {
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
       
       if (!response.ok) {
         const errorText = await response.text();
@@ -221,6 +231,10 @@ export default function AdminDetailsPage({ params }: { params: { id: string } })
     try {
       const response = await fetch(`/api/admins/${params.id}`, {
         method: "DELETE",
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json'
+        }
       });
       
       const data = await response.json();

@@ -70,7 +70,7 @@ export const POST = withAuth(
       const password = body.password || generateRandomPassword();
       
       // Hash the password
-      const hashedPassword = await hash(password, 10);
+      const hashedPassword = await hash(password, 12);
       
       // Create user with role-specific data
       let userData: any = {
