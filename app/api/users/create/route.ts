@@ -89,6 +89,7 @@ export const POST = withAuth(
             company: {
               create: {
                 name: body.companyName || body.name,
+                email: body.email,
                 address: body.companyAddress || "",
                 phone: body.companyPhone || "",
                 gstin: body.companyGstin || "",

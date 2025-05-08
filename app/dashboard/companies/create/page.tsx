@@ -71,8 +71,9 @@ export default function CreateCompanyPage() {
           email: formData.email,
           password: formData.password,
           role: UserRole.COMPANY,
-          address: formData.address,
-          phone: formData.phone,
+          companyName: formData.name,
+          companyAddress: formData.address,
+          companyPhone: formData.phone,
         }),
       });
 
@@ -82,8 +83,8 @@ export default function CreateCompanyPage() {
         throw new Error(data.error || "Failed to create company");
       }
 
-      // Redirect to dashboard after success
-      router.push("/dashboard");
+      // Redirect to companies list after success
+      router.push("/dashboard?tab=companies");
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "An unknown error occurred");

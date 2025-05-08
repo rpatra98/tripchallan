@@ -64,6 +64,15 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
   const [viewingCompanyEmployees, setViewingCompanyEmployees] = useState(false);
 
   useEffect(() => {
+    // Check for tab parameter in URL
+    const urlParams = new URLSearchParams(window.location.search);
+    const tabParam = urlParams.get('tab');
+    if (tabParam && ['companies', 'employees', 'coins'].includes(tabParam)) {
+      setActiveTab(tabParam);
+    }
+  }, []);
+
+  useEffect(() => {
     if (activeTab === "companies") {
       fetchCompanies();
       // Reset the employee viewing state when switching to companies tab
