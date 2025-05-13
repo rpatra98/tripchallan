@@ -161,6 +161,20 @@ async function handler(req: NextRequest) {
             verified: true,
             scannedAt: true
           }
+        },
+        company: {
+          select: {
+            id: true,
+            name: true
+          }
+        },
+        createdBy: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            subrole: true
+          }
         }
       },
       orderBy: {
