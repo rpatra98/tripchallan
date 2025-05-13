@@ -30,7 +30,7 @@ import { format } from "date-fns";
 import toast from "react-hot-toast";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
-import { UserRole } from "@/prisma/enums";
+import { UserRole, EmployeeSubrole } from "@/prisma/enums";
 
 interface Session {
   id: string;
@@ -64,6 +64,7 @@ interface SessionError {
 
 export default function SessionsPage() {
   const router = useRouter();
+  const { data: sessionData } = useSession();
   const [sessions, setSessions] = useState<Session[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<SessionError | null>(null);
@@ -132,6 +133,10 @@ export default function SessionsPage() {
     }
   };
 
+  // Check if user is an operator
+  const isOperator = sessionData?.user?.role === UserRole.EMPLOYEE && 
+                     sessionData?.user?.subrole === EmployeeSubrole.OPERATOR;
+
   if (loading) {
     return (
       <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
@@ -161,14 +166,16 @@ export default function SessionsPage() {
         <Typography variant="h5" component="h1" fontWeight="bold">
           Sessions
         </Typography>
-        <Button
-          variant="contained"
-          color="primary"
-          startIcon={<Plus size={16} />}
-          onClick={handleAddSession}
-        >
-          Add Session
-        </Button>
+        {isOperator && (
+          <Button
+            variant="contained"
+            color="primary"
+            startIcon={<Plus size={16} />}
+            onClick={handleAddSession}
+          >
+            Add Session
+          </Button>
+        )}
       </div>
 
       <TableContainer component={Paper}>
