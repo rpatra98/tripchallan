@@ -67,6 +67,7 @@ interface CreatedEntity {
   createdAt: string;
   coins?: number;
   role?: string;
+  subrole?: string;
   company?: {
     id: string;
     name: string;
@@ -624,7 +625,7 @@ export default function AdminDetailsPage({ params }: AdminDetailsPageProps) {
         <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
           <Tabs value={tabValue} onChange={handleTabChange}>
             <Tab label={`Companies Created (${admin.stats.totalCompanies})`} />
-            <Tab label={`Employees Created (${admin.stats.totalEmployees})`} />
+            <Tab label={`Employees (${admin.stats.totalEmployees})`} />
             <Tab label={`Sessions (${admin.stats.totalSessions || 0})`} />
           </Tabs>
         </Box>
@@ -666,6 +667,7 @@ export default function AdminDetailsPage({ params }: AdminDetailsPageProps) {
                   <TableCell>Employee Name</TableCell>
                   <TableCell>Email</TableCell>
                   <TableCell>Company</TableCell>
+                  <TableCell>Subrole</TableCell>
                   <TableCell>Coins</TableCell>
                   <TableCell>Created On</TableCell>
                 </TableRow>
@@ -673,7 +675,7 @@ export default function AdminDetailsPage({ params }: AdminDetailsPageProps) {
               <TableBody>
                 {admin.createdEmployees.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={5} align="center">No employees created by this admin</TableCell>
+                    <TableCell colSpan={6} align="center">No employees created by this admin</TableCell>
                   </TableRow>
                 ) : (
                   admin.createdEmployees.map((employee) => (
@@ -681,6 +683,7 @@ export default function AdminDetailsPage({ params }: AdminDetailsPageProps) {
                       <TableCell>{employee.name}</TableCell>
                       <TableCell>{employee.email}</TableCell>
                       <TableCell>{employee.company?.name || 'N/A'}</TableCell>
+                      <TableCell>{employee.subrole || 'N/A'}</TableCell>
                       <TableCell>
                         {employee.role === 'GUARD' 
                           ? 'Not Applicable' 
