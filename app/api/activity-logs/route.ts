@@ -195,7 +195,8 @@ async function handler(req: NextRequest) {
       };
     };
 
-    if (userIds.length > 0) {
+    // Always fetch logs for SUPERADMIN, even if userIds array is empty
+    if (userIds.length > 0 || session.user.role === UserRole.SUPERADMIN) {
       // Custom filtering for deviceType if provided
       let customWhere: any = undefined;
       
@@ -275,16 +276,14 @@ async function handler(req: NextRequest) {
         targetResourceType,
         page,
         limit,
-        // For SUPERADMIN, don't filter by userIds unless specifically requested
-        userId: session.user.role === UserRole.SUPERADMIN && userIds.length === 0 
-          ? undefined 
-          : (userIds.length === 1 ? userIds[0] : undefined),
-        // Only set if we have multiple IDs and not a SUPERADMIN viewing all
-        userIds: session.user.role === UserRole.SUPERADMIN && userIds.length === 0
-          ? undefined
-          : (userIds.length > 1 ? userIds : undefined),
-        // Pass the custom where clause which includes the self login/logout exclusion logic
-        customWhere,
+        // For SUPERADMIN, don't apply any user filtering - they see everything
+        userId: session.user.role === UserRole.SUPERADMIN ? undefined : (userIds.length === 1 ? userIds[0] : undefined),
+        // Only apply userIds filtering for non-SUPERADMIN roles
+        userIds: session.user.role === UserRole.SUPERADMIN ? undefined : (userIds.length > 1 ? userIds : undefined),
+        // For SUPERADMIN, only apply device type filtering if specified
+        customWhere: session.user.role === UserRole.SUPERADMIN ? 
+          (deviceType ? customWhere : undefined) : 
+          customWhere,
         // CRITICAL: Always include auth activities by default
         includeAuthActivities: true
       });
