@@ -564,7 +564,7 @@ export default function CompanyDashboard({ user, initialTab }: CompanyDashboardP
                     <span style={{ marginRight: '8px', display: 'inline-flex' }}>
                       <People fontSize="small" />
                     </span>
-                    View All Employees
+                    Employee List
                   </a>
                 </Box>
               </Box>
@@ -659,12 +659,11 @@ export default function CompanyDashboard({ user, initialTab }: CompanyDashboardP
                         
                         <Box display="flex" justifyContent="flex-end" mt={2}>
                           <a 
-                            href={`/dashboard/employees/${employee.id}?source=company&companyId=${user.id}`}
+                            href={`/dashboard/companies/${user.id}/employees`}
                             target="_self"
                             onClick={(e) => {
-                              console.log("Employee card clicked:", {
-                                employeeId: employee.id,
-                                url: `/dashboard/employees/${employee.id}?source=company&companyId=${user.id}`
+                              console.log("Navigating to company employees page:", {
+                                companyId: user.id
                               });
                             }}
                             style={{ 
@@ -685,7 +684,7 @@ export default function CompanyDashboard({ user, initialTab }: CompanyDashboardP
                             <span style={{ marginRight: '8px', display: 'inline-flex' }}>
                               <Person fontSize="small" />
                             </span>
-                            View Details
+                            View Employee Details
                           </a>
                         </Box>
                       </CardContent>
