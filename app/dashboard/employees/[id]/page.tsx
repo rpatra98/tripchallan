@@ -130,10 +130,10 @@ export default async function EmployeeDetailPage({ params }: { params: { id: str
     <div className="container mx-auto px-4 py-8">
       <div className="mb-6">
         <Link 
-          href="/dashboard/employees"
+          href={isCompany ? "/dashboard" : "/dashboard/employees"}
           className="text-blue-600 hover:underline mb-4 inline-block"
         >
-          &larr; Back to Employees
+          &larr; {isCompany ? "Back to Dashboard" : "Back to Employees"}
         </Link>
         <h1 className="text-2xl font-bold">{employee.name}</h1>
         <p className="text-gray-600">{employee.email}</p>

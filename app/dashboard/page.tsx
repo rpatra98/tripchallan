@@ -27,9 +27,16 @@ const EmployeeDashboard = dynamic(() => import("@/components/dashboard/EmployeeD
   loading: () => <div className="text-center p-8">Loading dashboard...</div>
 });
 
-export default async function DashboardPage() {
+export default async function DashboardPage({
+  searchParams,
+}: {
+  searchParams?: { [key: string]: string | string[] | undefined };
+}) {
   // Get session data
   const session = await getServerSession(authOptions);
+  
+  // Extract tab parameter if present
+  const tab = searchParams?.tab as string | undefined;
 
   // If no session or user ID, redirect to login
   if (!session || !session.user || !session.user.id) {
@@ -70,6 +77,8 @@ export default async function DashboardPage() {
       case 'ADMIN':
         return <AdminDashboard user={user} />;
       case 'COMPANY':
+        // Pass the tab parameter to CompanyDashboard as a prop if necessary
+        console.log(`Rendering CompanyDashboard with tab: ${tab || 'default'}`);
         return <CompanyDashboard user={user} />;
       case 'EMPLOYEE':
         return <EmployeeDashboard user={user} />;

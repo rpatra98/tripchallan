@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { CompanyDashboardProps } from "./types";
 import { CircularProgress, Chip, Card, CardContent, Typography, Box, List, ListItem, ListItemText, Divider, Alert, Button, Tabs, Tab } from "@mui/material";
 import { Person, Work, LocalAtm, People, ErrorOutline, LocationOn, DirectionsCar, AccessTime, Lock, CheckCircle, Refresh } from "@mui/icons-material";
@@ -49,6 +49,7 @@ interface SessionData {
 }
 
 export default function CompanyDashboard({ user }: CompanyDashboardProps) {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const initialTab = searchParams.get("tab") || "sessions";
   const [activeTab, setActiveTab] = useState(initialTab);
@@ -239,6 +240,13 @@ export default function CompanyDashboard({ user }: CompanyDashboardProps) {
   
   const handleSessionStatusFilterChange = (_event: React.SyntheticEvent, newValue: string) => {
     setSessionStatusFilter(newValue);
+  };
+
+  // Handle employee details navigation
+  const handleViewEmployeeDetails = (employeeId: string) => {
+    console.log(`Navigating to employee ${employeeId} details`);
+    // Use a direct navigation approach to avoid conflicts
+    router.push(`/dashboard/employees/${employeeId}`);
   };
 
   return (
@@ -573,13 +581,8 @@ export default function CompanyDashboard({ user }: CompanyDashboardProps) {
                           <Button
                             variant="outlined"
                             size="small"
-                            component={Link}
-                            href={`/dashboard/employees/${employee.id}`}
                             startIcon={<Person />}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              console.log(`Navigating to employee ${employee.id} details`);
-                            }}
+                            onClick={() => handleViewEmployeeDetails(employee.id)}
                           >
                             View Details
                           </Button>
