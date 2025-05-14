@@ -216,14 +216,17 @@ export default function AdminDetailsPage({ params }: AdminDetailsPageProps) {
       const data = await response.json();
       setSessions(data.sessions || []);
       
-      // Update stats if needed
-      if (admin && data.totalCount !== undefined) {
-        setAdmin({
-          ...admin,
-          stats: {
-            ...admin.stats,
-            totalSessions: data.totalCount
-          }
+      // Update stats if needed - use functional update to avoid dependency on admin
+      if (data.totalCount !== undefined) {
+        setAdmin((currentAdmin) => {
+          if (!currentAdmin) return null;
+          return {
+            ...currentAdmin,
+            stats: {
+              ...currentAdmin.stats,
+              totalSessions: data.totalCount
+            }
+          };
         });
       }
     } catch (err) {
@@ -232,7 +235,7 @@ export default function AdminDetailsPage({ params }: AdminDetailsPageProps) {
     } finally {
       setLoadingSessions(false);
     }
-  }, [params.id, admin]);
+  }, [params.id]);
 
   // Fetch sessions when tab changes to sessions
   useEffect(() => {
@@ -727,7 +730,11 @@ export default function AdminDetailsPage({ params }: AdminDetailsPageProps) {
                 <TableBody>
                   {sessions.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={8} align="center">No sessions found for companies managed by this admin</TableCell>
+                      <TableCell colSpan={8} align="center">
+                        <Typography variant="body1" py={2}>
+                          No sessions found for companies managed by this admin
+                        </Typography>
+                      </TableCell>
                     </TableRow>
                   ) : (
                     sessions.map((session) => (
