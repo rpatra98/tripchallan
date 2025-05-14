@@ -24,6 +24,14 @@ const nextConfig = {
   skipTrailingSlashRedirect: true,
   skipMiddlewareUrlNormalize: true,
   
+  // Configure API to handle large file uploads
+  api: {
+    bodyParser: {
+      sizeLimit: '10mb', // Increase size limit to 10MB
+    },
+    responseLimit: '12mb', // Increase response limit as well
+  },
+  
   // Add redirects for company and employee detail pages
   async redirects() {
     return [

@@ -70,6 +70,20 @@ type ImagesForm = {
   timestamps: Record<string, string>;
 };
 
+const FileUploadHelp = () => (
+  <Box sx={{ mt: 1, mb: 2, p: 2, bgcolor: 'info.light', borderRadius: 1 }}>
+    <Typography variant="body2" color="info.contrastText">
+      <strong>File Upload Tips:</strong>
+      <ul style={{ marginTop: '8px', paddingLeft: '20px' }}>
+        <li>Maximum file size: 2MB per image</li>
+        <li>Maximum 3 images per category</li>
+        <li>Reduce image size before uploading to avoid errors</li>
+        <li>Recommended image resolution: 1280x960 or smaller</li>
+      </ul>
+    </Typography>
+  </Box>
+);
+
 export default function CreateSessionPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
@@ -169,20 +183,46 @@ export default function CreateSessionPage() {
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, fieldName: keyof ImagesForm) => {
     if (!e.target.files?.length) return;
     
+    // Maximum file size: 2MB
+    const MAX_FILE_SIZE = 2 * 1024 * 1024; // 2MB in bytes
+    
     if (fieldName === 'sealingImages' || fieldName === 'vehicleImages' || fieldName === 'additionalImages') {
-      const filesArray = Array.from(e.target.files);
-      setImagesForm(prev => ({
-        ...prev,
-        [fieldName]: [...prev[fieldName] as File[], ...filesArray],
-        timestamps: {
-          ...prev.timestamps,
-          [fieldName]: new Date().toISOString()
+      // Filter out files that are too large
+      const filesArray = Array.from(e.target.files).filter(file => {
+        if (file.size > MAX_FILE_SIZE) {
+          setValidationErrors(prev => ({
+            ...prev,
+            [fieldName]: `One or more files exceed the maximum size of 2MB. Please use smaller images.`
+          }));
+          return false;
         }
-      }));
+        return true;
+      });
+      
+      if (filesArray.length > 0) {
+        setImagesForm(prev => ({
+          ...prev,
+          [fieldName]: [...prev[fieldName] as File[], ...filesArray],
+          timestamps: {
+            ...prev.timestamps,
+            [fieldName]: new Date().toISOString()
+          }
+        }));
+      }
     } else {
+      // Check single file size
+      const file = e.target.files[0];
+      if (file.size > MAX_FILE_SIZE) {
+        setValidationErrors(prev => ({
+          ...prev,
+          [fieldName]: `File is too large (${(file.size / (1024 * 1024)).toFixed(2)}MB). Maximum size is 2MB.`
+        }));
+        return;
+      }
+      
       setImagesForm(prev => ({
         ...prev,
-        [fieldName]: e.target.files?.[0] || null,
+        [fieldName]: file,
         timestamps: {
           ...prev.timestamps,
           [fieldName]: new Date().toISOString()
@@ -197,7 +237,7 @@ export default function CreateSessionPage() {
         delete newErrors[fieldName];
         return newErrors;
       });
-      }
+    }
   };
 
   const handleAddQrCode = () => {
@@ -309,16 +349,18 @@ export default function CreateSessionPage() {
       if (imagesForm.vehicleNumberPlatePicture) formData.append('vehicleNumberPlatePicture', imagesForm.vehicleNumberPlatePicture);
       if (imagesForm.driverPicture) formData.append('driverPicture', imagesForm.driverPicture);
       
-      // Add multiple files
-      imagesForm.sealingImages.forEach((file, index) => {
+      // Add multiple files - limit the number of files to reduce payload size
+      const maxImagesPerCategory = 3; // Limit to 3 images per category
+      
+      imagesForm.sealingImages.slice(0, maxImagesPerCategory).forEach((file, index) => {
         formData.append(`sealingImages[${index}]`, file);
       });
       
-      imagesForm.vehicleImages.forEach((file, index) => {
+      imagesForm.vehicleImages.slice(0, maxImagesPerCategory).forEach((file, index) => {
         formData.append(`vehicleImages[${index}]`, file);
       });
       
-      imagesForm.additionalImages.forEach((file, index) => {
+      imagesForm.additionalImages.slice(0, maxImagesPerCategory).forEach((file, index) => {
         formData.append(`additionalImages[${index}]`, file);
       });
       
@@ -335,11 +377,25 @@ export default function CreateSessionPage() {
         // Do not set Content-Type header as browser will set it automatically for FormData
       });
 
-      const data = await response.json();
-
+      // Handle different error response types
       if (!response.ok) {
-        throw new Error(data.error || "Failed to create session");
+        // For 413 Payload Too Large errors
+        if (response.status === 413) {
+          throw new Error("Files are too large. Please use smaller images (under 2MB each) or fewer images.");
+        }
+        
+        // Try to parse the error as JSON
+        let errorData;
+        try {
+          errorData = await response.json();
+          throw new Error(errorData.error || "Failed to create trip");
+        } catch (jsonError) {
+          // If we can't parse JSON, use the status text
+          throw new Error(`Server error: ${response.status} ${response.statusText}. Try using smaller images.`);
+        }
       }
+      
+      const data = await response.json();
 
       // Refresh the user session to update coin balance
       await refreshUserSession();
@@ -649,11 +705,12 @@ export default function CreateSessionPage() {
           )}
 
           {activeStep === 1 && (
-            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
               <Box sx={{ width: '100%' }}>
                 <Typography variant="h6" gutterBottom>
                   Images & Verification
                 </Typography>
+                <FileUploadHelp />
               </Box>
               
               <Box sx={{ width: { xs: '100%', md: '47%' } }}>
