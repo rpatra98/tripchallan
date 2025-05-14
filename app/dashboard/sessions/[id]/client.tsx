@@ -2111,7 +2111,7 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
         )}
         
         {/* Show QR Codes if available */}
-        {session.qrCodes && (session.qrCodes.primaryBarcode || (session.qrCodes.additionalBarcodes && session.qrCodes.additionalBarcodes.length > 0)) && (
+        {session.qrCodes && (session.qrCodes?.primaryBarcode || (session.qrCodes?.additionalBarcodes && session.qrCodes?.additionalBarcodes.length > 0)) && (
           <>
             <Divider sx={{ my: 2 }} />
             
@@ -2120,25 +2120,26 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
             </Typography>
             
             <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
-              {session.qrCodes.primaryBarcode && (
-                <Box>
-                  <Typography variant="subtitle2" color="text.secondary">Primary Barcode</Typography>
-                  <Typography variant="body1">{session.qrCodes.primaryBarcode}</Typography>
-                </Box>
-              )}
-              
-              {session.qrCodes.additionalBarcodes && session.qrCodes.additionalBarcodes.length > 0 && (
-                <Box>
-                  <Typography variant="subtitle2" color="text.secondary">Additional Barcodes</Typography>
-                  <Box sx={{ mt: 1, bgcolor: 'background.paper', border: '1px solid rgba(0, 0, 0, 0.12)', borderRadius: 1, p: 2 }}>
-                    {session.qrCodes.additionalBarcodes.map((barcode, index) => (
+              <Box>
+                <Typography variant="subtitle2" color="text.secondary">Barcodes</Typography>
+                <Box sx={{ mt: 1, bgcolor: 'background.paper', border: '1px solid rgba(0, 0, 0, 0.12)', borderRadius: 1, p: 2 }}>
+                  {/* Show primary barcode as first item */}
+                  {session.qrCodes?.primaryBarcode && (
+                    <Typography variant="body2" sx={{ mb: 0.5 }}>
+                      1. {session.qrCodes?.primaryBarcode}
+                    </Typography>
+                  )}
+                  
+                  {/* Show additional barcodes with adjusted numbering */}
+                  {session.qrCodes?.additionalBarcodes && 
+                    session.qrCodes?.additionalBarcodes.map((barcode, index) => (
                       <Typography key={index} variant="body2" sx={{ mb: 0.5 }}>
-                        {index + 1}. {barcode}
+                        {(session.qrCodes?.primaryBarcode ? index + 2 : index + 1)}. {barcode}
                       </Typography>
-                    ))}
-                  </Box>
+                    ))
+                  }
                 </Box>
-              )}
+              </Box>
             </Box>
           </>
         )}
