@@ -649,31 +649,7 @@ export default function CompanyDashboard({ user, initialTab }: CompanyDashboardP
                           </Box>
                         </Box>
                         
-                        <Box display="flex" justifyContent="flex-end" mt={2}>
-                          <a 
-                            href={`/dashboard/employees/${employee.id}`} 
-                            style={{ 
-                              textDecoration: 'none',
-                              backgroundColor: '#fff',
-                              color: '#1976d2',
-                              padding: '5px 15px',
-                              border: '1px solid #1976d2',
-                              borderRadius: '4px',
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              fontSize: '0.875rem',
-                              minWidth: '64px',
-                              fontWeight: 500,
-                              lineHeight: 1.75,
-                            }}
-                            target="_self"
-                          >
-                            <span style={{ marginRight: '8px', display: 'inline-flex' }}>
-                              <Person fontSize="small" />
-                            </span>
-                            View Details
-                          </a>
-                        </Box>
+                                                <Box display="flex" justifyContent="flex-end" mt={2}>                          <Button                            variant="outlined"                            size="small"                            component={Link}                            href={`/dashboard/employees/${employee.id}`}                            startIcon={<Person />}                          >                            View Details                          </Button>                        </Box>
                       </CardContent>
                     </Card>
                   ))}
