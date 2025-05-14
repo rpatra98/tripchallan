@@ -69,10 +69,9 @@ async function handler(req: NextRequest) {
       if (userId) {
         userIds.push(userId);
       } else {
-        // For SUPERADMIN, don't apply any userId filtering - they can see everything
-        // We'll set userIds to an empty array to indicate no filtering should be applied
+        // For SUPERADMIN, don't apply any userId filtering except excluding themselves
         // Just log this for debugging
-        console.log("SUPERADMIN access - no user filtering will be applied");
+        console.log("SUPERADMIN access - showing all users except self");
       }
     }
     // ADMIN can see activity for users they created, so get those user IDs
@@ -81,7 +80,7 @@ async function handler(req: NextRequest) {
         // Check if this admin created the requested user
         const requestedUser = await prisma.user.findUnique({
           where: { id: userId },
-          select: { createdById: true }
+          select: { createdById: true, role: true }
         });
         
         if (requestedUser?.createdById === session.user.id) {
@@ -101,14 +100,17 @@ async function handler(req: NextRequest) {
           });
         }
       } else {
-        // Get all users created by this admin
+        // Get all users created by this admin (COMPANY and EMPLOYEE only)
         const createdUsers = await prisma.user.findMany({
-          where: { createdById: session.user.id },
+          where: { 
+            createdById: session.user.id,
+            role: { in: [UserRole.COMPANY, UserRole.EMPLOYEE] }
+          },
           select: { id: true }
         });
         
-        // Add admin's own ID plus IDs of users they created
-        userIds.push(session.user.id, ...createdUsers.map((user: { id: string }) => user.id));
+        // Add only IDs of COMPANY and EMPLOYEE users they created (exclude self)
+        userIds.push(...createdUsers.map((user: { id: string }) => user.id));
       }
     }
     // COMPANY can see activity for their employees
@@ -127,8 +129,18 @@ async function handler(req: NextRequest) {
         if (employee) {
           userIds.push(userId);
         } else {
-          // If this isn't their employee, they should only see their own activity
-          userIds.push(session.user.id);
+          // If this isn't their employee, they can only see their own non-login/logout activity
+          return NextResponse.json({
+            logs: [],
+            meta: {
+              currentPage: page,
+              totalPages: 0,
+              totalItems: 0,
+              itemsPerPage: limit,
+              hasNextPage: false,
+              hasPrevPage: false,
+            }
+          });
         }
       } else {
         // Get all employees for this company
@@ -140,13 +152,36 @@ async function handler(req: NextRequest) {
           select: { id: true }
         });
         
-        // Add company's own ID plus IDs of their employees
-        userIds.push(session.user.id, ...employees.map((emp: { id: string }) => emp.id));
+        // Only add IDs of employees (not the company itself) for login/logout events
+        // For other types of activities, we need to include the company's ID
+        if (action === "LOGIN" || action === "LOGOUT") {
+          userIds.push(...employees.map((emp: { id: string }) => emp.id));
+        } else {
+          // For non-login/logout activities, include the company's own ID too
+          userIds.push(session.user.id, ...employees.map((emp: { id: string }) => emp.id));
+        }
       }
     }
-    // EMPLOYEE can only see their own activity
+    // EMPLOYEE can only see their own activity (excluding login/logout)
     else {
-      userIds.push(session.user.id);
+      if (action === "LOGIN" || action === "LOGOUT") {
+        // Employees can't see any login/logout activities
+        // Return empty result
+        return NextResponse.json({
+          logs: [],
+          meta: {
+            currentPage: page,
+            totalPages: 0,
+            totalItems: 0,
+            itemsPerPage: limit,
+            hasNextPage: false,
+            hasPrevPage: false,
+          }
+        });
+      } else {
+        // For other types of activities, employees can see their own
+        userIds.push(session.user.id);
+      }
     }
     
     // Get activity logs based on filtered user IDs
@@ -207,6 +242,28 @@ async function handler(req: NextRequest) {
         deviceType
       });
       
+      // Create an exclusion filter to remove the current user's login/logout activities
+      const excludeSelfLoginFilter = {
+        NOT: {
+          AND: [
+            { userId: session.user.id },
+            { action: { in: ['LOGIN', 'LOGOUT'] } }
+          ]
+        }
+      };
+      
+      // Merge the custom where clause with our self-exclusion filter
+      if (customWhere) {
+        customWhere = {
+          AND: [
+            customWhere,
+            excludeSelfLoginFilter
+          ]
+        };
+      } else {
+        customWhere = excludeSelfLoginFilter;
+      }
+      
       result = await getActivityLogs({
         action: action as ActivityAction | undefined,
         fromDate,
@@ -215,8 +272,8 @@ async function handler(req: NextRequest) {
         targetResourceType,
         page,
         limit,
-        // For SUPERADMIN with no specific userId filter, don't pass userId/userIds
-        // to return all activities
+        // For SUPERADMIN, don't filter by userIds for most activities (they see all)
+        // For other roles, use the appropriate userIds filtering
         userId: session.user.role === UserRole.SUPERADMIN && userIds.length === 0 
           ? undefined 
           : (userIds.length === 1 ? userIds[0] : undefined),
@@ -224,7 +281,7 @@ async function handler(req: NextRequest) {
         userIds: session.user.role === UserRole.SUPERADMIN && userIds.length === 0
           ? undefined
           : (userIds.length > 1 ? userIds : undefined),
-        // Pass the custom where clause for device type filtering
+        // Pass the custom where clause which includes the self login/logout exclusion
         customWhere,
         // CRITICAL: Always include auth activities by default
         includeAuthActivities: true
