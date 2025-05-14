@@ -131,9 +131,12 @@ export default function TransferCoinsForm({ onSuccess, currentBalance }: Transfe
       // Update the session to reflect new coin balance
       await refreshUserSession();
       
-      if (onSuccess) {
-        onSuccess();
-      }
+      // Add a small delay to ensure session is fully updated before any callbacks
+      setTimeout(() => {
+        if (onSuccess) {
+          onSuccess();
+        }
+      }, 300);
     } catch (err: any) {
       console.error('Error allocating coins:', err);
       setError(err.message || 'Failed to allocate coins');

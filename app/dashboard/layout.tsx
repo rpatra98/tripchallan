@@ -47,6 +47,8 @@ export default function DashboardLayout({
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const router = useRouter();
+  // Add state to track the last coin balance update
+  const [lastBalanceUpdate, setLastBalanceUpdate] = useState(Date.now());
 
   const isMenuOpen = Boolean(anchorEl);
 
@@ -70,11 +72,45 @@ export default function DashboardLayout({
   // Function to refresh the user session data
   const refreshUserSession = async () => {
     try {
-      await updateSession();
+      // First, fetch updated user data directly from API
+      const response = await fetch('/api/users/me');
+      if (response.ok) {
+        const userData = await response.json();
+        
+        // Then update NextAuth session with the latest data
+        await updateSession({
+          ...session,
+          user: {
+            ...session?.user,
+            coins: userData.coins,
+          }
+        });
+        
+        // Trigger a re-render of components that depend on the coin balance
+        setLastBalanceUpdate(Date.now());
+        
+        console.log('Session updated with new coin balance:', userData.coins);
+      } else {
+        console.error('Failed to fetch updated user data');
+      }
     } catch (error) {
       console.error("Error updating session:", error);
     }
   };
+
+  // Effect to periodically refresh the user's coin balance for admins
+  useEffect(() => {
+    // Only add auto-refresh for admin users who use coins
+    if (session?.user?.role === 'ADMIN' || session?.user?.role === 'SUPERADMIN') {
+      // Refresh on first load
+      refreshUserSession();
+      
+      // Set up an interval to refresh every 30 seconds
+      const intervalId = setInterval(refreshUserSession, 30000);
+      
+      return () => clearInterval(intervalId);
+    }
+  }, [session?.user?.id]);
 
   const renderMenu = (
     <Menu

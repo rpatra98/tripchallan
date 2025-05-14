@@ -1,11 +1,12 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useContext } from "react";
 import { useRouter } from "next/navigation";
 import { EmployeeSubrole, UserRole } from "@/prisma/enums";
 import { FaEye, FaEyeSlash } from "react-icons/fa";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
+import { SessionUpdateContext } from "@/app/dashboard/layout";
 
 interface Company {
   id: string;
@@ -34,6 +35,7 @@ interface EmployeeData {
 export default function EditEmployeePage({ params }: { params: { id: string } }) {
   const router = useRouter();
   const { data: session, status } = useSession();
+  const { refreshUserSession } = useContext(SessionUpdateContext);
   const [companies, setCompanies] = useState<Company[]>([]);
   const [formData, setFormData] = useState({
     name: "",
@@ -253,6 +255,10 @@ export default function EditEmployeePage({ params }: { params: { id: string } })
       
       console.log("Sending employee update request:", payload);
       
+      // Store the original employee data for comparison
+      const originalEmployee = await fetch(`/api/employees/${params.id}`).then(res => res.json());
+      const hadCoinsChange = originalEmployee.coins !== formData.coins;
+      
       const response = await fetch(`/api/employees/${params.id}`, {
         method: "PUT",
         headers: {
@@ -266,6 +272,11 @@ export default function EditEmployeePage({ params }: { params: { id: string } })
 
       if (!response.ok) {
         throw new Error(data.error || "Failed to update employee");
+      }
+
+      // Update session if coins have changed
+      if (hadCoinsChange) {
+        await refreshUserSession();
       }
 
       // Show success message

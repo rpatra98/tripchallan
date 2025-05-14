@@ -1,10 +1,12 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useContext } from "react";
 import { useRouter } from "next/navigation";
 import { EmployeeSubrole, UserRole } from "@/prisma/enums";
 import { FaEye, FaEyeSlash } from "react-icons/fa";
 import { useSession } from "next-auth/react";
+import Link from "next/link";
+import { SessionUpdateContext } from "@/app/dashboard/layout";
 
 interface Company {
   id: string;
@@ -15,6 +17,7 @@ interface Company {
 export default function CreateEmployeePage() {
   const router = useRouter();
   const { data: session, status } = useSession();
+  const { refreshUserSession } = useContext(SessionUpdateContext);
   const [companies, setCompanies] = useState<Company[]>([]);
   const [formData, setFormData] = useState({
     name: "",
@@ -136,30 +139,10 @@ export default function CreateEmployeePage() {
       return;
     }
 
-    if (!formData.companyId) {
-      setError("Please select a company");
+    if (formData.subrole === EmployeeSubrole.OPERATOR && !formData.confirmPermissions) {
+      setError("You must confirm that you have set the appropriate permissions");
       setIsLoading(false);
       return;
-    }
-
-    // Validate that at least one permission is set for operators
-    if (formData.subrole === EmployeeSubrole.OPERATOR) {
-      const hasPermission = 
-        formData.permissions.canCreate || 
-        formData.permissions.canModify || 
-        formData.permissions.canDelete;
-      
-      if (!hasPermission) {
-        setError("You must enable at least one permission for the operator");
-        setIsLoading(false);
-        return;
-      }
-
-      if (!formData.confirmPermissions) {
-        setError("You must confirm that you have set the appropriate permissions");
-        setIsLoading(false);
-        return;
-      }
     }
 
     try {
@@ -189,6 +172,11 @@ export default function CreateEmployeePage() {
 
       if (!response.ok) {
         throw new Error(data.error || "Failed to create employee");
+      }
+
+      // Update session to reflect new coin balance if operator was created (coins were deducted)
+      if (formData.subrole === EmployeeSubrole.OPERATOR) {
+        await refreshUserSession();
       }
 
       // Show success message
