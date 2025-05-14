@@ -9,6 +9,7 @@ import { UserRole, EmployeeSubrole, ActivityAction } from "@/prisma/enums";
 import { hash } from "bcrypt";
 import { addActivityLog } from "@/lib/activity-logger";
 import { TransactionReason } from "@/prisma/enums";
+import { Prisma } from "@prisma/client";
 
 // Generate a random password with 12 characters
 function generateRandomPassword(): string {
@@ -122,6 +123,29 @@ export const POST = withAuth(
           );
         }
         
+        // If creating an OPERATOR with coins, verify ADMIN has sufficient balance
+        if (body.subrole === EmployeeSubrole.OPERATOR && body.coins && body.coins > 0) {
+          const coinsToAllocate = Number(body.coins);
+          // Check admin's balance before proceeding
+          const admin = await prisma.user.findUnique({
+            where: { id: userId as string },
+            select: { 
+              id: true,
+              name: true,
+              coins: true 
+            }
+          });
+          
+          if (!admin || admin.coins === null || admin.coins < coinsToAllocate) {
+            return NextResponse.json(
+              { error: `Insufficient coins. You have ${admin?.coins || 0} coins, but are trying to allocate ${coinsToAllocate} coins.` },
+              { status: 400 }
+            );
+          }
+          
+          console.log(`Admin ${admin.name} has ${admin.coins} coins and is allocating ${coinsToAllocate} coins to new operator`);
+        }
+        
         // Verify company exists and is created by this admin if the creator is an ADMIN
         if (userRole === UserRole.ADMIN) {
           console.log(`Checking company ID: ${body.companyId}`);
@@ -210,100 +234,118 @@ export const POST = withAuth(
           body.companyId = companyId;
         }
         
-        // Create the employee user
-        newUser = await prisma.user.create({
-          data: {
-            email: body.email,
-            name: body.name,
-            password: hashedPassword,
-            role: body.role,
-            createdById: userId,
-            companyId: body.companyId,
-            subrole: body.subrole || EmployeeSubrole.OPERATOR,
-            coins: body.coins || 0
-          },
-          include: {
-            company: true
-          }
-        });
-        
-        // If this is an operator with initial coins, deduct them from the admin's balance
+        // Create the employee user - handle OPERATOR creation with coins allocation as a transaction
         if (body.subrole === EmployeeSubrole.OPERATOR && body.coins && body.coins > 0) {
-          // Deduct coins from admin and record transaction
-          try {
-            const coinsToAllocate = Number(body.coins);
+          const coinsToAllocate = Number(body.coins);
+          
+          // Use a transaction to ensure atomicity
+          const result = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+            // 1. Create the operator
+            const operator = await tx.user.create({
+              data: {
+                email: body.email,
+                name: body.name,
+                password: hashedPassword,
+                role: body.role,
+                createdById: userId,
+                companyId: body.companyId,
+                subrole: body.subrole,
+                coins: coinsToAllocate
+              },
+              include: {
+                company: true
+              }
+            });
             
-            // Get admin's current balance
-            const admin = await prisma.user.findUnique({
+            // 2. Deduct coins from admin
+            await tx.user.update({
               where: { id: userId as string },
-              select: { coins: true }
+              data: { coins: { decrement: coinsToAllocate } }
             });
             
-            if (admin && admin.coins !== null && admin.coins >= coinsToAllocate) {
-              // Perform the transaction within a Prisma transaction
-              await prisma.$transaction([
-                // Deduct coins from admin
-                prisma.user.update({
-                  where: { id: userId as string },
-                  data: { coins: { decrement: coinsToAllocate } }
-                }),
-                
-                // Record the transaction
-                prisma.coinTransaction.create({
-                  data: {
-                    fromUserId: userId as string,
-                    toUserId: newUser.id,
-                    amount: coinsToAllocate,
-                    reason: TransactionReason.COIN_ALLOCATION,
-                    reasonText: `Initial coins for new operator: ${newUser.name}`
-                  }
-                })
-              ]);
-              
-              console.log(`Successfully allocated ${coinsToAllocate} coins from admin to operator ${newUser.id}`);
-            } else {
-              console.warn(`Admin ${userId} has insufficient coins for allocation to operator ${newUser.id}`);
-            }
-          } catch (coinErr) {
-            console.error("Error allocating initial coins to operator:", coinErr);
-            // Don't fail the whole request if coin allocation fails
-          }
-        }
-
-        // If this is an operator, create permissions
-        // IMPORTANT: These permissions determine what actions the operator can perform with sessions/trips
-        // They control the ability to create, modify, and delete trips which is critical for security
-        if (body.subrole === EmployeeSubrole.OPERATOR) {
-          try {
-            // Validate that permissions are present for operators
-            if (!body.permissions) {
-              console.warn("No permissions provided for operator, using secure defaults");
-              body.permissions = {
-                canCreate: false,
-                canModify: false,
-                canDelete: false
+            // 3. Record the transaction
+            await tx.coinTransaction.create({
+              data: {
+                fromUserId: userId as string,
+                toUserId: operator.id,
+                amount: coinsToAllocate,
+                reason: TransactionReason.COIN_ALLOCATION,
+                reasonText: `Initial coins for new operator: ${operator.name}`
+              }
+            });
+            
+            // 4. If needed, create operator permissions
+            if (body.permissions) {
+              const permissionsToCreate = {
+                userId: operator.id,
+                canCreate: body.permissions.canCreate !== undefined ? body.permissions.canCreate : false,
+                canModify: body.permissions.canModify !== undefined ? body.permissions.canModify : false,
+                canDelete: body.permissions.canDelete !== undefined ? body.permissions.canDelete : false,
               };
+              
+              await tx.operatorPermissions.create({
+                data: permissionsToCreate
+              });
             }
             
-            // Validate each permission field exists
-            const permissionsToCreate = {
-              userId: newUser.id,
-              canCreate: body.permissions.canCreate !== undefined ? body.permissions.canCreate : false,
-              canModify: body.permissions.canModify !== undefined ? body.permissions.canModify : false,
-              canDelete: body.permissions.canDelete !== undefined ? body.permissions.canDelete : false,
-            };
-            
-            // Create the permissions in the database
-            const createdPermissions = await prisma.operatorPermissions.create({
-              data: permissionsToCreate
-            });
-            
-            console.log(`Created operator permissions for user ${newUser.id}:`, JSON.stringify(createdPermissions));
-          } catch (err) {
-            console.error("Error creating operator permissions:", err);
-            // Don't fail the whole request if permissions creation fails
-            // We'll just use the defaults, but log the error for debugging
-            console.error("Failed to create permissions for operator. User ID:", newUser.id);
+            return operator;
+          });
+          
+          // Set newUser to the created operator
+          newUser = result;
+          console.log(`Successfully created operator with ID ${newUser.id} and allocated ${coinsToAllocate} coins`);
+        }
+        else {
+          // For non-operator employees or operators without coin allocation, create normally
+          newUser = await prisma.user.create({
+            data: {
+              email: body.email,
+              name: body.name,
+              password: hashedPassword,
+              role: body.role,
+              createdById: userId,
+              companyId: body.companyId,
+              subrole: body.subrole || EmployeeSubrole.OPERATOR,
+              coins: body.coins || 0
+            },
+            include: {
+              company: true
+            }
+          });
+          
+          // If this is an operator without coins, still need to create permissions
+          if (body.subrole === EmployeeSubrole.OPERATOR) {
+            try {
+              // Validate that permissions are present for operators
+              if (!body.permissions) {
+                console.warn("No permissions provided for operator, using secure defaults");
+                body.permissions = {
+                  canCreate: false,
+                  canModify: false,
+                  canDelete: false
+                };
+              }
+              
+              // Validate each permission field exists
+              const permissionsToCreate = {
+                userId: newUser.id,
+                canCreate: body.permissions.canCreate !== undefined ? body.permissions.canCreate : false,
+                canModify: body.permissions.canModify !== undefined ? body.permissions.canModify : false,
+                canDelete: body.permissions.canDelete !== undefined ? body.permissions.canDelete : false,
+              };
+              
+              // Create the permissions in the database
+              const createdPermissions = await prisma.operatorPermissions.create({
+                data: permissionsToCreate
+              });
+              
+              console.log(`Created operator permissions for user ${newUser.id}:`, JSON.stringify(createdPermissions));
+            } catch (err) {
+              console.error("Error creating operator permissions:", err);
+              // Don't fail the whole request if permissions creation fails
+              // We'll just use the defaults, but log the error for debugging
+              console.error("Failed to create permissions for operator. User ID:", newUser.id);
+            }
           }
         }
       } 

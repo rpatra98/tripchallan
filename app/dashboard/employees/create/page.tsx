@@ -177,10 +177,17 @@ export default function CreateEmployeePage() {
       // Update session to reflect new coin balance if operator was created (coins were deducted)
       if (formData.subrole === EmployeeSubrole.OPERATOR) {
         await refreshUserSession();
+        
+        // Get the updated user data to show accurate coin balance
+        const userResponse = await fetch('/api/users/me');
+        const userData = await userResponse.json();
+        
+        // Show success message with coin details
+        alert(`Employee created successfully!\n\nYou allocated ${formData.coins} coins to ${formData.name}.\nYour current balance: ${userData.coins} coins.`);
+      } else {
+        // Show standard success message
+        alert("Employee created successfully!");
       }
-
-      // Show success message
-      alert("Employee created successfully!");
       
       // Redirect to dashboard on success
       router.push("/dashboard");
