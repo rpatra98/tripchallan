@@ -70,11 +70,13 @@ interface ActivityLog {
 
 interface ActivityLogsResponse {
   logs: ActivityLog[];
-  pagination: {
-    total: number;
-    page: number;
-    limit: number;
-    pages: number;
+  meta: {
+    currentPage: number;
+    totalPages: number;
+    totalItems: number;
+    itemsPerPage: number;
+    hasNextPage: boolean;
+    hasPrevPage: boolean;
   };
 }
 
@@ -307,8 +309,20 @@ export default function ActivityLogsPage() {
         throw new Error("Failed to fetch activity logs");
       }
       const data: ActivityLogsResponse = await response.json();
-      setLogs(data.logs);
-      setTotalPages(data.pagination.pages);
+      
+      // Update this section to handle the correct response structure
+      if (data.logs) {
+        setLogs(data.logs);
+      } else {
+        setLogs([]); // Fallback to empty array if logs field is missing
+      }
+      
+      // Set total pages from meta data
+      if (data.meta && typeof data.meta.totalPages === 'number') {
+        setTotalPages(data.meta.totalPages);
+      } else {
+        setTotalPages(1); // Default to 1 page if pagination data is missing
+      }
     } catch (err) {
       console.error("Error fetching activity logs:", err);
       setError("Failed to load activity logs");
@@ -458,58 +472,67 @@ export default function ActivityLogsPage() {
       {logs.length === 0 ? (
         <Alert severity="info">No activity logs found</Alert>
       ) : (
-        logs.map((log) => (
-          <Paper
-            key={log.id}
-            sx={{
-              p: 2,
-              mb: 2,
-              borderLeft: 4,
-              borderColor: getActionColor(log.action),
-            }}
-          >
-            <Box sx={{ display: "flex", justifyContent: "space-between", mb: 1 }}>
-              <Typography variant="subtitle1" sx={{ color: getActionColor(log.action) }}>
-                {log.action}
+        <>
+          {logs.map((log) => (
+            <Paper
+              key={log.id}
+              sx={{
+                p: 2,
+                mb: 2,
+                borderLeft: 4,
+                borderColor: getActionColor(log.action),
+              }}
+            >
+              <Box sx={{ display: "flex", justifyContent: "space-between", mb: 1 }}>
+                <Typography variant="subtitle1" sx={{ color: getActionColor(log.action) }}>
+                  {log.action}
+                </Typography>
+                <Typography variant="caption" color="text.secondary">
+                  {formatDate(log.createdAt)}
+                </Typography>
+              </Box>
+
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                By: {log.user.name} ({log.user.role})
               </Typography>
-              <Typography variant="caption" color="text.secondary">
-                {formatDate(log.createdAt)}
+
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                Resource: {log.targetResourceType}
               </Typography>
-            </Box>
 
-            <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-              By: {log.user.name} ({log.user.role})
-            </Typography>
-
-            <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-              Resource: {log.targetResourceType}
-            </Typography>
-
-            {renderLogDetails(log)}
-          </Paper>
-        ))
-      )}
-
-      {totalPages > 1 && (
-        <Box sx={{ display: "flex", justifyContent: "center", mt: 3 }}>
-          <Box sx={{ display: "flex", gap: 1 }}>
-            <button
-              onClick={() => setPage((p) => Math.max(1, p - 1))}
-              disabled={page === 1}
+              {renderLogDetails(log)}
+            </Paper>
+          ))}
+          
+          {/* Pagination Controls */}
+          <Box sx={{ 
+            display: "flex", 
+            justifyContent: "center", 
+            alignItems: "center", 
+            mt: 4,
+            gap: 2
+          }}>
+            <Button 
+              variant="default"
+              disabled={page <= 1} 
+              onClick={() => setPage(prevPage => Math.max(1, prevPage - 1))}
             >
               Previous
-            </button>
-            <span>
+            </Button>
+            
+            <Typography variant="body1">
               Page {page} of {totalPages}
-            </span>
-            <button
-              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-              disabled={page === totalPages}
+            </Typography>
+            
+            <Button 
+              variant="default"
+              disabled={page >= totalPages} 
+              onClick={() => setPage(prevPage => Math.min(totalPages, prevPage + 1))}
             >
               Next
-            </button>
+            </Button>
           </Box>
-        </Box>
+        </>
       )}
     </Box>
   );
