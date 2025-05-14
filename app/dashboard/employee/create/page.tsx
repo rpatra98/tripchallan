@@ -18,9 +18,16 @@ import {
   InputAdornment,
   IconButton,
   OutlinedInput,
-  CircularProgress
+  CircularProgress,
+  Divider,
+  Checkbox,
+  FormControlLabel,
+  FormGroup,
+  Card,
+  CardContent,
+  FormHelperText
 } from "@mui/material";
-import { Visibility, VisibilityOff } from "@mui/icons-material";
+import { Visibility, VisibilityOff, WarningAmber } from "@mui/icons-material";
 import { useSession } from "next-auth/react";
 
 interface Company {
@@ -39,6 +46,13 @@ export default function CreateEmployeePage() {
     confirmPassword: "",
     companyId: "",
     subrole: EmployeeSubrole.OPERATOR,
+    coins: 200, // Default coins for operators
+    permissions: {
+      canCreate: true,
+      canModify: false,
+      canDelete: false
+    },
+    confirmPermissions: false
   });
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingCompanies, setIsLoadingCompanies] = useState(true);
@@ -125,7 +139,34 @@ export default function CreateEmployeePage() {
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement> | any
   ) => {
     const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
+    
+    if (name === "confirm_permissions") {
+      // Handle confirmation checkbox
+      const isChecked = e.target.checked;
+      setFormData(prev => ({
+        ...prev,
+        confirmPermissions: isChecked
+      }));
+    } else if (name === "permission_canCreate" || 
+              name === "permission_canModify" || 
+              name === "permission_canDelete") {
+      // Handle checkbox for permissions
+      const isChecked = e.target.checked;
+      const permissionName = name.replace("permission_", "");
+      
+      setFormData(prev => ({
+        ...prev,
+        permissions: {
+          ...prev.permissions,
+          [permissionName]: isChecked
+        }
+      }));
+    } else if (name === "coins") {
+      // For coins field, convert the value to a number
+      setFormData(prev => ({ ...prev, [name]: parseInt(value) || 0 }));
+    } else {
+      setFormData((prev) => ({ ...prev, [name]: value }));
+    }
   };
 
   const togglePasswordVisibility = () => {
@@ -174,6 +215,26 @@ export default function CreateEmployeePage() {
       return;
     }
 
+    // Validate that at least one permission is set for operators
+    if (formData.subrole === EmployeeSubrole.OPERATOR) {
+      const hasPermission = 
+        formData.permissions.canCreate || 
+        formData.permissions.canModify || 
+        formData.permissions.canDelete;
+      
+      if (!hasPermission) {
+        setError("You must enable at least one permission for the operator");
+        setIsLoading(false);
+        return;
+      }
+
+      if (!formData.confirmPermissions) {
+        setError("You must confirm that you have set the appropriate permissions");
+        setIsLoading(false);
+        return;
+      }
+    }
+
     console.log("Form data at submission:", formData);
     
     try {
@@ -189,7 +250,9 @@ export default function CreateEmployeePage() {
         password: formData.password,
         role: UserRole.EMPLOYEE,
         subrole: formData.subrole,
-        companyId: formData.companyId.trim() // Ensure no extra whitespace
+        companyId: formData.companyId.trim(), // Ensure no extra whitespace
+        coins: formData.subrole === EmployeeSubrole.OPERATOR ? formData.coins : undefined,
+        permissions: formData.subrole === EmployeeSubrole.OPERATOR ? formData.permissions : undefined
       };
       
       console.log("Request payload:", JSON.stringify(requestBody));
@@ -402,12 +465,216 @@ export default function CreateEmployeePage() {
                 label="Employee Role"
                 disabled={isLoading}
               >
-                <MenuItem value={EmployeeSubrole.OPERATOR}>Operator</MenuItem>
+                <MenuItem value={EmployeeSubrole.OPERATOR}>Operator (Requires Permission Setup)</MenuItem>
                 <MenuItem value={EmployeeSubrole.DRIVER}>Driver</MenuItem>
                 <MenuItem value={EmployeeSubrole.TRANSPORTER}>Transporter</MenuItem>
                 <MenuItem value={EmployeeSubrole.GUARD}>Guard</MenuItem>
               </Select>
             </FormControl>
+            
+            {formData.subrole === EmployeeSubrole.OPERATOR && (
+              <Typography variant="caption" color="primary" sx={{ mt: 1, display: 'block' }}>
+                <strong>Note:</strong> Operators require special permissions to be set below.
+              </Typography>
+            )}
+
+            {formData.subrole === EmployeeSubrole.OPERATOR && (
+              <>
+                {/* Notice about permissions */}
+                <Alert severity="info" sx={{ mt: 3, mb: 2 }}>
+                  <Typography variant="subtitle2">
+                    When creating an operator, be sure to set the appropriate permissions.
+                    These permissions determine what actions the operator can perform.
+                  </Typography>
+                </Alert>
+                
+                {/* Coins Input */}
+                <TextField
+                  margin="normal"
+                  required
+                  fullWidth
+                  id="coins"
+                  label="Initial Coins"
+                  name="coins"
+                  type="number"
+                  value={formData.coins}
+                  onChange={handleChange}
+                  helperText="Default: 200 coins. This amount will be deducted from your balance."
+                />
+                
+                {/* Section separator */}
+                <Box sx={{ position: 'relative', mt: 5, mb: 5 }}>
+                  <Divider sx={{ mb: 2 }} />
+                  <Typography 
+                    variant="h6" 
+                    component="div" 
+                    color="error"
+                    sx={{ 
+                      position: 'absolute', 
+                      top: '-17px', 
+                      left: '50%', 
+                      transform: 'translateX(-50%)', 
+                      bgcolor: 'background.paper',
+                      px: 2,
+                      fontWeight: 'bold'
+                    }}
+                  >
+                    Operator Permissions Section
+                  </Typography>
+                </Box>
+                
+                {/* Permissions heading */}
+                <Typography variant="h5" component="h2" gutterBottom sx={{ fontWeight: 'bold' }}>
+                  Operator Permissions
+                </Typography>
+                
+                {/* Warning box */}
+                <Alert 
+                  severity="warning" 
+                  icon={<WarningAmber fontSize="inherit" />}
+                  sx={{ mb: 3, fontWeight: 'bold', bgcolor: '#fff3cd', color: '#856404' }}
+                >
+                  <Typography variant="subtitle1" sx={{ fontWeight: 'bold' }}>
+                    IMPORTANT: You MUST set permissions for this operator. These control what actions they can perform.
+                  </Typography>
+                </Alert>
+                
+                {/* Permissions cards container */}
+                <Box sx={{ mb: 4, border: 2, borderColor: 'primary.main', p: 3, borderRadius: 2 }}>
+                  <Box sx={{ mb: 2, pb: 2, textAlign: 'center', borderBottom: 1, borderColor: 'primary.light' }}>
+                    <Typography variant="subtitle1" color="primary" sx={{ fontWeight: 'bold' }}>
+                      Permission Settings
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      Select all permissions this operator should have
+                    </Typography>
+                  </Box>
+                  
+                  <FormGroup sx={{ gap: 2 }}>
+                    {/* Create Permission */}
+                    <Card variant="outlined" sx={{ bgcolor: '#e8f5e9', '&:hover': { bgcolor: '#c8e6c9' } }}>
+                      <CardContent>
+                        <FormControlLabel
+                          control={
+                            <Checkbox 
+                              checked={formData.permissions.canCreate}
+                              onChange={handleChange}
+                              name="permission_canCreate"
+                              size="medium"
+                              color="primary"
+                            />
+                          }
+                          label={
+                            <Box>
+                              <Typography variant="subtitle1" sx={{ fontWeight: 'bold' }}>
+                                Can Create Trips/Sessions
+                              </Typography>
+                              <Typography variant="body2" color="text.secondary">
+                                If enabled, this operator can create new trips and sessions in the system.
+                              </Typography>
+                            </Box>
+                          }
+                        />
+                      </CardContent>
+                    </Card>
+                    
+                    {/* Modify Permission */}
+                    <Card variant="outlined" sx={{ bgcolor: '#fff8e1', '&:hover': { bgcolor: '#ffecb3' } }}>
+                      <CardContent>
+                        <FormControlLabel
+                          control={
+                            <Checkbox 
+                              checked={formData.permissions.canModify}
+                              onChange={handleChange}
+                              name="permission_canModify"
+                              size="medium"
+                              color="primary"
+                            />
+                          }
+                          label={
+                            <Box>
+                              <Typography variant="subtitle1" sx={{ fontWeight: 'bold' }}>
+                                Can Modify Trips/Sessions
+                              </Typography>
+                              <Typography variant="body2" color="text.secondary">
+                                If enabled, this operator can edit and update existing trips and sessions.
+                              </Typography>
+                            </Box>
+                          }
+                        />
+                      </CardContent>
+                    </Card>
+                    
+                    {/* Delete Permission */}
+                    <Card variant="outlined" sx={{ bgcolor: '#ffebee', '&:hover': { bgcolor: '#ffcdd2' } }}>
+                      <CardContent>
+                        <FormControlLabel
+                          control={
+                            <Checkbox 
+                              checked={formData.permissions.canDelete}
+                              onChange={handleChange}
+                              name="permission_canDelete"
+                              size="medium"
+                              color="primary"
+                            />
+                          }
+                          label={
+                            <Box>
+                              <Typography variant="subtitle1" sx={{ fontWeight: 'bold' }}>
+                                Can Delete Trips/Sessions
+                              </Typography>
+                              <Typography variant="body2" color="text.secondary">
+                                If enabled, this operator can delete existing trips and sessions. Use with caution.
+                              </Typography>
+                            </Box>
+                          }
+                        />
+                      </CardContent>
+                    </Card>
+                  </FormGroup>
+                  
+                  <Box sx={{ mt: 2, p: 2, bgcolor: 'grey.100', borderRadius: 1 }}>
+                    <Typography variant="body2" color="text.secondary">
+                      <strong>Note:</strong> All trips/sessions will be visible to all operators under your administration, 
+                      regardless of who created them. These permissions only control who can create, modify, or delete them.
+                    </Typography>
+                  </Box>
+                </Box>
+                
+                {/* Confirmation checkbox */}
+                <Box sx={{ 
+                  p: 3, 
+                  bgcolor: '#fff8e1', 
+                  borderRadius: 1, 
+                  border: 1, 
+                  borderColor: '#f57c00', 
+                  mb: 3 
+                }}>
+                  <FormControlLabel
+                    control={
+                      <Checkbox
+                        required
+                        checked={formData.confirmPermissions}
+                        onChange={handleChange}
+                        name="confirm_permissions"
+                        color="primary"
+                      />
+                    }
+                    label={
+                      <Box>
+                        <Typography variant="subtitle1" sx={{ fontWeight: 'bold' }}>
+                          I confirm that I have set the correct permissions for this operator
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary">
+                          By checking this box, you acknowledge that you have reviewed and set the appropriate 
+                          permissions for this operator according to your organization's requirements.
+                        </Typography>
+                      </Box>
+                    }
+                  />
+                </Box>
+              </>
+            )}
             
             {/* Debugging section - will help identify company ID issues */}
             {companies.length > 0 && (
@@ -438,18 +705,23 @@ export default function CreateEmployeePage() {
             <Button
               type="submit"
               variant="contained"
-              size="large"
-              fullWidth
-              disabled={isLoading}
-              sx={{ mt: 2, py: 1.5 }}
+              disabled={isLoading || isLoadingCompanies}
+              color={formData.subrole === EmployeeSubrole.OPERATOR ? "success" : "primary"}
+              sx={{ 
+                mt: 3, 
+                mb: 2, 
+                py: 1.5,
+                fontSize: formData.subrole === EmployeeSubrole.OPERATOR ? "1.1rem" : "1rem",
+                fontWeight: "bold",
+                width: "100%"
+              }}
             >
               {isLoading ? (
-                <>
-                  <CircularProgress size={24} sx={{ mr: 1 }} color="inherit" />
-                  Creating...
-                </>
+                <CircularProgress size={24} color="inherit" />
               ) : (
-                "Create Employee"
+                formData.subrole === EmployeeSubrole.OPERATOR 
+                  ? "Create Operator with Permissions" 
+                  : "Create Employee"
               )}
             </Button>
           </Stack>
