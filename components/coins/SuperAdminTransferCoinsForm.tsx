@@ -34,6 +34,28 @@ export default function SuperAdminTransferCoinsForm({ onSuccess, currentBalance 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
+  // Function to fetch admin users
+  const fetchAdminUsers = async () => {
+    try {
+      if (session?.user?.role === UserRole.SUPERADMIN) {
+        const response = await fetch('/api/admins');
+        
+        if (!response.ok) {
+          throw new Error(`API returned status ${response.status}`);
+        }
+        
+        const data = await response.json();
+        
+        if (data.admins) {
+          setAdmins(data.admins);
+        }
+      }
+    } catch (err) {
+      console.error('Error fetching admins:', err);
+      setError('Failed to refresh admin users');
+    }
+  };
+
   // Fetch admin users that can receive coins (only for superadmin users)
   useEffect(() => {
     let isMounted = true;
@@ -123,6 +145,9 @@ export default function SuperAdminTransferCoinsForm({ onSuccess, currentBalance 
       
       // Update the session to reflect new coin balance - wait for it to complete
       await refreshUserSession();
+      
+      // Refresh admin users list to update their coin balances
+      await fetchAdminUsers();
       
       if (onSuccess) {
         onSuccess();

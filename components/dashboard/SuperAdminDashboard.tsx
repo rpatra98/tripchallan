@@ -214,6 +214,16 @@ export default function SuperAdminDashboard({ user: initialUser }: SuperAdminDas
       fetchCurrentUser();
     }
   }, [activeTab]);
+  
+  // Effect to update currentUser when session changes
+  useEffect(() => {
+    if (session?.user) {
+      setCurrentUser(prevUser => ({
+        ...prevUser,
+        coins: session.user.coins
+      }));
+    }
+  }, [session?.user?.coins]);
 
   // Initial load of stats if that's the active tab
   useEffect(() => {
@@ -289,7 +299,7 @@ export default function SuperAdminDashboard({ user: initialUser }: SuperAdminDas
                   <div>
                     <h4 className="font-medium mb-2">Your Coin Balance</h4>
                     <p className="text-3xl font-bold text-yellow-600">
-                      {session?.user?.coins || currentUser.coins} Coins
+                      {session?.user?.coins !== undefined ? session.user.coins : currentUser.coins} Coins
                     </p>
                   </div>
                   <Button 
