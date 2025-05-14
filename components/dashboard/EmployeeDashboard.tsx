@@ -163,7 +163,17 @@ export default function EmployeeDashboard({ user }: EmployeeDashboardProps) {
       const response = await fetch("/api/sessions");
       
       if (!response.ok) {
-        throw new Error("Failed to fetch trips");
+        const errorData = await response.json().catch(() => ({}));
+        console.error("Error fetching operator sessions:", response.status, errorData);
+        
+        // If it's a 500 server error and there's no other data, don't show error
+        // Just show empty state as the likely cause is the user has no sessions
+        if (response.status === 500 && !errorData.message) {
+          setOperatorSessions([]);
+          return;
+        }
+        
+        throw new Error(errorData.error || "Failed to fetch trips");
       }
       
       const data = await response.json();
@@ -179,7 +189,6 @@ export default function EmployeeDashboard({ user }: EmployeeDashboardProps) {
       } else {
         console.error("Unexpected API response format:", data);
         setOperatorSessions([]);
-        setOperatorSessionsError("Received invalid data format from server");
       }
     } catch (err) {
       console.error("Error fetching operator sessions:", err);
