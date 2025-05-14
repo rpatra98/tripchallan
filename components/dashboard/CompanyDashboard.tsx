@@ -495,15 +495,18 @@ export default function CompanyDashboard({ user, initialTab }: CompanyDashboardP
                   <Typography variant="h6">Your Employees</Typography>
                 </Box>
                 <Box>
-                  <Button
-                    variant="outlined"
-                    size="small"
-                    component={Link}
-                    href="/dashboard/employees"
-                    startIcon={<People />}
+                  <a 
+                    href="/dashboard/employees" 
+                    style={{ textDecoration: 'none' }}
                   >
-                    View All Employees
-                  </Button>
+                    <Button
+                      variant="outlined"
+                      size="small"
+                      startIcon={<People />}
+                    >
+                      View All Employees
+                    </Button>
+                  </a>
                 </Box>
               </Box>
 
@@ -596,21 +599,19 @@ export default function CompanyDashboard({ user, initialTab }: CompanyDashboardP
                         </Box>
                         
                         <Box display="flex" justifyContent="flex-end" mt={2}>
-                          <Link href={`/dashboard/employees/${employee.id}`} passHref style={{ textDecoration: 'none' }}>
+                          <a 
+                            href={`/dashboard/employees/${employee.id}`} 
+                            style={{ textDecoration: 'none' }}
+                            onClick={() => console.log(`Direct navigation via anchor to employee ${employee.id} details`)}
+                          >
                             <Button
                               variant="outlined"
                               size="small"
                               startIcon={<Person />}
-                              onClick={(e) => {
-                                // Add a direct navigation as fallback
-                                e.preventDefault(); // Prevent the Link from navigating
-                                console.log(`Direct navigation to employee ${employee.id}`);
-                                window.location.href = `/dashboard/employees/${employee.id}`;
-                              }}
                             >
                               View Details
                             </Button>
-                          </Link>
+                          </a>
                         </Box>
                       </CardContent>
                     </Card>

@@ -142,7 +142,10 @@ export default function EmployeesPage() {
                     {new Date(employee.createdAt).toLocaleDateString()}
                   </TableCell>
                   <TableCell align="right">
-                    <Link href={`/dashboard/employees/${employee.id}`} passHref style={{ textDecoration: 'none' }}>
+                    <a 
+                      href={`/dashboard/employees/${employee.id}`}
+                      style={{ textDecoration: 'none' }}
+                    >
                       <Button
                         variant="outlined"
                         size="small"
@@ -150,7 +153,7 @@ export default function EmployeesPage() {
                       >
                         View Details
                       </Button>
-                    </Link>
+                    </a>
                   </TableCell>
                 </TableRow>
               ))}
