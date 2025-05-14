@@ -379,7 +379,218 @@ export default function CompanyDashboard({ user, initialTab }: CompanyDashboardP
                 mb={3}
               >
                 <Box display="flex" alignItems="center">
-                  <DirectionsCar >
+                  <DirectionsCar sx={{ mr: 1 }} />
+                  <Typography variant="h6">Your Sessions</Typography>
+                </Box>
+                
+                <Box>
+                  <Button 
+                    onClick={() => {
+                      setSessionStatusFilter("all");
+                      // Force a refresh of sessions
+                      setIsLoadingSessions(true);
+                      setTimeout(() => fetchSessions(), 100);
+                    }}
+                    startIcon={<Refresh />} 
+                    size="small"
+                    sx={{ mr: 1 }}
+                  >
+                    Refresh
+                  </Button>
+                  
+                  <Button
+                    component={Link}
+                    href="/dashboard/sessions"
+                    variant="outlined"
+                    size="small"
+                  >
+                    Go to Sessions Page
+                  </Button>
+                </Box>
+              </Box>
+              
+              <Box mb={3}>
+                <Tabs
+                  value={sessionStatusFilter}
+                  onChange={handleSessionStatusFilterChange}
+                  indicatorColor="primary"
+                  textColor="primary"
+                  variant="scrollable"
+                  scrollButtons="auto"
+                >
+                  <Tab label="All" value="all" />
+                  <Tab label="Pending" value="pending" />
+                  <Tab label="In Progress" value="in_progress" />
+                  <Tab label="Completed" value="completed" />
+                </Tabs>
+              </Box>
+
+              {isLoadingSessions ? (
+                <Box
+                  display="flex"
+                  justifyContent="center"
+                  alignItems="center"
+                  p={4}
+                >
+                  <CircularProgress />
+                </Box>
+              ) : isErrorSessions ? (
+                <Box
+                  display="flex"
+                  justifyContent="center"
+                  alignItems="center"
+                  p={4}
+                  bgcolor="error.light"
+                  borderRadius={1}
+                >
+                  <ErrorOutline sx={{ mr: 1, color: "error.main" }} />
+                  <Typography color="error">
+                    Failed to load sessions. Please try again.
+                  </Typography>
+                </Box>
+              ) : sessions.length === 0 ? (
+                <Box
+                  p={4}
+                  bgcolor="grey.100"
+                  borderRadius={1}
+                  textAlign="center"
+                >
+                  <Typography variant="body1" mb={2}>
+                    No sessions found for the selected filter.
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    Try selecting a different status filter or check back later.
+                  </Typography>
+                </Box>
+              ) : (
+                <div>
+                  {sessions.map((session) => (
+                    <Card key={session.id} variant="outlined" sx={{ mb: 2 }}>
+                      <CardContent>
+                        <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2 }}>
+                          <Typography variant="h6" component="div">
+                            Session #{session.id.slice(0, 8)}
+                          </Typography>
+                          <Chip 
+                            label={session.status} 
+                            color={getStatusColor(session.status)}
+                            size="small"
+                          />
+                        </Box>
+
+                        <Box sx={{ display: "flex", alignItems: "center", mb: 1 }}>
+                          <LocationOn color="action" sx={{ mr: 1 }} />
+                          <Typography variant="body2" color="text.secondary">
+                            From: {session.source}
+                          </Typography>
+                        </Box>
+
+                        <Box sx={{ display: "flex", alignItems: "center", mb: 1 }}>
+                          <DirectionsCar color="action" sx={{ mr: 1 }} />
+                          <Typography variant="body2" color="text.secondary">
+                            To: {session.destination}
+                          </Typography>
+                        </Box>
+
+                        <Box sx={{ display: "flex", alignItems: "center", mb: 1 }}>
+                          <AccessTime color="action" sx={{ mr: 1 }} />
+                          <Typography variant="body2" color="text.secondary">
+                            Created: {formatDate(session.createdAt)}
+                          </Typography>
+                        </Box>
+
+                        <Box sx={{ display: "flex", alignItems: "center", mb: 2 }}>
+                          <Person color="action" sx={{ mr: 1 }} />
+                          <Typography variant="body2" color="text.secondary">
+                            Created by: {session.createdBy.name}
+                          </Typography>
+                        </Box>
+
+                        {session.seal && (
+                          <Box sx={{ mb: 2, p: 2, bgcolor: "background.paper", borderRadius: 1, border: '1px solid rgba(0, 0, 0, 0.12)' }}>
+                            <Typography variant="subtitle2" gutterBottom>
+                              Seal Information
+                            </Typography>
+                            <Box sx={{ display: "flex", alignItems: "center", mb: 1 }}>
+                              <Lock color="action" sx={{ mr: 1 }} />
+                              <Typography variant="body2">
+                                Barcode: {session.seal.barcode}
+                              </Typography>
+                            </Box>
+                            {session.seal.verified ? (
+                              <Box sx={{ display: "flex", alignItems: "center" }}>
+                                <CheckCircle color="success" sx={{ mr: 1 }} />
+                                <Typography variant="body2">
+                                  Verified by: {session.seal.verifiedBy?.name || "Unknown"}
+                                  {session.seal.scannedAt && ` (${formatDate(session.seal.scannedAt)})`}
+                                </Typography>
+                              </Box>
+                            ) : (
+                              <Typography variant="body2" color="warning.main">
+                                Not verified yet
+                              </Typography>
+                            )}
+                          </Box>
+                        )}
+
+                        <Box sx={{ display: "flex", justifyContent: "flex-end" }}>
+                          <Button
+                            variant="outlined"
+                            size="small"
+                            component={Link}
+                            href={`/dashboard/sessions/${session.id}`}
+                          >
+                            View Details
+                          </Button>
+                        </Box>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {activeTab === "employees" && (
+            <div>
+              <Box
+                display="flex"
+                justifyContent="space-between"
+                alignItems="center"
+                mb={3}
+              >
+                <Box display="flex" alignItems="center">
+                  <People sx={{ mr: 1 }} />
+                  <Typography variant="h6">Your Employees</Typography>
+                </Box>
+                <Box>
+                  <Button 
+                    onClick={() => {
+                      // Force a refresh of employees
+                      setIsLoadingEmployees(true);
+                      console.log("Manually refreshing employees");
+                      const fetchEmployees = async () => {
+                        try {
+                          const response = await fetch(`/api/companies/${user.id}/employees?t=${Date.now()}`);
+                          if (!response.ok) {
+                            throw new Error("Failed to fetch employees");
+                          }
+                          const data = await response.json();
+                          console.log(`Refreshed: Found ${data.length} employees`, data);
+                          setEmployees(data);
+                          setIsErrorEmployees(false);
+                        } catch (error) {
+                          console.error("Error refreshing employees:", error);
+                          setIsErrorEmployees(true);
+                        } finally {
+                          setIsLoadingEmployees(false);
+                        }
+                      };
+                      fetchEmployees();
+                    }}
+                    startIcon={<Refresh />} 
+                    size="small"
+                  >
                     Refresh
                   </Button>
                 </Box>
