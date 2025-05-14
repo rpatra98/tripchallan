@@ -173,8 +173,8 @@ export default function CompanyDashboard({ user, initialTab }: CompanyDashboardP
       setIsLoadingEmployees(true);
       setIsErrorEmployees(false);
       try {
-        // Use the correct API endpoint for fetching employees
-        const response = await fetch(`/api/employees?companyId=${user.company?.id}`);
+        // Use the correct API endpoint for fetching employees for this company
+        const response = await fetch(`/api/companies/${user.id}/employees`);
         if (!response.ok) {
           throw new Error("Failed to fetch employees");
         }
@@ -189,7 +189,7 @@ export default function CompanyDashboard({ user, initialTab }: CompanyDashboardP
     };
 
     fetchEmployees();
-  }, [user.company?.id]);
+  }, [user.id]);
   
   // Fetch sessions when component mounts or filter changes
   useEffect(() => {
@@ -496,7 +496,7 @@ export default function CompanyDashboard({ user, initialTab }: CompanyDashboardP
                 </Box>
                 <Box>
                   <a 
-                    href="/dashboard/employees" 
+                    href={`/dashboard/companies/${user.id}/employees`} 
                     style={{ textDecoration: 'none' }}
                   >
                     <Button
@@ -602,7 +602,11 @@ export default function CompanyDashboard({ user, initialTab }: CompanyDashboardP
                           <a 
                             href={`/dashboard/employees/${employee.id}`} 
                             style={{ textDecoration: 'none' }}
-                            onClick={() => console.log(`Direct navigation via anchor to employee ${employee.id} details`)}
+                            onClick={(e) => {
+                              e.preventDefault();
+                              // Force navigation with window.location for reliability
+                              window.location.href = `/dashboard/employees/${employee.id}`;
+                            }}
                           >
                             <Button
                               variant="outlined"
