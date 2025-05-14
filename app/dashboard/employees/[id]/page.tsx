@@ -73,32 +73,20 @@ export default async function EmployeeDetailPage({ params }: { params: { id: str
   let hasAccess = isAdmin; // Admins always have access
   
   if (isCompany) {
-    console.log(`Checking if company ${dbUser.id} owns employee ${params.id}`);
-    
-    // Explicitly check if this employee belongs to the company
-    const employeeBelongsToCompany = await prisma.user.findFirst({
-      where: {
-        id: params.id,
-        companyId: dbUser.id
-      }
+    console.log(`Checking if company ${dbUser.id} owns employee ${params.id}`, {
+      employeeCompanyId: employee.companyId,
+      dbUserId: dbUser.id,
+      matchCheck: employee.companyId === dbUser.id
     });
     
-    // If no direct match, check if employee's company ID matches the current user's ID
-    let hasDirectAccess = !!employeeBelongsToCompany;
-    
-    // Additional check: if employee.companyId matches dbUser.id
-    let hasCompanyIdMatch = employee.companyId === dbUser.id;
-    
-    hasAccess = hasDirectAccess || hasCompanyIdMatch;
+    // Much simpler check - just compare company IDs
+    hasAccess = employee.companyId === dbUser.id;
     
     console.log("Company access check result:", {
       companyId: dbUser.id,
       companyName: dbUser.name,
       employeeId: params.id,
       employeeCompanyId: employee.companyId,
-      employeeCount: dbUser._count?.employees,
-      hasDirectAccess,
-      hasCompanyIdMatch,
       hasAccess
     });
   }

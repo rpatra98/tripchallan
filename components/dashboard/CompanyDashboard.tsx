@@ -596,15 +596,21 @@ export default function CompanyDashboard({ user, initialTab }: CompanyDashboardP
                         </Box>
                         
                         <Box display="flex" justifyContent="flex-end" mt={2}>
-                          <Button
-                            variant="outlined"
-                            size="small"
-                            startIcon={<Person />}
-                            component={Link}
-                            href={`/dashboard/employees/${employee.id}`}
-                          >
-                            View Details
-                          </Button>
+                          <Link href={`/dashboard/employees/${employee.id}`} passHref style={{ textDecoration: 'none' }}>
+                            <Button
+                              variant="outlined"
+                              size="small"
+                              startIcon={<Person />}
+                              onClick={(e) => {
+                                // Add a direct navigation as fallback
+                                e.preventDefault(); // Prevent the Link from navigating
+                                console.log(`Direct navigation to employee ${employee.id}`);
+                                window.location.href = `/dashboard/employees/${employee.id}`;
+                              }}
+                            >
+                              View Details
+                            </Button>
+                          </Link>
                         </Box>
                       </CardContent>
                     </Card>

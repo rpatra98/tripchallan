@@ -142,15 +142,15 @@ export default function EmployeesPage() {
                     {new Date(employee.createdAt).toLocaleDateString()}
                   </TableCell>
                   <TableCell align="right">
-                    <Button
-                      variant="outlined"
-                      size="small"
-                      startIcon={<Person />}
-                      component={Link}
-                      href={`/dashboard/employees/${employee.id}`}
-                    >
-                      View Details
-                    </Button>
+                    <Link href={`/dashboard/employees/${employee.id}`} passHref style={{ textDecoration: 'none' }}>
+                      <Button
+                        variant="outlined"
+                        size="small"
+                        startIcon={<Person />}
+                      >
+                        View Details
+                      </Button>
+                    </Link>
                   </TableCell>
                 </TableRow>
               ))}
