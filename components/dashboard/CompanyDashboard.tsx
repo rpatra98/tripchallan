@@ -504,6 +504,37 @@ export default function CompanyDashboard({ user, initialTab }: CompanyDashboardP
                   <Typography variant="h6">Your Employees</Typography>
                 </Box>
                 <Box>
+                  <Button 
+                    onClick={() => {
+                      // Force a refresh of employees
+                      setIsLoadingEmployees(true);
+                      console.log("Manually refreshing employees");
+                      const fetchEmployees = async () => {
+                        try {
+                          const response = await fetch(`/api/companies/${user.id}/employees?t=${Date.now()}`);
+                          if (!response.ok) {
+                            throw new Error("Failed to fetch employees");
+                          }
+                          const data = await response.json();
+                          console.log(`Refreshed: Found ${data.length} employees`, data);
+                          setEmployees(data);
+                          setIsErrorEmployees(false);
+                        } catch (error) {
+                          console.error("Error refreshing employees:", error);
+                          setIsErrorEmployees(true);
+                        } finally {
+                          setIsLoadingEmployees(false);
+                        }
+                      };
+                      fetchEmployees();
+                    }}
+                    startIcon={<Refresh />} 
+                    size="small"
+                    sx={{ mr: 1 }}
+                  >
+                    Refresh
+                  </Button>
+                  
                   <a 
                     href={`/dashboard/companies/${user.id}/employees`} 
                     style={{ textDecoration: 'none' }}

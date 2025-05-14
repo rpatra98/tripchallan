@@ -49,20 +49,27 @@ async function handler(req: NextRequest, context?: { params: Record<string, stri
       );
     }
     
-    // Get employees for the company
+    console.log(`Fetching employees for company ID: ${companyId}`);
+    
+    // Get all employees associated with this company through multiple paths
     const employees = await prisma.user.findMany({
       where: {
         OR: [
+          // Direct association via companyId field
           {
-            // Method 1: Direct companyId reference in User table
             companyId: companyId,
             role: UserRole.EMPLOYEE,
           },
+          // Indirect association via company.employees relation
           {
-            // Method 2: Indirect reference through Company.employees relation
             company: {
               id: companyId
             },
+            role: UserRole.EMPLOYEE,
+          },
+          // Created by this company
+          {
+            createdById: companyId,
             role: UserRole.EMPLOYEE,
           }
         ]
@@ -75,11 +82,15 @@ async function handler(req: NextRequest, context?: { params: Record<string, stri
         subrole: true,
         coins: true,
         createdAt: true,
+        companyId: true,
+        createdById: true,
       },
       orderBy: {
         name: "asc",
       },
     });
+    
+    console.log(`Found ${employees.length} employees for company ${companyId}`);
     
     return NextResponse.json(employees);
   } catch (error) {
