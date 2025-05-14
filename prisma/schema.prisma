@@ -124,7 +124,7 @@ model ActivityLog {
 model OperatorPermissions {
   id               String   @id @default(uuid())
   userId           String   @unique
-  canCreate        Boolean  @default(true)
+  canCreate        Boolean  @default(false)
   canModify        Boolean  @default(false)
   canDelete        Boolean  @default(false)
   createdAt        DateTime @default(now())

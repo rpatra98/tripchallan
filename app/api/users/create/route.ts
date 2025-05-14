@@ -233,9 +233,9 @@ export const POST = withAuth(
           try {
             // Validate that permissions are present for operators
             if (!body.permissions) {
-              console.warn("No permissions provided for operator, using defaults");
+              console.warn("No permissions provided for operator, using secure defaults");
               body.permissions = {
-                canCreate: true,
+                canCreate: false,
                 canModify: false,
                 canDelete: false
               };
@@ -244,7 +244,7 @@ export const POST = withAuth(
             // Validate each permission field exists
             const permissionsToCreate = {
               userId: newUser.id,
-              canCreate: body.permissions.canCreate !== undefined ? body.permissions.canCreate : true,
+              canCreate: body.permissions.canCreate !== undefined ? body.permissions.canCreate : false,
               canModify: body.permissions.canModify !== undefined ? body.permissions.canModify : false,
               canDelete: body.permissions.canDelete !== undefined ? body.permissions.canDelete : false,
             };

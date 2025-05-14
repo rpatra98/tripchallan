@@ -79,7 +79,7 @@ export const GET = withAuth(
 
       // Return the permissions
       return NextResponse.json(employee.operatorPermissions || {
-        canCreate: true,  // Default values if no permissions set
+        canCreate: false,  // Default values if no permissions set - safer to default to false
         canModify: false,
         canDelete: false
       });

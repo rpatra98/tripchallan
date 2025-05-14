@@ -23,7 +23,7 @@ export default function EmployeeDashboard({ user }: EmployeeDashboardProps) {
   const [loadingOperatorSessions, setLoadingOperatorSessions] = useState(false);
   const [operatorSessionsError, setOperatorSessionsError] = useState("");
   const [operatorPermissions, setOperatorPermissions] = useState({
-    canCreate: true,
+    canCreate: false,
     canModify: false,
     canDelete: false
   });
@@ -62,7 +62,8 @@ export default function EmployeeDashboard({ user }: EmployeeDashboardProps) {
         setOperatorPermissions(permissions);
         console.log("Operator permissions loaded:", permissions);
       } else {
-        console.error("Failed to fetch operator permissions, using defaults");
+        console.error("Failed to fetch operator permissions, using secure defaults");
+        // Even if the fetch fails, we keep permissions disabled for security
       }
     } catch (err) {
       console.error("Error fetching operator permissions:", err);
