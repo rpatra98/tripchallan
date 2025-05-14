@@ -252,16 +252,11 @@ export default function CompanyDashboard({ user, initialTab }: CompanyDashboardP
     setSessionStatusFilter(newValue);
   };
 
-  // Handle employee details navigation with a more reliable approach
+  // Handle employee details navigation directly without debug page
   const handleViewEmployeeDetails = (employeeId: string) => {
-    console.log(`Navigating to employee ${employeeId} details via debug route`);
-    
-    // Use the debug navigation page to help diagnose and fix navigation issues
-    const debugUrl = `/dashboard/debug?employeeId=${employeeId}&source=companyDashboard&t=${Date.now()}`;
-    console.log(`Debug URL: ${debugUrl}`);
-    
-    // Navigate to the debug page which will then redirect to the employee details
-    window.location.href = debugUrl;
+    console.log(`Navigating to employee ${employeeId} details`);
+    // Navigate directly to the employee details page
+    router.push(`/dashboard/employees/${employeeId}`);
   };
 
   return (
@@ -503,7 +498,8 @@ export default function CompanyDashboard({ user, initialTab }: CompanyDashboardP
                   <Button
                     variant="outlined"
                     size="small"
-                    onClick={() => window.location.href="/dashboard/employees"}
+                    component={Link}
+                    href="/dashboard/employees"
                     startIcon={<People />}
                   >
                     View All Employees
@@ -604,7 +600,8 @@ export default function CompanyDashboard({ user, initialTab }: CompanyDashboardP
                             variant="outlined"
                             size="small"
                             startIcon={<Person />}
-                            onClick={() => handleViewEmployeeDetails(employee.id)}
+                            component={Link}
+                            href={`/dashboard/employees/${employee.id}`}
                           >
                             View Details
                           </Button>
