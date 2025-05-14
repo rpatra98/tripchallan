@@ -68,11 +68,9 @@ async function handler(req: NextRequest) {
       // If a specific userId filter was requested, use that
       if (userId) {
         userIds.push(userId);
-      } else {
-        // For SUPERADMIN, don't apply any userId filtering except excluding themselves
-        // Just log this for debugging
-        console.log("SUPERADMIN access - showing all users except self");
       }
+      // For SUPERADMIN, don't apply any userId filtering
+      // No additional filtering needed - SUPERADMIN sees all activities
     }
     // ADMIN can see activity for users they created, so get those user IDs
     else if (session.user.role === UserRole.ADMIN) {
@@ -242,15 +240,20 @@ async function handler(req: NextRequest) {
         deviceType
       });
       
-      // Create an exclusion filter to remove the current user's login/logout activities
-      const excludeSelfLoginFilter = {
-        NOT: {
-          AND: [
-            { userId: session.user.id },
-            { action: { in: ['LOGIN', 'LOGOUT'] } }
-          ]
-        }
-      };
+      // Create an exclusion filter - but NOT for SUPERADMIN users
+      let excludeSelfLoginFilter = {};
+      
+      // Only apply self login exclusion for non-SUPERADMIN users
+      if (session.user.role !== UserRole.SUPERADMIN) {
+        excludeSelfLoginFilter = {
+          NOT: {
+            AND: [
+              { userId: session.user.id },
+              { action: { in: ['LOGIN', 'LOGOUT'] } }
+            ]
+          }
+        };
+      }
       
       // Merge the custom where clause with our self-exclusion filter
       if (customWhere) {
@@ -272,8 +275,7 @@ async function handler(req: NextRequest) {
         targetResourceType,
         page,
         limit,
-        // For SUPERADMIN, don't filter by userIds for most activities (they see all)
-        // For other roles, use the appropriate userIds filtering
+        // For SUPERADMIN, don't filter by userIds unless specifically requested
         userId: session.user.role === UserRole.SUPERADMIN && userIds.length === 0 
           ? undefined 
           : (userIds.length === 1 ? userIds[0] : undefined),
@@ -281,7 +283,7 @@ async function handler(req: NextRequest) {
         userIds: session.user.role === UserRole.SUPERADMIN && userIds.length === 0
           ? undefined
           : (userIds.length > 1 ? userIds : undefined),
-        // Pass the custom where clause which includes the self login/logout exclusion
+        // Pass the custom where clause which includes the self login/logout exclusion logic
         customWhere,
         // CRITICAL: Always include auth activities by default
         includeAuthActivities: true
