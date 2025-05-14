@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
-export default function DebugNavigationPage() {
+function DebugNavigationContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   
@@ -37,5 +37,18 @@ export default function DebugNavigationPage() {
       <p className="mb-2">Preparing navigation to employee details...</p>
       <p className="text-sm text-gray-500">You will be redirected automatically in a moment.</p>
     </div>
+  );
+}
+
+export default function DebugNavigationPage() {
+  return (
+    <Suspense fallback={
+      <div className="p-8 max-w-3xl mx-auto">
+        <h1 className="text-2xl font-bold mb-4">Debug Navigation</h1>
+        <p className="mb-2">Loading navigation parameters...</p>
+      </div>
+    }>
+      <DebugNavigationContent />
+    </Suspense>
   );
 } 
