@@ -55,13 +55,16 @@ export default function CompanyEmployeesPage() {
     const fetchEmployees = async () => {
       setLoading(true);
       try {
+        console.log(`Fetching employees for company ${companyId}`);
         const response = await fetch(`/api/companies/${companyId}/employees`);
         
         if (!response.ok) {
+          console.error("Failed to fetch employees:", response.status, response.statusText);
           throw new Error("Failed to fetch employees");
         }
         
         const data = await response.json();
+        console.log(`Found ${data.length} employees for company ${companyId}`, data);
         setEmployees(data);
         setError("");
       } catch (err) {

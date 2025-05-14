@@ -173,12 +173,21 @@ export default function CompanyDashboard({ user, initialTab }: CompanyDashboardP
       setIsLoadingEmployees(true);
       setIsErrorEmployees(false);
       try {
+        // Log the user details to help with debugging
+        console.log("Fetching employees for company:", {
+          userId: user.id,
+          userName: user.name,
+          userRole: user.role
+        });
+        
         // Use the correct API endpoint for fetching employees for this company
         const response = await fetch(`/api/companies/${user.id}/employees`);
         if (!response.ok) {
+          console.error("Failed to fetch employees:", response.status, response.statusText);
           throw new Error("Failed to fetch employees");
         }
         const data = await response.json();
+        console.log(`Found ${data.length} employees for company`, data);
         setEmployees(data);
       } catch (error) {
         console.error("Error fetching employees:", error);

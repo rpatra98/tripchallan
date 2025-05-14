@@ -52,8 +52,20 @@ async function handler(req: NextRequest, context?: { params: Record<string, stri
     // Get employees for the company
     const employees = await prisma.user.findMany({
       where: {
-        companyId: companyId,
-        role: UserRole.EMPLOYEE,
+        OR: [
+          {
+            // Method 1: Direct companyId reference in User table
+            companyId: companyId,
+            role: UserRole.EMPLOYEE,
+          },
+          {
+            // Method 2: Indirect reference through Company.employees relation
+            company: {
+              id: companyId
+            },
+            role: UserRole.EMPLOYEE,
+          }
+        ]
       },
       select: {
         id: true,
