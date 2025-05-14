@@ -10,7 +10,6 @@ export default async function EmployeeDetailPage({ params, searchParams }: { par
   const session = await getServerSession(authOptions);
   const source = typeof searchParams.source === 'string' ? searchParams.source : null;
   const companyIdFromQuery = typeof searchParams.companyId === 'string' ? searchParams.companyId : null;
-  const isEmbedded = searchParams.embed === 'true';
   
   // Add detailed logging to diagnose access issues
   console.log(`[DEBUG] EmployeeDetailPage loaded for ID: ${params.id}`, {
@@ -18,7 +17,6 @@ export default async function EmployeeDetailPage({ params, searchParams }: { par
     searchParams,
     source,
     companyIdFromQuery,
-    isEmbedded,
     hasSession: !!session,
     userIdFromSession: session?.user?.id,
     url: typeof window !== 'undefined' ? window.location.href : 'server-side rendering'
@@ -188,7 +186,30 @@ export default async function EmployeeDetailPage({ params, searchParams }: { par
     take: 10, // Limit to most recent 10 transactions
   });
 
-    return (    <div className={`container mx-auto ${isEmbedded ? 'p-0' : 'px-4 py-8'}`}>      {!isEmbedded && (        <div className="mb-6">          <Link             href={              source === "company" && companyIdFromQuery                 ? `/dashboard/companies/${companyIdFromQuery}/employees`                 : isCompany                   ? "/dashboard?tab=employees"                   : "/dashboard/employees"            }            className="text-blue-600 hover:underline mb-4 inline-block"          >            &larr; {              source === "company" && companyIdFromQuery                 ? "Back to Company Employees"                 : isCompany                   ? "Back to Dashboard"                   : "Back to Employees"            }          </Link>          <h1 className="text-2xl font-bold">{employee.name}</h1>          <p className="text-gray-600">{employee.email}</p>        </div>      )}      {isEmbedded && (        <div className="mb-4">          <h1 className="text-xl font-bold border-b pb-2 mb-2">{employee.name}</h1>          <p className="text-gray-600">{employee.email}</p>        </div>      )}
+  return (
+    <div className="container mx-auto px-4 py-8">
+      <div className="mb-6">
+        <Link 
+          href={
+            source === "company" && companyIdFromQuery 
+              ? `/dashboard/companies/${companyIdFromQuery}/employees` 
+              : isCompany 
+                ? "/dashboard?tab=employees" 
+                : "/dashboard/employees"
+          }
+          className="text-blue-600 hover:underline mb-4 inline-block"
+        >
+          &larr; {
+            source === "company" && companyIdFromQuery 
+              ? "Back to Company Employees" 
+              : isCompany 
+                ? "Back to Dashboard" 
+                : "Back to Employees"
+          }
+        </Link>
+        <h1 className="text-2xl font-bold">{employee.name}</h1>
+        <p className="text-gray-600">{employee.email}</p>
+      </div>
 
       <div className="bg-white shadow-md rounded-lg p-6 mb-8">
         <h2 className="text-xl font-semibold mb-4">Employee Details</h2>

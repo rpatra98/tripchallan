@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { 
   Paper, 
   Typography, 
@@ -14,14 +14,9 @@ import {
   Button,
   Box,
   CircularProgress,
-  Alert,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  IconButton
+  Alert
 } from "@mui/material";
-import { Person, ArrowBack, Close } from "@mui/icons-material";
+import { Person, ArrowBack } from "@mui/icons-material";
 import Link from "next/link";
 
 interface Employee {
@@ -36,14 +31,13 @@ interface Employee {
 
 export default function CompanyEmployeesPage() {
   const params = useParams();
+  const router = useRouter();
   const companyId = params.id as string;
   
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [companyName, setCompanyName] = useState<string>("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [selectedEmployee, setSelectedEmployee] = useState<string | null>(null);
-  const [dialogOpen, setDialogOpen] = useState(false);
 
   useEffect(() => {
     const fetchCompanyDetails = async () => {
@@ -85,6 +79,13 @@ export default function CompanyEmployeesPage() {
     fetchCompanyDetails();
     fetchEmployees();
   }, [companyId]);
+
+  // Function to handle navigation to employee details
+  const handleViewEmployeeDetails = (employeeId: string) => {
+    console.log(`Navigating to employee details: ${employeeId}`);
+    // Use direct location change for maximum compatibility
+    window.location.href = `/dashboard/employees/${employeeId}?source=company&companyId=${companyId}`;
+  };
 
   return (
     <div>
@@ -144,11 +145,7 @@ export default function CompanyEmployeesPage() {
                       variant="outlined"
                       size="small"
                       startIcon={<Person />}
-                      onClick={() => {
-                        setSelectedEmployee(employee.id);
-                        setDialogOpen(true);
-                        console.log("Opening employee details in dialog:", employee.id);
-                      }}
+                      onClick={() => handleViewEmployeeDetails(employee.id)}
                     >
                       View Details
                     </Button>
@@ -159,49 +156,6 @@ export default function CompanyEmployeesPage() {
           </Table>
         </TableContainer>
       )}
-
-      {/* Employee Details Dialog */}
-      <Dialog 
-        open={dialogOpen} 
-        onClose={() => setDialogOpen(false)}
-        fullWidth
-        maxWidth="md"
-      >
-        <DialogTitle>
-          Employee Details
-          <IconButton
-            aria-label="close"
-            onClick={() => setDialogOpen(false)}
-            sx={{ position: 'absolute', right: 8, top: 8 }}
-          >
-            <Close />
-          </IconButton>
-        </DialogTitle>
-        <DialogContent>
-          {selectedEmployee && (
-            <iframe 
-              src={`/dashboard/employees/${selectedEmployee}?source=company&companyId=${companyId}&embed=true`}
-              style={{ width: '100%', height: '70vh', border: 'none' }}
-              title="Employee Details"
-            />
-          )}
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setDialogOpen(false)}>Close</Button>
-          <Button 
-            variant="contained" 
-            color="primary"
-            onClick={() => {
-              if (selectedEmployee) {
-                // Try to force navigation to employee details page
-                window.open(`/dashboard/employees/${selectedEmployee}?source=company&companyId=${companyId}`, '_blank');
-              }
-            }}
-          >
-            Open in New Tab
-          </Button>
-        </DialogActions>
-      </Dialog>
     </div>
   );
 } 
