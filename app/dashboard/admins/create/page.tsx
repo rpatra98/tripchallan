@@ -1,12 +1,16 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useContext } from "react";
 import { useRouter } from "next/navigation";
 import { UserRole } from "@/prisma/enums";
 import { FaEye, FaEyeSlash } from "react-icons/fa";
+import { useSession } from "next-auth/react";
+import { SessionUpdateContext } from "@/app/dashboard/layout";
 
 export default function CreateAdminPage() {
   const router = useRouter();
+  const { data: session } = useSession();
+  const { refreshUserSession } = useContext(SessionUpdateContext);
   const [formData, setFormData] = useState({
     name: "",
     email: "",
@@ -70,8 +74,20 @@ export default function CreateAdminPage() {
         throw new Error(data.error || "Failed to create admin");
       }
 
-      // Show success message with the admin's credentials
-      alert(`Admin created successfully!\n\nEmail: ${data.user.email}\nPassword: ${formData.password}`);
+      // Refresh the session to update the balance in the navbar
+      if (formData.coins > 0) {
+        await refreshUserSession();
+        
+        // Get the updated user data to show accurate coin balance
+        const userResponse = await fetch('/api/users/me');
+        const userData = await userResponse.json();
+        
+        // Show success message with coin details
+        alert(`Admin created successfully!\n\nEmail: ${data.user.email}\nPassword: ${formData.password}\n\nYou allocated ${formData.coins} coins to ${formData.name}.\nYour current balance: ${userData.coins} coins.`);
+      } else {
+        // Show regular success message
+        alert(`Admin created successfully!\n\nEmail: ${data.user.email}\nPassword: ${formData.password}`);
+      }
 
       // Redirect to dashboard on success
       router.push("/dashboard");

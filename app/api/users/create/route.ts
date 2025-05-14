@@ -351,16 +351,78 @@ export const POST = withAuth(
       } 
       // For other roles (SuperAdmin, Admin)
       else {
-        newUser = await prisma.user.create({
-          data: {
-            email: body.email,
-            name: body.name,
-            password: hashedPassword,
-            role: body.role,
-            createdById: userId,
-            coins: body.coins || 0
+        // Check if this is an ADMIN being created by a SUPERADMIN with coins allocation
+        if (body.role === UserRole.ADMIN && session?.user?.role === UserRole.SUPERADMIN && body.coins && body.coins > 0) {
+          const coinsToAllocate = Number(body.coins);
+          
+          // Get SUPERADMIN's current balance
+          const superAdmin = await prisma.user.findUnique({
+            where: { id: userId as string },
+            select: { 
+              id: true,
+              name: true,
+              coins: true 
+            }
+          });
+          
+          // Check if SUPERADMIN has enough coins
+          if (!superAdmin || superAdmin.coins === null || superAdmin.coins < coinsToAllocate) {
+            return NextResponse.json(
+              { error: `Insufficient coins. You have ${superAdmin?.coins || 0} coins, but are trying to allocate ${coinsToAllocate} coins.` },
+              { status: 400 }
+            );
           }
-        });
+          
+          // Use a transaction to ensure atomicity for ADMIN creation with coins
+          const result = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+            // 1. Create the admin
+            const admin = await tx.user.create({
+              data: {
+                email: body.email,
+                name: body.name,
+                password: hashedPassword,
+                role: body.role,
+                createdById: userId,
+                coins: coinsToAllocate
+              }
+            });
+            
+            // 2. Deduct coins from SUPERADMIN
+            await tx.user.update({
+              where: { id: userId as string },
+              data: { coins: { decrement: coinsToAllocate } }
+            });
+            
+            // 3. Record the transaction
+            await tx.coinTransaction.create({
+              data: {
+                fromUserId: userId as string,
+                toUserId: admin.id,
+                amount: coinsToAllocate,
+                reason: TransactionReason.COIN_ALLOCATION,
+                reasonText: `Initial coins for new admin: ${admin.name}`
+              }
+            });
+            
+            return admin;
+          });
+          
+          // Set newUser to the created admin
+          newUser = result;
+          console.log(`Successfully created admin with ID ${newUser.id} and allocated ${coinsToAllocate} coins`);
+        } else {
+          // For other cases, create normally without a transaction
+          newUser = await prisma.user.create({
+            data: {
+              email: body.email,
+              name: body.name,
+              password: hashedPassword,
+              role: body.role,
+              createdById: userId,
+              coins: body.coins || 0
+            }
+          });
+        }
       }
       
       // Log the activity

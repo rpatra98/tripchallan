@@ -207,7 +207,7 @@ export default function SuperAdminDashboard({ user: initialUser }: SuperAdminDas
     }
   };
 
-  // Always fetch user data when this component tab is set to coins
+  // Effect to refresh balance when coins tab is active
   useEffect(() => {
     if (activeTab === "coins") {
       fetchCurrentUser();
