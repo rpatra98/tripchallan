@@ -4,8 +4,8 @@ import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { CompanyDashboardProps } from "./types";
-import { CircularProgress, Chip, Card, CardContent, Typography, Box, List, ListItem, ListItemText, Divider, Alert, Button, Tabs, Tab } from "@mui/material";
-import { Person, Work, LocalAtm, People, ErrorOutline, LocationOn, DirectionsCar, AccessTime, Lock, CheckCircle, Refresh } from "@mui/icons-material";
+import { CircularProgress, Chip, Card, CardContent, Typography, Box, List, ListItem, ListItemText, Divider, Alert, Button, Tabs, Tab, Collapse, IconButton, Grid } from "@mui/material";
+import { Person, Work, LocalAtm, People, ErrorOutline, LocationOn, DirectionsCar, AccessTime, Lock, CheckCircle, Refresh, KeyboardArrowDown, KeyboardArrowUp } from "@mui/icons-material";
 import { format } from "date-fns";
 import { SessionStatus } from "@/prisma/enums";
 
@@ -17,6 +17,15 @@ interface EmployeeData {
   subrole?: string | null;
   coins: number;
   createdAt: string | Date;
+  company?: {
+    id: string;
+    name: string;
+  } | null;
+  operatorPermissions?: {
+    canCreate: boolean;
+    canModify: boolean;
+    canDelete: boolean;
+  } | null;
 }
 
 interface SessionData {
@@ -61,6 +70,9 @@ export default function CompanyDashboard({ user, initialTab }: CompanyDashboardP
   const [isErrorEmployees, setIsErrorEmployees] = useState(false);
   const [isErrorSessions, setIsErrorSessions] = useState(false);
   const [sessionStatusFilter, setSessionStatusFilter] = useState("all");
+  const [expandedEmployeeId, setExpandedEmployeeId] = useState<string | null>(null);
+  const [loadingEmployeeDetails, setLoadingEmployeeDetails] = useState(false);
+  const [employeeDetailsError, setEmployeeDetailsError] = useState<string | null>(null);
 
   // Log initial state for debugging
   useEffect(() => {
@@ -274,6 +286,46 @@ export default function CompanyDashboard({ user, initialTab }: CompanyDashboardP
     
     // Use direct window location for reliable navigation 
     window.location.href = `/dashboard/employees/${employeeId}`;
+  };
+
+  // Handle employee details expansion
+  const handleToggleEmployeeDetails = async (employeeId: string) => {
+    // If already expanded, collapse it
+    if (expandedEmployeeId === employeeId) {
+      setExpandedEmployeeId(null);
+      return;
+    }
+    
+    // Otherwise, expand and fetch details
+    setExpandedEmployeeId(employeeId);
+    setLoadingEmployeeDetails(true);
+    setEmployeeDetailsError(null);
+    
+    try {
+      console.log(`Fetching details for employee ${employeeId}`);
+      const response = await fetch(`/api/employees/${employeeId}`);
+      
+      if (!response.ok) {
+        throw new Error("Failed to fetch employee details");
+      }
+      
+      const details = await response.json();
+      console.log("Employee details:", details);
+      
+      // Update the employees state with the detailed information
+      setEmployees(prevEmployees => 
+        prevEmployees.map(emp => 
+          emp.id === employeeId 
+            ? { ...emp, ...details } 
+            : emp
+        )
+      );
+    } catch (error) {
+      console.error("Error fetching employee details:", error);
+      setEmployeeDetailsError("Failed to load employee details");
+    } finally {
+      setLoadingEmployeeDetails(false);
+    }
   };
 
   return (
@@ -543,29 +595,13 @@ export default function CompanyDashboard({ user, initialTab }: CompanyDashboardP
                     Refresh
                   </Button>
                   
-                  <a 
-                    href={`/dashboard/companies/${user.id}/employees`} 
-                    style={{ 
-                      textDecoration: 'none',
-                      backgroundColor: '#fff',
-                      color: '#1976d2',
-                      padding: '5px 15px',
-                      border: '1px solid #1976d2',
-                      borderRadius: '4px',
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      fontSize: '0.875rem',
-                      minWidth: '64px',
-                      fontWeight: 500,
-                      lineHeight: 1.75,
-                    }}
-                    target="_self"
+                  <Link 
+                    href={`/dashboard/companies/${user.id}/employees`}
+                    className="inline-flex items-center px-4 py-2 text-sm font-medium text-blue-700 bg-white border border-blue-700 rounded-md hover:bg-blue-50"
                   >
-                    <span style={{ marginRight: '8px', display: 'inline-flex' }}>
-                      <People fontSize="small" />
-                    </span>
+                    <People className="w-4 h-4 mr-2" />
                     Employee List
-                  </a>
+                  </Link>
                 </Box>
               </Box>
 
@@ -657,36 +693,117 @@ export default function CompanyDashboard({ user, initialTab }: CompanyDashboardP
                           </Box>
                         </Box>
                         
-                        <Box display="flex" justifyContent="flex-end" mt={2}>
-                          <a 
-                            href={`/dashboard/companies/${user.id}/employees`}
-                            target="_self"
-                            onClick={(e) => {
-                              console.log("Navigating to company employees page:", {
-                                companyId: user.id
-                              });
-                            }}
-                            style={{ 
-                              textDecoration: 'none',
-                              backgroundColor: '#fff',
-                              color: '#1976d2',
-                              padding: '5px 15px',
-                              border: '1px solid #1976d2',
-                              borderRadius: '4px',
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              fontSize: '0.875rem',
-                              fontWeight: 500,
-                              lineHeight: 1.75,
-                              cursor: 'pointer'
-                            }}
+                        <Box display="flex" justifyContent="space-between" alignItems="center" mt={2}>
+                          <Box display="flex" alignItems="center">
+                            <LocalAtm sx={{ fontSize: 16, mr: 0.5, color: 'gold' }} />
+                            <Typography variant="body2">{employee.coins} coins</Typography>
+                          </Box>
+                          
+                          <Button
+                            onClick={() => handleToggleEmployeeDetails(employee.id)}
+                            size="small"
+                            endIcon={expandedEmployeeId === employee.id ? <KeyboardArrowUp /> : <KeyboardArrowDown />}
                           >
-                            <span style={{ marginRight: '8px', display: 'inline-flex' }}>
-                              <Person fontSize="small" />
-                            </span>
-                            View Employee Details
-                          </a>
+                            {expandedEmployeeId === employee.id ? "Hide Details" : "View Details"}
+                          </Button>
                         </Box>
+
+                        <Collapse in={expandedEmployeeId === employee.id} timeout="auto" unmountOnExit>
+                          <Box sx={{ mt: 2, pt: 2, borderTop: '1px solid rgba(0, 0, 0, 0.12)' }}>
+                            {loadingEmployeeDetails ? (
+                              <Box display="flex" justifyContent="center" p={2}>
+                                <CircularProgress size={24} />
+                              </Box>
+                            ) : employeeDetailsError ? (
+                              <Alert severity="error" sx={{ mb: 2 }}>
+                                {employeeDetailsError}
+                              </Alert>
+                            ) : (
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                  <Typography variant="body2" color="text.secondary">ID</Typography>
+                                  <Typography variant="body1">{employee.id}</Typography>
+                                </div>
+                                <div>
+                                  <Typography variant="body2" color="text.secondary">Created At</Typography>
+                                  <Typography variant="body1">{formatDate(employee.createdAt)}</Typography>
+                                </div>
+                                {employee.company && (
+                                  <div className="md:col-span-2">
+                                    <Typography variant="body2" color="text.secondary">Company</Typography>
+                                    <Typography variant="body1">{employee.company.name}</Typography>
+                                  </div>
+                                )}
+                                {employee.operatorPermissions && (
+                                  <div className="md:col-span-2 mt-2">
+                                    <Typography variant="subtitle1" sx={{ mb: 1 }}>Operator Permissions</Typography>
+                                    <div className="grid grid-cols-3 gap-2">
+                                      <div>
+                                        <Box sx={{ display: "flex", alignItems: "center" }}>
+                                          <Box
+                                            sx={{
+                                              width: 10,
+                                              height: 10,
+                                              borderRadius: "50%",
+                                              bgcolor: employee.operatorPermissions.canCreate ? "success.main" : "error.main",
+                                              mr: 1
+                                            }}
+                                          />
+                                          <Typography variant="body2">
+                                            Create: {employee.operatorPermissions.canCreate ? "Yes" : "No"}
+                                          </Typography>
+                                        </Box>
+                                      </div>
+                                      <div>
+                                        <Box sx={{ display: "flex", alignItems: "center" }}>
+                                          <Box
+                                            sx={{
+                                              width: 10,
+                                              height: 10,
+                                              borderRadius: "50%",
+                                              bgcolor: employee.operatorPermissions.canModify ? "success.main" : "error.main",
+                                              mr: 1
+                                            }}
+                                          />
+                                          <Typography variant="body2">
+                                            Modify: {employee.operatorPermissions.canModify ? "Yes" : "No"}
+                                          </Typography>
+                                        </Box>
+                                      </div>
+                                      <div>
+                                        <Box sx={{ display: "flex", alignItems: "center" }}>
+                                          <Box
+                                            sx={{
+                                              width: 10,
+                                              height: 10,
+                                              borderRadius: "50%",
+                                              bgcolor: employee.operatorPermissions.canDelete ? "success.main" : "error.main",
+                                              mr: 1
+                                            }}
+                                          />
+                                          <Typography variant="body2">
+                                            Delete: {employee.operatorPermissions.canDelete ? "Yes" : "No"}
+                                          </Typography>
+                                        </Box>
+                                      </div>
+                                    </div>
+                                  </div>
+                                )}
+                                <div className="md:col-span-2 mt-3">
+                                  <Box display="flex" justifyContent="flex-end">
+                                    <Link
+                                      href={`/dashboard/employees/${employee.id}?source=company&companyId=${user.id}`}
+                                      className="inline-flex items-center px-4 py-2 text-sm font-medium text-blue-700 bg-white border border-blue-700 rounded-md hover:bg-blue-50"
+                                    >
+                                      <Person className="w-4 h-4 mr-2" />
+                                      Full Profile
+                                    </Link>
+                                  </Box>
+                                </div>
+                              </div>
+                            )}
+                          </Box>
+                        </Collapse>
                       </CardContent>
                     </Card>
                   ))}
