@@ -126,6 +126,14 @@ export const POST = withAuth(
         // If creating an OPERATOR with coins, verify ADMIN has sufficient balance
         if (body.subrole === EmployeeSubrole.OPERATOR && body.coins && body.coins > 0) {
           const coinsToAllocate = Number(body.coins);
+          
+          // Check whether permission to create is enabled - if true, we need to account for 3 session credits
+          const canCreateSessions = body.permissions?.canCreate === true;
+          const sessionCreditCost = canCreateSessions ? 3 : 0; // 3 coins reserved for initial sessions
+          
+          // Make sure we have the coin amount needed (including session credits if applicable)
+          const totalCoinsNeeded = coinsToAllocate + sessionCreditCost;
+          
           // Check admin's balance before proceeding
           const admin = await prisma.user.findUnique({
             where: { id: userId as string },
@@ -136,107 +144,12 @@ export const POST = withAuth(
             }
           });
           
-          if (!admin || admin.coins === null || admin.coins < coinsToAllocate) {
+          if (!admin || admin.coins === null || admin.coins < totalCoinsNeeded) {
             return NextResponse.json(
-              { error: `Insufficient coins. You have ${admin?.coins || 0} coins, but are trying to allocate ${coinsToAllocate} coins.` },
+              { error: `Insufficient coins. You have ${admin?.coins || 0} coins, but need ${totalCoinsNeeded} coins (${coinsToAllocate} for operator + ${sessionCreditCost} for session credits).` },
               { status: 400 }
             );
           }
-          
-          console.log(`Admin ${admin.name} has ${admin.coins} coins and is allocating ${coinsToAllocate} coins to new operator`);
-        }
-        
-        // Verify company exists and is created by this admin if the creator is an ADMIN
-        if (userRole === UserRole.ADMIN) {
-          console.log(`Checking company ID: ${body.companyId}`);
-          
-          let isAuthorized = false;
-          let companyId = body.companyId;
-          
-          // First, check if the ID is a Company User ID
-          const companyUser = await prisma.user.findFirst({
-            where: {
-              id: body.companyId,
-              role: UserRole.COMPANY,
-            },
-            include: {
-              company: true
-            }
-          });
-          
-          console.log("Company user lookup result:", companyUser ? "Found" : "Not found", 
-                      "Admin ID:", userId);
-          
-          // Check if companyUser exists and was created by this admin
-          if (companyUser && companyUser.createdById === userId && companyUser.companyId) {
-            isAuthorized = true;
-            companyId = companyUser.companyId;
-          } 
-          
-          // If not authorized yet, check if this is a direct Company ID
-          if (!isAuthorized) {
-            const directCompany = await prisma.company.findUnique({
-              where: { id: body.companyId }
-            });
-            
-            if (directCompany) {
-              // Check if the admin created any users linked to this company
-              const adminCreatedCompanyUsers = await prisma.user.findFirst({
-                where: {
-                  companyId: directCompany.id,
-                  createdById: userId,
-                }
-              });
-              
-              if (adminCreatedCompanyUsers) {
-                isAuthorized = true;
-                companyId = directCompany.id;
-              }
-            }
-          }
-          
-          // Final fallback - check for any custom permission mechanisms
-          if (!isAuthorized) {
-            try {
-              // Check custom_permissions table if it exists
-              const customPermCheck = await prisma.$queryRaw`
-                SELECT EXISTS (
-                  SELECT 1 FROM information_schema.tables 
-                  WHERE table_name = 'custom_permissions'
-                )`;
-                
-              if (customPermCheck && customPermCheck[0] && customPermCheck[0].exists) {
-                const customPerm = await prisma.$queryRaw`
-                  SELECT * FROM custom_permissions 
-                  WHERE permission_type = 'ADMIN_COMPANY' 
-                  AND user_id = ${userId} 
-                  AND resource_id = ${body.companyId}`;
-                  
-                if (customPerm && customPerm.length > 0) {
-                  isAuthorized = true;
-                }
-              }
-            } catch (err) {
-              console.error("Error checking custom permissions:", err);
-              // Continue without failing - just log the error
-            }
-          }
-          
-          // If still not authorized, reject the request
-          if (!isAuthorized) {
-            return NextResponse.json(
-              { error: "You are not authorized to add employees to this company" },
-              { status: 403 }
-            );
-          }
-          
-          // Update company ID to the actual company ID (not user ID)
-          body.companyId = companyId;
-        }
-        
-        // Create the employee user - handle OPERATOR creation with coins allocation as a transaction
-        if (body.subrole === EmployeeSubrole.OPERATOR && body.coins && body.coins > 0) {
-          const coinsToAllocate = Number(body.coins);
           
           // Use a transaction to ensure atomicity
           const result = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
@@ -257,13 +170,13 @@ export const POST = withAuth(
               }
             });
             
-            // 2. Deduct coins from admin
+            // 2. Deduct total coins needed from admin
             await tx.user.update({
               where: { id: userId as string },
-              data: { coins: { decrement: coinsToAllocate } }
+              data: { coins: { decrement: totalCoinsNeeded } }
             });
             
-            // 3. Record the transaction
+            // 3. Record the main transaction for the initial coins
             await tx.coinTransaction.create({
               data: {
                 fromUserId: userId as string,
@@ -274,7 +187,20 @@ export const POST = withAuth(
               }
             });
             
-            // 4. If needed, create operator permissions
+            // 4. If session credits are included, record that transaction too
+            if (sessionCreditCost > 0) {
+              await tx.coinTransaction.create({
+                data: {
+                  fromUserId: userId as string, 
+                  toUserId: userId as string, // Admin pays these coins to the system
+                  amount: sessionCreditCost,
+                  reason: TransactionReason.SESSION_CREATION,
+                  reasonText: `Reserved session credits for operator: ${operator.name}`
+                }
+              });
+            }
+            
+            // 5. If needed, create operator permissions
             if (body.permissions) {
               const permissionsToCreate = {
                 userId: operator.id,

@@ -399,6 +399,11 @@ export default function CreateEmployeePage() {
               />
               <p className="mt-1 text-sm text-gray-500">
                 Default: 200 coins. This amount will be deducted from your balance.
+                {formData.permissions.canCreate && (
+                  <span className="text-amber-700 font-medium block mt-1">
+                    Note: An additional 3 coins will be deducted for session credits since this operator has create permissions enabled.
+                  </span>
+                )}
               </p>
             </div>
 
