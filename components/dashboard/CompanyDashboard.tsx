@@ -264,8 +264,16 @@ export default function CompanyDashboard({ user, initialTab }: CompanyDashboardP
   // Handle employee details navigation directly without debug page
   const handleViewEmployeeDetails = (employeeId: string) => {
     console.log(`Navigating to employee ${employeeId} details`);
-    // Navigate directly to the employee details page
-    router.push(`/dashboard/employees/${employeeId}`);
+    // Log additional information
+    console.log("Navigation details:", {
+      route: `/dashboard/employees/${employeeId}`,
+      employeeId,
+      userRole: user.role,
+      companyId: user.company?.id
+    });
+    
+    // Use direct window location for reliable navigation 
+    window.location.href = `/dashboard/employees/${employeeId}`;
   };
 
   return (
@@ -650,10 +658,9 @@ export default function CompanyDashboard({ user, initialTab }: CompanyDashboardP
                         </Box>
                         
                         <Box display="flex" justifyContent="flex-end" mt={2}>
-                          <a 
-                            href={`/dashboard/employees/${employee.id}`} 
+                          <button
+                            onClick={() => handleViewEmployeeDetails(employee.id)}
                             style={{ 
-                              textDecoration: 'none',
                               backgroundColor: '#fff',
                               color: '#1976d2',
                               padding: '5px 15px',
@@ -671,7 +678,7 @@ export default function CompanyDashboard({ user, initialTab }: CompanyDashboardP
                               <Person fontSize="small" />
                             </span>
                             View Details
-                          </a>
+                          </button>
                         </Box>
                       </CardContent>
                     </Card>
