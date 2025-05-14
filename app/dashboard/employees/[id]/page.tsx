@@ -130,7 +130,7 @@ export default async function EmployeeDetailPage({ params }: { params: { id: str
     <div className="container mx-auto px-4 py-8">
       <div className="mb-6">
         <Link 
-          href={isAdmin ? "/dashboard/employees" : "/dashboard/employees"}
+          href="/dashboard/employees"
           className="text-blue-600 hover:underline mb-4 inline-block"
         >
           &larr; Back to Employees

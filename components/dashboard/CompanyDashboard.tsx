@@ -576,6 +576,10 @@ export default function CompanyDashboard({ user }: CompanyDashboardProps) {
                             component={Link}
                             href={`/dashboard/employees/${employee.id}`}
                             startIcon={<Person />}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              console.log(`Navigating to employee ${employee.id} details`);
+                            }}
                           >
                             View Details
                           </Button>

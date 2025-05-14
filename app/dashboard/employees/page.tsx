@@ -76,6 +76,8 @@ export default function EmployeesPage() {
   };
 
   const handleViewEmployee = (id: string) => {
+    // Add logging to help diagnose navigation issues
+    console.log(`Navigating to employee ${id} details`);
     router.push(`/dashboard/employees/${id}`);
   };
 
