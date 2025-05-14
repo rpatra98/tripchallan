@@ -217,16 +217,9 @@ export default function CreateEmployeePage() {
 
     // Validate that at least one permission is set for operators
     if (formData.subrole === EmployeeSubrole.OPERATOR) {
-      const hasPermission = 
-        formData.permissions.canCreate || 
-        formData.permissions.canModify || 
-        formData.permissions.canDelete;
-      
-      if (!hasPermission) {
-        setError("You must enable at least one permission for the operator");
-        setIsLoading(false);
-        return;
-      }
+      // Removed the permission requirement validation
+      // Now operators can be created with no permissions
+      // They will only be able to view sessions
 
       if (!formData.confirmPermissions) {
         setError("You must confirm that you have set the appropriate permissions");
@@ -535,7 +528,10 @@ export default function CreateEmployeePage() {
                   sx={{ mb: 3, fontWeight: 'bold', bgcolor: '#fff3cd', color: '#856404' }}
                 >
                   <Typography variant="subtitle1" sx={{ fontWeight: 'bold' }}>
-                    IMPORTANT: You MUST set permissions for this operator. These control what actions they can perform.
+                    IMPORTANT: Set permissions for this operator. These control what actions they can perform.
+                  </Typography>
+                  <Typography variant="body2">
+                    Note: An operator with no permissions will only be able to view sessions.
                   </Typography>
                 </Alert>
                 
@@ -546,7 +542,7 @@ export default function CreateEmployeePage() {
                       Permission Settings
                     </Typography>
                     <Typography variant="body2" color="text.secondary">
-                      Select all permissions this operator should have
+                      Select permissions for this operator (can be none, any, or all)
                     </Typography>
                   </Box>
                   
@@ -663,11 +659,11 @@ export default function CreateEmployeePage() {
                     label={
                       <Box>
                         <Typography variant="subtitle1" sx={{ fontWeight: 'bold' }}>
-                          I confirm that I have set the correct permissions for this operator
+                          I confirm that I have set the desired permissions for this operator
                         </Typography>
                         <Typography variant="body2" color="text.secondary">
-                          By checking this box, you acknowledge that you have reviewed and set the appropriate 
-                          permissions for this operator according to your organization's requirements.
+                          By checking this box, you acknowledge that you have reviewed the permissions
+                          and understand that operators with no permissions can only view sessions.
                         </Typography>
                       </Box>
                     }
@@ -720,7 +716,7 @@ export default function CreateEmployeePage() {
                 <CircularProgress size={24} color="inherit" />
               ) : (
                 formData.subrole === EmployeeSubrole.OPERATOR 
-                  ? "Create Operator with Permissions" 
+                  ? "Create Operator" 
                   : "Create Employee"
               )}
             </Button>
