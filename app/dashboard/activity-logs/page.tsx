@@ -390,16 +390,41 @@ export default function ActivityLogsPage() {
 
   const getActionColor = (action: string) => {
     switch (action) {
+      case "LOGIN":
+        return "success.main"; // Green for login
+      case "LOGOUT":
+        return "warning.main"; // Orange for logout
       case "CREATE":
-        return "success.main";
+        return "info.main"; // Blue for create
       case "UPDATE":
-        return "info.main";
+        return "primary.main"; // Default primary for update
       case "DELETE":
-        return "error.main";
+        return "error.main"; // Red for delete
       case "VIEW":
-        return "primary.main";
+        return "secondary.main"; // Secondary for view
+      case "TRANSFER":
+        return "purple"; // Purple for transfers
       default:
-        return "text.secondary";
+        return "text.secondary"; // Default gray
+    }
+  };
+
+  const getActionIcon = (action: string) => {
+    switch (action) {
+      case "LOGIN":
+        return <Monitor className="mr-2 text-green-600" size={18} />;
+      case "LOGOUT":
+        return <ArrowLeft className="mr-2 text-orange-600" size={18} />;
+      case "CREATE":
+        return <Filter className="mr-2 text-blue-600" size={18} />;
+      case "UPDATE":
+        return <RefreshCw className="mr-2 text-blue-500" size={18} />;
+      case "DELETE":
+        return <Filter className="mr-2 text-red-600" size={18} />;
+      case "TRANSFER":
+        return <Filter className="mr-2 text-purple-600" size={18} />;
+      default:
+        return <Filter className="mr-2 text-gray-500" size={18} />;
     }
   };
 
@@ -498,7 +523,7 @@ export default function ActivityLogsPage() {
 
   return (
     <Box sx={{ p: 3 }}>
-      <Typography variant="h4" sx={{ mb: 3 }}>
+      <Typography variant="h4" sx={{ mb: 4, fontWeight: 'bold', color: 'primary.main' }}>
         Activity Logs
       </Typography>
 
@@ -506,36 +531,122 @@ export default function ActivityLogsPage() {
         <Alert severity="info">No activity logs found</Alert>
       ) : (
         <>
-          {logs.map((log) => (
-            <Paper
-              key={log.id}
-              sx={{
-                p: 2,
-                mb: 2,
-                borderLeft: 4,
-                borderColor: getActionColor(log.action),
-              }}
-            >
-              <Box sx={{ display: "flex", justifyContent: "space-between", mb: 1 }}>
-                <Typography variant="subtitle1" sx={{ color: getActionColor(log.action) }}>
-                  {log.action}
-                </Typography>
-                <Typography variant="caption" color="text.secondary">
-                  {formatDate(log.createdAt)}
-                </Typography>
-              </Box>
+          {logs.map((log) => {
+            const isAuthEvent = log.action === "LOGIN" || log.action === "LOGOUT";
+            const deviceType = log.details?.device || "unknown";
+            const deviceIcon = log.userAgent ? 
+              (detectDevice(log.userAgent).isMobile ? 
+                <Smartphone className="ml-2 text-gray-500" size={16} /> : 
+                <Monitor className="ml-2 text-gray-500" size={16} />
+              ) : null;
+            
+            return (
+              <Paper
+                key={log.id}
+                sx={{
+                  p: 3,
+                  mb: 3,
+                  borderRadius: '10px',
+                  borderLeft: 6,
+                  borderColor: getActionColor(log.action),
+                  boxShadow: '0 4px 6px rgba(0,0,0,0.05)',
+                  transition: 'transform 0.2s, box-shadow 0.2s',
+                  '&:hover': {
+                    boxShadow: '0 6px 10px rgba(0,0,0,0.1)',
+                    transform: 'translateY(-2px)'
+                  }
+                }}
+              >
+                <Box sx={{ display: "flex", justifyContent: "space-between", mb: 1 }}>
+                  <Box sx={{ display: "flex", alignItems: "center" }}>
+                    {getActionIcon(log.action)}
+                    <Typography 
+                      variant="subtitle1" 
+                      sx={{ 
+                        fontWeight: 'bold',
+                        color: getActionColor(log.action),
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.5px',
+                        fontSize: '0.9rem'
+                      }}
+                    >
+                      {log.action}
+                    </Typography>
+                    
+                    {isAuthEvent && deviceIcon}
+                  </Box>
+                  <Typography 
+                    variant="caption" 
+                    sx={{ 
+                      color: "text.secondary",
+                      backgroundColor: 'rgba(0,0,0,0.04)',
+                      padding: '4px 8px',
+                      borderRadius: '4px',
+                      fontSize: '0.75rem'
+                    }}
+                  >
+                    {formatDate(log.createdAt)}
+                  </Typography>
+                </Box>
 
-              <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-                By: {log.user.name} ({log.user.role})
-              </Typography>
+                <Box sx={{ 
+                  display: "flex", 
+                  flexDirection: { xs: "column", sm: "row" },
+                  justifyContent: "space-between",
+                  mt: 2
+                }}>
+                  <Box sx={{ flex: 1 }}>
+                    <Typography variant="body2" sx={{ 
+                      mb: 1,
+                      display: 'flex',
+                      alignItems: 'center',
+                      fontWeight: 'medium'
+                    }}>
+                      <span style={{ fontWeight: 'bold', marginRight: '4px' }}>User:</span> 
+                      {log.user.name} 
+                      <span style={{ 
+                        backgroundColor: 'rgba(0,0,0,0.08)', 
+                        padding: '2px 6px', 
+                        borderRadius: '4px', 
+                        fontSize: '0.7rem',
+                        marginLeft: '8px'
+                      }}>
+                        {log.user.role}
+                      </span>
+                    </Typography>
 
-              <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-                Resource: {log.targetResourceType}
-              </Typography>
-
-              {renderLogDetails(log)}
-            </Paper>
-          ))}
+                    {isAuthEvent ? (
+                      <Box sx={{ 
+                        p: 1.5, 
+                        borderRadius: 2,
+                        backgroundColor: log.action === "LOGIN" ? 'rgba(76, 175, 80, 0.08)' : 'rgba(255, 152, 0, 0.08)',
+                        mt: 1
+                      }}>
+                        <Typography variant="body2" sx={{ fontWeight: 'medium' }}>
+                          {log.action === "LOGIN" ? "Logged in from" : "Logged out from"} <b>{deviceType}</b> device
+                        </Typography>
+                        {log.details?.reasonText && (
+                          <Typography variant="body2" sx={{ color: 'text.secondary', mt: 0.5 }}>
+                            Reason: {log.details.reasonText}
+                          </Typography>
+                        )}
+                      </Box>
+                    ) : (
+                      <>
+                        <Typography variant="body2" sx={{ mb: 1 }}>
+                          <span style={{ fontWeight: 'bold', marginRight: '4px' }}>Resource:</span> 
+                          {log.targetResourceType || "N/A"}
+                        </Typography>
+                        <Box sx={{ mt: 1 }}>
+                          {renderLogDetails(log)}
+                        </Box>
+                      </>
+                    )}
+                  </Box>
+                </Box>
+              </Paper>
+            );
+          })}
           
           {/* Pagination Controls */}
           <Box sx={{ 
@@ -553,7 +664,7 @@ export default function ActivityLogsPage() {
               Previous
             </Button>
             
-            <Typography variant="body1">
+            <Typography variant="body1" sx={{ fontWeight: 'medium' }}>
               Page {page} of {totalPages}
             </Typography>
             
