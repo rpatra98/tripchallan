@@ -83,7 +83,13 @@ export default async function EmployeeDetailPage({ params }: { params: { id: str
       }
     });
     
-    hasAccess = !!employeeBelongsToCompany;
+    // If no direct match, check if employee's company ID matches the current user's ID
+    let hasDirectAccess = !!employeeBelongsToCompany;
+    
+    // Additional check: if employee.companyId matches dbUser.id
+    let hasCompanyIdMatch = employee.companyId === dbUser.id;
+    
+    hasAccess = hasDirectAccess || hasCompanyIdMatch;
     
     console.log("Company access check result:", {
       companyId: dbUser.id,
@@ -91,7 +97,8 @@ export default async function EmployeeDetailPage({ params }: { params: { id: str
       employeeId: params.id,
       employeeCompanyId: employee.companyId,
       employeeCount: dbUser._count?.employees,
-      employeeBelongsToCompany: !!employeeBelongsToCompany,
+      hasDirectAccess,
+      hasCompanyIdMatch,
       hasAccess
     });
   }
