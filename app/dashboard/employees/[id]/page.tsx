@@ -2,7 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-options";
 import prisma from "@/lib/prisma";
-import { UserRole } from "@/prisma/enums";
+import { UserRole, EmployeeSubrole } from "@/prisma/enums";
 import Link from "next/link";
 
 export default async function EmployeeDetailPage({ params }: { params: { id: string } }) {
@@ -39,7 +39,8 @@ export default async function EmployeeDetailPage({ params }: { params: { id: str
           name: true,
           email: true,
         }
-      }
+      },
+      operatorPermissions: true
     }
   });
 
@@ -122,6 +123,36 @@ export default async function EmployeeDetailPage({ params }: { params: { id: str
           </div>
         </div>
       </div>
+
+      {employee.subrole === EmployeeSubrole.OPERATOR && (
+        <div className="bg-white shadow-md rounded-lg p-6 mb-8">
+          <h2 className="text-xl font-semibold mb-4">Operator Permissions</h2>
+          <div className="grid grid-cols-1 gap-4">
+            <div className="flex items-center">
+              <div className={`w-4 h-4 mr-2 rounded-full ${employee.operatorPermissions?.canCreate ? 'bg-green-500' : 'bg-red-500'}`}></div>
+              <span>Create Trips/Sessions: {employee.operatorPermissions?.canCreate ? 'Enabled' : 'Disabled'}</span>
+            </div>
+            <div className="flex items-center">
+              <div className={`w-4 h-4 mr-2 rounded-full ${employee.operatorPermissions?.canModify ? 'bg-green-500' : 'bg-red-500'}`}></div>
+              <span>Modify Trips/Sessions: {employee.operatorPermissions?.canModify ? 'Enabled' : 'Disabled'}</span>
+            </div>
+            <div className="flex items-center">
+              <div className={`w-4 h-4 mr-2 rounded-full ${employee.operatorPermissions?.canDelete ? 'bg-green-500' : 'bg-red-500'}`}></div>
+              <span>Delete Trips/Sessions: {employee.operatorPermissions?.canDelete ? 'Enabled' : 'Disabled'}</span>
+            </div>
+            {isAdmin && (
+              <div className="mt-4">
+                <Link
+                  href={`/dashboard/employees/${employee.id}/permissions`}
+                  className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
+                >
+                  Edit Permissions
+                </Link>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       <div className="bg-white shadow-md rounded-lg p-6">
         <h2 className="text-xl font-semibold mb-4">Recent Transactions</h2>

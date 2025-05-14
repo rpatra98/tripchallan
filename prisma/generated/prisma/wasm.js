@@ -194,6 +194,16 @@ exports.Prisma.ActivityLogScalarFieldEnum = {
   createdAt: 'createdAt'
 };
 
+exports.Prisma.OperatorPermissionsScalarFieldEnum = {
+  id: 'id',
+  userId: 'userId',
+  canCreate: 'canCreate',
+  canModify: 'canModify',
+  canDelete: 'canDelete',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+};
+
 exports.Prisma.SortOrder = {
   asc: 'asc',
   desc: 'desc'
@@ -264,7 +274,8 @@ exports.Prisma.ModelName = {
   Session: 'Session',
   Seal: 'Seal',
   Comment: 'Comment',
-  ActivityLog: 'ActivityLog'
+  ActivityLog: 'ActivityLog',
+  OperatorPermissions: 'OperatorPermissions'
 };
 
 /**

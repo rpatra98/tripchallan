@@ -225,6 +225,26 @@ export const POST = withAuth(
             company: true
           }
         });
+
+        // If this is an operator, create permissions
+        if (body.subrole === EmployeeSubrole.OPERATOR && body.permissions) {
+          try {
+            await prisma.operatorPermissions.create({
+              data: {
+                userId: newUser.id,
+                canCreate: body.permissions.canCreate ?? true,
+                canModify: body.permissions.canModify ?? false,
+                canDelete: body.permissions.canDelete ?? false,
+              }
+            });
+            
+            console.log(`Created operator permissions for user ${newUser.id}`);
+          } catch (err) {
+            console.error("Error creating operator permissions:", err);
+            // Don't fail the whole request if permissions creation fails
+            // We'll just use the defaults
+          }
+        }
       } 
       // For other roles (SuperAdmin, Admin)
       else {

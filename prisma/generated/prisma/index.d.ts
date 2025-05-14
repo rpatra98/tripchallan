@@ -48,6 +48,11 @@ export type Comment = $Result.DefaultSelection<Prisma.$CommentPayload>
  * 
  */
 export type ActivityLog = $Result.DefaultSelection<Prisma.$ActivityLogPayload>
+/**
+ * Model OperatorPermissions
+ * 
+ */
+export type OperatorPermissions = $Result.DefaultSelection<Prisma.$OperatorPermissionsPayload>
 
 /**
  * Enums
@@ -321,6 +326,16 @@ export class PrismaClient<
     * ```
     */
   get activityLog(): Prisma.ActivityLogDelegate<ExtArgs, ClientOptions>;
+
+  /**
+   * `prisma.operatorPermissions`: Exposes CRUD operations for the **OperatorPermissions** model.
+    * Example usage:
+    * ```ts
+    * // Fetch zero or more OperatorPermissions
+    * const operatorPermissions = await prisma.operatorPermissions.findMany()
+    * ```
+    */
+  get operatorPermissions(): Prisma.OperatorPermissionsDelegate<ExtArgs, ClientOptions>;
 }
 
 export namespace Prisma {
@@ -767,7 +782,8 @@ export namespace Prisma {
     Session: 'Session',
     Seal: 'Seal',
     Comment: 'Comment',
-    ActivityLog: 'ActivityLog'
+    ActivityLog: 'ActivityLog',
+    OperatorPermissions: 'OperatorPermissions'
   };
 
   export type ModelName = (typeof ModelName)[keyof typeof ModelName]
@@ -786,7 +802,7 @@ export namespace Prisma {
       omit: GlobalOmitOptions
     }
     meta: {
-      modelProps: "user" | "company" | "coinTransaction" | "session" | "seal" | "comment" | "activityLog"
+      modelProps: "user" | "company" | "coinTransaction" | "session" | "seal" | "comment" | "activityLog" | "operatorPermissions"
       txIsolationLevel: Prisma.TransactionIsolationLevel
     }
     model: {
@@ -1308,6 +1324,80 @@ export namespace Prisma {
           }
         }
       }
+      OperatorPermissions: {
+        payload: Prisma.$OperatorPermissionsPayload<ExtArgs>
+        fields: Prisma.OperatorPermissionsFieldRefs
+        operations: {
+          findUnique: {
+            args: Prisma.OperatorPermissionsFindUniqueArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$OperatorPermissionsPayload> | null
+          }
+          findUniqueOrThrow: {
+            args: Prisma.OperatorPermissionsFindUniqueOrThrowArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$OperatorPermissionsPayload>
+          }
+          findFirst: {
+            args: Prisma.OperatorPermissionsFindFirstArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$OperatorPermissionsPayload> | null
+          }
+          findFirstOrThrow: {
+            args: Prisma.OperatorPermissionsFindFirstOrThrowArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$OperatorPermissionsPayload>
+          }
+          findMany: {
+            args: Prisma.OperatorPermissionsFindManyArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$OperatorPermissionsPayload>[]
+          }
+          create: {
+            args: Prisma.OperatorPermissionsCreateArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$OperatorPermissionsPayload>
+          }
+          createMany: {
+            args: Prisma.OperatorPermissionsCreateManyArgs<ExtArgs>
+            result: BatchPayload
+          }
+          createManyAndReturn: {
+            args: Prisma.OperatorPermissionsCreateManyAndReturnArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$OperatorPermissionsPayload>[]
+          }
+          delete: {
+            args: Prisma.OperatorPermissionsDeleteArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$OperatorPermissionsPayload>
+          }
+          update: {
+            args: Prisma.OperatorPermissionsUpdateArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$OperatorPermissionsPayload>
+          }
+          deleteMany: {
+            args: Prisma.OperatorPermissionsDeleteManyArgs<ExtArgs>
+            result: BatchPayload
+          }
+          updateMany: {
+            args: Prisma.OperatorPermissionsUpdateManyArgs<ExtArgs>
+            result: BatchPayload
+          }
+          updateManyAndReturn: {
+            args: Prisma.OperatorPermissionsUpdateManyAndReturnArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$OperatorPermissionsPayload>[]
+          }
+          upsert: {
+            args: Prisma.OperatorPermissionsUpsertArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$OperatorPermissionsPayload>
+          }
+          aggregate: {
+            args: Prisma.OperatorPermissionsAggregateArgs<ExtArgs>
+            result: $Utils.Optional<AggregateOperatorPermissions>
+          }
+          groupBy: {
+            args: Prisma.OperatorPermissionsGroupByArgs<ExtArgs>
+            result: $Utils.Optional<OperatorPermissionsGroupByOutputType>[]
+          }
+          count: {
+            args: Prisma.OperatorPermissionsCountArgs<ExtArgs>
+            result: $Utils.Optional<OperatorPermissionsCountAggregateOutputType> | number
+          }
+        }
+      }
     }
   } & {
     other: {
@@ -1399,6 +1489,7 @@ export namespace Prisma {
     seal?: SealOmit
     comment?: CommentOmit
     activityLog?: ActivityLogOmit
+    operatorPermissions?: OperatorPermissionsOmit
   }
 
   /* Types for Logging */
@@ -1913,6 +2004,7 @@ export namespace Prisma {
     company?: boolean | User$companyArgs<ExtArgs>
     createdBy?: boolean | User$createdByArgs<ExtArgs>
     createdUsers?: boolean | User$createdUsersArgs<ExtArgs>
+    operatorPermissions?: boolean | User$operatorPermissionsArgs<ExtArgs>
     _count?: boolean | UserCountOutputTypeDefaultArgs<ExtArgs>
   }, ExtArgs["result"]["user"]>
 
@@ -1974,6 +2066,7 @@ export namespace Prisma {
     company?: boolean | User$companyArgs<ExtArgs>
     createdBy?: boolean | User$createdByArgs<ExtArgs>
     createdUsers?: boolean | User$createdUsersArgs<ExtArgs>
+    operatorPermissions?: boolean | User$operatorPermissionsArgs<ExtArgs>
     _count?: boolean | UserCountOutputTypeDefaultArgs<ExtArgs>
   }
   export type UserIncludeCreateManyAndReturn<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
@@ -1998,6 +2091,7 @@ export namespace Prisma {
       company: Prisma.$CompanyPayload<ExtArgs> | null
       createdBy: Prisma.$UserPayload<ExtArgs> | null
       createdUsers: Prisma.$UserPayload<ExtArgs>[]
+      operatorPermissions: Prisma.$OperatorPermissionsPayload<ExtArgs> | null
     }
     scalars: $Extensions.GetPayloadResult<{
       id: string
@@ -2415,6 +2509,7 @@ export namespace Prisma {
     company<T extends User$companyArgs<ExtArgs> = {}>(args?: Subset<T, User$companyArgs<ExtArgs>>): Prisma__CompanyClient<$Result.GetResult<Prisma.$CompanyPayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions> | null, null, ExtArgs, GlobalOmitOptions>
     createdBy<T extends User$createdByArgs<ExtArgs> = {}>(args?: Subset<T, User$createdByArgs<ExtArgs>>): Prisma__UserClient<$Result.GetResult<Prisma.$UserPayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions> | null, null, ExtArgs, GlobalOmitOptions>
     createdUsers<T extends User$createdUsersArgs<ExtArgs> = {}>(args?: Subset<T, User$createdUsersArgs<ExtArgs>>): Prisma.PrismaPromise<$Result.GetResult<Prisma.$UserPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
+    operatorPermissions<T extends User$operatorPermissionsArgs<ExtArgs> = {}>(args?: Subset<T, User$operatorPermissionsArgs<ExtArgs>>): Prisma__OperatorPermissionsClient<$Result.GetResult<Prisma.$OperatorPermissionsPayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions> | null, null, ExtArgs, GlobalOmitOptions>
     /**
      * Attaches callbacks for the resolution and/or rejection of the Promise.
      * @param onfulfilled The callback to execute when the Promise is resolved.
@@ -3078,6 +3173,25 @@ export namespace Prisma {
     take?: number
     skip?: number
     distinct?: UserScalarFieldEnum | UserScalarFieldEnum[]
+  }
+
+  /**
+   * User.operatorPermissions
+   */
+  export type User$operatorPermissionsArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the OperatorPermissions
+     */
+    select?: OperatorPermissionsSelect<ExtArgs> | null
+    /**
+     * Omit specific fields from the OperatorPermissions
+     */
+    omit?: OperatorPermissionsOmit<ExtArgs> | null
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: OperatorPermissionsInclude<ExtArgs> | null
+    where?: OperatorPermissionsWhereInput
   }
 
   /**
@@ -9805,6 +9919,1090 @@ export namespace Prisma {
 
 
   /**
+   * Model OperatorPermissions
+   */
+
+  export type AggregateOperatorPermissions = {
+    _count: OperatorPermissionsCountAggregateOutputType | null
+    _min: OperatorPermissionsMinAggregateOutputType | null
+    _max: OperatorPermissionsMaxAggregateOutputType | null
+  }
+
+  export type OperatorPermissionsMinAggregateOutputType = {
+    id: string | null
+    userId: string | null
+    canCreate: boolean | null
+    canModify: boolean | null
+    canDelete: boolean | null
+    createdAt: Date | null
+    updatedAt: Date | null
+  }
+
+  export type OperatorPermissionsMaxAggregateOutputType = {
+    id: string | null
+    userId: string | null
+    canCreate: boolean | null
+    canModify: boolean | null
+    canDelete: boolean | null
+    createdAt: Date | null
+    updatedAt: Date | null
+  }
+
+  export type OperatorPermissionsCountAggregateOutputType = {
+    id: number
+    userId: number
+    canCreate: number
+    canModify: number
+    canDelete: number
+    createdAt: number
+    updatedAt: number
+    _all: number
+  }
+
+
+  export type OperatorPermissionsMinAggregateInputType = {
+    id?: true
+    userId?: true
+    canCreate?: true
+    canModify?: true
+    canDelete?: true
+    createdAt?: true
+    updatedAt?: true
+  }
+
+  export type OperatorPermissionsMaxAggregateInputType = {
+    id?: true
+    userId?: true
+    canCreate?: true
+    canModify?: true
+    canDelete?: true
+    createdAt?: true
+    updatedAt?: true
+  }
+
+  export type OperatorPermissionsCountAggregateInputType = {
+    id?: true
+    userId?: true
+    canCreate?: true
+    canModify?: true
+    canDelete?: true
+    createdAt?: true
+    updatedAt?: true
+    _all?: true
+  }
+
+  export type OperatorPermissionsAggregateArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Filter which OperatorPermissions to aggregate.
+     */
+    where?: OperatorPermissionsWhereInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/sorting Sorting Docs}
+     * 
+     * Determine the order of OperatorPermissions to fetch.
+     */
+    orderBy?: OperatorPermissionsOrderByWithRelationInput | OperatorPermissionsOrderByWithRelationInput[]
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination#cursor-based-pagination Cursor Docs}
+     * 
+     * Sets the start position
+     */
+    cursor?: OperatorPermissionsWhereUniqueInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Take `±n` OperatorPermissions from the position of the cursor.
+     */
+    take?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Skip the first `n` OperatorPermissions.
+     */
+    skip?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
+     * 
+     * Count returned OperatorPermissions
+    **/
+    _count?: true | OperatorPermissionsCountAggregateInputType
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
+     * 
+     * Select which fields to find the minimum value
+    **/
+    _min?: OperatorPermissionsMinAggregateInputType
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
+     * 
+     * Select which fields to find the maximum value
+    **/
+    _max?: OperatorPermissionsMaxAggregateInputType
+  }
+
+  export type GetOperatorPermissionsAggregateType<T extends OperatorPermissionsAggregateArgs> = {
+        [P in keyof T & keyof AggregateOperatorPermissions]: P extends '_count' | 'count'
+      ? T[P] extends true
+        ? number
+        : GetScalarType<T[P], AggregateOperatorPermissions[P]>
+      : GetScalarType<T[P], AggregateOperatorPermissions[P]>
+  }
+
+
+
+
+  export type OperatorPermissionsGroupByArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    where?: OperatorPermissionsWhereInput
+    orderBy?: OperatorPermissionsOrderByWithAggregationInput | OperatorPermissionsOrderByWithAggregationInput[]
+    by: OperatorPermissionsScalarFieldEnum[] | OperatorPermissionsScalarFieldEnum
+    having?: OperatorPermissionsScalarWhereWithAggregatesInput
+    take?: number
+    skip?: number
+    _count?: OperatorPermissionsCountAggregateInputType | true
+    _min?: OperatorPermissionsMinAggregateInputType
+    _max?: OperatorPermissionsMaxAggregateInputType
+  }
+
+  export type OperatorPermissionsGroupByOutputType = {
+    id: string
+    userId: string
+    canCreate: boolean
+    canModify: boolean
+    canDelete: boolean
+    createdAt: Date
+    updatedAt: Date
+    _count: OperatorPermissionsCountAggregateOutputType | null
+    _min: OperatorPermissionsMinAggregateOutputType | null
+    _max: OperatorPermissionsMaxAggregateOutputType | null
+  }
+
+  type GetOperatorPermissionsGroupByPayload<T extends OperatorPermissionsGroupByArgs> = Prisma.PrismaPromise<
+    Array<
+      PickEnumerable<OperatorPermissionsGroupByOutputType, T['by']> &
+        {
+          [P in ((keyof T) & (keyof OperatorPermissionsGroupByOutputType))]: P extends '_count'
+            ? T[P] extends boolean
+              ? number
+              : GetScalarType<T[P], OperatorPermissionsGroupByOutputType[P]>
+            : GetScalarType<T[P], OperatorPermissionsGroupByOutputType[P]>
+        }
+      >
+    >
+
+
+  export type OperatorPermissionsSelect<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetSelect<{
+    id?: boolean
+    userId?: boolean
+    canCreate?: boolean
+    canModify?: boolean
+    canDelete?: boolean
+    createdAt?: boolean
+    updatedAt?: boolean
+    user?: boolean | UserDefaultArgs<ExtArgs>
+  }, ExtArgs["result"]["operatorPermissions"]>
+
+  export type OperatorPermissionsSelectCreateManyAndReturn<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetSelect<{
+    id?: boolean
+    userId?: boolean
+    canCreate?: boolean
+    canModify?: boolean
+    canDelete?: boolean
+    createdAt?: boolean
+    updatedAt?: boolean
+    user?: boolean | UserDefaultArgs<ExtArgs>
+  }, ExtArgs["result"]["operatorPermissions"]>
+
+  export type OperatorPermissionsSelectUpdateManyAndReturn<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetSelect<{
+    id?: boolean
+    userId?: boolean
+    canCreate?: boolean
+    canModify?: boolean
+    canDelete?: boolean
+    createdAt?: boolean
+    updatedAt?: boolean
+    user?: boolean | UserDefaultArgs<ExtArgs>
+  }, ExtArgs["result"]["operatorPermissions"]>
+
+  export type OperatorPermissionsSelectScalar = {
+    id?: boolean
+    userId?: boolean
+    canCreate?: boolean
+    canModify?: boolean
+    canDelete?: boolean
+    createdAt?: boolean
+    updatedAt?: boolean
+  }
+
+  export type OperatorPermissionsOmit<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetOmit<"id" | "userId" | "canCreate" | "canModify" | "canDelete" | "createdAt" | "updatedAt", ExtArgs["result"]["operatorPermissions"]>
+  export type OperatorPermissionsInclude<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    user?: boolean | UserDefaultArgs<ExtArgs>
+  }
+  export type OperatorPermissionsIncludeCreateManyAndReturn<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    user?: boolean | UserDefaultArgs<ExtArgs>
+  }
+  export type OperatorPermissionsIncludeUpdateManyAndReturn<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    user?: boolean | UserDefaultArgs<ExtArgs>
+  }
+
+  export type $OperatorPermissionsPayload<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    name: "OperatorPermissions"
+    objects: {
+      user: Prisma.$UserPayload<ExtArgs>
+    }
+    scalars: $Extensions.GetPayloadResult<{
+      id: string
+      userId: string
+      canCreate: boolean
+      canModify: boolean
+      canDelete: boolean
+      createdAt: Date
+      updatedAt: Date
+    }, ExtArgs["result"]["operatorPermissions"]>
+    composites: {}
+  }
+
+  type OperatorPermissionsGetPayload<S extends boolean | null | undefined | OperatorPermissionsDefaultArgs> = $Result.GetResult<Prisma.$OperatorPermissionsPayload, S>
+
+  type OperatorPermissionsCountArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> =
+    Omit<OperatorPermissionsFindManyArgs, 'select' | 'include' | 'distinct' | 'omit'> & {
+      select?: OperatorPermissionsCountAggregateInputType | true
+    }
+
+  export interface OperatorPermissionsDelegate<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs, GlobalOmitOptions = {}> {
+    [K: symbol]: { types: Prisma.TypeMap<ExtArgs>['model']['OperatorPermissions'], meta: { name: 'OperatorPermissions' } }
+    /**
+     * Find zero or one OperatorPermissions that matches the filter.
+     * @param {OperatorPermissionsFindUniqueArgs} args - Arguments to find a OperatorPermissions
+     * @example
+     * // Get one OperatorPermissions
+     * const operatorPermissions = await prisma.operatorPermissions.findUnique({
+     *   where: {
+     *     // ... provide filter here
+     *   }
+     * })
+     */
+    findUnique<T extends OperatorPermissionsFindUniqueArgs>(args: SelectSubset<T, OperatorPermissionsFindUniqueArgs<ExtArgs>>): Prisma__OperatorPermissionsClient<$Result.GetResult<Prisma.$OperatorPermissionsPayload<ExtArgs>, T, "findUnique", GlobalOmitOptions> | null, null, ExtArgs, GlobalOmitOptions>
+
+    /**
+     * Find one OperatorPermissions that matches the filter or throw an error with `error.code='P2025'`
+     * if no matches were found.
+     * @param {OperatorPermissionsFindUniqueOrThrowArgs} args - Arguments to find a OperatorPermissions
+     * @example
+     * // Get one OperatorPermissions
+     * const operatorPermissions = await prisma.operatorPermissions.findUniqueOrThrow({
+     *   where: {
+     *     // ... provide filter here
+     *   }
+     * })
+     */
+    findUniqueOrThrow<T extends OperatorPermissionsFindUniqueOrThrowArgs>(args: SelectSubset<T, OperatorPermissionsFindUniqueOrThrowArgs<ExtArgs>>): Prisma__OperatorPermissionsClient<$Result.GetResult<Prisma.$OperatorPermissionsPayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions>, never, ExtArgs, GlobalOmitOptions>
+
+    /**
+     * Find the first OperatorPermissions that matches the filter.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {OperatorPermissionsFindFirstArgs} args - Arguments to find a OperatorPermissions
+     * @example
+     * // Get one OperatorPermissions
+     * const operatorPermissions = await prisma.operatorPermissions.findFirst({
+     *   where: {
+     *     // ... provide filter here
+     *   }
+     * })
+     */
+    findFirst<T extends OperatorPermissionsFindFirstArgs>(args?: SelectSubset<T, OperatorPermissionsFindFirstArgs<ExtArgs>>): Prisma__OperatorPermissionsClient<$Result.GetResult<Prisma.$OperatorPermissionsPayload<ExtArgs>, T, "findFirst", GlobalOmitOptions> | null, null, ExtArgs, GlobalOmitOptions>
+
+    /**
+     * Find the first OperatorPermissions that matches the filter or
+     * throw `PrismaKnownClientError` with `P2025` code if no matches were found.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {OperatorPermissionsFindFirstOrThrowArgs} args - Arguments to find a OperatorPermissions
+     * @example
+     * // Get one OperatorPermissions
+     * const operatorPermissions = await prisma.operatorPermissions.findFirstOrThrow({
+     *   where: {
+     *     // ... provide filter here
+     *   }
+     * })
+     */
+    findFirstOrThrow<T extends OperatorPermissionsFindFirstOrThrowArgs>(args?: SelectSubset<T, OperatorPermissionsFindFirstOrThrowArgs<ExtArgs>>): Prisma__OperatorPermissionsClient<$Result.GetResult<Prisma.$OperatorPermissionsPayload<ExtArgs>, T, "findFirstOrThrow", GlobalOmitOptions>, never, ExtArgs, GlobalOmitOptions>
+
+    /**
+     * Find zero or more OperatorPermissions that matches the filter.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {OperatorPermissionsFindManyArgs} args - Arguments to filter and select certain fields only.
+     * @example
+     * // Get all OperatorPermissions
+     * const operatorPermissions = await prisma.operatorPermissions.findMany()
+     * 
+     * // Get first 10 OperatorPermissions
+     * const operatorPermissions = await prisma.operatorPermissions.findMany({ take: 10 })
+     * 
+     * // Only select the `id`
+     * const operatorPermissionsWithIdOnly = await prisma.operatorPermissions.findMany({ select: { id: true } })
+     * 
+     */
+    findMany<T extends OperatorPermissionsFindManyArgs>(args?: SelectSubset<T, OperatorPermissionsFindManyArgs<ExtArgs>>): Prisma.PrismaPromise<$Result.GetResult<Prisma.$OperatorPermissionsPayload<ExtArgs>, T, "findMany", GlobalOmitOptions>>
+
+    /**
+     * Create a OperatorPermissions.
+     * @param {OperatorPermissionsCreateArgs} args - Arguments to create a OperatorPermissions.
+     * @example
+     * // Create one OperatorPermissions
+     * const OperatorPermissions = await prisma.operatorPermissions.create({
+     *   data: {
+     *     // ... data to create a OperatorPermissions
+     *   }
+     * })
+     * 
+     */
+    create<T extends OperatorPermissionsCreateArgs>(args: SelectSubset<T, OperatorPermissionsCreateArgs<ExtArgs>>): Prisma__OperatorPermissionsClient<$Result.GetResult<Prisma.$OperatorPermissionsPayload<ExtArgs>, T, "create", GlobalOmitOptions>, never, ExtArgs, GlobalOmitOptions>
+
+    /**
+     * Create many OperatorPermissions.
+     * @param {OperatorPermissionsCreateManyArgs} args - Arguments to create many OperatorPermissions.
+     * @example
+     * // Create many OperatorPermissions
+     * const operatorPermissions = await prisma.operatorPermissions.createMany({
+     *   data: [
+     *     // ... provide data here
+     *   ]
+     * })
+     *     
+     */
+    createMany<T extends OperatorPermissionsCreateManyArgs>(args?: SelectSubset<T, OperatorPermissionsCreateManyArgs<ExtArgs>>): Prisma.PrismaPromise<BatchPayload>
+
+    /**
+     * Create many OperatorPermissions and returns the data saved in the database.
+     * @param {OperatorPermissionsCreateManyAndReturnArgs} args - Arguments to create many OperatorPermissions.
+     * @example
+     * // Create many OperatorPermissions
+     * const operatorPermissions = await prisma.operatorPermissions.createManyAndReturn({
+     *   data: [
+     *     // ... provide data here
+     *   ]
+     * })
+     * 
+     * // Create many OperatorPermissions and only return the `id`
+     * const operatorPermissionsWithIdOnly = await prisma.operatorPermissions.createManyAndReturn({
+     *   select: { id: true },
+     *   data: [
+     *     // ... provide data here
+     *   ]
+     * })
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * 
+     */
+    createManyAndReturn<T extends OperatorPermissionsCreateManyAndReturnArgs>(args?: SelectSubset<T, OperatorPermissionsCreateManyAndReturnArgs<ExtArgs>>): Prisma.PrismaPromise<$Result.GetResult<Prisma.$OperatorPermissionsPayload<ExtArgs>, T, "createManyAndReturn", GlobalOmitOptions>>
+
+    /**
+     * Delete a OperatorPermissions.
+     * @param {OperatorPermissionsDeleteArgs} args - Arguments to delete one OperatorPermissions.
+     * @example
+     * // Delete one OperatorPermissions
+     * const OperatorPermissions = await prisma.operatorPermissions.delete({
+     *   where: {
+     *     // ... filter to delete one OperatorPermissions
+     *   }
+     * })
+     * 
+     */
+    delete<T extends OperatorPermissionsDeleteArgs>(args: SelectSubset<T, OperatorPermissionsDeleteArgs<ExtArgs>>): Prisma__OperatorPermissionsClient<$Result.GetResult<Prisma.$OperatorPermissionsPayload<ExtArgs>, T, "delete", GlobalOmitOptions>, never, ExtArgs, GlobalOmitOptions>
+
+    /**
+     * Update one OperatorPermissions.
+     * @param {OperatorPermissionsUpdateArgs} args - Arguments to update one OperatorPermissions.
+     * @example
+     * // Update one OperatorPermissions
+     * const operatorPermissions = await prisma.operatorPermissions.update({
+     *   where: {
+     *     // ... provide filter here
+     *   },
+     *   data: {
+     *     // ... provide data here
+     *   }
+     * })
+     * 
+     */
+    update<T extends OperatorPermissionsUpdateArgs>(args: SelectSubset<T, OperatorPermissionsUpdateArgs<ExtArgs>>): Prisma__OperatorPermissionsClient<$Result.GetResult<Prisma.$OperatorPermissionsPayload<ExtArgs>, T, "update", GlobalOmitOptions>, never, ExtArgs, GlobalOmitOptions>
+
+    /**
+     * Delete zero or more OperatorPermissions.
+     * @param {OperatorPermissionsDeleteManyArgs} args - Arguments to filter OperatorPermissions to delete.
+     * @example
+     * // Delete a few OperatorPermissions
+     * const { count } = await prisma.operatorPermissions.deleteMany({
+     *   where: {
+     *     // ... provide filter here
+     *   }
+     * })
+     * 
+     */
+    deleteMany<T extends OperatorPermissionsDeleteManyArgs>(args?: SelectSubset<T, OperatorPermissionsDeleteManyArgs<ExtArgs>>): Prisma.PrismaPromise<BatchPayload>
+
+    /**
+     * Update zero or more OperatorPermissions.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {OperatorPermissionsUpdateManyArgs} args - Arguments to update one or more rows.
+     * @example
+     * // Update many OperatorPermissions
+     * const operatorPermissions = await prisma.operatorPermissions.updateMany({
+     *   where: {
+     *     // ... provide filter here
+     *   },
+     *   data: {
+     *     // ... provide data here
+     *   }
+     * })
+     * 
+     */
+    updateMany<T extends OperatorPermissionsUpdateManyArgs>(args: SelectSubset<T, OperatorPermissionsUpdateManyArgs<ExtArgs>>): Prisma.PrismaPromise<BatchPayload>
+
+    /**
+     * Update zero or more OperatorPermissions and returns the data updated in the database.
+     * @param {OperatorPermissionsUpdateManyAndReturnArgs} args - Arguments to update many OperatorPermissions.
+     * @example
+     * // Update many OperatorPermissions
+     * const operatorPermissions = await prisma.operatorPermissions.updateManyAndReturn({
+     *   where: {
+     *     // ... provide filter here
+     *   },
+     *   data: [
+     *     // ... provide data here
+     *   ]
+     * })
+     * 
+     * // Update zero or more OperatorPermissions and only return the `id`
+     * const operatorPermissionsWithIdOnly = await prisma.operatorPermissions.updateManyAndReturn({
+     *   select: { id: true },
+     *   where: {
+     *     // ... provide filter here
+     *   },
+     *   data: [
+     *     // ... provide data here
+     *   ]
+     * })
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * 
+     */
+    updateManyAndReturn<T extends OperatorPermissionsUpdateManyAndReturnArgs>(args: SelectSubset<T, OperatorPermissionsUpdateManyAndReturnArgs<ExtArgs>>): Prisma.PrismaPromise<$Result.GetResult<Prisma.$OperatorPermissionsPayload<ExtArgs>, T, "updateManyAndReturn", GlobalOmitOptions>>
+
+    /**
+     * Create or update one OperatorPermissions.
+     * @param {OperatorPermissionsUpsertArgs} args - Arguments to update or create a OperatorPermissions.
+     * @example
+     * // Update or create a OperatorPermissions
+     * const operatorPermissions = await prisma.operatorPermissions.upsert({
+     *   create: {
+     *     // ... data to create a OperatorPermissions
+     *   },
+     *   update: {
+     *     // ... in case it already exists, update
+     *   },
+     *   where: {
+     *     // ... the filter for the OperatorPermissions we want to update
+     *   }
+     * })
+     */
+    upsert<T extends OperatorPermissionsUpsertArgs>(args: SelectSubset<T, OperatorPermissionsUpsertArgs<ExtArgs>>): Prisma__OperatorPermissionsClient<$Result.GetResult<Prisma.$OperatorPermissionsPayload<ExtArgs>, T, "upsert", GlobalOmitOptions>, never, ExtArgs, GlobalOmitOptions>
+
+
+    /**
+     * Count the number of OperatorPermissions.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {OperatorPermissionsCountArgs} args - Arguments to filter OperatorPermissions to count.
+     * @example
+     * // Count the number of OperatorPermissions
+     * const count = await prisma.operatorPermissions.count({
+     *   where: {
+     *     // ... the filter for the OperatorPermissions we want to count
+     *   }
+     * })
+    **/
+    count<T extends OperatorPermissionsCountArgs>(
+      args?: Subset<T, OperatorPermissionsCountArgs>,
+    ): Prisma.PrismaPromise<
+      T extends $Utils.Record<'select', any>
+        ? T['select'] extends true
+          ? number
+          : GetScalarType<T['select'], OperatorPermissionsCountAggregateOutputType>
+        : number
+    >
+
+    /**
+     * Allows you to perform aggregations operations on a OperatorPermissions.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {OperatorPermissionsAggregateArgs} args - Select which aggregations you would like to apply and on what fields.
+     * @example
+     * // Ordered by age ascending
+     * // Where email contains prisma.io
+     * // Limited to the 10 users
+     * const aggregations = await prisma.user.aggregate({
+     *   _avg: {
+     *     age: true,
+     *   },
+     *   where: {
+     *     email: {
+     *       contains: "prisma.io",
+     *     },
+     *   },
+     *   orderBy: {
+     *     age: "asc",
+     *   },
+     *   take: 10,
+     * })
+    **/
+    aggregate<T extends OperatorPermissionsAggregateArgs>(args: Subset<T, OperatorPermissionsAggregateArgs>): Prisma.PrismaPromise<GetOperatorPermissionsAggregateType<T>>
+
+    /**
+     * Group by OperatorPermissions.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {OperatorPermissionsGroupByArgs} args - Group by arguments.
+     * @example
+     * // Group by city, order by createdAt, get count
+     * const result = await prisma.user.groupBy({
+     *   by: ['city', 'createdAt'],
+     *   orderBy: {
+     *     createdAt: true
+     *   },
+     *   _count: {
+     *     _all: true
+     *   },
+     * })
+     * 
+    **/
+    groupBy<
+      T extends OperatorPermissionsGroupByArgs,
+      HasSelectOrTake extends Or<
+        Extends<'skip', Keys<T>>,
+        Extends<'take', Keys<T>>
+      >,
+      OrderByArg extends True extends HasSelectOrTake
+        ? { orderBy: OperatorPermissionsGroupByArgs['orderBy'] }
+        : { orderBy?: OperatorPermissionsGroupByArgs['orderBy'] },
+      OrderFields extends ExcludeUnderscoreKeys<Keys<MaybeTupleToUnion<T['orderBy']>>>,
+      ByFields extends MaybeTupleToUnion<T['by']>,
+      ByValid extends Has<ByFields, OrderFields>,
+      HavingFields extends GetHavingFields<T['having']>,
+      HavingValid extends Has<ByFields, HavingFields>,
+      ByEmpty extends T['by'] extends never[] ? True : False,
+      InputErrors extends ByEmpty extends True
+      ? `Error: "by" must not be empty.`
+      : HavingValid extends False
+      ? {
+          [P in HavingFields]: P extends ByFields
+            ? never
+            : P extends string
+            ? `Error: Field "${P}" used in "having" needs to be provided in "by".`
+            : [
+                Error,
+                'Field ',
+                P,
+                ` in "having" needs to be provided in "by"`,
+              ]
+        }[HavingFields]
+      : 'take' extends Keys<T>
+      ? 'orderBy' extends Keys<T>
+        ? ByValid extends True
+          ? {}
+          : {
+              [P in OrderFields]: P extends ByFields
+                ? never
+                : `Error: Field "${P}" in "orderBy" needs to be provided in "by"`
+            }[OrderFields]
+        : 'Error: If you provide "take", you also need to provide "orderBy"'
+      : 'skip' extends Keys<T>
+      ? 'orderBy' extends Keys<T>
+        ? ByValid extends True
+          ? {}
+          : {
+              [P in OrderFields]: P extends ByFields
+                ? never
+                : `Error: Field "${P}" in "orderBy" needs to be provided in "by"`
+            }[OrderFields]
+        : 'Error: If you provide "skip", you also need to provide "orderBy"'
+      : ByValid extends True
+      ? {}
+      : {
+          [P in OrderFields]: P extends ByFields
+            ? never
+            : `Error: Field "${P}" in "orderBy" needs to be provided in "by"`
+        }[OrderFields]
+    >(args: SubsetIntersection<T, OperatorPermissionsGroupByArgs, OrderByArg> & InputErrors): {} extends InputErrors ? GetOperatorPermissionsGroupByPayload<T> : Prisma.PrismaPromise<InputErrors>
+  /**
+   * Fields of the OperatorPermissions model
+   */
+  readonly fields: OperatorPermissionsFieldRefs;
+  }
+
+  /**
+   * The delegate class that acts as a "Promise-like" for OperatorPermissions.
+   * Why is this prefixed with `Prisma__`?
+   * Because we want to prevent naming conflicts as mentioned in
+   * https://github.com/prisma/prisma-client-js/issues/707
+   */
+  export interface Prisma__OperatorPermissionsClient<T, Null = never, ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs, GlobalOmitOptions = {}> extends Prisma.PrismaPromise<T> {
+    readonly [Symbol.toStringTag]: "PrismaPromise"
+    user<T extends UserDefaultArgs<ExtArgs> = {}>(args?: Subset<T, UserDefaultArgs<ExtArgs>>): Prisma__UserClient<$Result.GetResult<Prisma.$UserPayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions> | Null, Null, ExtArgs, GlobalOmitOptions>
+    /**
+     * Attaches callbacks for the resolution and/or rejection of the Promise.
+     * @param onfulfilled The callback to execute when the Promise is resolved.
+     * @param onrejected The callback to execute when the Promise is rejected.
+     * @returns A Promise for the completion of which ever callback is executed.
+     */
+    then<TResult1 = T, TResult2 = never>(onfulfilled?: ((value: T) => TResult1 | PromiseLike<TResult1>) | undefined | null, onrejected?: ((reason: any) => TResult2 | PromiseLike<TResult2>) | undefined | null): $Utils.JsPromise<TResult1 | TResult2>
+    /**
+     * Attaches a callback for only the rejection of the Promise.
+     * @param onrejected The callback to execute when the Promise is rejected.
+     * @returns A Promise for the completion of the callback.
+     */
+    catch<TResult = never>(onrejected?: ((reason: any) => TResult | PromiseLike<TResult>) | undefined | null): $Utils.JsPromise<T | TResult>
+    /**
+     * Attaches a callback that is invoked when the Promise is settled (fulfilled or rejected). The
+     * resolved value cannot be modified from the callback.
+     * @param onfinally The callback to execute when the Promise is settled (fulfilled or rejected).
+     * @returns A Promise for the completion of the callback.
+     */
+    finally(onfinally?: (() => void) | undefined | null): $Utils.JsPromise<T>
+  }
+
+
+
+
+  /**
+   * Fields of the OperatorPermissions model
+   */
+  interface OperatorPermissionsFieldRefs {
+    readonly id: FieldRef<"OperatorPermissions", 'String'>
+    readonly userId: FieldRef<"OperatorPermissions", 'String'>
+    readonly canCreate: FieldRef<"OperatorPermissions", 'Boolean'>
+    readonly canModify: FieldRef<"OperatorPermissions", 'Boolean'>
+    readonly canDelete: FieldRef<"OperatorPermissions", 'Boolean'>
+    readonly createdAt: FieldRef<"OperatorPermissions", 'DateTime'>
+    readonly updatedAt: FieldRef<"OperatorPermissions", 'DateTime'>
+  }
+    
+
+  // Custom InputTypes
+  /**
+   * OperatorPermissions findUnique
+   */
+  export type OperatorPermissionsFindUniqueArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the OperatorPermissions
+     */
+    select?: OperatorPermissionsSelect<ExtArgs> | null
+    /**
+     * Omit specific fields from the OperatorPermissions
+     */
+    omit?: OperatorPermissionsOmit<ExtArgs> | null
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: OperatorPermissionsInclude<ExtArgs> | null
+    /**
+     * Filter, which OperatorPermissions to fetch.
+     */
+    where: OperatorPermissionsWhereUniqueInput
+  }
+
+  /**
+   * OperatorPermissions findUniqueOrThrow
+   */
+  export type OperatorPermissionsFindUniqueOrThrowArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the OperatorPermissions
+     */
+    select?: OperatorPermissionsSelect<ExtArgs> | null
+    /**
+     * Omit specific fields from the OperatorPermissions
+     */
+    omit?: OperatorPermissionsOmit<ExtArgs> | null
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: OperatorPermissionsInclude<ExtArgs> | null
+    /**
+     * Filter, which OperatorPermissions to fetch.
+     */
+    where: OperatorPermissionsWhereUniqueInput
+  }
+
+  /**
+   * OperatorPermissions findFirst
+   */
+  export type OperatorPermissionsFindFirstArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the OperatorPermissions
+     */
+    select?: OperatorPermissionsSelect<ExtArgs> | null
+    /**
+     * Omit specific fields from the OperatorPermissions
+     */
+    omit?: OperatorPermissionsOmit<ExtArgs> | null
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: OperatorPermissionsInclude<ExtArgs> | null
+    /**
+     * Filter, which OperatorPermissions to fetch.
+     */
+    where?: OperatorPermissionsWhereInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/sorting Sorting Docs}
+     * 
+     * Determine the order of OperatorPermissions to fetch.
+     */
+    orderBy?: OperatorPermissionsOrderByWithRelationInput | OperatorPermissionsOrderByWithRelationInput[]
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination#cursor-based-pagination Cursor Docs}
+     * 
+     * Sets the position for searching for OperatorPermissions.
+     */
+    cursor?: OperatorPermissionsWhereUniqueInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Take `±n` OperatorPermissions from the position of the cursor.
+     */
+    take?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Skip the first `n` OperatorPermissions.
+     */
+    skip?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/distinct Distinct Docs}
+     * 
+     * Filter by unique combinations of OperatorPermissions.
+     */
+    distinct?: OperatorPermissionsScalarFieldEnum | OperatorPermissionsScalarFieldEnum[]
+  }
+
+  /**
+   * OperatorPermissions findFirstOrThrow
+   */
+  export type OperatorPermissionsFindFirstOrThrowArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the OperatorPermissions
+     */
+    select?: OperatorPermissionsSelect<ExtArgs> | null
+    /**
+     * Omit specific fields from the OperatorPermissions
+     */
+    omit?: OperatorPermissionsOmit<ExtArgs> | null
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: OperatorPermissionsInclude<ExtArgs> | null
+    /**
+     * Filter, which OperatorPermissions to fetch.
+     */
+    where?: OperatorPermissionsWhereInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/sorting Sorting Docs}
+     * 
+     * Determine the order of OperatorPermissions to fetch.
+     */
+    orderBy?: OperatorPermissionsOrderByWithRelationInput | OperatorPermissionsOrderByWithRelationInput[]
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination#cursor-based-pagination Cursor Docs}
+     * 
+     * Sets the position for searching for OperatorPermissions.
+     */
+    cursor?: OperatorPermissionsWhereUniqueInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Take `±n` OperatorPermissions from the position of the cursor.
+     */
+    take?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Skip the first `n` OperatorPermissions.
+     */
+    skip?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/distinct Distinct Docs}
+     * 
+     * Filter by unique combinations of OperatorPermissions.
+     */
+    distinct?: OperatorPermissionsScalarFieldEnum | OperatorPermissionsScalarFieldEnum[]
+  }
+
+  /**
+   * OperatorPermissions findMany
+   */
+  export type OperatorPermissionsFindManyArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the OperatorPermissions
+     */
+    select?: OperatorPermissionsSelect<ExtArgs> | null
+    /**
+     * Omit specific fields from the OperatorPermissions
+     */
+    omit?: OperatorPermissionsOmit<ExtArgs> | null
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: OperatorPermissionsInclude<ExtArgs> | null
+    /**
+     * Filter, which OperatorPermissions to fetch.
+     */
+    where?: OperatorPermissionsWhereInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/sorting Sorting Docs}
+     * 
+     * Determine the order of OperatorPermissions to fetch.
+     */
+    orderBy?: OperatorPermissionsOrderByWithRelationInput | OperatorPermissionsOrderByWithRelationInput[]
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination#cursor-based-pagination Cursor Docs}
+     * 
+     * Sets the position for listing OperatorPermissions.
+     */
+    cursor?: OperatorPermissionsWhereUniqueInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Take `±n` OperatorPermissions from the position of the cursor.
+     */
+    take?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Skip the first `n` OperatorPermissions.
+     */
+    skip?: number
+    distinct?: OperatorPermissionsScalarFieldEnum | OperatorPermissionsScalarFieldEnum[]
+  }
+
+  /**
+   * OperatorPermissions create
+   */
+  export type OperatorPermissionsCreateArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the OperatorPermissions
+     */
+    select?: OperatorPermissionsSelect<ExtArgs> | null
+    /**
+     * Omit specific fields from the OperatorPermissions
+     */
+    omit?: OperatorPermissionsOmit<ExtArgs> | null
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: OperatorPermissionsInclude<ExtArgs> | null
+    /**
+     * The data needed to create a OperatorPermissions.
+     */
+    data: XOR<OperatorPermissionsCreateInput, OperatorPermissionsUncheckedCreateInput>
+  }
+
+  /**
+   * OperatorPermissions createMany
+   */
+  export type OperatorPermissionsCreateManyArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * The data used to create many OperatorPermissions.
+     */
+    data: OperatorPermissionsCreateManyInput | OperatorPermissionsCreateManyInput[]
+    skipDuplicates?: boolean
+  }
+
+  /**
+   * OperatorPermissions createManyAndReturn
+   */
+  export type OperatorPermissionsCreateManyAndReturnArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the OperatorPermissions
+     */
+    select?: OperatorPermissionsSelectCreateManyAndReturn<ExtArgs> | null
+    /**
+     * Omit specific fields from the OperatorPermissions
+     */
+    omit?: OperatorPermissionsOmit<ExtArgs> | null
+    /**
+     * The data used to create many OperatorPermissions.
+     */
+    data: OperatorPermissionsCreateManyInput | OperatorPermissionsCreateManyInput[]
+    skipDuplicates?: boolean
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: OperatorPermissionsIncludeCreateManyAndReturn<ExtArgs> | null
+  }
+
+  /**
+   * OperatorPermissions update
+   */
+  export type OperatorPermissionsUpdateArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the OperatorPermissions
+     */
+    select?: OperatorPermissionsSelect<ExtArgs> | null
+    /**
+     * Omit specific fields from the OperatorPermissions
+     */
+    omit?: OperatorPermissionsOmit<ExtArgs> | null
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: OperatorPermissionsInclude<ExtArgs> | null
+    /**
+     * The data needed to update a OperatorPermissions.
+     */
+    data: XOR<OperatorPermissionsUpdateInput, OperatorPermissionsUncheckedUpdateInput>
+    /**
+     * Choose, which OperatorPermissions to update.
+     */
+    where: OperatorPermissionsWhereUniqueInput
+  }
+
+  /**
+   * OperatorPermissions updateMany
+   */
+  export type OperatorPermissionsUpdateManyArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * The data used to update OperatorPermissions.
+     */
+    data: XOR<OperatorPermissionsUpdateManyMutationInput, OperatorPermissionsUncheckedUpdateManyInput>
+    /**
+     * Filter which OperatorPermissions to update
+     */
+    where?: OperatorPermissionsWhereInput
+    /**
+     * Limit how many OperatorPermissions to update.
+     */
+    limit?: number
+  }
+
+  /**
+   * OperatorPermissions updateManyAndReturn
+   */
+  export type OperatorPermissionsUpdateManyAndReturnArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the OperatorPermissions
+     */
+    select?: OperatorPermissionsSelectUpdateManyAndReturn<ExtArgs> | null
+    /**
+     * Omit specific fields from the OperatorPermissions
+     */
+    omit?: OperatorPermissionsOmit<ExtArgs> | null
+    /**
+     * The data used to update OperatorPermissions.
+     */
+    data: XOR<OperatorPermissionsUpdateManyMutationInput, OperatorPermissionsUncheckedUpdateManyInput>
+    /**
+     * Filter which OperatorPermissions to update
+     */
+    where?: OperatorPermissionsWhereInput
+    /**
+     * Limit how many OperatorPermissions to update.
+     */
+    limit?: number
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: OperatorPermissionsIncludeUpdateManyAndReturn<ExtArgs> | null
+  }
+
+  /**
+   * OperatorPermissions upsert
+   */
+  export type OperatorPermissionsUpsertArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the OperatorPermissions
+     */
+    select?: OperatorPermissionsSelect<ExtArgs> | null
+    /**
+     * Omit specific fields from the OperatorPermissions
+     */
+    omit?: OperatorPermissionsOmit<ExtArgs> | null
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: OperatorPermissionsInclude<ExtArgs> | null
+    /**
+     * The filter to search for the OperatorPermissions to update in case it exists.
+     */
+    where: OperatorPermissionsWhereUniqueInput
+    /**
+     * In case the OperatorPermissions found by the `where` argument doesn't exist, create a new OperatorPermissions with this data.
+     */
+    create: XOR<OperatorPermissionsCreateInput, OperatorPermissionsUncheckedCreateInput>
+    /**
+     * In case the OperatorPermissions was found with the provided `where` argument, update it with this data.
+     */
+    update: XOR<OperatorPermissionsUpdateInput, OperatorPermissionsUncheckedUpdateInput>
+  }
+
+  /**
+   * OperatorPermissions delete
+   */
+  export type OperatorPermissionsDeleteArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the OperatorPermissions
+     */
+    select?: OperatorPermissionsSelect<ExtArgs> | null
+    /**
+     * Omit specific fields from the OperatorPermissions
+     */
+    omit?: OperatorPermissionsOmit<ExtArgs> | null
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: OperatorPermissionsInclude<ExtArgs> | null
+    /**
+     * Filter which OperatorPermissions to delete.
+     */
+    where: OperatorPermissionsWhereUniqueInput
+  }
+
+  /**
+   * OperatorPermissions deleteMany
+   */
+  export type OperatorPermissionsDeleteManyArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Filter which OperatorPermissions to delete
+     */
+    where?: OperatorPermissionsWhereInput
+    /**
+     * Limit how many OperatorPermissions to delete.
+     */
+    limit?: number
+  }
+
+  /**
+   * OperatorPermissions without action
+   */
+  export type OperatorPermissionsDefaultArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the OperatorPermissions
+     */
+    select?: OperatorPermissionsSelect<ExtArgs> | null
+    /**
+     * Omit specific fields from the OperatorPermissions
+     */
+    omit?: OperatorPermissionsOmit<ExtArgs> | null
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: OperatorPermissionsInclude<ExtArgs> | null
+  }
+
+
+  /**
    * Enums
    */
 
@@ -9911,6 +11109,19 @@ export namespace Prisma {
   };
 
   export type ActivityLogScalarFieldEnum = (typeof ActivityLogScalarFieldEnum)[keyof typeof ActivityLogScalarFieldEnum]
+
+
+  export const OperatorPermissionsScalarFieldEnum: {
+    id: 'id',
+    userId: 'userId',
+    canCreate: 'canCreate',
+    canModify: 'canModify',
+    canDelete: 'canDelete',
+    createdAt: 'createdAt',
+    updatedAt: 'updatedAt'
+  };
+
+  export type OperatorPermissionsScalarFieldEnum = (typeof OperatorPermissionsScalarFieldEnum)[keyof typeof OperatorPermissionsScalarFieldEnum]
 
 
   export const SortOrder: {
@@ -10134,6 +11345,7 @@ export namespace Prisma {
     company?: XOR<CompanyNullableScalarRelationFilter, CompanyWhereInput> | null
     createdBy?: XOR<UserNullableScalarRelationFilter, UserWhereInput> | null
     createdUsers?: UserListRelationFilter
+    operatorPermissions?: XOR<OperatorPermissionsNullableScalarRelationFilter, OperatorPermissionsWhereInput> | null
   }
 
   export type UserOrderByWithRelationInput = {
@@ -10158,6 +11370,7 @@ export namespace Prisma {
     company?: CompanyOrderByWithRelationInput
     createdBy?: UserOrderByWithRelationInput
     createdUsers?: UserOrderByRelationAggregateInput
+    operatorPermissions?: OperatorPermissionsOrderByWithRelationInput
   }
 
   export type UserWhereUniqueInput = Prisma.AtLeast<{
@@ -10185,6 +11398,7 @@ export namespace Prisma {
     company?: XOR<CompanyNullableScalarRelationFilter, CompanyWhereInput> | null
     createdBy?: XOR<UserNullableScalarRelationFilter, UserWhereInput> | null
     createdUsers?: UserListRelationFilter
+    operatorPermissions?: XOR<OperatorPermissionsNullableScalarRelationFilter, OperatorPermissionsWhereInput> | null
   }, "id" | "email">
 
   export type UserOrderByWithAggregationInput = {
@@ -10639,6 +11853,71 @@ export namespace Prisma {
     createdAt?: DateTimeWithAggregatesFilter<"ActivityLog"> | Date | string
   }
 
+  export type OperatorPermissionsWhereInput = {
+    AND?: OperatorPermissionsWhereInput | OperatorPermissionsWhereInput[]
+    OR?: OperatorPermissionsWhereInput[]
+    NOT?: OperatorPermissionsWhereInput | OperatorPermissionsWhereInput[]
+    id?: StringFilter<"OperatorPermissions"> | string
+    userId?: StringFilter<"OperatorPermissions"> | string
+    canCreate?: BoolFilter<"OperatorPermissions"> | boolean
+    canModify?: BoolFilter<"OperatorPermissions"> | boolean
+    canDelete?: BoolFilter<"OperatorPermissions"> | boolean
+    createdAt?: DateTimeFilter<"OperatorPermissions"> | Date | string
+    updatedAt?: DateTimeFilter<"OperatorPermissions"> | Date | string
+    user?: XOR<UserScalarRelationFilter, UserWhereInput>
+  }
+
+  export type OperatorPermissionsOrderByWithRelationInput = {
+    id?: SortOrder
+    userId?: SortOrder
+    canCreate?: SortOrder
+    canModify?: SortOrder
+    canDelete?: SortOrder
+    createdAt?: SortOrder
+    updatedAt?: SortOrder
+    user?: UserOrderByWithRelationInput
+  }
+
+  export type OperatorPermissionsWhereUniqueInput = Prisma.AtLeast<{
+    id?: string
+    userId?: string
+    AND?: OperatorPermissionsWhereInput | OperatorPermissionsWhereInput[]
+    OR?: OperatorPermissionsWhereInput[]
+    NOT?: OperatorPermissionsWhereInput | OperatorPermissionsWhereInput[]
+    canCreate?: BoolFilter<"OperatorPermissions"> | boolean
+    canModify?: BoolFilter<"OperatorPermissions"> | boolean
+    canDelete?: BoolFilter<"OperatorPermissions"> | boolean
+    createdAt?: DateTimeFilter<"OperatorPermissions"> | Date | string
+    updatedAt?: DateTimeFilter<"OperatorPermissions"> | Date | string
+    user?: XOR<UserScalarRelationFilter, UserWhereInput>
+  }, "id" | "userId">
+
+  export type OperatorPermissionsOrderByWithAggregationInput = {
+    id?: SortOrder
+    userId?: SortOrder
+    canCreate?: SortOrder
+    canModify?: SortOrder
+    canDelete?: SortOrder
+    createdAt?: SortOrder
+    updatedAt?: SortOrder
+    _count?: OperatorPermissionsCountOrderByAggregateInput
+    _max?: OperatorPermissionsMaxOrderByAggregateInput
+    _min?: OperatorPermissionsMinOrderByAggregateInput
+  }
+
+  export type OperatorPermissionsScalarWhereWithAggregatesInput = {
+    AND?: OperatorPermissionsScalarWhereWithAggregatesInput | OperatorPermissionsScalarWhereWithAggregatesInput[]
+    OR?: OperatorPermissionsScalarWhereWithAggregatesInput[]
+    NOT?: OperatorPermissionsScalarWhereWithAggregatesInput | OperatorPermissionsScalarWhereWithAggregatesInput[]
+    id?: StringWithAggregatesFilter<"OperatorPermissions"> | string
+    userId?: StringWithAggregatesFilter<"OperatorPermissions"> | string
+    canCreate?: BoolWithAggregatesFilter<"OperatorPermissions"> | boolean
+    canModify?: BoolWithAggregatesFilter<"OperatorPermissions"> | boolean
+    canDelete?: BoolWithAggregatesFilter<"OperatorPermissions"> | boolean
+    createdAt?: DateTimeWithAggregatesFilter<"OperatorPermissions"> | Date | string
+    updatedAt?: DateTimeWithAggregatesFilter<"OperatorPermissions"> | Date | string
+  }
+
   export type UserCreateInput = {
     id?: string
     name: string
@@ -10659,6 +11938,7 @@ export namespace Prisma {
     company?: CompanyCreateNestedOneWithoutEmployeesInput
     createdBy?: UserCreateNestedOneWithoutCreatedUsersInput
     createdUsers?: UserCreateNestedManyWithoutCreatedByInput
+    operatorPermissions?: OperatorPermissionsCreateNestedOneWithoutUserInput
   }
 
   export type UserUncheckedCreateInput = {
@@ -10681,6 +11961,7 @@ export namespace Prisma {
     verifiedSeals?: SealUncheckedCreateNestedManyWithoutVerifiedByInput
     createdSessions?: SessionUncheckedCreateNestedManyWithoutCreatedByInput
     createdUsers?: UserUncheckedCreateNestedManyWithoutCreatedByInput
+    operatorPermissions?: OperatorPermissionsUncheckedCreateNestedOneWithoutUserInput
   }
 
   export type UserUpdateInput = {
@@ -10703,6 +11984,7 @@ export namespace Prisma {
     company?: CompanyUpdateOneWithoutEmployeesNestedInput
     createdBy?: UserUpdateOneWithoutCreatedUsersNestedInput
     createdUsers?: UserUpdateManyWithoutCreatedByNestedInput
+    operatorPermissions?: OperatorPermissionsUpdateOneWithoutUserNestedInput
   }
 
   export type UserUncheckedUpdateInput = {
@@ -10725,6 +12007,7 @@ export namespace Prisma {
     verifiedSeals?: SealUncheckedUpdateManyWithoutVerifiedByNestedInput
     createdSessions?: SessionUncheckedUpdateManyWithoutCreatedByNestedInput
     createdUsers?: UserUncheckedUpdateManyWithoutCreatedByNestedInput
+    operatorPermissions?: OperatorPermissionsUncheckedUpdateOneWithoutUserNestedInput
   }
 
   export type UserCreateManyInput = {
@@ -11193,6 +12476,75 @@ export namespace Prisma {
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
   }
 
+  export type OperatorPermissionsCreateInput = {
+    id?: string
+    canCreate?: boolean
+    canModify?: boolean
+    canDelete?: boolean
+    createdAt?: Date | string
+    updatedAt?: Date | string
+    user: UserCreateNestedOneWithoutOperatorPermissionsInput
+  }
+
+  export type OperatorPermissionsUncheckedCreateInput = {
+    id?: string
+    userId: string
+    canCreate?: boolean
+    canModify?: boolean
+    canDelete?: boolean
+    createdAt?: Date | string
+    updatedAt?: Date | string
+  }
+
+  export type OperatorPermissionsUpdateInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    canCreate?: BoolFieldUpdateOperationsInput | boolean
+    canModify?: BoolFieldUpdateOperationsInput | boolean
+    canDelete?: BoolFieldUpdateOperationsInput | boolean
+    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    user?: UserUpdateOneRequiredWithoutOperatorPermissionsNestedInput
+  }
+
+  export type OperatorPermissionsUncheckedUpdateInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    userId?: StringFieldUpdateOperationsInput | string
+    canCreate?: BoolFieldUpdateOperationsInput | boolean
+    canModify?: BoolFieldUpdateOperationsInput | boolean
+    canDelete?: BoolFieldUpdateOperationsInput | boolean
+    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
+  }
+
+  export type OperatorPermissionsCreateManyInput = {
+    id?: string
+    userId: string
+    canCreate?: boolean
+    canModify?: boolean
+    canDelete?: boolean
+    createdAt?: Date | string
+    updatedAt?: Date | string
+  }
+
+  export type OperatorPermissionsUpdateManyMutationInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    canCreate?: BoolFieldUpdateOperationsInput | boolean
+    canModify?: BoolFieldUpdateOperationsInput | boolean
+    canDelete?: BoolFieldUpdateOperationsInput | boolean
+    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
+  }
+
+  export type OperatorPermissionsUncheckedUpdateManyInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    userId?: StringFieldUpdateOperationsInput | string
+    canCreate?: BoolFieldUpdateOperationsInput | boolean
+    canModify?: BoolFieldUpdateOperationsInput | boolean
+    canDelete?: BoolFieldUpdateOperationsInput | boolean
+    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
+  }
+
   export type StringFilter<$PrismaModel = never> = {
     equals?: string | StringFieldRefInput<$PrismaModel>
     in?: string[] | ListStringFieldRefInput<$PrismaModel>
@@ -11303,6 +12655,11 @@ export namespace Prisma {
     every?: UserWhereInput
     some?: UserWhereInput
     none?: UserWhereInput
+  }
+
+  export type OperatorPermissionsNullableScalarRelationFilter = {
+    is?: OperatorPermissionsWhereInput | null
+    isNot?: OperatorPermissionsWhereInput | null
   }
 
   export type SortOrderInput = {
@@ -11841,6 +13198,36 @@ export namespace Prisma {
     _max?: NestedJsonNullableFilter<$PrismaModel>
   }
 
+  export type OperatorPermissionsCountOrderByAggregateInput = {
+    id?: SortOrder
+    userId?: SortOrder
+    canCreate?: SortOrder
+    canModify?: SortOrder
+    canDelete?: SortOrder
+    createdAt?: SortOrder
+    updatedAt?: SortOrder
+  }
+
+  export type OperatorPermissionsMaxOrderByAggregateInput = {
+    id?: SortOrder
+    userId?: SortOrder
+    canCreate?: SortOrder
+    canModify?: SortOrder
+    canDelete?: SortOrder
+    createdAt?: SortOrder
+    updatedAt?: SortOrder
+  }
+
+  export type OperatorPermissionsMinOrderByAggregateInput = {
+    id?: SortOrder
+    userId?: SortOrder
+    canCreate?: SortOrder
+    canModify?: SortOrder
+    canDelete?: SortOrder
+    createdAt?: SortOrder
+    updatedAt?: SortOrder
+  }
+
   export type ActivityLogCreateNestedManyWithoutTargetUserInput = {
     create?: XOR<ActivityLogCreateWithoutTargetUserInput, ActivityLogUncheckedCreateWithoutTargetUserInput> | ActivityLogCreateWithoutTargetUserInput[] | ActivityLogUncheckedCreateWithoutTargetUserInput[]
     connectOrCreate?: ActivityLogCreateOrConnectWithoutTargetUserInput | ActivityLogCreateOrConnectWithoutTargetUserInput[]
@@ -11909,6 +13296,12 @@ export namespace Prisma {
     connect?: UserWhereUniqueInput | UserWhereUniqueInput[]
   }
 
+  export type OperatorPermissionsCreateNestedOneWithoutUserInput = {
+    create?: XOR<OperatorPermissionsCreateWithoutUserInput, OperatorPermissionsUncheckedCreateWithoutUserInput>
+    connectOrCreate?: OperatorPermissionsCreateOrConnectWithoutUserInput
+    connect?: OperatorPermissionsWhereUniqueInput
+  }
+
   export type ActivityLogUncheckedCreateNestedManyWithoutTargetUserInput = {
     create?: XOR<ActivityLogCreateWithoutTargetUserInput, ActivityLogUncheckedCreateWithoutTargetUserInput> | ActivityLogCreateWithoutTargetUserInput[] | ActivityLogUncheckedCreateWithoutTargetUserInput[]
     connectOrCreate?: ActivityLogCreateOrConnectWithoutTargetUserInput | ActivityLogCreateOrConnectWithoutTargetUserInput[]
@@ -11963,6 +13356,12 @@ export namespace Prisma {
     connectOrCreate?: UserCreateOrConnectWithoutCreatedByInput | UserCreateOrConnectWithoutCreatedByInput[]
     createMany?: UserCreateManyCreatedByInputEnvelope
     connect?: UserWhereUniqueInput | UserWhereUniqueInput[]
+  }
+
+  export type OperatorPermissionsUncheckedCreateNestedOneWithoutUserInput = {
+    create?: XOR<OperatorPermissionsCreateWithoutUserInput, OperatorPermissionsUncheckedCreateWithoutUserInput>
+    connectOrCreate?: OperatorPermissionsCreateOrConnectWithoutUserInput
+    connect?: OperatorPermissionsWhereUniqueInput
   }
 
   export type StringFieldUpdateOperationsInput = {
@@ -12121,6 +13520,16 @@ export namespace Prisma {
     deleteMany?: UserScalarWhereInput | UserScalarWhereInput[]
   }
 
+  export type OperatorPermissionsUpdateOneWithoutUserNestedInput = {
+    create?: XOR<OperatorPermissionsCreateWithoutUserInput, OperatorPermissionsUncheckedCreateWithoutUserInput>
+    connectOrCreate?: OperatorPermissionsCreateOrConnectWithoutUserInput
+    upsert?: OperatorPermissionsUpsertWithoutUserInput
+    disconnect?: OperatorPermissionsWhereInput | boolean
+    delete?: OperatorPermissionsWhereInput | boolean
+    connect?: OperatorPermissionsWhereUniqueInput
+    update?: XOR<XOR<OperatorPermissionsUpdateToOneWithWhereWithoutUserInput, OperatorPermissionsUpdateWithoutUserInput>, OperatorPermissionsUncheckedUpdateWithoutUserInput>
+  }
+
   export type NullableStringFieldUpdateOperationsInput = {
     set?: string | null
   }
@@ -12235,6 +13644,16 @@ export namespace Prisma {
     update?: UserUpdateWithWhereUniqueWithoutCreatedByInput | UserUpdateWithWhereUniqueWithoutCreatedByInput[]
     updateMany?: UserUpdateManyWithWhereWithoutCreatedByInput | UserUpdateManyWithWhereWithoutCreatedByInput[]
     deleteMany?: UserScalarWhereInput | UserScalarWhereInput[]
+  }
+
+  export type OperatorPermissionsUncheckedUpdateOneWithoutUserNestedInput = {
+    create?: XOR<OperatorPermissionsCreateWithoutUserInput, OperatorPermissionsUncheckedCreateWithoutUserInput>
+    connectOrCreate?: OperatorPermissionsCreateOrConnectWithoutUserInput
+    upsert?: OperatorPermissionsUpsertWithoutUserInput
+    disconnect?: OperatorPermissionsWhereInput | boolean
+    delete?: OperatorPermissionsWhereInput | boolean
+    connect?: OperatorPermissionsWhereUniqueInput
+    update?: XOR<XOR<OperatorPermissionsUpdateToOneWithWhereWithoutUserInput, OperatorPermissionsUpdateWithoutUserInput>, OperatorPermissionsUncheckedUpdateWithoutUserInput>
   }
 
   export type SessionCreateNestedManyWithoutCompanyInput = {
@@ -12565,6 +13984,20 @@ export namespace Prisma {
     upsert?: UserUpsertWithoutActivityLogsInput
     connect?: UserWhereUniqueInput
     update?: XOR<XOR<UserUpdateToOneWithWhereWithoutActivityLogsInput, UserUpdateWithoutActivityLogsInput>, UserUncheckedUpdateWithoutActivityLogsInput>
+  }
+
+  export type UserCreateNestedOneWithoutOperatorPermissionsInput = {
+    create?: XOR<UserCreateWithoutOperatorPermissionsInput, UserUncheckedCreateWithoutOperatorPermissionsInput>
+    connectOrCreate?: UserCreateOrConnectWithoutOperatorPermissionsInput
+    connect?: UserWhereUniqueInput
+  }
+
+  export type UserUpdateOneRequiredWithoutOperatorPermissionsNestedInput = {
+    create?: XOR<UserCreateWithoutOperatorPermissionsInput, UserUncheckedCreateWithoutOperatorPermissionsInput>
+    connectOrCreate?: UserCreateOrConnectWithoutOperatorPermissionsInput
+    upsert?: UserUpsertWithoutOperatorPermissionsInput
+    connect?: UserWhereUniqueInput
+    update?: XOR<XOR<UserUpdateToOneWithWhereWithoutOperatorPermissionsInput, UserUpdateWithoutOperatorPermissionsInput>, UserUncheckedUpdateWithoutOperatorPermissionsInput>
   }
 
   export type NestedStringFilter<$PrismaModel = never> = {
@@ -13128,6 +14561,7 @@ export namespace Prisma {
     createdSessions?: SessionCreateNestedManyWithoutCreatedByInput
     company?: CompanyCreateNestedOneWithoutEmployeesInput
     createdBy?: UserCreateNestedOneWithoutCreatedUsersInput
+    operatorPermissions?: OperatorPermissionsCreateNestedOneWithoutUserInput
   }
 
   export type UserUncheckedCreateWithoutCreatedUsersInput = {
@@ -13149,6 +14583,7 @@ export namespace Prisma {
     comments?: CommentUncheckedCreateNestedManyWithoutUserInput
     verifiedSeals?: SealUncheckedCreateNestedManyWithoutVerifiedByInput
     createdSessions?: SessionUncheckedCreateNestedManyWithoutCreatedByInput
+    operatorPermissions?: OperatorPermissionsUncheckedCreateNestedOneWithoutUserInput
   }
 
   export type UserCreateOrConnectWithoutCreatedUsersInput = {
@@ -13175,6 +14610,7 @@ export namespace Prisma {
     createdSessions?: SessionCreateNestedManyWithoutCreatedByInput
     company?: CompanyCreateNestedOneWithoutEmployeesInput
     createdUsers?: UserCreateNestedManyWithoutCreatedByInput
+    operatorPermissions?: OperatorPermissionsCreateNestedOneWithoutUserInput
   }
 
   export type UserUncheckedCreateWithoutCreatedByInput = {
@@ -13196,6 +14632,7 @@ export namespace Prisma {
     verifiedSeals?: SealUncheckedCreateNestedManyWithoutVerifiedByInput
     createdSessions?: SessionUncheckedCreateNestedManyWithoutCreatedByInput
     createdUsers?: UserUncheckedCreateNestedManyWithoutCreatedByInput
+    operatorPermissions?: OperatorPermissionsUncheckedCreateNestedOneWithoutUserInput
   }
 
   export type UserCreateOrConnectWithoutCreatedByInput = {
@@ -13206,6 +14643,29 @@ export namespace Prisma {
   export type UserCreateManyCreatedByInputEnvelope = {
     data: UserCreateManyCreatedByInput | UserCreateManyCreatedByInput[]
     skipDuplicates?: boolean
+  }
+
+  export type OperatorPermissionsCreateWithoutUserInput = {
+    id?: string
+    canCreate?: boolean
+    canModify?: boolean
+    canDelete?: boolean
+    createdAt?: Date | string
+    updatedAt?: Date | string
+  }
+
+  export type OperatorPermissionsUncheckedCreateWithoutUserInput = {
+    id?: string
+    canCreate?: boolean
+    canModify?: boolean
+    canDelete?: boolean
+    createdAt?: Date | string
+    updatedAt?: Date | string
+  }
+
+  export type OperatorPermissionsCreateOrConnectWithoutUserInput = {
+    where: OperatorPermissionsWhereUniqueInput
+    create: XOR<OperatorPermissionsCreateWithoutUserInput, OperatorPermissionsUncheckedCreateWithoutUserInput>
   }
 
   export type ActivityLogUpsertWithWhereUniqueWithoutTargetUserInput = {
@@ -13448,6 +14908,7 @@ export namespace Prisma {
     createdSessions?: SessionUpdateManyWithoutCreatedByNestedInput
     company?: CompanyUpdateOneWithoutEmployeesNestedInput
     createdBy?: UserUpdateOneWithoutCreatedUsersNestedInput
+    operatorPermissions?: OperatorPermissionsUpdateOneWithoutUserNestedInput
   }
 
   export type UserUncheckedUpdateWithoutCreatedUsersInput = {
@@ -13469,6 +14930,7 @@ export namespace Prisma {
     comments?: CommentUncheckedUpdateManyWithoutUserNestedInput
     verifiedSeals?: SealUncheckedUpdateManyWithoutVerifiedByNestedInput
     createdSessions?: SessionUncheckedUpdateManyWithoutCreatedByNestedInput
+    operatorPermissions?: OperatorPermissionsUncheckedUpdateOneWithoutUserNestedInput
   }
 
   export type UserUpsertWithWhereUniqueWithoutCreatedByInput = {
@@ -13502,6 +14964,35 @@ export namespace Prisma {
     createdById?: StringNullableFilter<"User"> | string | null
     createdAt?: DateTimeFilter<"User"> | Date | string
     updatedAt?: DateTimeFilter<"User"> | Date | string
+  }
+
+  export type OperatorPermissionsUpsertWithoutUserInput = {
+    update: XOR<OperatorPermissionsUpdateWithoutUserInput, OperatorPermissionsUncheckedUpdateWithoutUserInput>
+    create: XOR<OperatorPermissionsCreateWithoutUserInput, OperatorPermissionsUncheckedCreateWithoutUserInput>
+    where?: OperatorPermissionsWhereInput
+  }
+
+  export type OperatorPermissionsUpdateToOneWithWhereWithoutUserInput = {
+    where?: OperatorPermissionsWhereInput
+    data: XOR<OperatorPermissionsUpdateWithoutUserInput, OperatorPermissionsUncheckedUpdateWithoutUserInput>
+  }
+
+  export type OperatorPermissionsUpdateWithoutUserInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    canCreate?: BoolFieldUpdateOperationsInput | boolean
+    canModify?: BoolFieldUpdateOperationsInput | boolean
+    canDelete?: BoolFieldUpdateOperationsInput | boolean
+    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
+  }
+
+  export type OperatorPermissionsUncheckedUpdateWithoutUserInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    canCreate?: BoolFieldUpdateOperationsInput | boolean
+    canModify?: BoolFieldUpdateOperationsInput | boolean
+    canDelete?: BoolFieldUpdateOperationsInput | boolean
+    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
   }
 
   export type SessionCreateWithoutCompanyInput = {
@@ -13555,6 +15046,7 @@ export namespace Prisma {
     createdSessions?: SessionCreateNestedManyWithoutCreatedByInput
     createdBy?: UserCreateNestedOneWithoutCreatedUsersInput
     createdUsers?: UserCreateNestedManyWithoutCreatedByInput
+    operatorPermissions?: OperatorPermissionsCreateNestedOneWithoutUserInput
   }
 
   export type UserUncheckedCreateWithoutCompanyInput = {
@@ -13576,6 +15068,7 @@ export namespace Prisma {
     verifiedSeals?: SealUncheckedCreateNestedManyWithoutVerifiedByInput
     createdSessions?: SessionUncheckedCreateNestedManyWithoutCreatedByInput
     createdUsers?: UserUncheckedCreateNestedManyWithoutCreatedByInput
+    operatorPermissions?: OperatorPermissionsUncheckedCreateNestedOneWithoutUserInput
   }
 
   export type UserCreateOrConnectWithoutCompanyInput = {
@@ -13639,6 +15132,7 @@ export namespace Prisma {
     company?: CompanyCreateNestedOneWithoutEmployeesInput
     createdBy?: UserCreateNestedOneWithoutCreatedUsersInput
     createdUsers?: UserCreateNestedManyWithoutCreatedByInput
+    operatorPermissions?: OperatorPermissionsCreateNestedOneWithoutUserInput
   }
 
   export type UserUncheckedCreateWithoutSentTransactionsInput = {
@@ -13660,6 +15154,7 @@ export namespace Prisma {
     verifiedSeals?: SealUncheckedCreateNestedManyWithoutVerifiedByInput
     createdSessions?: SessionUncheckedCreateNestedManyWithoutCreatedByInput
     createdUsers?: UserUncheckedCreateNestedManyWithoutCreatedByInput
+    operatorPermissions?: OperatorPermissionsUncheckedCreateNestedOneWithoutUserInput
   }
 
   export type UserCreateOrConnectWithoutSentTransactionsInput = {
@@ -13686,6 +15181,7 @@ export namespace Prisma {
     company?: CompanyCreateNestedOneWithoutEmployeesInput
     createdBy?: UserCreateNestedOneWithoutCreatedUsersInput
     createdUsers?: UserCreateNestedManyWithoutCreatedByInput
+    operatorPermissions?: OperatorPermissionsCreateNestedOneWithoutUserInput
   }
 
   export type UserUncheckedCreateWithoutReceivedTransactionsInput = {
@@ -13707,6 +15203,7 @@ export namespace Prisma {
     verifiedSeals?: SealUncheckedCreateNestedManyWithoutVerifiedByInput
     createdSessions?: SessionUncheckedCreateNestedManyWithoutCreatedByInput
     createdUsers?: UserUncheckedCreateNestedManyWithoutCreatedByInput
+    operatorPermissions?: OperatorPermissionsUncheckedCreateNestedOneWithoutUserInput
   }
 
   export type UserCreateOrConnectWithoutReceivedTransactionsInput = {
@@ -13744,6 +15241,7 @@ export namespace Prisma {
     company?: CompanyUpdateOneWithoutEmployeesNestedInput
     createdBy?: UserUpdateOneWithoutCreatedUsersNestedInput
     createdUsers?: UserUpdateManyWithoutCreatedByNestedInput
+    operatorPermissions?: OperatorPermissionsUpdateOneWithoutUserNestedInput
   }
 
   export type UserUncheckedUpdateWithoutSentTransactionsInput = {
@@ -13765,6 +15263,7 @@ export namespace Prisma {
     verifiedSeals?: SealUncheckedUpdateManyWithoutVerifiedByNestedInput
     createdSessions?: SessionUncheckedUpdateManyWithoutCreatedByNestedInput
     createdUsers?: UserUncheckedUpdateManyWithoutCreatedByNestedInput
+    operatorPermissions?: OperatorPermissionsUncheckedUpdateOneWithoutUserNestedInput
   }
 
   export type UserUpsertWithoutReceivedTransactionsInput = {
@@ -13797,6 +15296,7 @@ export namespace Prisma {
     company?: CompanyUpdateOneWithoutEmployeesNestedInput
     createdBy?: UserUpdateOneWithoutCreatedUsersNestedInput
     createdUsers?: UserUpdateManyWithoutCreatedByNestedInput
+    operatorPermissions?: OperatorPermissionsUpdateOneWithoutUserNestedInput
   }
 
   export type UserUncheckedUpdateWithoutReceivedTransactionsInput = {
@@ -13818,6 +15318,7 @@ export namespace Prisma {
     verifiedSeals?: SealUncheckedUpdateManyWithoutVerifiedByNestedInput
     createdSessions?: SessionUncheckedUpdateManyWithoutCreatedByNestedInput
     createdUsers?: UserUncheckedUpdateManyWithoutCreatedByNestedInput
+    operatorPermissions?: OperatorPermissionsUncheckedUpdateOneWithoutUserNestedInput
   }
 
   export type CommentCreateWithoutSessionInput = {
@@ -13911,6 +15412,7 @@ export namespace Prisma {
     company?: CompanyCreateNestedOneWithoutEmployeesInput
     createdBy?: UserCreateNestedOneWithoutCreatedUsersInput
     createdUsers?: UserCreateNestedManyWithoutCreatedByInput
+    operatorPermissions?: OperatorPermissionsCreateNestedOneWithoutUserInput
   }
 
   export type UserUncheckedCreateWithoutCreatedSessionsInput = {
@@ -13932,6 +15434,7 @@ export namespace Prisma {
     comments?: CommentUncheckedCreateNestedManyWithoutUserInput
     verifiedSeals?: SealUncheckedCreateNestedManyWithoutVerifiedByInput
     createdUsers?: UserUncheckedCreateNestedManyWithoutCreatedByInput
+    operatorPermissions?: OperatorPermissionsUncheckedCreateNestedOneWithoutUserInput
   }
 
   export type UserCreateOrConnectWithoutCreatedSessionsInput = {
@@ -14045,6 +15548,7 @@ export namespace Prisma {
     company?: CompanyUpdateOneWithoutEmployeesNestedInput
     createdBy?: UserUpdateOneWithoutCreatedUsersNestedInput
     createdUsers?: UserUpdateManyWithoutCreatedByNestedInput
+    operatorPermissions?: OperatorPermissionsUpdateOneWithoutUserNestedInput
   }
 
   export type UserUncheckedUpdateWithoutCreatedSessionsInput = {
@@ -14066,6 +15570,7 @@ export namespace Prisma {
     comments?: CommentUncheckedUpdateManyWithoutUserNestedInput
     verifiedSeals?: SealUncheckedUpdateManyWithoutVerifiedByNestedInput
     createdUsers?: UserUncheckedUpdateManyWithoutCreatedByNestedInput
+    operatorPermissions?: OperatorPermissionsUncheckedUpdateOneWithoutUserNestedInput
   }
 
   export type SessionCreateWithoutSealInput = {
@@ -14114,6 +15619,7 @@ export namespace Prisma {
     company?: CompanyCreateNestedOneWithoutEmployeesInput
     createdBy?: UserCreateNestedOneWithoutCreatedUsersInput
     createdUsers?: UserCreateNestedManyWithoutCreatedByInput
+    operatorPermissions?: OperatorPermissionsCreateNestedOneWithoutUserInput
   }
 
   export type UserUncheckedCreateWithoutVerifiedSealsInput = {
@@ -14135,6 +15641,7 @@ export namespace Prisma {
     comments?: CommentUncheckedCreateNestedManyWithoutUserInput
     createdSessions?: SessionUncheckedCreateNestedManyWithoutCreatedByInput
     createdUsers?: UserUncheckedCreateNestedManyWithoutCreatedByInput
+    operatorPermissions?: OperatorPermissionsUncheckedCreateNestedOneWithoutUserInput
   }
 
   export type UserCreateOrConnectWithoutVerifiedSealsInput = {
@@ -14205,6 +15712,7 @@ export namespace Prisma {
     company?: CompanyUpdateOneWithoutEmployeesNestedInput
     createdBy?: UserUpdateOneWithoutCreatedUsersNestedInput
     createdUsers?: UserUpdateManyWithoutCreatedByNestedInput
+    operatorPermissions?: OperatorPermissionsUpdateOneWithoutUserNestedInput
   }
 
   export type UserUncheckedUpdateWithoutVerifiedSealsInput = {
@@ -14226,6 +15734,7 @@ export namespace Prisma {
     comments?: CommentUncheckedUpdateManyWithoutUserNestedInput
     createdSessions?: SessionUncheckedUpdateManyWithoutCreatedByNestedInput
     createdUsers?: UserUncheckedUpdateManyWithoutCreatedByNestedInput
+    operatorPermissions?: OperatorPermissionsUncheckedUpdateOneWithoutUserNestedInput
   }
 
   export type SessionCreateWithoutCommentsInput = {
@@ -14274,6 +15783,7 @@ export namespace Prisma {
     company?: CompanyCreateNestedOneWithoutEmployeesInput
     createdBy?: UserCreateNestedOneWithoutCreatedUsersInput
     createdUsers?: UserCreateNestedManyWithoutCreatedByInput
+    operatorPermissions?: OperatorPermissionsCreateNestedOneWithoutUserInput
   }
 
   export type UserUncheckedCreateWithoutCommentsInput = {
@@ -14295,6 +15805,7 @@ export namespace Prisma {
     verifiedSeals?: SealUncheckedCreateNestedManyWithoutVerifiedByInput
     createdSessions?: SessionUncheckedCreateNestedManyWithoutCreatedByInput
     createdUsers?: UserUncheckedCreateNestedManyWithoutCreatedByInput
+    operatorPermissions?: OperatorPermissionsUncheckedCreateNestedOneWithoutUserInput
   }
 
   export type UserCreateOrConnectWithoutCommentsInput = {
@@ -14365,6 +15876,7 @@ export namespace Prisma {
     company?: CompanyUpdateOneWithoutEmployeesNestedInput
     createdBy?: UserUpdateOneWithoutCreatedUsersNestedInput
     createdUsers?: UserUpdateManyWithoutCreatedByNestedInput
+    operatorPermissions?: OperatorPermissionsUpdateOneWithoutUserNestedInput
   }
 
   export type UserUncheckedUpdateWithoutCommentsInput = {
@@ -14386,6 +15898,7 @@ export namespace Prisma {
     verifiedSeals?: SealUncheckedUpdateManyWithoutVerifiedByNestedInput
     createdSessions?: SessionUncheckedUpdateManyWithoutCreatedByNestedInput
     createdUsers?: UserUncheckedUpdateManyWithoutCreatedByNestedInput
+    operatorPermissions?: OperatorPermissionsUncheckedUpdateOneWithoutUserNestedInput
   }
 
   export type UserCreateWithoutTargetActivityLogsInput = {
@@ -14407,6 +15920,7 @@ export namespace Prisma {
     company?: CompanyCreateNestedOneWithoutEmployeesInput
     createdBy?: UserCreateNestedOneWithoutCreatedUsersInput
     createdUsers?: UserCreateNestedManyWithoutCreatedByInput
+    operatorPermissions?: OperatorPermissionsCreateNestedOneWithoutUserInput
   }
 
   export type UserUncheckedCreateWithoutTargetActivityLogsInput = {
@@ -14428,6 +15942,7 @@ export namespace Prisma {
     verifiedSeals?: SealUncheckedCreateNestedManyWithoutVerifiedByInput
     createdSessions?: SessionUncheckedCreateNestedManyWithoutCreatedByInput
     createdUsers?: UserUncheckedCreateNestedManyWithoutCreatedByInput
+    operatorPermissions?: OperatorPermissionsUncheckedCreateNestedOneWithoutUserInput
   }
 
   export type UserCreateOrConnectWithoutTargetActivityLogsInput = {
@@ -14454,6 +15969,7 @@ export namespace Prisma {
     company?: CompanyCreateNestedOneWithoutEmployeesInput
     createdBy?: UserCreateNestedOneWithoutCreatedUsersInput
     createdUsers?: UserCreateNestedManyWithoutCreatedByInput
+    operatorPermissions?: OperatorPermissionsCreateNestedOneWithoutUserInput
   }
 
   export type UserUncheckedCreateWithoutActivityLogsInput = {
@@ -14475,6 +15991,7 @@ export namespace Prisma {
     verifiedSeals?: SealUncheckedCreateNestedManyWithoutVerifiedByInput
     createdSessions?: SessionUncheckedCreateNestedManyWithoutCreatedByInput
     createdUsers?: UserUncheckedCreateNestedManyWithoutCreatedByInput
+    operatorPermissions?: OperatorPermissionsUncheckedCreateNestedOneWithoutUserInput
   }
 
   export type UserCreateOrConnectWithoutActivityLogsInput = {
@@ -14512,6 +16029,7 @@ export namespace Prisma {
     company?: CompanyUpdateOneWithoutEmployeesNestedInput
     createdBy?: UserUpdateOneWithoutCreatedUsersNestedInput
     createdUsers?: UserUpdateManyWithoutCreatedByNestedInput
+    operatorPermissions?: OperatorPermissionsUpdateOneWithoutUserNestedInput
   }
 
   export type UserUncheckedUpdateWithoutTargetActivityLogsInput = {
@@ -14533,6 +16051,7 @@ export namespace Prisma {
     verifiedSeals?: SealUncheckedUpdateManyWithoutVerifiedByNestedInput
     createdSessions?: SessionUncheckedUpdateManyWithoutCreatedByNestedInput
     createdUsers?: UserUncheckedUpdateManyWithoutCreatedByNestedInput
+    operatorPermissions?: OperatorPermissionsUncheckedUpdateOneWithoutUserNestedInput
   }
 
   export type UserUpsertWithoutActivityLogsInput = {
@@ -14565,6 +16084,7 @@ export namespace Prisma {
     company?: CompanyUpdateOneWithoutEmployeesNestedInput
     createdBy?: UserUpdateOneWithoutCreatedUsersNestedInput
     createdUsers?: UserUpdateManyWithoutCreatedByNestedInput
+    operatorPermissions?: OperatorPermissionsUpdateOneWithoutUserNestedInput
   }
 
   export type UserUncheckedUpdateWithoutActivityLogsInput = {
@@ -14580,6 +16100,111 @@ export namespace Prisma {
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
     updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
     targetActivityLogs?: ActivityLogUncheckedUpdateManyWithoutTargetUserNestedInput
+    sentTransactions?: CoinTransactionUncheckedUpdateManyWithoutFromUserNestedInput
+    receivedTransactions?: CoinTransactionUncheckedUpdateManyWithoutToUserNestedInput
+    comments?: CommentUncheckedUpdateManyWithoutUserNestedInput
+    verifiedSeals?: SealUncheckedUpdateManyWithoutVerifiedByNestedInput
+    createdSessions?: SessionUncheckedUpdateManyWithoutCreatedByNestedInput
+    createdUsers?: UserUncheckedUpdateManyWithoutCreatedByNestedInput
+    operatorPermissions?: OperatorPermissionsUncheckedUpdateOneWithoutUserNestedInput
+  }
+
+  export type UserCreateWithoutOperatorPermissionsInput = {
+    id?: string
+    name: string
+    email: string
+    password: string
+    role: $Enums.UserRole
+    subrole?: $Enums.EmployeeSubrole | null
+    coins?: number | null
+    createdAt?: Date | string
+    updatedAt?: Date | string
+    targetActivityLogs?: ActivityLogCreateNestedManyWithoutTargetUserInput
+    activityLogs?: ActivityLogCreateNestedManyWithoutUserInput
+    sentTransactions?: CoinTransactionCreateNestedManyWithoutFromUserInput
+    receivedTransactions?: CoinTransactionCreateNestedManyWithoutToUserInput
+    comments?: CommentCreateNestedManyWithoutUserInput
+    verifiedSeals?: SealCreateNestedManyWithoutVerifiedByInput
+    createdSessions?: SessionCreateNestedManyWithoutCreatedByInput
+    company?: CompanyCreateNestedOneWithoutEmployeesInput
+    createdBy?: UserCreateNestedOneWithoutCreatedUsersInput
+    createdUsers?: UserCreateNestedManyWithoutCreatedByInput
+  }
+
+  export type UserUncheckedCreateWithoutOperatorPermissionsInput = {
+    id?: string
+    name: string
+    email: string
+    password: string
+    role: $Enums.UserRole
+    subrole?: $Enums.EmployeeSubrole | null
+    companyId?: string | null
+    coins?: number | null
+    createdById?: string | null
+    createdAt?: Date | string
+    updatedAt?: Date | string
+    targetActivityLogs?: ActivityLogUncheckedCreateNestedManyWithoutTargetUserInput
+    activityLogs?: ActivityLogUncheckedCreateNestedManyWithoutUserInput
+    sentTransactions?: CoinTransactionUncheckedCreateNestedManyWithoutFromUserInput
+    receivedTransactions?: CoinTransactionUncheckedCreateNestedManyWithoutToUserInput
+    comments?: CommentUncheckedCreateNestedManyWithoutUserInput
+    verifiedSeals?: SealUncheckedCreateNestedManyWithoutVerifiedByInput
+    createdSessions?: SessionUncheckedCreateNestedManyWithoutCreatedByInput
+    createdUsers?: UserUncheckedCreateNestedManyWithoutCreatedByInput
+  }
+
+  export type UserCreateOrConnectWithoutOperatorPermissionsInput = {
+    where: UserWhereUniqueInput
+    create: XOR<UserCreateWithoutOperatorPermissionsInput, UserUncheckedCreateWithoutOperatorPermissionsInput>
+  }
+
+  export type UserUpsertWithoutOperatorPermissionsInput = {
+    update: XOR<UserUpdateWithoutOperatorPermissionsInput, UserUncheckedUpdateWithoutOperatorPermissionsInput>
+    create: XOR<UserCreateWithoutOperatorPermissionsInput, UserUncheckedCreateWithoutOperatorPermissionsInput>
+    where?: UserWhereInput
+  }
+
+  export type UserUpdateToOneWithWhereWithoutOperatorPermissionsInput = {
+    where?: UserWhereInput
+    data: XOR<UserUpdateWithoutOperatorPermissionsInput, UserUncheckedUpdateWithoutOperatorPermissionsInput>
+  }
+
+  export type UserUpdateWithoutOperatorPermissionsInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    name?: StringFieldUpdateOperationsInput | string
+    email?: StringFieldUpdateOperationsInput | string
+    password?: StringFieldUpdateOperationsInput | string
+    role?: EnumUserRoleFieldUpdateOperationsInput | $Enums.UserRole
+    subrole?: NullableEnumEmployeeSubroleFieldUpdateOperationsInput | $Enums.EmployeeSubrole | null
+    coins?: NullableIntFieldUpdateOperationsInput | number | null
+    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    targetActivityLogs?: ActivityLogUpdateManyWithoutTargetUserNestedInput
+    activityLogs?: ActivityLogUpdateManyWithoutUserNestedInput
+    sentTransactions?: CoinTransactionUpdateManyWithoutFromUserNestedInput
+    receivedTransactions?: CoinTransactionUpdateManyWithoutToUserNestedInput
+    comments?: CommentUpdateManyWithoutUserNestedInput
+    verifiedSeals?: SealUpdateManyWithoutVerifiedByNestedInput
+    createdSessions?: SessionUpdateManyWithoutCreatedByNestedInput
+    company?: CompanyUpdateOneWithoutEmployeesNestedInput
+    createdBy?: UserUpdateOneWithoutCreatedUsersNestedInput
+    createdUsers?: UserUpdateManyWithoutCreatedByNestedInput
+  }
+
+  export type UserUncheckedUpdateWithoutOperatorPermissionsInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    name?: StringFieldUpdateOperationsInput | string
+    email?: StringFieldUpdateOperationsInput | string
+    password?: StringFieldUpdateOperationsInput | string
+    role?: EnumUserRoleFieldUpdateOperationsInput | $Enums.UserRole
+    subrole?: NullableEnumEmployeeSubroleFieldUpdateOperationsInput | $Enums.EmployeeSubrole | null
+    companyId?: NullableStringFieldUpdateOperationsInput | string | null
+    coins?: NullableIntFieldUpdateOperationsInput | number | null
+    createdById?: NullableStringFieldUpdateOperationsInput | string | null
+    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    targetActivityLogs?: ActivityLogUncheckedUpdateManyWithoutTargetUserNestedInput
+    activityLogs?: ActivityLogUncheckedUpdateManyWithoutUserNestedInput
     sentTransactions?: CoinTransactionUncheckedUpdateManyWithoutFromUserNestedInput
     receivedTransactions?: CoinTransactionUncheckedUpdateManyWithoutToUserNestedInput
     comments?: CommentUncheckedUpdateManyWithoutUserNestedInput
@@ -14888,6 +16513,7 @@ export namespace Prisma {
     createdSessions?: SessionUpdateManyWithoutCreatedByNestedInput
     company?: CompanyUpdateOneWithoutEmployeesNestedInput
     createdUsers?: UserUpdateManyWithoutCreatedByNestedInput
+    operatorPermissions?: OperatorPermissionsUpdateOneWithoutUserNestedInput
   }
 
   export type UserUncheckedUpdateWithoutCreatedByInput = {
@@ -14909,6 +16535,7 @@ export namespace Prisma {
     verifiedSeals?: SealUncheckedUpdateManyWithoutVerifiedByNestedInput
     createdSessions?: SessionUncheckedUpdateManyWithoutCreatedByNestedInput
     createdUsers?: UserUncheckedUpdateManyWithoutCreatedByNestedInput
+    operatorPermissions?: OperatorPermissionsUncheckedUpdateOneWithoutUserNestedInput
   }
 
   export type UserUncheckedUpdateManyWithoutCreatedByInput = {
@@ -14996,6 +16623,7 @@ export namespace Prisma {
     createdSessions?: SessionUpdateManyWithoutCreatedByNestedInput
     createdBy?: UserUpdateOneWithoutCreatedUsersNestedInput
     createdUsers?: UserUpdateManyWithoutCreatedByNestedInput
+    operatorPermissions?: OperatorPermissionsUpdateOneWithoutUserNestedInput
   }
 
   export type UserUncheckedUpdateWithoutCompanyInput = {
@@ -15017,6 +16645,7 @@ export namespace Prisma {
     verifiedSeals?: SealUncheckedUpdateManyWithoutVerifiedByNestedInput
     createdSessions?: SessionUncheckedUpdateManyWithoutCreatedByNestedInput
     createdUsers?: UserUncheckedUpdateManyWithoutCreatedByNestedInput
+    operatorPermissions?: OperatorPermissionsUncheckedUpdateOneWithoutUserNestedInput
   }
 
   export type UserUncheckedUpdateManyWithoutCompanyInput = {

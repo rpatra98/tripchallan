@@ -30,6 +30,7 @@ model User {
   company              Company?          @relation(fields: [companyId], references: [id])
   createdBy            User?             @relation("UserCreatedBy", fields: [createdById], references: [id])
   createdUsers         User[]            @relation("UserCreatedBy")
+  operatorPermissions  OperatorPermissions?
 
   @@map("users")
 }
@@ -118,6 +119,19 @@ model ActivityLog {
   user               User           @relation("UserActivityLogs", fields: [userId], references: [id])
 
   @@map("activity_logs")
+}
+
+model OperatorPermissions {
+  id               String   @id @default(uuid())
+  userId           String   @unique
+  canCreate        Boolean  @default(true)
+  canModify        Boolean  @default(false)
+  canDelete        Boolean  @default(false)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("operator_permissions")
 }
 
 enum UserRole {

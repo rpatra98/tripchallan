@@ -22,6 +22,11 @@ export default function EmployeeDashboard({ user }: EmployeeDashboardProps) {
   const [operatorSessions, setOperatorSessions] = useState<any[]>([]);
   const [loadingOperatorSessions, setLoadingOperatorSessions] = useState(false);
   const [operatorSessionsError, setOperatorSessionsError] = useState("");
+  const [operatorPermissions, setOperatorPermissions] = useState({
+    canCreate: true,
+    canModify: false,
+    canDelete: false
+  });
   
   // Format the subrole for display
   const formattedSubrole = user.subrole ? String(user.subrole).toLowerCase().replace('_', ' ') : '';
@@ -39,6 +44,30 @@ export default function EmployeeDashboard({ user }: EmployeeDashboardProps) {
       fetchCurrentUser();
     }
   }, [activeTab, isOperator]);
+
+  // Fetch operator permissions when component mounts
+  useEffect(() => {
+    if (isOperator) {
+      fetchOperatorPermissions();
+    }
+  }, [isOperator]);
+
+  // Fetch operator permissions
+  const fetchOperatorPermissions = async () => {
+    try {
+      const response = await fetch(`/api/employees/${session?.user?.id || user.id}/permissions`);
+      
+      if (response.ok) {
+        const permissions = await response.json();
+        setOperatorPermissions(permissions);
+        console.log("Operator permissions loaded:", permissions);
+      } else {
+        console.error("Failed to fetch operator permissions, using defaults");
+      }
+    } catch (err) {
+      console.error("Error fetching operator permissions:", err);
+    }
+  };
 
   // Fetch current user data
   const fetchCurrentUser = async () => {
@@ -218,6 +247,32 @@ export default function EmployeeDashboard({ user }: EmployeeDashboardProps) {
       setOperatorSessions([]);
     } finally {
       setLoadingOperatorSessions(false);
+    }
+  };
+
+  // Handle trip deletion
+  const handleDeleteTrip = async (tripId: string) => {
+    if (!confirm("Are you sure you want to delete this trip? This action cannot be undone.")) {
+      return;
+    }
+    
+    try {
+      const response = await fetch(`/api/sessions/${tripId}`, {
+        method: "DELETE"
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || "Failed to delete trip");
+      }
+      
+      // Remove the deleted trip from the list
+      setOperatorSessions(prev => prev.filter(s => s.id !== tripId));
+      
+      alert("Trip deleted successfully");
+    } catch (err) {
+      console.error("Error deleting trip:", err);
+      alert(err instanceof Error ? err.message : "Failed to delete trip. Please try again.");
     }
   };
 
@@ -459,11 +514,13 @@ export default function EmployeeDashboard({ user }: EmployeeDashboardProps) {
                       >
                         Refresh
                       </button>
-                    <Link href="/dashboard/sessions/create">
-                      <button className="px-4 py-2 bg-blue-500 text-white rounded-md text-sm hover:bg-blue-600">
-                        Create New Trip
-                      </button>
-                    </Link>
+                      {operatorPermissions.canCreate && (
+                        <Link href="/dashboard/sessions/create">
+                          <button className="px-4 py-2 bg-blue-500 text-white rounded-md text-sm hover:bg-blue-600">
+                            Create New Trip
+                          </button>
+                        </Link>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -491,11 +548,13 @@ export default function EmployeeDashboard({ user }: EmployeeDashboardProps) {
                         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
                       </div>
                     ) : operatorSessions.length === 0 ? (
-                    <div className="text-center py-10 text-gray-500">
+                      <div className="text-center py-10 text-gray-500">
                         <DirectionsCar sx={{ fontSize: 48 }} className="mx-auto mb-4 text-gray-400" />
                         <p className="mb-2">No trips found</p>
                         <p className="text-sm">
-                          Create a new trip to get started with trip management
+                          {operatorPermissions.canCreate 
+                            ? "Create a new trip to get started with trip management"
+                            : "You don't have permission to create trips. Contact your administrator."}
                         </p>
                       </div>
                     ) : (
@@ -526,12 +585,29 @@ export default function EmployeeDashboard({ user }: EmployeeDashboardProps) {
                               {new Date(operatorSession.createdAt).toLocaleDateString()}
                             </div>
                             
-                            <div className="flex justify-between items-center mt-3">
+                            <div className="flex items-center gap-2 mt-3">
                               <Link href={`/dashboard/sessions/${operatorSession.id}`}>
                                 <button className="px-3 py-1.5 bg-blue-500 text-white rounded-md text-sm hover:bg-blue-600">
                                   View Details
                                 </button>
                               </Link>
+                              
+                              {operatorPermissions.canModify && (
+                                <Link href={`/dashboard/sessions/${operatorSession.id}/edit`}>
+                                  <button className="px-3 py-1.5 bg-yellow-500 text-white rounded-md text-sm hover:bg-yellow-600">
+                                    Edit
+                                  </button>
+                                </Link>
+                              )}
+                              
+                              {operatorPermissions.canDelete && (
+                                <button 
+                                  onClick={() => handleDeleteTrip(operatorSession.id)}
+                                  className="px-3 py-1.5 bg-red-500 text-white rounded-md text-sm hover:bg-red-600"
+                                >
+                                  Delete
+                                </button>
+                              )}
                               
                               {operatorSession.status === "PENDING" && !operatorSession.seal && (
                                 <Link href={`/dashboard/sessions/${operatorSession.id}`}>
@@ -552,6 +628,27 @@ export default function EmployeeDashboard({ user }: EmployeeDashboardProps) {
                           View All Trips
                         </button>
                       </Link>
+                    </div>
+                  </div>
+                  
+                  <div className="bg-white border rounded-lg p-6">
+                    <h4 className="font-medium mb-4">Your Permissions</h4>
+                    <div className="space-y-3">
+                      <div className="flex items-center">
+                        <div className={`w-3 h-3 rounded-full mr-2 ${operatorPermissions.canCreate ? 'bg-green-500' : 'bg-red-500'}`}></div>
+                        <span className="text-sm">{operatorPermissions.canCreate ? 'You can create new trips' : 'You cannot create new trips'}</span>
+                      </div>
+                      <div className="flex items-center">
+                        <div className={`w-3 h-3 rounded-full mr-2 ${operatorPermissions.canModify ? 'bg-green-500' : 'bg-red-500'}`}></div>
+                        <span className="text-sm">{operatorPermissions.canModify ? 'You can modify existing trips' : 'You cannot modify existing trips'}</span>
+                      </div>
+                      <div className="flex items-center">
+                        <div className={`w-3 h-3 rounded-full mr-2 ${operatorPermissions.canDelete ? 'bg-green-500' : 'bg-red-500'}`}></div>
+                        <span className="text-sm">{operatorPermissions.canDelete ? 'You can delete trips' : 'You cannot delete trips'}</span>
+                      </div>
+                      <p className="text-xs text-gray-500 mt-2">
+                        These permissions are set by your administrator. Contact them if you need changes.
+                      </p>
                     </div>
                   </div>
                   
@@ -727,8 +824,8 @@ export default function EmployeeDashboard({ user }: EmployeeDashboardProps) {
                               </p>
                             </div>
                           </div>
-                    </div>
-                  </div>
+                        </div>
+                      </div>
                     </>
                   )}
                 </div>

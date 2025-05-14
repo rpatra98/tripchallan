@@ -351,6 +351,18 @@ export const POST = withAuth(
         );
       }
 
+      // Check if the operator has permission to create sessions
+      const permissions = await prisma.operatorPermissions.findUnique({
+        where: { userId: userId }
+      });
+
+      if (!permissions?.canCreate) {
+        return NextResponse.json(
+          { error: "You don't have permission to create sessions. Please contact your administrator." },
+          { status: 403 }
+        );
+      }
+
       // Extract basic session data
       const formData = await req.formData();
       

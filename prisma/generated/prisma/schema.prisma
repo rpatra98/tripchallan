@@ -9,27 +9,28 @@ datasource db {
 }
 
 model User {
-  id                   String            @id @default(uuid())
+  id                   String               @id @default(uuid())
   name                 String
-  email                String            @unique
+  email                String               @unique
   password             String
   role                 UserRole
   subrole              EmployeeSubrole?
   companyId            String?
   coins                Int? // Optional: Only used for SuperAdmin, Admin, and Operator roles
   createdById          String?
-  createdAt            DateTime          @default(now())
-  updatedAt            DateTime          @updatedAt
-  targetActivityLogs   ActivityLog[]     @relation("TargetUserActivityLogs")
-  activityLogs         ActivityLog[]     @relation("UserActivityLogs")
-  sentTransactions     CoinTransaction[] @relation("SentTransactions")
-  receivedTransactions CoinTransaction[] @relation("ReceivedTransactions")
+  createdAt            DateTime             @default(now())
+  updatedAt            DateTime             @updatedAt
+  targetActivityLogs   ActivityLog[]        @relation("TargetUserActivityLogs")
+  activityLogs         ActivityLog[]        @relation("UserActivityLogs")
+  sentTransactions     CoinTransaction[]    @relation("SentTransactions")
+  receivedTransactions CoinTransaction[]    @relation("ReceivedTransactions")
   comments             Comment[]
-  verifiedSeals        Seal[]            @relation("SealVerifiedBy")
-  createdSessions      Session[]         @relation("SessionCreatedBy")
-  company              Company?          @relation(fields: [companyId], references: [id])
-  createdBy            User?             @relation("UserCreatedBy", fields: [createdById], references: [id])
-  createdUsers         User[]            @relation("UserCreatedBy")
+  verifiedSeals        Seal[]               @relation("SealVerifiedBy")
+  createdSessions      Session[]            @relation("SessionCreatedBy")
+  company              Company?             @relation(fields: [companyId], references: [id])
+  createdBy            User?                @relation("UserCreatedBy", fields: [createdById], references: [id])
+  createdUsers         User[]               @relation("UserCreatedBy")
+  operatorPermissions  OperatorPermissions?
 
   @@map("users")
 }
@@ -118,6 +119,19 @@ model ActivityLog {
   user               User           @relation("UserActivityLogs", fields: [userId], references: [id])
 
   @@map("activity_logs")
+}
+
+model OperatorPermissions {
+  id        String   @id @default(uuid())
+  userId    String   @unique
+  canCreate Boolean  @default(true)
+  canModify Boolean  @default(false)
+  canDelete Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("operator_permissions")
 }
 
 enum UserRole {
