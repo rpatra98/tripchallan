@@ -244,8 +244,18 @@ async function handler(req: NextRequest) {
       // Create an exclusion filter - but NOT for SUPERADMIN users
       let excludeSelfLoginFilter = {};
       
-      // Only apply self login exclusion for non-SUPERADMIN users
-      if (session.user.role !== UserRole.SUPERADMIN) {
+      // For SUPERADMIN, only exclude their own login/logout activities
+      if (session.user.role === UserRole.SUPERADMIN) {
+        excludeSelfLoginFilter = {
+          NOT: {
+            AND: [
+              { userId: session.user.id },
+              { action: { in: ['LOGIN', 'LOGOUT'] } }
+            ]
+          }
+        };
+      } else {
+        // For other roles, exclude their login/logout as before
         excludeSelfLoginFilter = {
           NOT: {
             AND: [
@@ -276,14 +286,12 @@ async function handler(req: NextRequest) {
         targetResourceType,
         page,
         limit,
-        // For SUPERADMIN, don't apply any user filtering - they see everything
+        // For SUPERADMIN, don't filter by specific user IDs (see all users)
         userId: session.user.role === UserRole.SUPERADMIN ? undefined : (userIds.length === 1 ? userIds[0] : undefined),
-        // Only apply userIds filtering for non-SUPERADMIN roles
+        // For SUPERADMIN, don't filter by multiple user IDs (see all users)
         userIds: session.user.role === UserRole.SUPERADMIN ? undefined : (userIds.length > 1 ? userIds : undefined),
-        // For SUPERADMIN, only apply device type filtering if specified
-        customWhere: session.user.role === UserRole.SUPERADMIN ? 
-          (deviceType ? customWhere : undefined) : 
-          customWhere,
+        // Always apply customWhere which has the correct filter for SUPERADMIN to exclude their own login/logout
+        customWhere: customWhere,
         // CRITICAL: Always include auth activities by default
         includeAuthActivities: true
       });
