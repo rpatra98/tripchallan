@@ -133,18 +133,29 @@ export default function CompanyEmployeesPage() {
                     {new Date(employee.createdAt).toLocaleDateString()}
                   </TableCell>
                   <TableCell align="right">
-                    <a 
-                      href={`/dashboard/employees/${employee.id}`}
-                      style={{ textDecoration: 'none' }}
+                    <form 
+                      action={`/dashboard/employees/${employee.id}`}
+                      method="get"
+                      style={{ margin: 0 }}
+                      target="_self"
                     >
+                      <input type="hidden" name="source" value="company" />
+                      <input type="hidden" name="companyId" value={companyId} />
                       <Button
                         variant="outlined"
                         size="small"
                         startIcon={<Person />}
+                        type="submit"
+                        onClick={() => {
+                          console.log("View employee details clicked:", {
+                            employeeId: employee.id,
+                            companyId
+                          });
+                        }}
                       >
                         View Details
                       </Button>
-                    </a>
+                    </form>
                   </TableCell>
                 </TableRow>
               ))}

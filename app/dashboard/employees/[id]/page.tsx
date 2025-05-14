@@ -6,16 +6,21 @@ import { UserRole, EmployeeSubrole } from "@/prisma/enums";
 import Link from "next/link";
 import PermissionsEditorWrapper from "@/app/components/PermissionsEditorWrapper";
 
-export default async function EmployeeDetailPage({ params }: { params: { id: string } }) {
+export default async function EmployeeDetailPage({ params, searchParams }: { params: { id: string }, searchParams: { [key: string]: string | string[] | undefined } }) {
   const session = await getServerSession(authOptions);
-
+  const source = typeof searchParams.source === 'string' ? searchParams.source : null;
+  const companyIdFromQuery = typeof searchParams.companyId === 'string' ? searchParams.companyId : null;
+  
   // Add detailed logging to diagnose access issues
   console.log(`EmployeeDetailPage loaded for ID: ${params.id}`, {
     params,
+    searchParams,
+    source,
+    companyIdFromQuery,
     hasSession: !!session,
     userIdFromSession: session?.user?.id
   });
-
+  
   if (!session) {
     console.log("No session found, redirecting to login");
     redirect("/");
@@ -69,65 +74,78 @@ export default async function EmployeeDetailPage({ params }: { params: { id: str
     notFound();
   }
 
-  // If user is a COMPANY, verify this employee belongs to them by fetching directly
-  let hasAccess = isAdmin; // Admins always have access
-  
-  if (isCompany) {
-    console.log(`Checking if company ${dbUser.id} owns employee ${params.id}`, {
-      employeeCompanyId: employee.companyId,
-      dbUserId: dbUser.id,
-      matchCheck: employee.companyId === dbUser.id
-    });
+    // If user is a COMPANY, verify this employee belongs to them by fetching directly
+    let hasAccess = isAdmin; // Admins always have access
     
-    // Try multiple approaches to check access
-    // 1. Direct companyId match
-    const directMatch = employee.companyId === dbUser.id;
-    
-    // 2. Check if employee is in company's employees list
-    const companyRecord = await prisma.company.findFirst({
-      where: {
-        OR: [
-          { id: dbUser.id },
-          {
-            employees: {
-              some: {
-                id: dbUser.id
+    if (isCompany) {
+      // If we have a companyId from the query params, use that for permission checking
+      const companyIdToCheck = companyIdFromQuery || dbUser.id;
+      
+      console.log(`Checking if company ${companyIdToCheck} owns employee ${params.id}`, {
+        employeeCompanyId: employee.companyId,
+        dbUserId: dbUser.id,
+        companyIdFromQuery,
+        matchCheck: employee.companyId === companyIdToCheck
+      });
+      
+      // First check if the company in the query is the authenticated company
+      const isAuthorizedCompany = !companyIdFromQuery || companyIdFromQuery === dbUser.id;
+      
+      if (!isAuthorizedCompany) {
+        console.log("Unauthorized access attempt: Query companyId doesn't match authenticated company");
+        redirect("/dashboard");
+      }
+      
+      // Try multiple approaches to check access
+      // 1. Direct companyId match
+      const directMatch = employee.companyId === companyIdToCheck;
+      
+      // 2. Check if employee is in company's employees list
+      const companyRecord = await prisma.company.findFirst({
+        where: {
+          OR: [
+            { id: companyIdToCheck },
+            {
+              employees: {
+                some: {
+                  id: companyIdToCheck
+                }
               }
             }
-          }
-        ]
-      },
-      include: {
-        employees: {
-          where: {
-            id: params.id
-          },
-          select: {
-            id: true
+          ]
+        },
+        include: {
+          employees: {
+            where: {
+              id: params.id
+            },
+            select: {
+              id: true
+            }
           }
         }
-      }
-    });
-    
-    const relationMatch = companyRecord?.employees?.some((e: { id: string }) => e.id === params.id) || false;
-    
-    // 3. Created by this company
-    const createdByMatch = employee.createdById === dbUser.id;
-    
-    // Grant access if any of the checks pass
-    hasAccess = directMatch || relationMatch || createdByMatch;
-    
-    console.log("Company access check result:", {
-      companyId: dbUser.id,
-      companyName: dbUser.name,
-      employeeId: params.id,
-      employeeCompanyId: employee.companyId,
-      directMatch,
-      relationMatch,
-      createdByMatch,
-      hasAccess
-    });
-  }
+      });
+      
+      const relationMatch = companyRecord?.employees?.some((e: { id: string }) => e.id === params.id) || false;
+      
+      // 3. Created by this company
+      const createdByMatch = employee.createdById === companyIdToCheck;
+      
+      // Grant access if any of the checks pass
+      hasAccess = directMatch || relationMatch || createdByMatch;
+      
+      console.log("Company access check result:", {
+        companyId: companyIdToCheck,
+        companyName: dbUser.name,
+        employeeId: params.id,
+        employeeCompanyId: employee.companyId,
+        source,
+        directMatch,
+        relationMatch,
+        createdByMatch,
+        hasAccess
+      });
+    }
   
   // Now do the access check
   if (!hasAccess) {
@@ -171,10 +189,22 @@ export default async function EmployeeDetailPage({ params }: { params: { id: str
     <div className="container mx-auto px-4 py-8">
       <div className="mb-6">
         <Link 
-          href={isCompany ? "/dashboard?tab=employees" : "/dashboard/employees"}
+          href={
+            source === "company" && companyIdFromQuery 
+              ? `/dashboard/companies/${companyIdFromQuery}/employees` 
+              : isCompany 
+                ? "/dashboard?tab=employees" 
+                : "/dashboard/employees"
+          }
           className="text-blue-600 hover:underline mb-4 inline-block"
         >
-          &larr; {isCompany ? "Back to Dashboard" : "Back to Employees"}
+          &larr; {
+            source === "company" && companyIdFromQuery 
+              ? "Back to Company Employees" 
+              : isCompany 
+                ? "Back to Dashboard" 
+                : "Back to Employees"
+          }
         </Link>
         <h1 className="text-2xl font-bold">{employee.name}</h1>
         <p className="text-gray-600">{employee.email}</p>
