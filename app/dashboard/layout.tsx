@@ -51,6 +51,8 @@ export default function DashboardLayout({
   const [lastBalanceUpdate, setLastBalanceUpdate] = useState(Date.now());
   // Track current pathname for refreshing on navigation
   const [currentPath, setCurrentPath] = useState("");
+  // Add direct state for coin balance to bypass session caching
+  const [currentCoinBalance, setCurrentCoinBalance] = useState<number | null>(null);
 
   const isMenuOpen = Boolean(anchorEl);
 
@@ -58,6 +60,13 @@ export default function DashboardLayout({
   useEffect(() => {
     setCurrentPath(window.location.pathname);
   }, []);
+
+  // Effect to initialize coin balance from session
+  useEffect(() => {
+    if (session?.user?.coins !== undefined) {
+      setCurrentCoinBalance(session.user.coins);
+    }
+  }, [session?.user?.coins]);
 
   const handleProfileMenuOpen = (event: React.MouseEvent<HTMLElement>) => {
     setAnchorEl(event.currentTarget);
@@ -83,6 +92,9 @@ export default function DashboardLayout({
       const response = await fetch('/api/users/me');
       if (response.ok) {
         const userData = await response.json();
+        
+        // Update local state immediately
+        setCurrentCoinBalance(userData.coins);
         
         // Then update NextAuth session with the latest data
         await updateSession({
@@ -174,7 +186,8 @@ export default function DashboardLayout({
                 {session.user.role !== "COMPANY" && session.user.subrole !== "GUARD" && (
                   <Box sx={{ display: "flex", alignItems: "center" }}>
                     <Chip
-                      label={`${session.user.coins || 0} Coins`}
+                      key={`coins-${lastBalanceUpdate}`}
+                      label={`${currentCoinBalance !== null ? currentCoinBalance : (session.user.coins || 0)} Coins`}
                       color="secondary"
                       sx={{ mr: 2, bgcolor: "rgba(255,255,255,0.15)" }}
                       onClick={refreshUserSession}

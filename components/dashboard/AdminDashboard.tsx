@@ -197,6 +197,13 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
     await fetchCurrentUser();
   };
 
+  // Effect to refresh balance when coins tab is active
+  useEffect(() => {
+    if (activeTab === "coins") {
+      fetchCurrentUser();
+    }
+  }, [activeTab]);
+
   const viewCompanyEmployees = async (companyId: string) => {
     setLoading(true);
     setError("");
