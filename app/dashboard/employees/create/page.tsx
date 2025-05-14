@@ -344,76 +344,84 @@ export default function CreateEmployeePage() {
         </div>
 
         {formData.subrole === EmployeeSubrole.OPERATOR && (
-          <div className="mb-4">
-            <label htmlFor="coins" className="block text-sm font-medium text-gray-700 mb-1">
-              Initial Coins
-            </label>
-            <input
-              id="coins"
-              name="coins"
-              type="number"
-              min="1"
-              required
-              value={formData.coins}
-              onChange={handleChange}
-              className="w-full p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-            />
-            <p className="mt-1 text-sm text-gray-500">
-              Default: 200 coins. This amount will be deducted from your balance.
-            </p>
-          </div>
-        )}
-
-        {formData.subrole === EmployeeSubrole.OPERATOR && (
-          <div className="mb-4">
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Operator Permissions
-            </label>
-            <div className="space-y-2">
-              <div className="flex items-center">
-                <input
-                  id="permission_canCreate"
-                  name="permission_canCreate"
-                  type="checkbox"
-                  checked={formData.permissions.canCreate}
-                  onChange={handleChange}
-                  className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                />
-                <label htmlFor="permission_canCreate" className="ml-2 block text-sm text-gray-900">
-                  Can Create Trips/Sessions
-                </label>
-              </div>
-              <div className="flex items-center">
-                <input
-                  id="permission_canModify"
-                  name="permission_canModify"
-                  type="checkbox"
-                  checked={formData.permissions.canModify}
-                  onChange={handleChange}
-                  className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                />
-                <label htmlFor="permission_canModify" className="ml-2 block text-sm text-gray-900">
-                  Can Modify Trips/Sessions
-                </label>
-              </div>
-              <div className="flex items-center">
-                <input
-                  id="permission_canDelete"
-                  name="permission_canDelete"
-                  type="checkbox"
-                  checked={formData.permissions.canDelete}
-                  onChange={handleChange}
-                  className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                />
-                <label htmlFor="permission_canDelete" className="ml-2 block text-sm text-gray-900">
-                  Can Delete Trips/Sessions
-                </label>
-              </div>
-              <p className="text-xs text-gray-500 mt-1">
-                These permissions determine what actions this operator can perform on trips.
+          <>
+            {/* Note for operator permissions */}
+            <div className="mb-4 p-3 bg-blue-50 text-blue-700 rounded-md">
+              <p className="text-sm">
+                <strong>Note:</strong> When creating an operator, be sure to set the appropriate permissions.
+                These permissions determine what actions the operator can perform and can be edited later.
               </p>
             </div>
-          </div>
+            
+            <div className="mb-4">
+              <label htmlFor="coins" className="block text-sm font-medium text-gray-700 mb-1">
+                Initial Coins
+              </label>
+              <input
+                id="coins"
+                name="coins"
+                type="number"
+                min="1"
+                required
+                value={formData.coins}
+                onChange={handleChange}
+                className="w-full p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+              />
+              <p className="mt-1 text-sm text-gray-500">
+                Default: 200 coins. This amount will be deducted from your balance.
+              </p>
+            </div>
+
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Operator Permissions
+              </label>
+              <div className="space-y-2 p-4 border-2 border-blue-200 rounded-md bg-blue-50">
+                <div className="flex items-center">
+                  <input
+                    id="permission_canCreate"
+                    name="permission_canCreate"
+                    type="checkbox"
+                    checked={formData.permissions.canCreate}
+                    onChange={handleChange}
+                    className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                  />
+                  <label htmlFor="permission_canCreate" className="ml-2 block text-sm text-gray-900">
+                    Can Create Trips/Sessions
+                  </label>
+                </div>
+                <div className="flex items-center">
+                  <input
+                    id="permission_canModify"
+                    name="permission_canModify"
+                    type="checkbox"
+                    checked={formData.permissions.canModify}
+                    onChange={handleChange}
+                    className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                  />
+                  <label htmlFor="permission_canModify" className="ml-2 block text-sm text-gray-900">
+                    Can Modify Trips/Sessions
+                  </label>
+                </div>
+                <div className="flex items-center">
+                  <input
+                    id="permission_canDelete"
+                    name="permission_canDelete"
+                    type="checkbox"
+                    checked={formData.permissions.canDelete}
+                    onChange={handleChange}
+                    className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                  />
+                  <label htmlFor="permission_canDelete" className="ml-2 block text-sm text-gray-900">
+                    Can Delete Trips/Sessions
+                  </label>
+                </div>
+                <p className="text-xs text-gray-500 mt-1">
+                  These permissions determine what actions this operator can perform on trips.
+                </p>
+              </div>
+            </div>
+          </>
         )}
 
         <button

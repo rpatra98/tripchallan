@@ -219,7 +219,7 @@ export const POST = withAuth(
             createdById: userId,
             companyId: body.companyId,
             subrole: body.subrole || EmployeeSubrole.OPERATOR,
-            coins: 0
+            coins: body.coins || 0
           },
           include: {
             company: true
@@ -227,6 +227,8 @@ export const POST = withAuth(
         });
 
         // If this is an operator, create permissions
+        // IMPORTANT: These permissions determine what actions the operator can perform with sessions/trips
+        // They control the ability to create, modify, and delete trips which is critical for security
         if (body.subrole === EmployeeSubrole.OPERATOR && body.permissions) {
           try {
             await prisma.operatorPermissions.create({
@@ -282,7 +284,9 @@ export const POST = withAuth(
           email: newUser.email,
           name: newUser.name,
           role: newUser.role,
-          company: newUser.company
+          company: newUser.company,
+          coins: newUser.coins,
+          permissions: body.subrole === EmployeeSubrole.OPERATOR ? body.permissions : undefined
         },
         password // Include the generated password in the response
       });
