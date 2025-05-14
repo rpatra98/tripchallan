@@ -90,10 +90,10 @@ export default async function EmployeeDetailPage({ params }: { params: { id: str
     <div className="container mx-auto px-4 py-8">
       <div className="mb-6">
         <Link 
-          href={isAdmin ? "/dashboard" : "/dashboard/company"}
+          href={isAdmin ? "/dashboard/employees" : "/dashboard/employees"}
           className="text-blue-600 hover:underline mb-4 inline-block"
         >
-          &larr; Back to Dashboard
+          &larr; Back to Employees
         </Link>
         <h1 className="text-2xl font-bold">{employee.name}</h1>
         <p className="text-gray-600">{employee.email}</p>
@@ -150,6 +150,13 @@ export default async function EmployeeDetailPage({ params }: { params: { id: str
                   canDelete: employee.operatorPermissions?.canDelete || false
                 }}
               />
+            )}
+            {!isAdmin && (
+              <div className="bg-yellow-50 p-4 rounded-md border border-yellow-200 mt-3">
+                <p className="text-sm text-yellow-700">
+                  Note: Operator permissions can only be modified by system administrators.
+                </p>
+              </div>
             )}
           </div>
         </div>
@@ -214,6 +221,16 @@ export default async function EmployeeDetailPage({ params }: { params: { id: str
             >
               Edit Employee
             </Link>
+            <Link
+              href={`/api/coins/transfer?toUserId=${employee.id}`}
+              className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600"
+            >
+              Transfer Coins
+            </Link>
+          </div>
+        )}
+        {!isAdmin && dbUser.role === UserRole.COMPANY && (
+          <div className="flex gap-4">
             <Link
               href={`/api/coins/transfer?toUserId=${employee.id}`}
               className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600"

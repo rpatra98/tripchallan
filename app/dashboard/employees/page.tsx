@@ -151,7 +151,7 @@ export default function EmployeesPage() {
                       startIcon={<Person />}
                       onClick={() => handleViewEmployee(employee.id)}
                     >
-                      View
+                      View Details
                     </Button>
                   </TableCell>
                 </TableRow>
