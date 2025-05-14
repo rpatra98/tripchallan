@@ -35,6 +35,7 @@ export default function EmployeeDashboard({ user }: EmployeeDashboardProps) {
   // Fetch latest user data when tab changes to coins
   useEffect(() => {
     if (activeTab === "coins" && isOperator) {
+      console.log("Tab changed to coins, fetching current user data");
       fetchCurrentUser();
     }
   }, [activeTab, isOperator]);
@@ -42,16 +43,36 @@ export default function EmployeeDashboard({ user }: EmployeeDashboardProps) {
   // Fetch current user data
   const fetchCurrentUser = async () => {
     try {
-      const response = await fetch(`/api/users/${session?.user?.id || user.id}`);
-      const data = await response.json();
+      try {
+        const response = await fetch(`/api/users/${session?.user?.id || user.id}`);
+        const data = await response.json();
+        
+        if (data.user) {
+          setCurrentUser(data.user);
+          // Update session to reflect the latest user data
+          await refreshUserSession();
+          return;
+        }
+      } catch (err) {
+        console.error("Error fetching user details, trying fallback:", err);
+      }
       
-      if (data.user) {
-        setCurrentUser(data.user);
-        // Update session to reflect the latest user data
-        await refreshUserSession();
+      // Fallback: try /api/users/me endpoint
+      try {
+        const meResponse = await fetch('/api/users/me');
+        const meData = await meResponse.json();
+        
+        if (meData.id) {
+          setCurrentUser(meData);
+          // Update session to reflect the latest user data
+          await refreshUserSession();
+        }
+      } catch (meErr) {
+        console.error("Error in fallback user fetch:", meErr);
+        // If all else fails, keep using user from props
       }
     } catch (err) {
-      console.error("Error fetching current user:", err);
+      console.error("Error fetching current user (all attempts failed):", err);
     }
   };
 
@@ -225,7 +246,7 @@ export default function EmployeeDashboard({ user }: EmployeeDashboardProps) {
               {isOperator && (
                 <div className="mt-4 flex items-center text-yellow-600 font-bold">
                   <LocalAtm fontSize="small" className="mr-1" />
-                  <span>{session?.user?.coins || currentUser.coins} Coins</span>
+                  <span>{session?.user?.coins !== undefined ? session.user.coins : (currentUser?.coins !== undefined ? currentUser.coins : user.coins)} Coins</span>
                 </div>
               )}
             </div>
@@ -377,7 +398,7 @@ export default function EmployeeDashboard({ user }: EmployeeDashboardProps) {
                     {isOperator && (
                       <div>
                         <h4 className="text-sm font-medium text-gray-500 mb-1">Coins</h4>
-                        <p className="text-gray-900">{session?.user?.coins || currentUser.coins}</p>
+                        <p className="text-gray-900">{session?.user?.coins !== undefined ? session.user.coins : (currentUser?.coins !== undefined ? currentUser.coins : user.coins)}</p>
                       </div>
                     )}
                   </div>
@@ -395,7 +416,7 @@ export default function EmployeeDashboard({ user }: EmployeeDashboardProps) {
                     <div>
                       <h4 className="font-medium mb-2">Your Coin Balance</h4>
                       <p className="text-3xl font-bold text-yellow-600">
-                        {session?.user?.coins || currentUser.coins} Coins
+                        {session?.user?.coins !== undefined ? session.user.coins : (currentUser?.coins !== undefined ? currentUser.coins : user.coins)} Coins
                       </p>
                       <p className="text-sm text-gray-500 mt-2">
                         Each session creation costs 1 coin.
