@@ -565,6 +565,18 @@ export default function CompanyDashboard({ user }: CompanyDashboardProps) {
                             </Typography>
                           </Box>
                         </Box>
+                        
+                        <Box display="flex" justifyContent="flex-end" mt={2}>
+                          <Button
+                            variant="outlined"
+                            size="small"
+                            component={Link}
+                            href={`/dashboard/employees/${employee.id}`}
+                            startIcon={<Person />}
+                          >
+                            View Details
+                          </Button>
+                        </Box>
                       </CardContent>
                     </Card>
                   ))}

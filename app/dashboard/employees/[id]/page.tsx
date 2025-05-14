@@ -229,16 +229,6 @@ export default async function EmployeeDetailPage({ params }: { params: { id: str
             </Link>
           </div>
         )}
-        {!isAdmin && dbUser.role === UserRole.COMPANY && (
-          <div className="flex gap-4">
-            <Link
-              href={`/api/coins/transfer?toUserId=${employee.id}`}
-              className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600"
-            >
-              Transfer Coins
-            </Link>
-          </div>
-        )}
       </div>
     </div>
   );
