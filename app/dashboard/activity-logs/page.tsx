@@ -301,8 +301,9 @@ export default function ActivityLogsPage() {
   const [error, setError] = useState("");
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
+  const [isSessionChecked, setIsSessionChecked] = useState(false);
 
-  const fetchActivityLogs = async (pageNum: number) => {
+  const fetchActivityLogs = useCallback(async (pageNum: number) => {
     try {
       console.log(`Fetching activity logs for page ${pageNum}...`);
       setIsLoading(true);
@@ -345,22 +346,35 @@ export default function ActivityLogsPage() {
     } catch (err) {
       console.error("Error fetching activity logs:", err);
       setError("Failed to load activity logs. " + (err instanceof Error ? err.message : String(err)));
+      // Don't set logs to empty array on error to prevent flickering
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
 
+  // Check authentication status once
   useEffect(() => {
-    if (session?.user) {
+    if (!session) {
+      // Session is still loading, do nothing yet
+      return;
+    }
+    
+    if (!session.user) {
+      // User is not authenticated, redirect to login
+      router.push("/auth/login");
+    } else {
+      // Mark session as checked to prevent repeated checks
+      setIsSessionChecked(true);
+    }
+  }, [session, router]);
+
+  // Only fetch logs when session is checked and user is authenticated
+  useEffect(() => {
+    if (isSessionChecked && session?.user) {
+      console.log("Session authenticated, fetching activity logs...");
       fetchActivityLogs(page);
     }
-  }, [page, session?.user, fetchActivityLogs]);
-
-  useEffect(() => {
-    if (!session?.user) {
-      router.push("/auth/login");
-    }
-  }, [session?.user, router]);
+  }, [page, session?.user, fetchActivityLogs, isSessionChecked]);
   
   // Debug: Log activity data when it changes
   useEffect(() => {

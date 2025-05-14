@@ -5,7 +5,30 @@ import { withAuth } from "@/lib/auth";
 import { UserRole, ActivityAction } from "@/prisma/enums";
 import { getActivityLogs } from "@/lib/activity-logger";
 import prisma from "@/lib/prisma";
-import { Prisma, ActivityLog } from "@prisma/client";
+import { PrismaClient } from "@prisma/client";
+
+// Define the ActivityLog type here to match what's returned from the database
+type ActivityLog = {
+  id: string;
+  action: string;
+  details: any;
+  targetResourceType?: string;
+  targetResourceId?: string;
+  userId: string;
+  createdAt: Date;
+  user?: {
+    id: string;
+    name: string;
+    email: string;
+    role: string;
+  };
+  targetUser?: {
+    id: string;
+    name: string;
+    email: string;
+    role: string;
+  };
+};
 
 async function handler(req: NextRequest) {
   try {
@@ -45,6 +68,11 @@ async function handler(req: NextRequest) {
       // If a specific userId filter was requested, use that
       if (userId) {
         userIds.push(userId);
+      } else {
+        // For SUPERADMIN, don't apply any userId filtering - they can see everything
+        // We'll set userIds to an empty array to indicate no filtering should be applied
+        // Just log this for debugging
+        console.log("SUPERADMIN access - no user filtering will be applied");
       }
     }
     // ADMIN can see activity for users they created, so get those user IDs
@@ -80,7 +108,7 @@ async function handler(req: NextRequest) {
         });
         
         // Add admin's own ID plus IDs of users they created
-        userIds.push(session.user.id, ...createdUsers.map(user => user.id));
+        userIds.push(session.user.id, ...createdUsers.map((user: { id: string }) => user.id));
       }
     }
     // COMPANY can see activity for their employees
@@ -113,7 +141,7 @@ async function handler(req: NextRequest) {
         });
         
         // Add company's own ID plus IDs of their employees
-        userIds.push(session.user.id, ...employees.map(emp => emp.id));
+        userIds.push(session.user.id, ...employees.map((emp: { id: string }) => emp.id));
       }
     }
     // EMPLOYEE can only see their own activity
@@ -136,7 +164,7 @@ async function handler(req: NextRequest) {
 
     if (userIds.length > 0) {
       // Custom filtering for deviceType if provided
-      let customWhere: Prisma.ActivityLogWhereInput | undefined = undefined;
+      let customWhere: any = undefined;
       
       if (deviceType && (deviceType === 'mobile' || deviceType === 'desktop')) {
         // We need a custom where clause for this because it's within JSON
@@ -187,10 +215,15 @@ async function handler(req: NextRequest) {
         targetResourceType,
         page,
         limit,
-        // Use the userIds we've collected based on permissions
-        userId: userIds.length === 1 ? userIds[0] : undefined,
-        // Only set if we have multiple IDs
-        userIds: userIds.length > 1 ? userIds : undefined,
+        // For SUPERADMIN with no specific userId filter, don't pass userId/userIds
+        // to return all activities
+        userId: session.user.role === UserRole.SUPERADMIN && userIds.length === 0 
+          ? undefined 
+          : (userIds.length === 1 ? userIds[0] : undefined),
+        // Only set if we have multiple IDs and not a SUPERADMIN viewing all
+        userIds: session.user.role === UserRole.SUPERADMIN && userIds.length === 0
+          ? undefined
+          : (userIds.length > 1 ? userIds : undefined),
         // Pass the custom where clause for device type filtering
         customWhere,
         // CRITICAL: Always include auth activities by default
