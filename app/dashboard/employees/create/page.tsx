@@ -16,7 +16,7 @@ interface Company {
 
 export default function CreateEmployeePage() {
   const router = useRouter();
-  const { data: session, status } = useSession();
+  const { data: session, status, update: updateSession } = useSession();
   const { refreshUserSession } = useContext(SessionUpdateContext);
   const [companies, setCompanies] = useState<Company[]>([]);
   const [formData, setFormData] = useState({
@@ -176,12 +176,30 @@ export default function CreateEmployeePage() {
 
       // Update session to reflect new coin balance if operator was created (coins were deducted)
       if (formData.subrole === EmployeeSubrole.OPERATOR) {
-        // First force a direct fetch of the latest user data
-        const userResponse = await fetch('/api/users/me');
+        // First force a direct fetch of the latest user data with cache busting
+        const userResponse = await fetch('/api/users/me', {
+          cache: 'no-store',
+          headers: {
+            'pragma': 'no-cache',
+            'cache-control': 'no-cache'
+          }
+        });
         const userData = await userResponse.json();
         
-        // Then update the session with latest coin balance
-        await refreshUserSession();
+        // Force global session update with the latest coin data
+        if (session && session.user) {
+          // Update the session context explicitly
+          await updateSession({
+            ...session,
+            user: {
+              ...session.user,
+              coins: userData.coins,
+            }
+          });
+          
+          // Also use the shared update context for UI elements
+          await refreshUserSession();
+        }
         
         // Show success message with coin details
         alert(`Employee created successfully!\n\nYou allocated ${formData.coins} coins to ${formData.name}.\nYour current balance: ${userData.coins} coins.`);
@@ -190,9 +208,8 @@ export default function CreateEmployeePage() {
         alert("Employee created successfully!");
       }
       
-      // Redirect to employee listings page instead of dashboard to force a full refresh
-      router.push("/dashboard/employees");
-      router.refresh();
+      // Navigate to dashboard/employees and force a full refresh
+      window.location.href = "/dashboard/employees"; // Hard redirect instead of router.push for reliable refresh
     } catch (err) {
       console.error("Error creating employee:", err);
       setError(err instanceof Error ? err.message : "An unknown error occurred");

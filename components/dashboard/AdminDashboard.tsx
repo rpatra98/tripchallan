@@ -142,13 +142,30 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
 
   const fetchCurrentUser = async () => {
     try {
-      const response = await fetch(`/api/users/${session?.user?.id || user.id}`);
+      const response = await fetch(`/api/users/${session?.user?.id || user.id}`, {
+        cache: 'no-store',
+        headers: {
+          'pragma': 'no-cache',
+          'cache-control': 'no-cache'
+        }
+      });
       const data = await response.json();
       
       if (data.user) {
         setCurrentUser(data.user);
         // Update session to reflect the latest user data
         await refreshUserSession();
+        
+        // If session update is available, update it directly too for immediate UI refresh
+        if (session && updateSession) {
+          await updateSession({
+            ...session,
+            user: {
+              ...session.user,
+              coins: data.user.coins,
+            }
+          });
+        }
       }
     } catch (err) {
       console.error("Error fetching current user:", err);
@@ -196,6 +213,29 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
     // Update the session to reflect the new coin balance
     await fetchCurrentUser();
   };
+
+  // Add useEffect hook to refresh coin balance when dashboard is loaded
+  useEffect(() => {
+    fetchCurrentUser();
+    // Refresh coin balance every time component mounts
+  }, []);
+
+  // Add a more aggressive refresh when the component becomes visible
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        fetchCurrentUser();
+      }
+    };
+
+    // Listen for visibility changes (tab focus)
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    
+    // Cleanup
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, []);
 
   // Effect to refresh balance when coins tab is active
   useEffect(() => {
