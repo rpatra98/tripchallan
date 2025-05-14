@@ -6,6 +6,7 @@ import { SuperAdminDashboardProps } from "./types";
 import { CircularProgress, Card, CardContent, Typography, Box, Button, Dialog, DialogTitle, DialogContent, DialogContentText, DialogActions } from "@mui/material";
 import { format } from "date-fns";
 import TransferCoinsForm from "../coins/TransferCoinsForm";
+import SuperAdminTransferCoinsForm from "../coins/SuperAdminTransferCoinsForm";
 import TransactionHistory from "../coins/TransactionHistory";
 import { useSession } from "next-auth/react";
 import { SessionUpdateContext } from "@/app/dashboard/layout";
@@ -303,10 +304,10 @@ export default function SuperAdminDashboard({ user: initialUser }: SuperAdminDas
               </div>
               
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {/* Transfer Coins Form */}
+                {/* SuperAdmin to Admin Transfer Coins Form */}
                 <div>
-                  <h4 className="font-medium mb-2">Transfer Coins</h4>
-                  <TransferCoinsForm 
+                  <h4 className="font-medium mb-2">Transfer Coins to Admins</h4>
+                  <SuperAdminTransferCoinsForm 
                     currentBalance={session?.user?.coins || currentUser.coins} 
                     onSuccess={handleTransferSuccess} 
                   />
