@@ -155,6 +155,21 @@ export default function CreateSessionPage() {
         session.user.subrole !== EmployeeSubrole.OPERATOR
       ) {
         router.push("/dashboard");
+      } else {
+        // Check if operator has permission to create sessions
+        fetch('/api/employees/' + session.user.id + '/permissions')
+          .then(response => response.json())
+          .then(data => {
+            if (!data.canCreate) {
+              setError("You don't have permission to create new trips. Please contact your administrator.");
+              setTimeout(() => {
+                router.push("/dashboard");
+              }, 3000);
+            }
+          })
+          .catch(err => {
+            console.error("Error fetching permissions:", err);
+          });
       }
     }
   }, [status, session, router]);

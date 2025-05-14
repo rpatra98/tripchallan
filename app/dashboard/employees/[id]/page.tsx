@@ -4,6 +4,10 @@ import { authOptions } from "@/lib/auth-options";
 import prisma from "@/lib/prisma";
 import { UserRole, EmployeeSubrole } from "@/prisma/enums";
 import Link from "next/link";
+import dynamic from "next/dynamic";
+
+// Dynamically import the PermissionsEditor component to avoid hydration errors
+const PermissionsEditor = dynamic(() => import("@/app/components/PermissionsEditor"), { ssr: false });
 
 export default async function EmployeeDetailPage({ params }: { params: { id: string } }) {
   const session = await getServerSession(authOptions);
@@ -141,14 +145,15 @@ export default async function EmployeeDetailPage({ params }: { params: { id: str
               <span>Delete Trips/Sessions: {employee.operatorPermissions?.canDelete ? 'Enabled' : 'Disabled'}</span>
             </div>
             {isAdmin && (
-              <div className="mt-4">
-                <Link
-                  href={`/dashboard/employees/${employee.id}/permissions`}
-                  className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
-                >
-                  Edit Permissions
-                </Link>
-              </div>
+              <PermissionsEditor 
+                employeeId={employee.id}
+                initialPermissions={{
+                  canCreate: employee.operatorPermissions?.canCreate || false,
+                  canModify: employee.operatorPermissions?.canModify || false,
+                  canDelete: employee.operatorPermissions?.canDelete || false
+                }}
+                onSuccess={() => {}}
+              />
             )}
           </div>
         </div>
