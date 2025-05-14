@@ -229,22 +229,37 @@ export const POST = withAuth(
         // If this is an operator, create permissions
         // IMPORTANT: These permissions determine what actions the operator can perform with sessions/trips
         // They control the ability to create, modify, and delete trips which is critical for security
-        if (body.subrole === EmployeeSubrole.OPERATOR && body.permissions) {
+        if (body.subrole === EmployeeSubrole.OPERATOR) {
           try {
-            await prisma.operatorPermissions.create({
-              data: {
-                userId: newUser.id,
-                canCreate: body.permissions.canCreate ?? true,
-                canModify: body.permissions.canModify ?? false,
-                canDelete: body.permissions.canDelete ?? false,
-              }
+            // Validate that permissions are present for operators
+            if (!body.permissions) {
+              console.warn("No permissions provided for operator, using defaults");
+              body.permissions = {
+                canCreate: true,
+                canModify: false,
+                canDelete: false
+              };
+            }
+            
+            // Validate each permission field exists
+            const permissionsToCreate = {
+              userId: newUser.id,
+              canCreate: body.permissions.canCreate !== undefined ? body.permissions.canCreate : true,
+              canModify: body.permissions.canModify !== undefined ? body.permissions.canModify : false,
+              canDelete: body.permissions.canDelete !== undefined ? body.permissions.canDelete : false,
+            };
+            
+            // Create the permissions in the database
+            const createdPermissions = await prisma.operatorPermissions.create({
+              data: permissionsToCreate
             });
             
-            console.log(`Created operator permissions for user ${newUser.id}`);
+            console.log(`Created operator permissions for user ${newUser.id}:`, JSON.stringify(createdPermissions));
           } catch (err) {
             console.error("Error creating operator permissions:", err);
             // Don't fail the whole request if permissions creation fails
-            // We'll just use the defaults
+            // We'll just use the defaults, but log the error for debugging
+            console.error("Failed to create permissions for operator. User ID:", newUser.id);
           }
         }
       } 
@@ -270,7 +285,14 @@ export const POST = withAuth(
           entityType: "USER",
           userId: newUser.id,
           userRole: newUser.role,
-          userEmail: newUser.email
+          userEmail: newUser.email,
+          // Include operator permissions in the activity log if this is an operator
+          ...(body.subrole === EmployeeSubrole.OPERATOR && body.permissions 
+            ? { 
+                subrole: body.subrole,
+                operatorPermissions: body.permissions 
+              } 
+            : {})
         },
         targetResourceId: newUser.id,
         targetResourceType: "USER"

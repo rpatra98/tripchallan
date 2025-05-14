@@ -336,11 +336,17 @@ export default function CreateEmployeePage() {
             onChange={handleChange}
             className="w-full p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
           >
-            <option value={EmployeeSubrole.OPERATOR}>Operator</option>
+            <option value={EmployeeSubrole.OPERATOR}>Operator (Requires Permission Setup)</option>
             <option value={EmployeeSubrole.DRIVER}>Driver</option>
             <option value={EmployeeSubrole.TRANSPORTER}>Transporter</option>
             <option value={EmployeeSubrole.GUARD}>Guard</option>
           </select>
+          
+          {formData.subrole === EmployeeSubrole.OPERATOR && (
+            <p className="mt-1 text-sm text-blue-600">
+              <strong>Note:</strong> Operators require special permissions to be set below.
+            </p>
+          )}
         </div>
 
         {formData.subrole === EmployeeSubrole.OPERATOR && (
@@ -373,51 +379,93 @@ export default function CreateEmployeePage() {
             </div>
 
             <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-lg font-semibold text-gray-700 mb-3">
                 Operator Permissions
               </label>
-              <div className="space-y-2 p-4 border-2 border-blue-200 rounded-md bg-blue-50">
-                <div className="flex items-center">
-                  <input
-                    id="permission_canCreate"
-                    name="permission_canCreate"
-                    type="checkbox"
-                    checked={formData.permissions.canCreate}
-                    onChange={handleChange}
-                    className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                  />
-                  <label htmlFor="permission_canCreate" className="ml-2 block text-sm text-gray-900">
-                    Can Create Trips/Sessions
-                  </label>
+              <div className="mb-4 p-3 bg-yellow-50 border border-yellow-300 text-yellow-800 rounded-md">
+                <p className="text-sm font-medium">
+                  <strong>Important:</strong> Set appropriate permissions for this operator. These control what actions they can perform.
+                </p>
+              </div>
+              
+              <div className="space-y-4">
+                {/* Create Permission */}
+                <div className="p-4 border rounded-md hover:bg-gray-50">
+                  <div className="flex items-center">
+                    <div className="flex-shrink-0 mr-3">
+                      <input
+                        id="permission_canCreate"
+                        name="permission_canCreate"
+                        type="checkbox"
+                        checked={formData.permissions.canCreate}
+                        onChange={handleChange}
+                        className="h-5 w-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                      />
+                    </div>
+                    <div>
+                      <label htmlFor="permission_canCreate" className="font-medium text-gray-900 cursor-pointer">
+                        Can Create Trips/Sessions
+                      </label>
+                      <p className="text-sm text-gray-500 mt-1">
+                        If enabled, this operator can create new trips and sessions in the system.
+                      </p>
+                    </div>
+                  </div>
                 </div>
-                <div className="flex items-center">
-                  <input
-                    id="permission_canModify"
-                    name="permission_canModify"
-                    type="checkbox"
-                    checked={formData.permissions.canModify}
-                    onChange={handleChange}
-                    className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                  />
-                  <label htmlFor="permission_canModify" className="ml-2 block text-sm text-gray-900">
-                    Can Modify Trips/Sessions
-                  </label>
+                
+                {/* Modify Permission */}
+                <div className="p-4 border rounded-md hover:bg-gray-50">
+                  <div className="flex items-center">
+                    <div className="flex-shrink-0 mr-3">
+                      <input
+                        id="permission_canModify"
+                        name="permission_canModify"
+                        type="checkbox"
+                        checked={formData.permissions.canModify}
+                        onChange={handleChange}
+                        className="h-5 w-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                      />
+                    </div>
+                    <div>
+                      <label htmlFor="permission_canModify" className="font-medium text-gray-900 cursor-pointer">
+                        Can Modify Trips/Sessions
+                      </label>
+                      <p className="text-sm text-gray-500 mt-1">
+                        If enabled, this operator can edit and update existing trips and sessions.
+                      </p>
+                    </div>
+                  </div>
                 </div>
-                <div className="flex items-center">
-                  <input
-                    id="permission_canDelete"
-                    name="permission_canDelete"
-                    type="checkbox"
-                    checked={formData.permissions.canDelete}
-                    onChange={handleChange}
-                    className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                  />
-                  <label htmlFor="permission_canDelete" className="ml-2 block text-sm text-gray-900">
-                    Can Delete Trips/Sessions
-                  </label>
+                
+                {/* Delete Permission */}
+                <div className="p-4 border rounded-md hover:bg-gray-50">
+                  <div className="flex items-center">
+                    <div className="flex-shrink-0 mr-3">
+                      <input
+                        id="permission_canDelete"
+                        name="permission_canDelete"
+                        type="checkbox"
+                        checked={formData.permissions.canDelete}
+                        onChange={handleChange}
+                        className="h-5 w-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                      />
+                    </div>
+                    <div>
+                      <label htmlFor="permission_canDelete" className="font-medium text-gray-900 cursor-pointer">
+                        Can Delete Trips/Sessions
+                      </label>
+                      <p className="text-sm text-gray-500 mt-1">
+                        If enabled, this operator can delete existing trips and sessions. Use with caution.
+                      </p>
+                    </div>
+                  </div>
                 </div>
-                <p className="text-xs text-gray-500 mt-1">
-                  These permissions determine what actions this operator can perform on trips.
+              </div>
+              
+              <div className="mt-4 p-3 bg-gray-50 border border-gray-200 rounded-md">
+                <p className="text-sm text-gray-600">
+                  <strong>Note:</strong> All trips/sessions will be visible to all operators under your administration, 
+                  regardless of who created them. These permissions only control who can create, modify, or delete them.
                 </p>
               </div>
             </div>
@@ -432,6 +480,12 @@ export default function CreateEmployeePage() {
         >
           {isLoading ? "Creating..." : "Create Employee"}
         </button>
+        
+        {formData.subrole === EmployeeSubrole.OPERATOR && (
+          <div className="mt-3 text-center text-sm text-gray-600">
+            By creating this operator, you confirm that you have set the appropriate permissions for their role.
+          </div>
+        )}
       </form>
     </div>
   );
