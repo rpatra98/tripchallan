@@ -18,6 +18,17 @@ export default async function EmployeeDetailPage({ params }: { params: { id: str
     where: {
       id: session.user.id,
     },
+    select: {
+      id: true, 
+      role: true,
+      name: true,
+      email: true,
+      _count: {
+        select: {
+          employees: true  // Count employees for this company
+        }
+      }
+    }
   });
 
   if (!dbUser) {
@@ -28,7 +39,7 @@ export default async function EmployeeDetailPage({ params }: { params: { id: str
   const isAdmin = dbUser.role === UserRole.ADMIN || dbUser.role === UserRole.SUPERADMIN;
   const isCompany = dbUser.role === UserRole.COMPANY;
 
-  // Get employee details
+  // Get employee details with expanded company information
   const employee = await prisma.user.findUnique({
     where: {
       id: params.id,
@@ -50,28 +61,37 @@ export default async function EmployeeDetailPage({ params }: { params: { id: str
     notFound();
   }
 
-  console.log("Employee access check:", {
-    requestedEmployeeId: params.id,
-    requestingUserId: dbUser.id,
-    requestingUserRole: dbUser.role,
-    employeeCompanyId: employee.companyId,
-    isAdmin,
-    isCompany
-  });
-
-  // Check access authorization
-  if (!isAdmin) {
-    if (isCompany) {
-      // For COMPANY users, check if this employee belongs to them
-      if (employee.companyId !== dbUser.id) {
-        console.log("Access denied: Employee does not belong to this company");
-        redirect("/dashboard");
+  // If user is a COMPANY, verify this employee belongs to them by fetching directly
+  let hasAccess = isAdmin; // Admins always have access
+  
+  if (isCompany) {
+    console.log(`Checking if company ${dbUser.id} owns employee ${params.id}`);
+    
+    // Explicitly check if this employee belongs to the company
+    const employeeBelongsToCompany = await prisma.user.findFirst({
+      where: {
+        id: params.id,
+        companyId: dbUser.id
       }
-    } else {
-      // For other non-admin roles, deny access
-      console.log("Access denied: User is not admin or the employee's company");
-      redirect("/dashboard");
-    }
+    });
+    
+    hasAccess = !!employeeBelongsToCompany;
+    
+    console.log("Company access check result:", {
+      companyId: dbUser.id,
+      companyName: dbUser.name,
+      employeeId: params.id,
+      employeeCompanyId: employee.companyId,
+      employeeCount: dbUser._count?.employees,
+      employeeBelongsToCompany: !!employeeBelongsToCompany,
+      hasAccess
+    });
+  }
+  
+  // Now do the access check
+  if (!hasAccess) {
+    console.log("Access denied: User does not have permission to view this employee");
+    redirect("/dashboard");
   }
 
   // Get transaction history for this employee
@@ -110,7 +130,7 @@ export default async function EmployeeDetailPage({ params }: { params: { id: str
     <div className="container mx-auto px-4 py-8">
       <div className="mb-6">
         <Link 
-          href={isAdmin ? "/dashboard/employees" : "/dashboard?tab=employees"}
+          href={isAdmin ? "/dashboard/employees" : "/dashboard/employees"}
           className="text-blue-600 hover:underline mb-4 inline-block"
         >
           &larr; Back to Employees
