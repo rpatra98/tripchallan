@@ -328,16 +328,10 @@ export default async function EmployeeDetailPage({ params, searchParams }: { par
         {isAdmin && (
           <div className="flex gap-4">
             <Link
-              href={`/dashboard/employees/edit/${employee.id}`}
+              href={`/dashboard/employees/${employee.id}/edit`}
               className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
             >
               Edit Employee
-            </Link>
-            <Link
-              href={`/api/coins/transfer?toUserId=${employee.id}`}
-              className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600"
-            >
-              Transfer Coins
             </Link>
           </div>
         )}
