@@ -14,9 +14,14 @@ import {
   Button,
   Box,
   CircularProgress,
-  Alert
+  Alert,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  IconButton
 } from "@mui/material";
-import { Person, ArrowBack } from "@mui/icons-material";
+import { Person, ArrowBack, Close } from "@mui/icons-material";
 import Link from "next/link";
 
 interface Employee {
@@ -37,6 +42,8 @@ export default function CompanyEmployeesPage() {
   const [companyName, setCompanyName] = useState<string>("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [selectedEmployee, setSelectedEmployee] = useState<string | null>(null);
+  const [dialogOpen, setDialogOpen] = useState(false);
 
   useEffect(() => {
     const fetchCompanyDetails = async () => {
@@ -137,16 +144,10 @@ export default function CompanyEmployeesPage() {
                       variant="outlined"
                       size="small"
                       startIcon={<Person />}
-                      onClick={(e) => {
-                        e.preventDefault();
-                        // Log for debugging
-                        console.log("View employee details clicked:", {
-                          employee_id: employee.id,
-                          companyId,
-                          url: `/dashboard/employees/${employee.id}?source=company&companyId=${companyId}`
-                        });
-                        // Use direct window navigation for maximum compatibility
-                        window.location.href = `/dashboard/employees/${employee.id}?source=company&companyId=${companyId}`;
+                      onClick={() => {
+                        setSelectedEmployee(employee.id);
+                        setDialogOpen(true);
+                        console.log("Opening employee details in dialog:", employee.id);
                       }}
                     >
                       View Details
@@ -158,6 +159,49 @@ export default function CompanyEmployeesPage() {
           </Table>
         </TableContainer>
       )}
+
+      {/* Employee Details Dialog */}
+      <Dialog 
+        open={dialogOpen} 
+        onClose={() => setDialogOpen(false)}
+        fullWidth
+        maxWidth="md"
+      >
+        <DialogTitle>
+          Employee Details
+          <IconButton
+            aria-label="close"
+            onClick={() => setDialogOpen(false)}
+            sx={{ position: 'absolute', right: 8, top: 8 }}
+          >
+            <Close />
+          </IconButton>
+        </DialogTitle>
+        <DialogContent>
+          {selectedEmployee && (
+            <iframe 
+              src={`/dashboard/employees/${selectedEmployee}?source=company&companyId=${companyId}&embed=true`}
+              style={{ width: '100%', height: '70vh', border: 'none' }}
+              title="Employee Details"
+            />
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDialogOpen(false)}>Close</Button>
+          <Button 
+            variant="contained" 
+            color="primary"
+            onClick={() => {
+              if (selectedEmployee) {
+                // Try to force navigation to employee details page
+                window.open(`/dashboard/employees/${selectedEmployee}?source=company&companyId=${companyId}`, '_blank');
+              }
+            }}
+          >
+            Open in New Tab
+          </Button>
+        </DialogActions>
+      </Dialog>
     </div>
   );
 } 
