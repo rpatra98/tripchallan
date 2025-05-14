@@ -252,12 +252,16 @@ export default function CompanyDashboard({ user, initialTab }: CompanyDashboardP
     setSessionStatusFilter(newValue);
   };
 
-  // Handle employee details navigation with a direct approach
+  // Handle employee details navigation with a more reliable approach
   const handleViewEmployeeDetails = (employeeId: string) => {
-    console.log(`Navigating to employee ${employeeId} details`);
+    console.log(`Navigating to employee ${employeeId} details via debug route`);
     
-    // Use a more direct approach to avoid any potential navigation issues
-    window.location.href = `/dashboard/employees/${employeeId}`;
+    // Use the debug navigation page to help diagnose and fix navigation issues
+    const debugUrl = `/dashboard/debug?employeeId=${employeeId}&source=companyDashboard&t=${Date.now()}`;
+    console.log(`Debug URL: ${debugUrl}`);
+    
+    // Navigate to the debug page which will then redirect to the employee details
+    window.location.href = debugUrl;
   };
 
   return (
@@ -495,9 +499,16 @@ export default function CompanyDashboard({ user, initialTab }: CompanyDashboardP
                   <People sx={{ mr: 1 }} />
                   <Typography variant="h6">Your Employees</Typography>
                 </Box>
-                <Typography variant="body2" color="text.secondary">
-                  Employees are assigned to your company by administrators
-                </Typography>
+                <Box>
+                  <Button
+                    variant="outlined"
+                    size="small"
+                    onClick={() => window.location.href="/dashboard/employees"}
+                    startIcon={<People />}
+                  >
+                    View All Employees
+                  </Button>
+                </Box>
               </Box>
 
               {isLoadingEmployees ? (

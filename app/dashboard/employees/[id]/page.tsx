@@ -9,7 +9,15 @@ import PermissionsEditorWrapper from "@/app/components/PermissionsEditorWrapper"
 export default async function EmployeeDetailPage({ params }: { params: { id: string } }) {
   const session = await getServerSession(authOptions);
 
+  // Add detailed logging to diagnose access issues
+  console.log(`EmployeeDetailPage loaded for ID: ${params.id}`, {
+    params,
+    hasSession: !!session,
+    userIdFromSession: session?.user?.id
+  });
+
   if (!session) {
+    console.log("No session found, redirecting to login");
     redirect("/");
   }
 
