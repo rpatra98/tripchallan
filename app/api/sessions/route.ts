@@ -11,9 +11,13 @@ import path from 'path';
 // Directory for storing uploaded files
 const UPLOAD_DIR = path.join(process.cwd(), 'uploads');
 
-// Check if directory exists, if not create it
-if (!fs.existsSync(UPLOAD_DIR)) {
-  fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+// Create directory only in development, not in production (Vercel has read-only filesystem)
+if (process.env.NODE_ENV !== 'production' && !fs.existsSync(UPLOAD_DIR)) {
+  try {
+    fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+  } catch (error) {
+    console.error("Failed to create uploads directory:", error);
+  }
 }
 
 // Helper function to save a single file from FormData
@@ -512,25 +516,30 @@ export const POST = withAuth(
         return { session: newSession, seal };
       });
       
-      // Save uploaded files to the uploads directory
-      try {
-        const sessionDir = path.join(UPLOAD_DIR, result.session.id);
-        if (!fs.existsSync(sessionDir)) {
-          fs.mkdirSync(sessionDir, { recursive: true });
+      // Save uploaded files to the uploads directory - but only in development
+      // In production (Vercel), we can't write to the filesystem
+      if (process.env.NODE_ENV !== 'production') {
+        try {
+          const sessionDir = path.join(UPLOAD_DIR, result.session.id);
+          if (!fs.existsSync(sessionDir)) {
+            fs.mkdirSync(sessionDir, { recursive: true });
+          }
+          
+          // Save main images
+          if (gpsImeiPicture) await saveFormFile(gpsImeiPicture, path.join(sessionDir, 'gpsImei'));
+          if (vehicleNumberPlatePicture) await saveFormFile(vehicleNumberPlatePicture, path.join(sessionDir, 'vehicleNumber'));
+          if (driverPicture) await saveFormFile(driverPicture, path.join(sessionDir, 'driver'));
+          
+          // Save array-based images
+          await saveFormFilesArray(formData, 'sealingImages', path.join(sessionDir, 'sealing'));
+          await saveFormFilesArray(formData, 'vehicleImages', path.join(sessionDir, 'vehicle'));
+          await saveFormFilesArray(formData, 'additionalImages', path.join(sessionDir, 'additional'));
+        } catch (fileError) {
+          console.error("Error saving files:", fileError);
+          // We continue even if file saving fails; the session is already created
         }
-        
-        // Save main images
-        if (gpsImeiPicture) await saveFormFile(gpsImeiPicture, path.join(sessionDir, 'gpsImei'));
-        if (vehicleNumberPlatePicture) await saveFormFile(vehicleNumberPlatePicture, path.join(sessionDir, 'vehicleNumber'));
-        if (driverPicture) await saveFormFile(driverPicture, path.join(sessionDir, 'driver'));
-        
-        // Save array-based images
-        await saveFormFilesArray(formData, 'sealingImages', path.join(sessionDir, 'sealing'));
-        await saveFormFilesArray(formData, 'vehicleImages', path.join(sessionDir, 'vehicle'));
-        await saveFormFilesArray(formData, 'additionalImages', path.join(sessionDir, 'additional'));
-      } catch (fileError) {
-        console.error("Error saving files:", fileError);
-        // We continue even if file saving fails; the session is already created
+      } else {
+        console.log("Skipping file save in production environment");
       }
       
       return NextResponse.json({

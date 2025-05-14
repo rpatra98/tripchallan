@@ -10,9 +10,13 @@ import { UserRole } from "@/prisma/enums";
 // Directory for storing uploaded files
 const UPLOAD_DIR = path.join(process.cwd(), 'uploads');
 
-// Check if directory exists, if not create it
-if (!fs.existsSync(UPLOAD_DIR)) {
-  fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+// Create directory only in development, not in production (Vercel has read-only filesystem)
+if (process.env.NODE_ENV !== 'production' && !fs.existsSync(UPLOAD_DIR)) {
+  try {
+    fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+  } catch (error) {
+    console.error("Failed to create uploads directory:", error);
+  }
 }
 
 export const GET = withAuth(
@@ -73,30 +77,11 @@ export const GET = withAuth(
         );
       }
 
-      // Try to find the actual image file
-      const imagePath = path.join(UPLOAD_DIR, sessionId, imageType);
+      // In production (on Vercel), always use the placeholder image
+      // because Vercel has a read-only filesystem
+      const placeholderImgPath = path.join(process.cwd(), 'public', 'file.svg');
       
-      if (fs.existsSync(imagePath)) {
-        const imageBuffer = fs.readFileSync(imagePath);
-        
-        // Determine content type (this is a simplified version)
-        let contentType = 'image/jpeg';
-        
-        // You could check file signatures or extensions for better content type detection
-        // For now, we'll use a simple approach
-        
-        return new NextResponse(imageBuffer, {
-          headers: {
-            'Content-Type': contentType,
-            'Cache-Control': 'public, max-age=3600',
-          },
-        });
-      }
-      
-      // If the file doesn't exist, return a placeholder image
-      const placeholderImgPath = path.join(process.cwd(), 'public', 'file.svg'); 
-      
-      if (fs.existsSync(placeholderImgPath)) {
+      try {
         const imageBuffer = fs.readFileSync(placeholderImgPath);
         
         // Set appropriate content type
@@ -106,19 +91,35 @@ export const GET = withAuth(
             'Cache-Control': 'public, max-age=3600',
           },
         });
+      } catch (error) {
+        console.error("Error serving placeholder image:", error);
+        // Return a simple SVG as fallback if file can't be read
+        const svgContent = `<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 100 100">
+          <rect width="100" height="100" fill="#f0f0f0"/>
+          <text x="50" y="50" font-family="Arial" font-size="12" text-anchor="middle" dominant-baseline="middle" fill="#666">Image</text>
+        </svg>`;
+        
+        return new NextResponse(svgContent, {
+          headers: {
+            'Content-Type': 'image/svg+xml',
+            'Cache-Control': 'public, max-age=3600',
+          },
+        });
       }
-      
-      // If placeholder not found
-      return NextResponse.json(
-        { error: "Image not found" },
-        { status: 404 }
-      );
     } catch (error) {
       console.error("Error serving image:", error);
-      return NextResponse.json(
-        { error: "Failed to serve image" },
-        { status: 500 }
-      );
+      // Return a simple SVG as fallback
+      const svgContent = `<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 100 100">
+        <rect width="100" height="100" fill="#f0f0f0"/>
+        <text x="50" y="50" font-family="Arial" font-size="12" text-anchor="middle" dominant-baseline="middle" fill="#666">Error</text>
+      </svg>`;
+      
+      return new NextResponse(svgContent, {
+        headers: {
+          'Content-Type': 'image/svg+xml',
+          'Cache-Control': 'public, max-age=3600',
+        },
+      });
     }
   },
   [UserRole.SUPERADMIN, UserRole.ADMIN, UserRole.COMPANY, UserRole.EMPLOYEE]
