@@ -9,7 +9,7 @@ import { SessionUpdateContext } from "@/app/dashboard/layout";
 
 export default function CreateAdminPage() {
   const router = useRouter();
-  const { data: session } = useSession();
+  const { data: session, update: updateSession } = useSession();
   const { refreshUserSession } = useContext(SessionUpdateContext);
   const [formData, setFormData] = useState({
     name: "",
@@ -76,11 +76,23 @@ export default function CreateAdminPage() {
 
       // Refresh the session to update the balance in the navbar
       if (formData.coins > 0) {
-        await refreshUserSession();
-        
-        // Get the updated user data to show accurate coin balance
+        // First directly fetch the updated user data
         const userResponse = await fetch('/api/users/me');
         const userData = await userResponse.json();
+        
+        // Update the NextAuth session explicitly with the new coin balance
+        if (session && updateSession) {
+          await updateSession({
+            ...session,
+            user: {
+              ...session.user,
+              coins: userData.coins,
+            }
+          });
+        }
+        
+        // Also call the refreshUserSession to ensure UI updates
+        await refreshUserSession();
         
         // Show success message with coin details
         alert(`Admin created successfully!\n\nEmail: ${data.user.email}\nPassword: ${formData.password}\n\nYou allocated ${formData.coins} coins to ${formData.name}.\nYour current balance: ${userData.coins} coins.`);
@@ -89,9 +101,8 @@ export default function CreateAdminPage() {
         alert(`Admin created successfully!\n\nEmail: ${data.user.email}\nPassword: ${formData.password}`);
       }
 
-      // Redirect to dashboard on success
-      router.push("/dashboard");
-      router.refresh();
+      // Redirect to dashboard on success - use window.location for a full refresh
+      window.location.href = "/dashboard";
     } catch (err) {
       setError(err instanceof Error ? err.message : "An unknown error occurred");
     } finally {
