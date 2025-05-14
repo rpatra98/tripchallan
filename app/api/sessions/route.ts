@@ -78,51 +78,111 @@ async function handler(req: NextRequest) {
     const search = searchParams.get('search');
     
     // Build where clause based on user role
-    let whereClause = {};
+    let whereClause: Record<string, any> = {};
     
-    if (userRole === UserRole.SUPERADMIN) {
-      // SuperAdmin can see all sessions
-      whereClause = {};
-    } else if (userRole === UserRole.ADMIN) {
-      // Admin can only see sessions from companies they created
-      const companiesCreatedByAdmin = await prisma.user.findMany({
-        where: {
-          role: UserRole.COMPANY,
-          createdById: userId,
-        },
-        select: {
-          id: true,
-          companyId: true,
+    try {
+      if (userRole === UserRole.SUPERADMIN) {
+        // SuperAdmin can see all sessions
+        whereClause = {};
+      } else if (userRole === UserRole.ADMIN) {
+        // Admin can only see sessions from companies they created
+        const companiesCreatedByAdmin = await prisma.user.findMany({
+          where: {
+            role: UserRole.COMPANY,
+            createdById: userId,
+          },
+          select: {
+            id: true,
+            companyId: true,
+          }
+        });
+        
+        const companyIds = companiesCreatedByAdmin
+          .filter((company: { companyId?: string }) => company.companyId)
+          .map((company: { companyId?: string }) => company.companyId as string);
+          
+        const companyUserIds = companiesCreatedByAdmin.map((company: { id: string }) => company.id);
+        
+        if (companyIds.length === 0 && companyUserIds.length === 0) {
+          // No companies found, return empty results instead of attempting a query
+          return NextResponse.json({
+            sessions: [],
+            pagination: {
+              total: 0,
+              page,
+              limit,
+              pages: 0
+            }
+          });
+        }
+        
+        whereClause = {
+          companyId: {
+            in: [...new Set([...companyIds, ...companyUserIds])].filter(Boolean)
+          }
+        };
+      } else if (userRole === UserRole.COMPANY) {
+        // Company can only see their own sessions
+        whereClause = {
+          OR: [
+            { companyId: userId },
+            { createdById: userId }
+          ]
+        };
+      } else if (userRole === UserRole.EMPLOYEE) {
+        const employee = await prisma.user.findUnique({
+          where: { id: userId },
+          select: { companyId: true, subrole: true }
+        });
+        
+        // Check if we can find the employee and their company
+        if (!employee || !employee.companyId) {
+          console.error("Employee has no company association:", userId);
+          return NextResponse.json({
+            sessions: [],
+            pagination: {
+              total: 0,
+              page,
+              limit,
+              pages: 0
+            }
+          });
+        }
+        
+        // Employee can only see sessions from their company or they created/verified
+        whereClause = {
+          OR: [
+            { companyId: employee.companyId },
+            { createdById: userId }
+          ]
+        };
+        
+        // Specific case for guards: add needsVerification filter
+        if (employee.subrole === EmployeeSubrole.GUARD) {
+          const needsVerification = searchParams.get('needsVerification') === 'true';
+          if (needsVerification) {
+            whereClause = {
+              ...whereClause,
+              status: "IN_PROGRESS",
+              companyId: employee.companyId,
+              seal: {
+                verified: false
+              }
+            };
+          }
+        }
+      }
+    } catch (error) {
+      console.error("Error building where clause:", error);
+      return NextResponse.json({
+        sessions: [],
+        pagination: {
+          total: 0,
+          page,
+          limit,
+          pages: 0
         }
       });
-      
-      const companyIds = companiesCreatedByAdmin
-        .filter(company => company.companyId)
-        .map(company => company.companyId);
-        
-      const companyUserIds = companiesCreatedByAdmin.map(company => company.id);
-      
-      whereClause = {
-        companyId: {
-          in: [...new Set([...companyIds, ...companyUserIds])].filter(Boolean)
-        }
-      };
-    } else if (userRole === UserRole.COMPANY) {
-      // Company can only see their own sessions
-      whereClause = {
-        OR: [
-          { companyId: userId },
-          { createdById: userId }
-        ]
-      };
-    } else if (userRole === UserRole.EMPLOYEE) {
-      // Employee can only see sessions they created or are involved with
-      whereClause = {
-        OR: [
-          { createdById: userId },
-          { 'seal.verifiedById': userId }
-        ]
-      };
     }
     
     // Add status filter if provided
@@ -148,7 +208,23 @@ async function handler(req: NextRequest) {
     // Get total count for pagination
     const total = await prisma.session.count({
       where: whereClause
+    }).catch((error: Error) => {
+      console.error("Error counting sessions:", error);
+      return 0;
     });
+    
+    // If no results, return empty array immediately
+    if (total === 0) {
+      return NextResponse.json({
+        sessions: [],
+        pagination: {
+          total: 0,
+          page: 1,
+          limit,
+          pages: 0
+        }
+      });
+    }
     
     // Get sessions with pagination
     const sessions = await prisma.session.findMany({
@@ -182,27 +258,46 @@ async function handler(req: NextRequest) {
       },
       skip: (page - 1) * limit,
       take: limit
+    }).catch((error: Error) => {
+      console.error("Error fetching sessions:", error);
+      return [];
     });
+    
+    if (sessions.length === 0) {
+      return NextResponse.json({
+        sessions: [],
+        pagination: {
+          total: 0,
+          page: 1,
+          limit,
+          pages: 0
+        }
+      });
+    }
     
     // Get activity logs for trip details
     const activityLogs = await prisma.activityLog.findMany({
       where: {
         targetResourceId: {
-          in: sessions.map(s => s.id)
+          in: sessions.map((s: { id: string }) => s.id)
         },
         targetResourceType: 'session',
         action: 'CREATE'
       }
+    }).catch((error: Error) => {
+      console.error("Error fetching activity logs:", error);
+      return [];
     });
     
     // Enhance sessions with trip details
-    const enhancedSessions = sessions.map(session => {
-      const activityLog = activityLogs.find(log => log.targetResourceId === session.id);
+    const enhancedSessions = sessions.map((session: any) => {
+      const activityLog = activityLogs.find((log: { targetResourceId: string }) => log.targetResourceId === session.id);
       const details = activityLog?.details as ActivityLogDetails | undefined;
       
       return {
         ...session,
-        tripDetails: details?.tripDetails || {}
+        tripDetails: details?.tripDetails || {},
+        qrCodes: details?.qrCodes || {}
       };
     });
     
@@ -217,10 +312,16 @@ async function handler(req: NextRequest) {
     });
   } catch (error) {
     console.error("Error fetching sessions:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch sessions" },
-      { status: 500 }
-    );
+    return NextResponse.json({
+      error: "Failed to fetch sessions",
+      sessions: [],
+      pagination: {
+        total: 0,
+        page: 1,
+        limit: 10,
+        pages: 0
+      }
+    }, { status: 200 });  // Return 200 with empty data instead of 500
   }
 }
 

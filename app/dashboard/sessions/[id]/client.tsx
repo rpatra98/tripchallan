@@ -2110,6 +2110,39 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
           </>
         )}
         
+        {/* Show QR Codes if available */}
+        {session.qrCodes && (session.qrCodes.primaryBarcode || (session.qrCodes.additionalBarcodes && session.qrCodes.additionalBarcodes.length > 0)) && (
+          <>
+            <Divider sx={{ my: 2 }} />
+            
+            <Typography variant="h6" gutterBottom>
+              QR Codes & Barcodes
+            </Typography>
+            
+            <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
+              {session.qrCodes.primaryBarcode && (
+                <Box>
+                  <Typography variant="subtitle2" color="text.secondary">Primary Barcode</Typography>
+                  <Typography variant="body1">{session.qrCodes.primaryBarcode}</Typography>
+                </Box>
+              )}
+              
+              {session.qrCodes.additionalBarcodes && session.qrCodes.additionalBarcodes.length > 0 && (
+                <Box>
+                  <Typography variant="subtitle2" color="text.secondary">Additional Barcodes</Typography>
+                  <Box sx={{ mt: 1, bgcolor: 'background.paper', border: '1px solid rgba(0, 0, 0, 0.12)', borderRadius: 1, p: 2 }}>
+                    {session.qrCodes.additionalBarcodes.map((barcode, index) => (
+                      <Typography key={index} variant="body2" sx={{ mb: 0.5 }}>
+                        {index + 1}. {barcode}
+                      </Typography>
+                    ))}
+                  </Box>
+                </Box>
+              )}
+            </Box>
+          </>
+        )}
+        
         {/* Show Images if available - Hide from GUARD users for IN_PROGRESS sessions */}
         {session.images && Object.values(session.images).some(img => img) && 
           !(isGuard && session.status === SessionStatus.IN_PROGRESS) && (

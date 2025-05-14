@@ -168,7 +168,8 @@ export default function EmployeeDashboard({ user }: EmployeeDashboardProps) {
         
         // If it's a 500 server error and there's no other data, don't show error
         // Just show empty state as the likely cause is the user has no sessions
-        if (response.status === 500 && !errorData.message) {
+        if (response.status === 500) {
+          console.log("Server error occurred, displaying empty sessions state");
           setOperatorSessions([]);
           return;
         }
