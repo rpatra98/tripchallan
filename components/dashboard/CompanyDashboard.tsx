@@ -643,8 +643,8 @@ export default function CompanyDashboard({ user, initialTab }: CompanyDashboardP
                             href={`/dashboard/employees/${employee.id}`} 
                             style={{ textDecoration: 'none' }}
                             onClick={(e) => {
+                              // Force direct navigation
                               e.preventDefault();
-                              // Force navigation with window.location for reliability
                               window.location.href = `/dashboard/employees/${employee.id}`;
                             }}
                           >
