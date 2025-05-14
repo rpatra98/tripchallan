@@ -28,7 +28,8 @@ export default function CreateEmployeePage() {
       canCreate: true,
       canModify: false,
       canDelete: false
-    }
+    },
+    confirmPermissions: false
   });
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingCompanies, setIsLoadingCompanies] = useState(true);
@@ -88,7 +89,14 @@ export default function CreateEmployeePage() {
   ) => {
     const { name, value, type } = e.target as HTMLInputElement;
     
-    if (type === "checkbox") {
+    if (name === "confirm_permissions") {
+      // Handle confirmation checkbox
+      const isChecked = (e.target as HTMLInputElement).checked;
+      setFormData(prev => ({
+        ...prev,
+        confirmPermissions: isChecked
+      }));
+    } else if (type === "checkbox") {
       // Handle checkbox for permissions
       const isChecked = (e.target as HTMLInputElement).checked;
       const permissionName = name.replace("permission_", "");
@@ -132,6 +140,26 @@ export default function CreateEmployeePage() {
       setError("Please select a company");
       setIsLoading(false);
       return;
+    }
+
+    // Validate that at least one permission is set for operators
+    if (formData.subrole === EmployeeSubrole.OPERATOR) {
+      const hasPermission = 
+        formData.permissions.canCreate || 
+        formData.permissions.canModify || 
+        formData.permissions.canDelete;
+      
+      if (!hasPermission) {
+        setError("You must enable at least one permission for the operator");
+        setIsLoading(false);
+        return;
+      }
+
+      if (!formData.confirmPermissions) {
+        setError("You must confirm that you have set the appropriate permissions");
+        setIsLoading(false);
+        return;
+      }
     }
 
     try {
@@ -203,7 +231,7 @@ export default function CreateEmployeePage() {
   }
 
   return (
-    <div className="max-w-md mx-auto p-6 bg-white rounded-lg shadow-md">
+    <div className="max-w-2xl mx-auto p-6 bg-white rounded-lg shadow-md">
       <h1 className="text-2xl font-bold mb-6">Create Employee</h1>
 
       {error && (
@@ -212,7 +240,7 @@ export default function CreateEmployeePage() {
         </div>
       )}
 
-      <form onSubmit={handleSubmit}>
+      <form onSubmit={handleSubmit} className="space-y-4">
         <div className="mb-4">
           <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-1">
             Employee Name
@@ -378,19 +406,36 @@ export default function CreateEmployeePage() {
               </p>
             </div>
 
+            {/* Section separator for permissions */}
+            <div className="relative my-8">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-gray-300"></div>
+              </div>
+              <div className="relative flex justify-center">
+                <span className="bg-white px-3 text-lg font-bold text-red-600">
+                  Operator Permissions Section
+                </span>
+              </div>
+            </div>
+
             <div className="mb-4">
-              <label className="block text-lg font-semibold text-gray-700 mb-3">
+              <label className="block text-xl font-bold text-gray-900 mb-3">
                 Operator Permissions
               </label>
-              <div className="mb-4 p-3 bg-yellow-50 border border-yellow-300 text-yellow-800 rounded-md">
-                <p className="text-sm font-medium">
-                  <strong>Important:</strong> Set appropriate permissions for this operator. These control what actions they can perform.
+              <div className="mb-4 p-4 bg-red-50 border-2 border-red-400 text-red-800 rounded-md">
+                <p className="text-base font-medium">
+                  <strong>IMPORTANT:</strong> You MUST set permissions for this operator. These control what actions they can perform.
                 </p>
               </div>
               
-              <div className="space-y-4">
+              <div className="space-y-4 border-2 border-blue-400 p-4 rounded-md">
+                <div className="text-center pb-2 mb-3 border-b border-blue-200">
+                  <h3 className="font-bold text-blue-800">Permission Settings</h3>
+                  <p className="text-sm text-gray-600">Select all permissions this operator should have</p>
+                </div>
+                
                 {/* Create Permission */}
-                <div className="p-4 border rounded-md hover:bg-gray-50">
+                <div className="p-4 border rounded-md bg-green-50 hover:bg-green-100">
                   <div className="flex items-center">
                     <div className="flex-shrink-0 mr-3">
                       <input
@@ -399,14 +444,14 @@ export default function CreateEmployeePage() {
                         type="checkbox"
                         checked={formData.permissions.canCreate}
                         onChange={handleChange}
-                        className="h-5 w-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                        className="h-6 w-6 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
                       />
                     </div>
                     <div>
-                      <label htmlFor="permission_canCreate" className="font-medium text-gray-900 cursor-pointer">
+                      <label htmlFor="permission_canCreate" className="font-bold text-gray-900 cursor-pointer text-lg">
                         Can Create Trips/Sessions
                       </label>
-                      <p className="text-sm text-gray-500 mt-1">
+                      <p className="text-sm text-gray-700 mt-1">
                         If enabled, this operator can create new trips and sessions in the system.
                       </p>
                     </div>
@@ -414,7 +459,7 @@ export default function CreateEmployeePage() {
                 </div>
                 
                 {/* Modify Permission */}
-                <div className="p-4 border rounded-md hover:bg-gray-50">
+                <div className="p-4 border rounded-md bg-yellow-50 hover:bg-yellow-100">
                   <div className="flex items-center">
                     <div className="flex-shrink-0 mr-3">
                       <input
@@ -423,14 +468,14 @@ export default function CreateEmployeePage() {
                         type="checkbox"
                         checked={formData.permissions.canModify}
                         onChange={handleChange}
-                        className="h-5 w-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                        className="h-6 w-6 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
                       />
                     </div>
                     <div>
-                      <label htmlFor="permission_canModify" className="font-medium text-gray-900 cursor-pointer">
+                      <label htmlFor="permission_canModify" className="font-bold text-gray-900 cursor-pointer text-lg">
                         Can Modify Trips/Sessions
                       </label>
-                      <p className="text-sm text-gray-500 mt-1">
+                      <p className="text-sm text-gray-700 mt-1">
                         If enabled, this operator can edit and update existing trips and sessions.
                       </p>
                     </div>
@@ -438,7 +483,7 @@ export default function CreateEmployeePage() {
                 </div>
                 
                 {/* Delete Permission */}
-                <div className="p-4 border rounded-md hover:bg-gray-50">
+                <div className="p-4 border rounded-md bg-red-50 hover:bg-red-100">
                   <div className="flex items-center">
                     <div className="flex-shrink-0 mr-3">
                       <input
@@ -447,14 +492,14 @@ export default function CreateEmployeePage() {
                         type="checkbox"
                         checked={formData.permissions.canDelete}
                         onChange={handleChange}
-                        className="h-5 w-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                        className="h-6 w-6 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
                       />
                     </div>
                     <div>
-                      <label htmlFor="permission_canDelete" className="font-medium text-gray-900 cursor-pointer">
+                      <label htmlFor="permission_canDelete" className="font-bold text-gray-900 cursor-pointer text-lg">
                         Can Delete Trips/Sessions
                       </label>
-                      <p className="text-sm text-gray-500 mt-1">
+                      <p className="text-sm text-gray-700 mt-1">
                         If enabled, this operator can delete existing trips and sessions. Use with caution.
                       </p>
                     </div>
@@ -469,16 +514,44 @@ export default function CreateEmployeePage() {
                 </p>
               </div>
             </div>
+
+            {/* Confirmation checkbox */}
+            <div className="p-4 bg-yellow-50 border border-yellow-400 rounded-md mb-6">
+              <div className="flex items-center">
+                <input
+                  id="confirm_permissions"
+                  name="confirm_permissions"
+                  type="checkbox"
+                  required
+                  className="h-5 w-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                />
+                <label htmlFor="confirm_permissions" className="ml-2 block text-base font-bold text-gray-900">
+                  I confirm that I have set the correct permissions for this operator
+                </label>
+              </div>
+              <p className="mt-2 text-sm text-gray-700 pl-7">
+                By checking this box, you acknowledge that you have reviewed and set the appropriate 
+                permissions for this operator according to your organization's requirements.
+              </p>
+            </div>
           </>
         )}
 
         <button
           type="submit"
           disabled={isLoading || isLoadingCompanies}
-          className={`w-full py-2 px-4 rounded-md text-white font-medium 
-            ${(isLoading || isLoadingCompanies) ? "bg-blue-400" : "bg-blue-600 hover:bg-blue-700"}`}
+          className={`w-full py-3 px-4 rounded-md text-white font-medium text-lg 
+            ${(isLoading || isLoadingCompanies) 
+              ? "bg-blue-400" 
+              : formData.subrole === EmployeeSubrole.OPERATOR
+                ? "bg-green-600 hover:bg-green-700"
+                : "bg-blue-600 hover:bg-blue-700"}`}
         >
-          {isLoading ? "Creating..." : "Create Employee"}
+          {isLoading 
+            ? "Creating..." 
+            : formData.subrole === EmployeeSubrole.OPERATOR 
+              ? "Create Operator with Permissions" 
+              : "Create Employee"}
         </button>
         
         {formData.subrole === EmployeeSubrole.OPERATOR && (
