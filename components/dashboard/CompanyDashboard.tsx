@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { CompanyDashboardProps } from "./types";
 import { CircularProgress, Chip, Card, CardContent, Typography, Box, List, ListItem, ListItemText, Divider, Alert, Button, Tabs, Tab } from "@mui/material";
 import { Person, Work, LocalAtm, People, ErrorOutline, LocationOn, DirectionsCar, AccessTime, Lock, CheckCircle, Refresh } from "@mui/icons-material";
@@ -48,7 +49,9 @@ interface SessionData {
 }
 
 export default function CompanyDashboard({ user }: CompanyDashboardProps) {
-  const [activeTab, setActiveTab] = useState("sessions");
+  const searchParams = useSearchParams();
+  const initialTab = searchParams.get("tab") || "sessions";
+  const [activeTab, setActiveTab] = useState(initialTab);
   const [employees, setEmployees] = useState<EmployeeData[]>([]);
   const [sessions, setSessions] = useState<SessionData[]>([]);
   const [isLoadingEmployees, setIsLoadingEmployees] = useState(true);

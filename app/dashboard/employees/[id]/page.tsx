@@ -26,6 +26,7 @@ export default async function EmployeeDetailPage({ params }: { params: { id: str
 
   // Check authorization - only ADMIN, SUPERADMIN and the employee's own COMPANY can view
   const isAdmin = dbUser.role === UserRole.ADMIN || dbUser.role === UserRole.SUPERADMIN;
+  const isCompany = dbUser.role === UserRole.COMPANY;
 
   // Get employee details
   const employee = await prisma.user.findUnique({
@@ -49,9 +50,28 @@ export default async function EmployeeDetailPage({ params }: { params: { id: str
     notFound();
   }
 
-  // If not admin, check if user is this employee's company
-  if (!isAdmin && employee.companyId !== dbUser.id) {
-    redirect("/dashboard");
+  console.log("Employee access check:", {
+    requestedEmployeeId: params.id,
+    requestingUserId: dbUser.id,
+    requestingUserRole: dbUser.role,
+    employeeCompanyId: employee.companyId,
+    isAdmin,
+    isCompany
+  });
+
+  // Check access authorization
+  if (!isAdmin) {
+    if (isCompany) {
+      // For COMPANY users, check if this employee belongs to them
+      if (employee.companyId !== dbUser.id) {
+        console.log("Access denied: Employee does not belong to this company");
+        redirect("/dashboard");
+      }
+    } else {
+      // For other non-admin roles, deny access
+      console.log("Access denied: User is not admin or the employee's company");
+      redirect("/dashboard");
+    }
   }
 
   // Get transaction history for this employee
@@ -90,7 +110,7 @@ export default async function EmployeeDetailPage({ params }: { params: { id: str
     <div className="container mx-auto px-4 py-8">
       <div className="mb-6">
         <Link 
-          href={isAdmin ? "/dashboard/employees" : "/dashboard/employees"}
+          href={isAdmin ? "/dashboard/employees" : "/dashboard?tab=employees"}
           className="text-blue-600 hover:underline mb-4 inline-block"
         >
           &larr; Back to Employees
