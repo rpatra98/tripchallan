@@ -34,6 +34,7 @@ export interface AdminDashboardProps {
 
 export interface CompanyDashboardProps {
   user: UserWithCompany;
+  initialTab?: string;
 }
 
 export interface EmployeeDashboardProps {

@@ -77,9 +77,9 @@ export default async function DashboardPage({
       case 'ADMIN':
         return <AdminDashboard user={user} />;
       case 'COMPANY':
-        // Pass the tab parameter to CompanyDashboard as a prop if necessary
+        // Pass the tab parameter explicitly to the CompanyDashboard component
         console.log(`Rendering CompanyDashboard with tab: ${tab || 'default'}`);
-        return <CompanyDashboard user={user} />;
+        return <CompanyDashboard user={user} initialTab={tab || 'sessions'} />;
       case 'EMPLOYEE':
         return <EmployeeDashboard user={user} />;
       default:

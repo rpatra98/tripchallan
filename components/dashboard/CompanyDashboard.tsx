@@ -48,11 +48,12 @@ interface SessionData {
   } | null;
 }
 
-export default function CompanyDashboard({ user }: CompanyDashboardProps) {
+export default function CompanyDashboard({ user, initialTab }: CompanyDashboardProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const initialTab = searchParams.get("tab") || "sessions";
-  const [activeTab, setActiveTab] = useState(initialTab);
+  // Use initialTab if provided, otherwise use the searchParams, with "sessions" as the default
+  const tabFromParams = searchParams.get("tab") || initialTab || "sessions";
+  const [activeTab, setActiveTab] = useState(tabFromParams);
   const [employees, setEmployees] = useState<EmployeeData[]>([]);
   const [sessions, setSessions] = useState<SessionData[]>([]);
   const [isLoadingEmployees, setIsLoadingEmployees] = useState(true);
@@ -60,6 +61,15 @@ export default function CompanyDashboard({ user }: CompanyDashboardProps) {
   const [isErrorEmployees, setIsErrorEmployees] = useState(false);
   const [isErrorSessions, setIsErrorSessions] = useState(false);
   const [sessionStatusFilter, setSessionStatusFilter] = useState("all");
+
+  // Log initial state for debugging
+  useEffect(() => {
+    console.log("CompanyDashboard initialized with:", {
+      initialTab,
+      tabFromParams,
+      activeTab
+    });
+  }, [initialTab, tabFromParams, activeTab]);
 
   // Create a fetchSessions function reference at component level with useCallback
   const fetchSessions = useCallback(async () => {
@@ -242,11 +252,12 @@ export default function CompanyDashboard({ user }: CompanyDashboardProps) {
     setSessionStatusFilter(newValue);
   };
 
-  // Handle employee details navigation
+  // Handle employee details navigation with a direct approach
   const handleViewEmployeeDetails = (employeeId: string) => {
     console.log(`Navigating to employee ${employeeId} details`);
-    // Use a direct navigation approach to avoid conflicts
-    router.push(`/dashboard/employees/${employeeId}`);
+    
+    // Use a more direct approach to avoid any potential navigation issues
+    window.location.href = `/dashboard/employees/${employeeId}`;
   };
 
   return (
