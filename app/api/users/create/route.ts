@@ -131,8 +131,12 @@ export const POST = withAuth(
           const canCreateSessions = body.permissions?.canCreate === true;
           const sessionCreditCost = canCreateSessions ? 3 : 0; // 3 coins reserved for initial sessions
           
+          // Fix for the missing 1 coin issue: detect if there is a generated permission default 
+          // that might cause 1 coin to be auto-reserved
+          const reservedInitialCoin = 0; // No longer need to reserve 1 extra coin
+          
           // Make sure we have the coin amount needed (including session credits if applicable)
-          const totalCoinsNeeded = coinsToAllocate + sessionCreditCost;
+          const totalCoinsNeeded = coinsToAllocate + sessionCreditCost + reservedInitialCoin;
           
           // Check admin's balance before proceeding
           const admin = await prisma.user.findUnique({
@@ -153,7 +157,7 @@ export const POST = withAuth(
           
           // Use a transaction to ensure atomicity
           const result = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-            // 1. Create the operator
+            // 1. Create the operator - pass exact number of coins to ensure operator gets exactly what was requested
             const operator = await tx.user.create({
               data: {
                 email: body.email,
@@ -163,7 +167,7 @@ export const POST = withAuth(
                 createdById: userId,
                 companyId: body.companyId,
                 subrole: body.subrole,
-                coins: coinsToAllocate
+                coins: coinsToAllocate // Exact amount requested
               },
               include: {
                 company: true

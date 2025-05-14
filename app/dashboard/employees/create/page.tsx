@@ -404,6 +404,9 @@ export default function CreateEmployeePage() {
                     Note: An additional 3 coins will be deducted for session credits since this operator has create permissions enabled.
                   </span>
                 )}
+                <span className="text-blue-700 font-medium block mt-1">
+                  The operator will receive exactly {formData.coins} coins. The total cost to you will be {formData.coins + (formData.permissions.canCreate ? 3 : 0)} coins.
+                </span>
               </p>
             </div>
 

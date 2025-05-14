@@ -88,12 +88,12 @@ export default function DashboardLayout({
   // Function to refresh the user session data
   const refreshUserSession = async () => {
     try {
-      // First, fetch updated user data directly from API
-      const response = await fetch('/api/users/me');
+      // First, fetch updated user data directly from API using cache: 'no-store' to ensure fresh data
+      const response = await fetch('/api/users/me', { cache: 'no-store' });
       if (response.ok) {
         const userData = await response.json();
         
-        // Update local state immediately
+        // Immediately update the local state with the latest coin balance
         setCurrentCoinBalance(userData.coins);
         
         // Then update NextAuth session with the latest data
@@ -111,7 +111,7 @@ export default function DashboardLayout({
         console.error('Failed to fetch updated user data');
       }
     } catch (error) {
-      console.error("Error updating session:", error);
+      console.error('Error refreshing user session:', error);
     }
   };
 
