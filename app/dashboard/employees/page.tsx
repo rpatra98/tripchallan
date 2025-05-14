@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
+import Link from "next/link";
 import { 
   Paper, 
   Typography, 
@@ -75,12 +76,6 @@ export default function EmployeesPage() {
     router.push("/dashboard/employees/create");
   };
 
-  const handleViewEmployee = (id: string) => {
-    // Add logging to help diagnose navigation issues
-    console.log(`Navigating to employee ${id} details`);
-    router.push(`/dashboard/employees/${id}`);
-  };
-
   if (!session) {
     return (
       <Box display="flex" justifyContent="center" mt={4}>
@@ -95,7 +90,7 @@ export default function EmployeesPage() {
         <Typography variant="h4" component="h1">
           Employees
         </Typography>
-        {(session.user?.role === UserRole.ADMIN || session.user?.role === UserRole.COMPANY) && (
+        {session.user?.role === UserRole.ADMIN && (
           <Button
             variant="contained"
             color="primary"
@@ -151,7 +146,8 @@ export default function EmployeesPage() {
                       variant="outlined"
                       size="small"
                       startIcon={<Person />}
-                      onClick={() => handleViewEmployee(employee.id)}
+                      component={Link}
+                      href={`/dashboard/employees/${employee.id}`}
                     >
                       View Details
                     </Button>
