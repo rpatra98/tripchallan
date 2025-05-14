@@ -133,29 +133,24 @@ export default function CompanyEmployeesPage() {
                     {new Date(employee.createdAt).toLocaleDateString()}
                   </TableCell>
                   <TableCell align="right">
-                    <form 
-                      action={`/dashboard/employees/${employee.id}`}
-                      method="get"
-                      style={{ margin: 0 }}
-                      target="_self"
+                    <Button
+                      variant="outlined"
+                      size="small"
+                      startIcon={<Person />}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        // Log for debugging
+                        console.log("View employee details clicked:", {
+                          employee_id: employee.id,
+                          companyId,
+                          url: `/dashboard/employees/${employee.id}?source=company&companyId=${companyId}`
+                        });
+                        // Use direct window navigation for maximum compatibility
+                        window.location.href = `/dashboard/employees/${employee.id}?source=company&companyId=${companyId}`;
+                      }}
                     >
-                      <input type="hidden" name="source" value="company" />
-                      <input type="hidden" name="companyId" value={companyId} />
-                      <Button
-                        variant="outlined"
-                        size="small"
-                        startIcon={<Person />}
-                        type="submit"
-                        onClick={() => {
-                          console.log("View employee details clicked:", {
-                            employeeId: employee.id,
-                            companyId
-                          });
-                        }}
-                      >
-                        View Details
-                      </Button>
-                    </form>
+                      View Details
+                    </Button>
                   </TableCell>
                 </TableRow>
               ))}

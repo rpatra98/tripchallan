@@ -12,13 +12,14 @@ export default async function EmployeeDetailPage({ params, searchParams }: { par
   const companyIdFromQuery = typeof searchParams.companyId === 'string' ? searchParams.companyId : null;
   
   // Add detailed logging to diagnose access issues
-  console.log(`EmployeeDetailPage loaded for ID: ${params.id}`, {
+  console.log(`[DEBUG] EmployeeDetailPage loaded for ID: ${params.id}`, {
     params,
     searchParams,
     source,
     companyIdFromQuery,
     hasSession: !!session,
-    userIdFromSession: session?.user?.id
+    userIdFromSession: session?.user?.id,
+    url: typeof window !== 'undefined' ? window.location.href : 'server-side rendering'
   });
   
   if (!session) {
