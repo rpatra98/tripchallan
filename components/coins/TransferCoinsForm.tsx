@@ -128,15 +128,12 @@ export default function TransferCoinsForm({ onSuccess, currentBalance }: Transfe
       toast.success('Coins allocated successfully!');
       resetForm();
       
-      // Update the session to reflect new coin balance
+      // Update the session to reflect new coin balance - wait for it to complete
       await refreshUserSession();
       
-      // Add a small delay to ensure session is fully updated before any callbacks
-      setTimeout(() => {
-        if (onSuccess) {
-          onSuccess();
-        }
-      }, 300);
+      if (onSuccess) {
+        onSuccess();
+      }
     } catch (err: any) {
       console.error('Error allocating coins:', err);
       setError(err.message || 'Failed to allocate coins');

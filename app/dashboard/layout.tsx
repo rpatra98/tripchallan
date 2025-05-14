@@ -95,8 +95,6 @@ export default function DashboardLayout({
         
         // Trigger a re-render of components that depend on the coin balance
         setLastBalanceUpdate(Date.now());
-        
-        console.log('Session updated with new coin balance:', userData.coins);
       } else {
         console.error('Failed to fetch updated user data');
       }
@@ -105,21 +103,15 @@ export default function DashboardLayout({
     }
   };
 
-  // Effect to periodically refresh the user's coin balance for admins
+  // Remove the automatic refresh that runs every few seconds - it's annoying users
   useEffect(() => {
-    // Only add auto-refresh for admin users who use coins
+    // Only refresh once on initial load for admin users
     if (session?.user?.role === 'ADMIN' || session?.user?.role === 'SUPERADMIN') {
-      // Refresh on first load
       refreshUserSession();
-      
-      // Set up an interval to refresh every 10 seconds for more frequent updates
-      const intervalId = setInterval(refreshUserSession, 10000);
-      
-      return () => clearInterval(intervalId);
     }
   }, [session?.user?.id]);
 
-  // Additional effect to refresh balance immediately when component mounts or path changes
+  // Only refresh when path changes, not on an interval
   useEffect(() => {
     if (session?.user?.role === 'ADMIN' || session?.user?.role === 'SUPERADMIN') {
       refreshUserSession();
@@ -187,9 +179,6 @@ export default function DashboardLayout({
                       sx={{ mr: 2, bgcolor: "rgba(255,255,255,0.15)" }}
                       onClick={refreshUserSession}
                     />
-                    <Typography variant="caption" sx={{ mr: 1, color: "rgba(255,255,255,0.7)", cursor: "pointer", display: { xs: "none", sm: "block" } }} onClick={refreshUserSession}>
-                      Refresh
-                    </Typography>
                   </Box>
                 )}
                 <Box display="flex" alignItems="center">
