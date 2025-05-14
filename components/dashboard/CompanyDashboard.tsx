@@ -537,15 +537,26 @@ export default function CompanyDashboard({ user, initialTab }: CompanyDashboardP
                   
                   <a 
                     href={`/dashboard/companies/${user.id}/employees`} 
-                    style={{ textDecoration: 'none' }}
+                    style={{ 
+                      textDecoration: 'none',
+                      backgroundColor: '#fff',
+                      color: '#1976d2',
+                      padding: '5px 15px',
+                      border: '1px solid #1976d2',
+                      borderRadius: '4px',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      fontSize: '0.875rem',
+                      minWidth: '64px',
+                      fontWeight: 500,
+                      lineHeight: 1.75,
+                    }}
+                    target="_self"
                   >
-                    <Button
-                      variant="outlined"
-                      size="small"
-                      startIcon={<People />}
-                    >
-                      View All Employees
-                    </Button>
+                    <span style={{ marginRight: '8px', display: 'inline-flex' }}>
+                      <People fontSize="small" />
+                    </span>
+                    View All Employees
                   </a>
                 </Box>
               </Box>
@@ -641,20 +652,26 @@ export default function CompanyDashboard({ user, initialTab }: CompanyDashboardP
                         <Box display="flex" justifyContent="flex-end" mt={2}>
                           <a 
                             href={`/dashboard/employees/${employee.id}`} 
-                            style={{ textDecoration: 'none' }}
-                            onClick={(e) => {
-                              // Force direct navigation
-                              e.preventDefault();
-                              window.location.href = `/dashboard/employees/${employee.id}`;
+                            style={{ 
+                              textDecoration: 'none',
+                              backgroundColor: '#fff',
+                              color: '#1976d2',
+                              padding: '5px 15px',
+                              border: '1px solid #1976d2',
+                              borderRadius: '4px',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              fontSize: '0.875rem',
+                              minWidth: '64px',
+                              fontWeight: 500,
+                              lineHeight: 1.75,
                             }}
+                            target="_self"
                           >
-                            <Button
-                              variant="outlined"
-                              size="small"
-                              startIcon={<Person />}
-                            >
-                              View Details
-                            </Button>
+                            <span style={{ marginRight: '8px', display: 'inline-flex' }}>
+                              <Person fontSize="small" />
+                            </span>
+                            View Details
                           </a>
                         </Box>
                       </CardContent>

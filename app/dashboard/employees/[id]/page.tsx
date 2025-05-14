@@ -79,14 +79,52 @@ export default async function EmployeeDetailPage({ params }: { params: { id: str
       matchCheck: employee.companyId === dbUser.id
     });
     
-    // Much simpler check - just compare company IDs
-    hasAccess = employee.companyId === dbUser.id;
+    // Try multiple approaches to check access
+    // 1. Direct companyId match
+    const directMatch = employee.companyId === dbUser.id;
+    
+    // 2. Check if employee is in company's employees list
+    const companyRecord = await prisma.company.findFirst({
+      where: {
+        OR: [
+          { id: dbUser.id },
+          {
+            employees: {
+              some: {
+                id: dbUser.id
+              }
+            }
+          }
+        ]
+      },
+      include: {
+        employees: {
+          where: {
+            id: params.id
+          },
+          select: {
+            id: true
+          }
+        }
+      }
+    });
+    
+    const relationMatch = companyRecord?.employees?.some((e: { id: string }) => e.id === params.id) || false;
+    
+    // 3. Created by this company
+    const createdByMatch = employee.createdById === dbUser.id;
+    
+    // Grant access if any of the checks pass
+    hasAccess = directMatch || relationMatch || createdByMatch;
     
     console.log("Company access check result:", {
       companyId: dbUser.id,
       companyName: dbUser.name,
       employeeId: params.id,
       employeeCompanyId: employee.companyId,
+      directMatch,
+      relationMatch,
+      createdByMatch,
       hasAccess
     });
   }
