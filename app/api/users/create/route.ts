@@ -8,6 +8,7 @@ import prisma from "@/lib/prisma";
 import { UserRole, EmployeeSubrole, ActivityAction } from "@/prisma/enums";
 import { hash } from "bcrypt";
 import { addActivityLog } from "@/lib/activity-logger";
+import { TransactionReason } from "@/prisma/enums";
 
 // Generate a random password with 12 characters
 function generateRandomPassword(): string {
@@ -225,6 +226,49 @@ export const POST = withAuth(
             company: true
           }
         });
+        
+        // If this is an operator with initial coins, deduct them from the admin's balance
+        if (body.subrole === EmployeeSubrole.OPERATOR && body.coins && body.coins > 0) {
+          // Deduct coins from admin and record transaction
+          try {
+            const coinsToAllocate = Number(body.coins);
+            
+            // Get admin's current balance
+            const admin = await prisma.user.findUnique({
+              where: { id: userId as string },
+              select: { coins: true }
+            });
+            
+            if (admin && admin.coins !== null && admin.coins >= coinsToAllocate) {
+              // Perform the transaction within a Prisma transaction
+              await prisma.$transaction([
+                // Deduct coins from admin
+                prisma.user.update({
+                  where: { id: userId as string },
+                  data: { coins: { decrement: coinsToAllocate } }
+                }),
+                
+                // Record the transaction
+                prisma.coinTransaction.create({
+                  data: {
+                    fromUserId: userId as string,
+                    toUserId: newUser.id,
+                    amount: coinsToAllocate,
+                    reason: TransactionReason.COIN_ALLOCATION,
+                    reasonText: `Initial coins for new operator: ${newUser.name}`
+                  }
+                })
+              ]);
+              
+              console.log(`Successfully allocated ${coinsToAllocate} coins from admin to operator ${newUser.id}`);
+            } else {
+              console.warn(`Admin ${userId} has insufficient coins for allocation to operator ${newUser.id}`);
+            }
+          } catch (coinErr) {
+            console.error("Error allocating initial coins to operator:", coinErr);
+            // Don't fail the whole request if coin allocation fails
+          }
+        }
 
         // If this is an operator, create permissions
         // IMPORTANT: These permissions determine what actions the operator can perform with sessions/trips

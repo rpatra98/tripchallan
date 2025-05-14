@@ -49,8 +49,15 @@ export default function DashboardLayout({
   const router = useRouter();
   // Add state to track the last coin balance update
   const [lastBalanceUpdate, setLastBalanceUpdate] = useState(Date.now());
+  // Track current pathname for refreshing on navigation
+  const [currentPath, setCurrentPath] = useState("");
 
   const isMenuOpen = Boolean(anchorEl);
+
+  // Effect to track current pathname
+  useEffect(() => {
+    setCurrentPath(window.location.pathname);
+  }, []);
 
   const handleProfileMenuOpen = (event: React.MouseEvent<HTMLElement>) => {
     setAnchorEl(event.currentTarget);
@@ -105,12 +112,19 @@ export default function DashboardLayout({
       // Refresh on first load
       refreshUserSession();
       
-      // Set up an interval to refresh every 30 seconds
-      const intervalId = setInterval(refreshUserSession, 30000);
+      // Set up an interval to refresh every 10 seconds for more frequent updates
+      const intervalId = setInterval(refreshUserSession, 10000);
       
       return () => clearInterval(intervalId);
     }
   }, [session?.user?.id]);
+
+  // Additional effect to refresh balance immediately when component mounts or path changes
+  useEffect(() => {
+    if (session?.user?.role === 'ADMIN' || session?.user?.role === 'SUPERADMIN') {
+      refreshUserSession();
+    }
+  }, [currentPath]);
 
   const renderMenu = (
     <Menu
@@ -166,11 +180,17 @@ export default function DashboardLayout({
             {session?.user && (
               <>
                 {session.user.role !== "COMPANY" && session.user.subrole !== "GUARD" && (
-                  <Chip
-                    label={`${session.user.coins || 0} Coins`}
-                    color="secondary"
-                    sx={{ mr: 2, bgcolor: "rgba(255,255,255,0.15)" }}
-                  />
+                  <Box sx={{ display: "flex", alignItems: "center" }}>
+                    <Chip
+                      label={`${session.user.coins || 0} Coins`}
+                      color="secondary"
+                      sx={{ mr: 2, bgcolor: "rgba(255,255,255,0.15)" }}
+                      onClick={refreshUserSession}
+                    />
+                    <Typography variant="caption" sx={{ mr: 1, color: "rgba(255,255,255,0.7)", cursor: "pointer", display: { xs: "none", sm: "block" } }} onClick={refreshUserSession}>
+                      Refresh
+                    </Typography>
+                  </Box>
                 )}
                 <Box display="flex" alignItems="center">
                   <Typography variant="body2" sx={{ mr: 1, display: { xs: "none", sm: "block" } }}>
