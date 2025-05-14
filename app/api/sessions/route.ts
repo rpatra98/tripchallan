@@ -5,6 +5,42 @@ import { withAuth } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { UserRole, EmployeeSubrole } from "@/prisma/enums";
 import { Prisma } from "@prisma/client";
+import fs from 'fs';
+import path from 'path';
+
+// Directory for storing uploaded files
+const UPLOAD_DIR = path.join(process.cwd(), 'uploads');
+
+// Check if directory exists, if not create it
+if (!fs.existsSync(UPLOAD_DIR)) {
+  fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+}
+
+// Helper function to save a single file from FormData
+async function saveFormFile(file: File, filePath: string): Promise<void> {
+  try {
+    const buffer = Buffer.from(await file.arrayBuffer());
+    fs.writeFileSync(filePath, buffer);
+  } catch (error) {
+    console.error(`Error saving file to ${filePath}:`, error);
+    throw error;
+  }
+}
+
+// Helper function to save multiple files from FormData
+async function saveFormFilesArray(formData: FormData, prefix: string, dirPath: string): Promise<void> {
+  if (!fs.existsSync(dirPath)) {
+    fs.mkdirSync(dirPath, { recursive: true });
+  }
+  
+  for (const [key, value] of formData.entries()) {
+    if (key.startsWith(prefix) && value instanceof File) {
+      const index = key.match(/\[(\d+)\]/)?.[1] || '0';
+      const filePath = path.join(dirPath, index);
+      await saveFormFile(value, filePath);
+    }
+  }
+}
 
 interface QueryOptions {
   skip: number;
@@ -421,7 +457,7 @@ export const POST = withAuth(
       }
       
       // Create session with a seal in a transaction
-      const result = await prisma.$transaction(async (tx) => {
+      const result = await prisma.$transaction(async (tx: any) => {
         // First create the session with only the fields in the schema
         const newSession = await tx.session.create({
           data: {
@@ -476,8 +512,26 @@ export const POST = withAuth(
         return { session: newSession, seal };
       });
       
-      // In a real application, you would upload the files to storage here
-      // For now we just acknowledge receipt of the files
+      // Save uploaded files to the uploads directory
+      try {
+        const sessionDir = path.join(UPLOAD_DIR, result.session.id);
+        if (!fs.existsSync(sessionDir)) {
+          fs.mkdirSync(sessionDir, { recursive: true });
+        }
+        
+        // Save main images
+        if (gpsImeiPicture) await saveFormFile(gpsImeiPicture, path.join(sessionDir, 'gpsImei'));
+        if (vehicleNumberPlatePicture) await saveFormFile(vehicleNumberPlatePicture, path.join(sessionDir, 'vehicleNumber'));
+        if (driverPicture) await saveFormFile(driverPicture, path.join(sessionDir, 'driver'));
+        
+        // Save array-based images
+        await saveFormFilesArray(formData, 'sealingImages', path.join(sessionDir, 'sealing'));
+        await saveFormFilesArray(formData, 'vehicleImages', path.join(sessionDir, 'vehicle'));
+        await saveFormFilesArray(formData, 'additionalImages', path.join(sessionDir, 'additional'));
+      } catch (fileError) {
+        console.error("Error saving files:", fileError);
+        // We continue even if file saving fails; the session is already created
+      }
       
       return NextResponse.json({
         success: true,
