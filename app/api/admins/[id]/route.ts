@@ -102,6 +102,7 @@ async function handleGet(
         createdAt: true,
         coins: true,
         role: true,
+        subrole: true,
         company: {
           select: {
             id: true,
