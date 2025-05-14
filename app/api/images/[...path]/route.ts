@@ -1,6 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth-options";
 import { withAuth } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import fs from 'fs';
@@ -22,33 +20,25 @@ if (process.env.NODE_ENV !== 'production' && !fs.existsSync(UPLOAD_DIR)) {
 export const GET = withAuth(
   async (req: NextRequest, context?: { params: Record<string, string> }) => {
     try {
-      const { sessionId } = context?.params || {};
+      // Get path segments from the request URL
+      const { path: pathArray } = context?.params || { path: [] };
       
-      if (!sessionId) {
+      // Parse path parameters from the path array
+      // The path array will contain segments like ['sessionId', 'imageType', 'index']
+      if (!pathArray || !Array.isArray(pathArray) || pathArray.length < 2) {
         return NextResponse.json(
-          { error: "Session ID is required" },
+          { error: "Invalid path parameters. Expected /api/images/[sessionId]/[imageType]/[index]" },
           { status: 400 }
         );
       }
       
-      // Get image type from URL
-      const url = new URL(req.url);
-      const pathSegments = url.pathname.split('/');
-      const imageType = pathSegments[pathSegments.length - 1];
-
-      if (!imageType || imageType === sessionId) {
-        return NextResponse.json(
-          { error: "Image type is required" },
-          { status: 400 }
-        );
-      }
+      const sessionId = pathArray[0];
+      const imageType = pathArray[1];
+      const index = pathArray.length > 2 ? pathArray[2] : null;
 
       // Get the session to verify it exists
       const session = await prisma.session.findUnique({
         where: { id: sessionId },
-        include: {
-          company: true,
-        }
       });
 
       if (!session) {
@@ -58,26 +48,7 @@ export const GET = withAuth(
         );
       }
 
-      // Get activity log to find image metadata
-      const activityLog = await prisma.activityLog.findFirst({
-        where: {
-          targetResourceId: sessionId,
-          targetResourceType: 'session',
-          action: 'CREATE',
-        },
-        orderBy: {
-          createdAt: 'asc',
-        },
-      });
-
-      if (!activityLog || !activityLog.details) {
-        return NextResponse.json(
-          { error: "Session activity log not found" },
-          { status: 404 }
-        );
-      }
-
-      // In production (on Vercel), always use the placeholder image
+      // In production, always serve the placeholder image
       // because Vercel has a read-only filesystem
       const placeholderImgPath = path.join(process.cwd(), 'public', 'file.svg');
       
