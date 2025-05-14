@@ -154,6 +154,15 @@ export default function SuperAdminDashboard({ user: initialUser }: SuperAdminDas
     setRefreshTransactions(prev => prev + 1);
     // Fetch updated user data to get the new coin balance
     await fetchCurrentUser();
+    
+    // Force update session to ensure latest coin balance
+    if (updateSession) {
+      try {
+        await updateSession();
+      } catch (err) {
+        console.error("Error updating session after coin transfer:", err);
+      }
+    }
   };
 
   // Handle admin deletion
@@ -306,7 +315,15 @@ export default function SuperAdminDashboard({ user: initialUser }: SuperAdminDas
                     variant="outlined" 
                     color="primary" 
                     size="small"
-                    onClick={fetchCurrentUser}
+                    onClick={async () => {
+                      // Perform a full refresh of both local state and session
+                      await fetchCurrentUser();
+                      if (updateSession) {
+                        await updateSession();
+                      }
+                      // Explicitly refresh the transaction history as well
+                      setRefreshTransactions(prev => prev + 1);
+                    }}
                   >
                     Refresh Balance
                   </Button>

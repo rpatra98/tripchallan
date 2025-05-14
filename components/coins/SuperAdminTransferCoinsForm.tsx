@@ -149,8 +149,13 @@ export default function SuperAdminTransferCoinsForm({ onSuccess, currentBalance 
       // Refresh admin users list to update their coin balances
       await fetchAdminUsers();
       
+      // Call parent component's success handler to trigger balance refresh
       if (onSuccess) {
-        onSuccess();
+        try {
+          await onSuccess();
+        } catch (err) {
+          console.error("Error in onSuccess callback:", err);
+        }
       }
     } catch (err: any) {
       console.error('Error allocating coins:', err);
