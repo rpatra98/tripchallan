@@ -658,9 +658,17 @@ export default function CompanyDashboard({ user, initialTab }: CompanyDashboardP
                         </Box>
                         
                         <Box display="flex" justifyContent="flex-end" mt={2}>
-                          <button
-                            onClick={() => handleViewEmployeeDetails(employee.id)}
+                          <a 
+                            href={`/dashboard/employees/${employee.id}?source=company&companyId=${user.id}`}
+                            target="_self"
+                            onClick={(e) => {
+                              console.log("Employee card clicked:", {
+                                employeeId: employee.id,
+                                url: `/dashboard/employees/${employee.id}?source=company&companyId=${user.id}`
+                              });
+                            }}
                             style={{ 
+                              textDecoration: 'none',
                               backgroundColor: '#fff',
                               color: '#1976d2',
                               padding: '5px 15px',
@@ -678,7 +686,7 @@ export default function CompanyDashboard({ user, initialTab }: CompanyDashboardP
                               <Person fontSize="small" />
                             </span>
                             View Details
-                          </button>
+                          </a>
                         </Box>
                       </CardContent>
                     </Card>
