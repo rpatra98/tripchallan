@@ -191,6 +191,7 @@ export async function getActivityLogs({
             id: true,
             name: true,
             email: true,
+            role: true,
           },
         },
         targetUser: {
@@ -198,6 +199,7 @@ export async function getActivityLogs({
             id: true,
             name: true,
             email: true,
+            role: true,
           },
         },
       },
@@ -206,7 +208,7 @@ export async function getActivityLogs({
   ]);
   
   // Log what we found for debugging
-  console.log(`Found ${logs.length} logs, actions:`, logs.map(log => log.action));
+  console.log(`Found ${logs.length} logs, actions:`, logs.map((log: any) => log.action));
   
   const totalPages = Math.ceil(totalCount / limit);
   

@@ -304,16 +304,35 @@ export default function ActivityLogsPage() {
 
   const fetchActivityLogs = async (pageNum: number) => {
     try {
+      console.log(`Fetching activity logs for page ${pageNum}...`);
+      setIsLoading(true);
+      setError("");
+      
       const response = await fetch(`/api/activity-logs?page=${pageNum}`);
+      
       if (!response.ok) {
-        throw new Error("Failed to fetch activity logs");
+        const errorText = await response.text();
+        console.error("API Error Response:", response.status, errorText);
+        throw new Error(`Failed to fetch activity logs: ${response.status} ${response.statusText}`);
       }
+      
       const data: ActivityLogsResponse = await response.json();
+      console.log("Activity logs API response:", data);
       
       // Update this section to handle the correct response structure
-      if (data.logs) {
+      if (data.logs && Array.isArray(data.logs)) {
+        console.log(`Received ${data.logs.length} activity logs, first few:`, 
+          data.logs.slice(0, 3).map(log => ({
+            id: log.id,
+            action: log.action,
+            user: log.user?.name,
+            userRole: log.user?.role,
+            time: log.createdAt
+          }))
+        );
         setLogs(data.logs);
       } else {
+        console.warn("No logs found in API response:", data);
         setLogs([]); // Fallback to empty array if logs field is missing
       }
       
@@ -325,7 +344,7 @@ export default function ActivityLogsPage() {
       }
     } catch (err) {
       console.error("Error fetching activity logs:", err);
-      setError("Failed to load activity logs");
+      setError("Failed to load activity logs. " + (err instanceof Error ? err.message : String(err)));
     } finally {
       setIsLoading(false);
     }
