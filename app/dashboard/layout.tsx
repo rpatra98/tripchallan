@@ -89,7 +89,14 @@ export default function DashboardLayout({
   const refreshUserSession = async () => {
     try {
       // First, fetch updated user data directly from API using cache: 'no-store' to ensure fresh data
-      const response = await fetch('/api/users/me', { cache: 'no-store' });
+      const response = await fetch('/api/users/me', { 
+        cache: 'no-store',
+        headers: {
+          'pragma': 'no-cache',
+          'cache-control': 'no-cache'
+        }
+      });
+      
       if (response.ok) {
         const userData = await response.json();
         
@@ -107,11 +114,15 @@ export default function DashboardLayout({
         
         // Trigger a re-render of components that depend on the coin balance
         setLastBalanceUpdate(Date.now());
+        
+        return userData.coins;
       } else {
         console.error('Failed to fetch updated user data');
+        return null;
       }
     } catch (error) {
       console.error('Error refreshing user session:', error);
+      return null;
     }
   };
 

@@ -220,15 +220,19 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
     // Refresh coin balance every time component mounts
   }, []);
 
-  // Add a more aggressive refresh when the component becomes visible
+  // More aggressive refresh strategy
   useEffect(() => {
+    const refreshCoins = async () => {
+      await fetchCurrentUser();
+    };
+
+    // Set up refreshing on visibility change (tab focus)
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
-        fetchCurrentUser();
+        refreshCoins();
       }
     };
 
-    // Listen for visibility changes (tab focus)
     document.addEventListener('visibilitychange', handleVisibilityChange);
     
     // Cleanup
@@ -542,14 +546,17 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
                   <div>
                     <h4 className="font-medium mb-2">Your Coin Balance</h4>
                     <p className="text-3xl font-bold text-yellow-600">
-                      {session?.user?.coins || currentUser.coins} Coins
+                      {currentUser?.coins !== undefined ? currentUser.coins : session?.user?.coins || 0} Coins
                     </p>
                   </div>
                   <Button 
                     variant="outlined" 
                     color="primary" 
                     size="small"
-                    onClick={fetchCurrentUser}
+                    onClick={async () => {
+                      await fetchCurrentUser();
+                      await refreshUserSession();
+                    }}
                   >
                     Refresh Balance
                   </Button>

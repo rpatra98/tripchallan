@@ -127,16 +127,12 @@ export const POST = withAuth(
         if (body.subrole === EmployeeSubrole.OPERATOR && body.coins && body.coins > 0) {
           const coinsToAllocate = Number(body.coins);
           
-          // Check whether permission to create is enabled - if true, we need to account for 3 session credits
-          const canCreateSessions = body.permissions?.canCreate === true;
-          const sessionCreditCost = canCreateSessions ? 3 : 0; // 3 coins reserved for initial sessions
+          // Remove the session credit cost - no longer reserving coins for sessions
+          const sessionCreditCost = 0; // Changed from 3 to 0 - we no longer reserve coins for session creation
+          const reservedInitialCoin = 0;
           
-          // Fix for the missing 1 coin issue: detect if there is a generated permission default 
-          // that might cause 1 coin to be auto-reserved
-          const reservedInitialCoin = 0; // No longer need to reserve 1 extra coin
-          
-          // Make sure we have the coin amount needed (including session credits if applicable)
-          const totalCoinsNeeded = coinsToAllocate + sessionCreditCost + reservedInitialCoin;
+          // Make sure we have the coin amount needed (just the coins being allocated)
+          const totalCoinsNeeded = coinsToAllocate;
           
           // Check admin's balance before proceeding
           const admin = await prisma.user.findUnique({
@@ -150,7 +146,7 @@ export const POST = withAuth(
           
           if (!admin || admin.coins === null || admin.coins < totalCoinsNeeded) {
             return NextResponse.json(
-              { error: `Insufficient coins. You have ${admin?.coins || 0} coins, but need ${totalCoinsNeeded} coins (${coinsToAllocate} for operator + ${sessionCreditCost} for session credits).` },
+              { error: `Insufficient coins. You have ${admin?.coins || 0} coins, but need ${totalCoinsNeeded} coins for operator.` },
               { status: 400 }
             );
           }
@@ -174,7 +170,7 @@ export const POST = withAuth(
               }
             });
             
-            // 2. Deduct total coins needed from admin
+            // 2. Deduct only the allocated coins from admin
             await tx.user.update({
               where: { id: userId as string },
               data: { coins: { decrement: totalCoinsNeeded } }
@@ -191,20 +187,9 @@ export const POST = withAuth(
               }
             });
             
-            // 4. If session credits are included, record that transaction too
-            if (sessionCreditCost > 0) {
-              await tx.coinTransaction.create({
-                data: {
-                  fromUserId: userId as string, 
-                  toUserId: userId as string, // Admin pays these coins to the system
-                  amount: sessionCreditCost,
-                  reason: TransactionReason.SESSION_CREATION,
-                  reasonText: `Reserved session credits for operator: ${operator.name}`
-                }
-              });
-            }
+            // Removed the SESSION_CREATION transaction - no longer needed
             
-            // 5. If needed, create operator permissions
+            // 4. If needed, create operator permissions
             if (body.permissions) {
               const permissionsToCreate = {
                 userId: operator.id,
