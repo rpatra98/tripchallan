@@ -1470,12 +1470,13 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
                   {isGuard ? "Trip Details" : "Session Details"}
                 </Typography>
                 <Box display="flex" alignItems="center" gap={2}>
-                  {canEdit && (
+                  {canEdit && session.status !== SessionStatus.COMPLETED && (
                     <Button
                       component={Link}
                       href={`/dashboard/sessions/${sessionId}/edit`}
                       startIcon={<Edit />}
                       variant="outlined"
+                      size="small"
                     >
                       Edit
                     </Button>
@@ -1943,11 +1944,4 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
         </Paper>
       )}
 
-      {/* Comment section */}
-      <CommentSection sessionId={sessionId} />
-
-      {/* Verification Results */}
-      {renderVerificationResults()}
-    </Container>
-  );
-} 
+            {/* Comment section */}      <CommentSection sessionId={sessionId} />      {/* Verification Results */}      {renderVerificationResults()}    </Container>  );} 
