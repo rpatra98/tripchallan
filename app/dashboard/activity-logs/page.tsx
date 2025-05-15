@@ -405,37 +405,27 @@ export default function ActivityLogsPage() {
     return new Date(dateString).toLocaleString();
   };
 
-  const getActionColor = (action: string) => {
-    switch (action) {
-      case "LOGIN":
-        return "success.main"; // Green for login
-      case "LOGOUT":
-        return "warning.main"; // Orange for logout
-      case "CREATE":
-        return "info.main"; // Blue for create
-      case "UPDATE":
-        return "primary.main"; // Default primary for update
-      case "DELETE":
-        return "error.main"; // Red for delete
-      case "VIEW":
-        return <Binoculars className="mr-2 text-gray-600" size={18} />;
-      case "LOGOUT":
-        return <ArrowLeft className="mr-2 text-orange-600" size={18} />;
-      case "CREATE":
-        return <Star className="mr-2 text-blue-600" size={18} />;
-      case "UPDATE":
-        return <RefreshCw className="mr-2 text-blue-500" size={18} />;
-      case "DELETE":
-        return <X className="mr-2 text-red-600" size={18} />;
-      case "VIEW":
-        return <Binoculars className="mr-2 text-gray-600" size={18} />;
-      case "ALLOCATE":
-        return <Gift className="mr-2 text-green-600" size={18} />;
-      case "TRANSFER":
-        return <ArrowLeftRight className="mr-2 text-purple-600" size={18} />;
-      default:
-        return <Filter className="mr-2 text-gray-500" size={18} />;
-    }
+  const getActionColor = (action: string) => {
+    switch (action) {
+      case "LOGIN":
+        return "success.main"; // Green for login
+      case "LOGOUT":
+        return "warning.main"; // Orange for logout
+      case "CREATE":
+        return "info.main"; // Blue for create
+      case "UPDATE":
+        return "primary.main"; // Default primary for update
+      case "DELETE":
+        return "error.main"; // Red for delete
+      case "VIEW":
+        return "text.secondary"; // Gray for view
+      case "ALLOCATE":
+        return "success.light"; // Light green for allocate
+      case "TRANSFER":
+        return "secondary.main"; // Purple for transfer
+      default:
+        return "text.secondary"; // Default gray
+    }
   };
 
   const getActionIcon = (action: string) => {
@@ -549,7 +539,7 @@ export default function ActivityLogsPage() {
             <Typography variant="body2">
               Filters: {Object.entries(details.filters || {})
                 .filter(([_, value]) => value !== undefined)
-                .map(([key, value]) => \: \)
+                .map(([key, value]) => `${key}: ${value}`)
                 .join(", ")}
             </Typography>
             <Typography variant="body2">
@@ -751,6 +741,13 @@ export default function ActivityLogsPage() {
     </Box>
   );
 } 
+
+
+
+
+
+
+
 
 
 
