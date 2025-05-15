@@ -3,7 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-options";
 import { withAuth } from "@/lib/auth";
 import prisma from "@/lib/prisma";
-import { UserRole } from "@/prisma/enums";
+import { UserRole, TransactionReason } from "@/prisma/enums";
 
 async function handler(req: NextRequest) {
   try {
@@ -34,13 +34,34 @@ async function handler(req: NextRequest) {
       );
     }
 
-    // Query transactions
-    const whereClause = {
-      OR: [
-        { fromUserId: userId },
-        { toUserId: userId },
-      ],
-    };
+    // For ADMIN users, filter out SESSION_CREATION transactions where fromUser === toUser
+    // These are "reserved session credits" transactions that should not appear in ADMIN history
+    let whereClause = {};
+    
+    if (userRole === UserRole.ADMIN) {
+      whereClause = {
+        OR: [
+          { fromUserId: userId },
+          { toUserId: userId }
+        ],
+        // Filter out the session credits transactions
+        NOT: {
+          AND: [
+            { fromUserId: userId },
+            { toUserId: userId },
+            { reason: TransactionReason.SESSION_CREATION }
+          ]
+        }
+      };
+    } else {
+      // For other users, just show all their transactions
+      whereClause = {
+        OR: [
+          { fromUserId: userId },
+          { toUserId: userId }
+        ]
+      };
+    }
 
     // Get total count for pagination
     const totalCount = await prisma.coinTransaction.count({
