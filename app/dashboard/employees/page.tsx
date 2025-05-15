@@ -19,7 +19,12 @@ import {
   Alert,
   TextField,
   InputAdornment,
-  Grid
+  Grid,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  Stack
 } from "@mui/material";
 import { Add, Person, Search } from "@mui/icons-material";
 import { UserRole } from "@/prisma/enums";
@@ -34,12 +39,15 @@ interface Employee {
   createdAt: string;
 }
 
+type SearchColumn = 'name' | 'email' | 'role' | 'all';
+
 export default function EmployeesPage() {
   const router = useRouter();
   const { data: session } = useSession();
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [filteredEmployees, setFilteredEmployees] = useState<Employee[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
+  const [searchColumn, setSearchColumn] = useState<SearchColumn>('all');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -51,20 +59,32 @@ export default function EmployeesPage() {
   }, [session]);
 
   useEffect(() => {
-    // Filter employees based on search query
+    // Filter employees based on search query and selected column
     if (searchQuery.trim() === "") {
       setFilteredEmployees(employees);
     } else {
       const query = searchQuery.toLowerCase();
-      const filtered = employees.filter(
-        (employee) =>
-          employee.name.toLowerCase().includes(query) ||
-          employee.email.toLowerCase().includes(query) ||
-          (employee.subrole || employee.role).toLowerCase().includes(query)
-      );
+      
+      const filtered = employees.filter((employee) => {
+        if (searchColumn === 'all') {
+          return (
+            employee.name.toLowerCase().includes(query) ||
+            employee.email.toLowerCase().includes(query) ||
+            (employee.subrole || employee.role).toLowerCase().includes(query)
+          );
+        } else if (searchColumn === 'name') {
+          return employee.name.toLowerCase().includes(query);
+        } else if (searchColumn === 'email') {
+          return employee.email.toLowerCase().includes(query);
+        } else if (searchColumn === 'role') {
+          return (employee.subrole || employee.role).toLowerCase().includes(query);
+        }
+        return false;
+      });
+      
       setFilteredEmployees(filtered);
     }
-  }, [searchQuery, employees]);
+  }, [searchQuery, searchColumn, employees]);
 
   const fetchEmployees = async () => {
     setLoading(true);
@@ -102,6 +122,10 @@ export default function EmployeesPage() {
     setSearchQuery(event.target.value);
   };
 
+  const handleColumnChange = (event: any) => {
+    setSearchColumn(event.target.value as SearchColumn);
+  };
+
   if (!session) {
     return (
       <Box display="flex" justifyContent="center" mt={4}>
@@ -134,75 +158,100 @@ export default function EmployeesPage() {
         </Alert>
       )}
 
-      <Box mb={3}>
-        <TextField
-          fullWidth
-          variant="outlined"
-          placeholder="Search by name, email or role..."
-          value={searchQuery}
-          onChange={handleSearchChange}
-          InputProps={{
-            startAdornment: (
-              <InputAdornment position="start">
-                <Search />
-              </InputAdornment>
-            ),
-          }}
-        />
-      </Box>
-
       {loading ? (
         <Box display="flex" justifyContent="center" mt={4}>
           <CircularProgress />
         </Box>
-      ) : filteredEmployees.length === 0 ? (
+      ) : employees.length === 0 ? (
         <Paper sx={{ p: 3, textAlign: "center" }}>
           <Typography variant="body1">
-            {searchQuery ? "No employees match your search criteria." : "No employees found."}
+            No employees found.
           </Typography>
         </Paper>
       ) : (
-        <TableContainer component={Paper}>
-          <Table>
-            <TableHead>
-              <TableRow>
-                <TableCell>Name</TableCell>
-                <TableCell>Email</TableCell>
-                <TableCell>Role</TableCell>
-                <TableCell>Coins</TableCell>
-                <TableCell>Created</TableCell>
-                <TableCell align="right">Actions</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {filteredEmployees.map((employee) => (
-                <TableRow key={employee.id} hover>
-                  <TableCell>{employee.name}</TableCell>
-                  <TableCell>{employee.email}</TableCell>
-                  <TableCell>{employee.subrole || employee.role}</TableCell>
-                  <TableCell>{employee.coins}</TableCell>
-                  <TableCell>
-                    {new Date(employee.createdAt).toLocaleDateString()}
-                  </TableCell>
-                  <TableCell align="right">
-                    <a 
-                      href={`/dashboard/employees/${employee.id}`}
-                      style={{ textDecoration: 'none' }}
-                    >
-                      <Button
-                        variant="outlined"
-                        size="small"
-                        startIcon={<Person />}
-                      >
-                        View Details
-                      </Button>
-                    </a>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </TableContainer>
+        <>
+          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} mb={3}>
+            <FormControl sx={{ minWidth: 180 }}>
+              <InputLabel id="search-column-label">Search In</InputLabel>
+              <Select
+                labelId="search-column-label"
+                value={searchColumn}
+                label="Search In"
+                onChange={handleColumnChange}
+              >
+                <MenuItem value="all">All Columns</MenuItem>
+                <MenuItem value="name">Name</MenuItem>
+                <MenuItem value="email">Email</MenuItem>
+                <MenuItem value="role">Role</MenuItem>
+              </Select>
+            </FormControl>
+            
+            <TextField
+              fullWidth
+              variant="outlined"
+              placeholder="Enter search term..."
+              value={searchQuery}
+              onChange={handleSearchChange}
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <Search />
+                  </InputAdornment>
+                ),
+              }}
+            />
+          </Stack>
+          
+          {filteredEmployees.length === 0 ? (
+            <Paper sx={{ p: 3, textAlign: "center" }}>
+              <Typography variant="body1">
+                No employees match your search criteria.
+              </Typography>
+            </Paper>
+          ) : (
+            <TableContainer component={Paper}>
+              <Table>
+                <TableHead>
+                  <TableRow>
+                    <TableCell>Name</TableCell>
+                    <TableCell>Email</TableCell>
+                    <TableCell>Role</TableCell>
+                    <TableCell>Coins</TableCell>
+                    <TableCell>Created</TableCell>
+                    <TableCell align="right">Actions</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {filteredEmployees.map((employee) => (
+                    <TableRow key={employee.id} hover>
+                      <TableCell>{employee.name}</TableCell>
+                      <TableCell>{employee.email}</TableCell>
+                      <TableCell>{employee.subrole || employee.role}</TableCell>
+                      <TableCell>{employee.coins}</TableCell>
+                      <TableCell>
+                        {new Date(employee.createdAt).toLocaleDateString()}
+                      </TableCell>
+                      <TableCell align="right">
+                        <a 
+                          href={`/dashboard/employees/${employee.id}`}
+                          style={{ textDecoration: 'none' }}
+                        >
+                          <Button
+                            variant="outlined"
+                            size="small"
+                            startIcon={<Person />}
+                          >
+                            View Details
+                          </Button>
+                        </a>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          )}
+        </>
       )}
     </div>
   );
