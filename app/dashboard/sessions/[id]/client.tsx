@@ -36,7 +36,8 @@ import {
   Warning,
   PictureAsPdf,
   TableChart,
-  Description
+  Description,
+  Edit
 } from "@mui/icons-material";
 import Link from "next/link";
 import { SessionStatus, EmployeeSubrole } from "@/prisma/enums";
@@ -134,6 +135,7 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
   const [userRole, setUserRole] = useState("");
   const [userSubrole, setUserSubrole] = useState("");
   const [reportLoading, setReportLoading] = useState<string | null>(null);
+  const [canEdit, setCanEdit] = useState(false);
   
   // New state for guard verification
   const [verificationFormOpen, setVerificationFormOpen] = useState(false);
@@ -162,6 +164,9 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
     userRole === "COMPANY", 
     [userRole]
   );
+  
+  // Check if user can edit sessions (OPERATOR with edit permission or ADMIN/SUPERADMIN)
+  const [canEdit, setCanEdit] = useState(false);
   
   // Check if the session can be verified
   const canVerify = useMemo(() => 
@@ -215,6 +220,33 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
       fetchSessionDetails();
     }
   }, [authStatus, authSession, sessionId, fetchSessionDetails]);
+
+  // Check if user has edit permission
+  useEffect(() => {
+    const checkEditPermission = async () => {
+      // Admins and superadmins can always edit
+      if (userRole === "ADMIN" || userRole === "SUPERADMIN") {
+        setCanEdit(true);
+        return;
+      }
+      
+      // Operators need special permission
+      if (userRole === "EMPLOYEE" && userSubrole === EmployeeSubrole.OPERATOR && authSession?.user?.id) {
+        try {
+          const response = await fetch(`/api/employees/${authSession.user.id}/permissions`);
+          const data = await response.json();
+          setCanEdit(data.canEdit || false);
+        } catch (error) {
+          console.error("Error checking edit permission:", error);
+          setCanEdit(false);
+        }
+      } else {
+        setCanEdit(false);
+      }
+    };
+    
+    checkEditPermission();
+  }, [userRole, userSubrole, authSession?.user?.id]);
 
   useEffect(() => {
     // Initialize verification fields when session data is loaded
