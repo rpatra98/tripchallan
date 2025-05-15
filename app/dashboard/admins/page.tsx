@@ -172,7 +172,7 @@ export default function AdminsPage() {
       cell: ({ row }: { row: any }) => (
         <span>{formatDate(row.createdAt)}</span>
       ),
-      searchable: false,
+      searchable: true,
     },
     {
       accessorKey: "hasCreatedResources",
@@ -185,7 +185,7 @@ export default function AdminsPage() {
           variant="outlined"
         />
       ),
-      searchable: false,
+      searchable: true,
     },
     {
       accessorKey: "actions",
