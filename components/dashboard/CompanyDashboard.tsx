@@ -780,17 +780,6 @@ export default function CompanyDashboard({ user, initialTab }: CompanyDashboardP
                                     </div>
                                   </div>
                                 )}
-                                <div className="md:col-span-2 mt-3">
-                                  <Box display="flex" justifyContent="flex-end">
-                                    <Link
-                                      href={`/dashboard/employees/${employee.id}?source=company&companyId=${user.id}`}
-                                      className="inline-flex items-center px-4 py-2 text-sm font-medium text-blue-700 bg-white border border-blue-700 rounded-md hover:bg-blue-50"
-                                    >
-                                      <Person className="w-4 h-4 mr-2" />
-                                      Full Profile
-                                    </Link>
-                                  </Box>
-                                </div>
                               </div>
                             )}
                           </Box>
