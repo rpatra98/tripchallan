@@ -577,8 +577,50 @@ export default function ActivityLogsPage() {
         <Box sx={{ p: 3 }}>
           <Alert severity="error">{error}</Alert>
         </Box>
-      ) : logs.length === 0 ? (
-        <Alert severity="info">No activity logs found</Alert>
+      ) : logs?.length === 0 ? (
+        <Box sx={{ p: 3 }}>
+          <Alert severity="info">
+            <Typography variant="body1" sx={{ mb: 1 }}>No activity logs found. This could be because:</Typography>
+            <ul>
+              <li>There are no activities recorded yet in the system</li>
+              <li>Your user role doesn't have permission to view these logs</li>
+              <li>There was an error retrieving the data</li>
+            </ul>
+            <Box sx={{ mt: 2, display: 'flex', gap: 2 }}>
+              <Button
+                variant="contained"
+                color="primary"
+                onClick={handleRefresh}
+                startIcon={<RefreshCw size={16} />}
+              >
+                Refresh Activity Logs
+              </Button>
+              {session.user?.role === "SUPERADMIN" && (
+                <Button
+                  variant="outlined"
+                  color="secondary"
+                  onClick={async () => {
+                    try {
+                      const response = await fetch('/api/debug-logs?createSample=true');
+                      if (response.ok) {
+                        const result = await response.json();
+                        alert(`Created ${result.createdSampleLogs} sample logs. Refreshing...`);
+                        handleRefresh();
+                      } else {
+                        alert('Failed to create sample logs');
+                      }
+                    } catch (error) {
+                      console.error("Error creating sample logs:", error);
+                      alert('Error creating sample logs');
+                    }
+                  }}
+                >
+                  Create Test Logs
+                </Button>
+              )}
+            </Box>
+          </Alert>
+        </Box>
       ) : (
         <Card>
           <CardContent>

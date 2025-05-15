@@ -1,82 +1,103 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-options";
-import { withAuth } from "@/lib/auth";
 import { UserRole, ActivityAction } from "@/prisma/enums";
+import { addActivityLog } from "@/lib/activity-logger";
 import prisma from "@/lib/prisma";
 
 /**
- * Debug endpoint to check if login/logout activities exist in the database
+ * Debug endpoint to check and create activity logs
+ * Only accessible to SUPERADMIN users
  */
-async function handler() {
+export async function GET(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
     
     if (!session?.user || session.user.role !== UserRole.SUPERADMIN) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return NextResponse.json({ error: "Unauthorized. Only SUPERADMIN can access this endpoint." }, { status: 401 });
     }
     
-    // Check total count of activity logs
-    const totalLogsCount = await prisma.activityLog.count();
+    // Check if there are any activity logs in the database
+    const logCount = await prisma.activityLog.count();
     
-    // Get sample of recent logs
-    const recentLogs = await prisma.activityLog.findMany({
-      take: 5,
-      orderBy: {
-        createdAt: "desc"
-      },
-      include: {
-        user: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            role: true
+    // Create sample activity logs if requested by query param
+    const url = new URL(req.url);
+    const createSample = url.searchParams.get("createSample") === "true";
+    
+    let createdLogs = [];
+    
+    if (createSample) {
+      // Create sample activity logs for testing
+      const sampleLogs = [
+        // Login activity
+        {
+          userId: session.user.id,
+          action: ActivityAction.LOGIN,
+          details: { device: "desktop" },
+          userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
+        },
+        // Create user activity
+        {
+          userId: session.user.id,
+          action: ActivityAction.CREATE,
+          targetResourceType: "USER",
+          details: { 
+            userName: "Test User", 
+            userEmail: "test@example.com",
+            userRole: "EMPLOYEE" 
           }
         },
-        targetUser: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            role: true
+        // Create company activity
+        {
+          userId: session.user.id,
+          action: ActivityAction.CREATE,
+          targetResourceType: "COMPANY",
+          details: { 
+            companyName: "Test Company", 
+            companyEmail: "company@example.com" 
+          }
+        },
+        // Update activity
+        {
+          userId: session.user.id,
+          action: ActivityAction.UPDATE,
+          targetResourceType: "USER",
+          details: { 
+            userName: "Updated User", 
+            summaryText: "Updated user profile information" 
+          }
+        },
+        // Allocation activity
+        {
+          userId: session.user.id,
+          action: ActivityAction.ALLOCATE,
+          targetResourceType: "COINS",
+          details: { 
+            amount: 100, 
+            recipientName: "Test User" 
           }
         }
+      ];
+      
+      // Create the sample logs
+      for (const logData of sampleLogs) {
+        const log = await addActivityLog(logData);
+        if (log) {
+          createdLogs.push(log);
+        }
       }
-    });
-
-    // Get counts by action type
-    const actionCounts = await Promise.all(
-      Object.values(ActivityAction).map(async (action) => {
-        const count = await prisma.activityLog.count({
-          where: { action: action as ActivityAction }
-        });
-        return { action, count };
-      })
-    );
+    }
     
-    // Return diagnostic info
     return NextResponse.json({
-      totalLogsCount,
-      recentLogs,
-      actionCounts,
-      message: totalLogsCount > 0 
-        ? "Activity logs exist in the database" 
-        : "No activity logs found in the database"
+      existingLogCount: logCount,
+      createdSampleLogs: createSample ? createdLogs.length : 0,
+      createdLogs: createSample ? createdLogs : []
     });
   } catch (error) {
-    console.error("Error checking activity logs:", error);
+    console.error("Error in debug-logs endpoint:", error);
     return NextResponse.json(
-      { error: "Failed to check activity logs", details: String(error) },
+      { error: "Failed to process debug logs request" },
       { status: 500 }
     );
   }
-}
-
-// Allow all authenticated users during debugging
-export const GET = withAuth(handler, [
-  UserRole.SUPERADMIN,
-  UserRole.ADMIN,
-  UserRole.COMPANY,
-  UserRole.EMPLOYEE
-]); 
+} 
