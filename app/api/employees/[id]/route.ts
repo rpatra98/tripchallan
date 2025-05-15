@@ -47,9 +47,21 @@ export async function GET(
     
     // Check if the current user has permission to view this employee
     const isAdmin = currentUser.role === UserRole.ADMIN || currentUser.role === UserRole.SUPERADMIN;
-    const isEmployeeCompany = currentUser.id === employee.companyId;
+    const isCompany = currentUser.role === UserRole.COMPANY;
+    // For COMPANY users, check if employee belongs to this company
+    const isEmployeeOfCompany = isCompany && currentUser.id === employee.companyId;
     
-    if (!isAdmin && !isEmployeeCompany) {
+    console.log('Auth check:', {
+      currentUserId: currentUser.id,
+      currentUserRole: currentUser.role,
+      employeeCompanyId: employee.companyId,
+      isAdmin,
+      isCompany,
+      isEmployeeOfCompany
+    });
+    
+    // Allow access if user is an admin or the company that owns this employee
+    if (!isAdmin && !isEmployeeOfCompany) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
     }
     
