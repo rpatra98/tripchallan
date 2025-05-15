@@ -363,7 +363,7 @@ export default function ActivityLogsPage() {
           email: log.user?.email || "No email"
         },
         action: log.action,
-        details: log.details || {},
+        details: { ...log.details, amount: log.details.amount ? Number(log.details.amount) : undefined },
         targetUser: log.targetUser ? {
           name: log.targetUser.name,
           email: log.targetUser.email
@@ -429,23 +429,23 @@ export default function ActivityLogsPage() {
   const getActionIcon = (action: string) => {
     switch (action) {
       case "LOGIN":
-        return <Smartphone className="mr-2 text-success-600" size={18} />;
+        return <Monitor className="mr-2 text-green-600" size={18} />;
       case "LOGOUT":
-        return <ArrowLeft className="mr-2 text-warning-600" size={18} />;
+        return <ArrowLeft className="mr-2 text-orange-600" size={18} />;
       case "CREATE":
-        return <Star className="mr-2 text-info-600" size={18} />;
+        return <Star className="mr-2 text-blue-600" size={18} />;
       case "UPDATE":
-        return <RefreshCw className="mr-2 text-primary-600" size={18} />;
+        return <RefreshCw className="mr-2 text-blue-500" size={18} />;
       case "DELETE":
-        return <X className="mr-2 text-error-600" size={18} />;
+        return <X className="mr-2 text-red-600" size={18} />;
+      case "TRANSFER":
+        return <ArrowLeftRight className="mr-2 text-purple-600" size={18} />;
+      case "ALLOCATE":
+        return <Gift className="mr-2 text-green-600" size={18} />;
       case "VIEW":
         return <Binoculars className="mr-2 text-gray-600" size={18} />;
-      case "ALLOCATE":
-        return <Gift className="mr-2 text-success-500" size={18} />;
-      case "TRANSFER":
-        return <ArrowLeftRight className="mr-2 text-secondary-600" size={18} />;
       default:
-        return <Filter className="mr-2 text-gray-600" size={18} />;
+        return <Filter className="mr-2 text-gray-500" size={18} />;
     }
   };
 
@@ -566,3 +566,4 @@ export default function ActivityLogsPage() {
     </Box>
   );
 }
+
