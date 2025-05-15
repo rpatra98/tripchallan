@@ -64,7 +64,7 @@ interface ActivityLog {
     resourceType?: string;
     device?: string;
     reasonText?: string;
-    amount?: string;
+    amount?: string | number;
     recipientName?: string;
     filters?: {
       search?: string;
@@ -148,6 +148,10 @@ type ActivityLogDetails = {
   reasonText?: string;
   amount?: string | number;
   recipientName?: string;
+  userRole?: string;
+  sessionId?: string;
+  companyName?: string;
+  summaryText?: string;
   [key: string]: unknown;
 };
 
@@ -165,7 +169,7 @@ type ActivityLogRow = {
   };
   createdAt: string;
   userAgent?: string;
-  targetResourceType: string;  // Required, not optional
+  targetResourceType: string;
 };
 
 type RowProps = {
@@ -491,22 +495,10 @@ export default function ActivityLogsPage() {
         throw new Error(`Failed to fetch activity logs: ${response.status}`);
       }
       
-      const data = await response.json();
-      console.log("Response received:", {
-        hasLogs: Boolean(data?.logs),
-        logsCount: data?.logs?.length || 0,
-        meta: data?.meta
-      });
+      const data: ActivityLogsResponse = await response.json();
       
-      if (!data.logs || !Array.isArray(data.logs)) {
-        console.error("Invalid logs data:", data.logs);
-        setLogs([]);
-      } else {
-        setLogs(data.logs);
-        console.log("Logs set with", data.logs.length, "items");
-      }
-      
-      setTotalPages(data.meta?.totalPages || 1);
+      setLogs(data.logs);
+      setTotalPages(data.meta.totalPages);
       setError("");
     } catch (err) {
       console.error("Error fetching activity logs:", err);
@@ -519,59 +511,30 @@ export default function ActivityLogsPage() {
 
   // Transform logs to table data format
   useEffect(() => {
-    console.log("Transform effect running. Logs length:", logs?.length || 0);
-    
-    if (logs && Array.isArray(logs) && logs.length > 0) {
-      try {
-        // Safely transform the logs data to prevent crashes
-        const formattedData = logs.map(log => {
-          try {
-            if (!log) {
-              console.warn("Encountered null log entry");
-              return null;
-            }
-            
-            // Create a safe version of the log entry with fallbacks for all fields
-            return {
-              id: log.id || `unknown-${Math.random()}`,
-              user: {
-                name: log.user?.name || "Unknown User",
-                email: log.user?.email || "No email"
-              },
-              action: log.action || "UNKNOWN",
-              details: {
-                ...(log.details || {}),
-                // Safely convert amount to number
-                amount: log.details?.amount
-                  ? (typeof log.details.amount === 'number'
-                      ? log.details.amount
-                      : Number(log.details.amount))
-                  : undefined
-              },
-              targetUser: log.targetUser
-                ? {
-                    name: log.targetUser.name || "Unknown",
-                    email: log.targetUser.email || "No email"
-                  }
-                : undefined,
-              createdAt: log.createdAt || new Date().toISOString(),
-              userAgent: log.userAgent || undefined,
-              targetResourceType: log.targetResourceType || "UNKNOWN"
-            };
-          } catch (itemError) {
-            console.error("Error processing log item:", itemError);
-            return null;
-          }
-        }).filter(Boolean); // Remove any null entries
-        
-        console.log("Successfully transformed", formattedData.length, "log entries");
-        setTableData(formattedData);
-      } catch (error) {
-        console.error("Error in logs transformation:", error);
-        setTableData([]);
-      }
+    if (logs && logs.length > 0) {
+      const formattedData = logs.map(log => ({
+        id: log.id,
+        user: {
+          name: log.user?.name || "Unknown",
+          email: log.user?.email || "No email"
+        },
+        action: log.action,
+        details: { 
+          ...log.details, 
+          // Keep amount as is - it can be string or number
+          amount: log.details?.amount !== undefined ? log.details.amount : undefined 
+        },
+        targetUser: log.targetUser ? {
+          name: log.targetUser.name,
+          email: log.targetUser.email
+        } : undefined,
+        createdAt: log.createdAt,
+        userAgent: log.userAgent,
+        targetResourceType: log.targetResourceType
+      }));
+      
+      setTableData(formattedData);
     } else {
-      console.log("No logs to transform or logs is not an array");
       setTableData([]);
     }
   }, [logs]);
@@ -592,205 +555,12 @@ export default function ActivityLogsPage() {
     fetchActivityLogs(page);
   };
 
-  const formatDate = (dateString: string) => {
-    try {
-      const date = new Date(dateString);
-      return date.toLocaleString(undefined, {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric',
-        hour: 'numeric',
-        minute: 'numeric',
-        second: 'numeric',
-        hour12: true
-      });
-    } catch (err) {
-      return dateString;
-    }
-  };
-
-  const getActionColor = (action: string) => {
-    switch (action) {
-      case "LOGIN":
-        return "success.main"; // Green for login
-      case "LOGOUT":
-        return "warning.main"; // Orange for logout
-      case "CREATE":
-        return "info.main"; // Blue for create
-      case "UPDATE":
-        return "primary.main"; // Default primary for update
-      case "DELETE":
-        return "error.main"; // Red for delete
-      case "VIEW":
-        return "text.secondary"; // Gray for view
-      case "ALLOCATE":
-        return "success.light"; // Light green for allocate
-      case "TRANSFER":
-        return "secondary.main"; // Purple for transfer
-      default:
-        return "text.secondary"; // Default gray
-    }
-  };
-
-  const getActionIcon = (action: string) => {
-    switch (action) {
-      case "LOGIN":
-        return <Smartphone className="mr-2 text-success-600" size={18} />;
-      case "LOGOUT":
-        return <ArrowLeft className="mr-2 text-warning-600" size={18} />;
-      case "CREATE":
-        return <Star className="mr-2 text-info-600" size={18} />;
-      case "UPDATE":
-        return <RefreshCw className="mr-2 text-primary-600" size={18} />;
-      case "DELETE":
-        return <X className="mr-2 text-error-600" size={18} />;
-      case "VIEW":
-        return <Binoculars className="mr-2 text-gray-600" size={18} />;
-      case "ALLOCATE":
-        return <Gift className="mr-2 text-success-500" size={18} />;
-      case "TRANSFER":
-        return <ArrowLeftRight className="mr-2 text-secondary-600" size={18} />;
-      default:
-        return <Filter className="mr-2 text-gray-600" size={18} />;
-    }
-  };
-
-  const renderLogDetails = (log: ActivityLog) => {
-    switch (log.targetResourceType) {
-      case "USER":
-        return (
-          <>
-            <Typography variant="body2">
-              User: {log.targetUser?.name || log.details.userName || "Unknown"}
-            </Typography>
-            {log.details.userRole && (
-              <Typography variant="body2">
-                Role: {log.details.userRole}
-              </Typography>
-            )}
-          </>
-        );
-      
-      case "COMPANY":
-        return (
-          <>
-            <Typography variant="body2">
-              Company: {log.details.companyName || "Unknown"}
-            </Typography>
-            {log.details.createdAt && (
-              <Typography variant="body2">
-                Created: {formatDate(log.details.createdAt.toString())}
-              </Typography>
-            )}
-          </>
-        );
-        
-      case "SESSION":
-        return (
-          <>
-            <Typography variant="body2">
-              Session ID: {log.details.sessionId || "N/A"}
-            </Typography>
-            {log.details.device && (
-              <Typography variant="body2">
-                Device: {log.details.device}
-              </Typography>
-            )}
-          </>
-        );
-        
-      case "USER_LIST":
-        return (
-          <>
-            <Typography variant="body2">
-              Filters: {Object.entries(log.details.filters || {})
-                .filter(([_, value]) => value !== undefined)
-                .map(([key, value]) => `${key}: ${value}`)
-                .join(", ")}
-            </Typography>
-            <Typography variant="body2">
-              Results: {log.details.resultCount} of {log.details.totalCount}
-            </Typography>
-          </>
-        );
-        
-      default:
-        // For any other resource type, show a summary text if available
-        return log.details.summaryText ? (
-          <Typography variant="body2">{log.details.summaryText}</Typography>
-        ) : (
-          // Otherwise, just show the resource type
-          <Typography variant="body2">
-            Resource: {log.targetResourceType}
-            {log.targetResourceId ? ` (ID: ${log.targetResourceId})` : ''}
-          </Typography>
-        );
-    }
-  };
-
   if (!session?.user) {
     return (
-    <Box sx={{ p: 3 }}>
-      <Typography variant="h4" sx={{ mb: 4, fontWeight: 'bold', color: 'primary.main' }}>
-        Activity Logs
-      </Typography>
-
-      {isLoading ? (
-        <Box sx={{ display: "flex", justifyContent: "center", p: 3 }}>
-          <CircularProgress />
-        </Box>
-      ) : error ? (
-        <Box sx={{ p: 3 }}>
-          <Alert severity="error">
-            {error}
-            <Button
-              variant="contained"
-              size="small"
-              onClick={handleRefresh}
-              sx={{ mt: 2, ml: 2 }}
-            >
-              Try Again
-            </Button>
-          </Alert>
-        </Box>
-      ) : (!tableData || tableData.length === 0) ? (
-        <Box sx={{ p: 3 }}>
-          <Alert severity="info">
-            No activity logs were found. This could be because:
-            <ul style={{ marginTop: '8px', marginLeft: '20px', listStyleType: 'disc' }}>
-              <li>There are no activities recorded yet</li>
-              <li>Your user role doesn't have permission to view these logs</li>
-              <li>There was an error retrieving the data</li>
-            </ul>
-            <Button 
-              variant="contained"
-              size="small"
-              onClick={handleRefresh}
-              sx={{ mt: 2 }}
-            >
-              Refresh Activity Logs
-            </Button>
-          </Alert>
-        </Box>
-      ) : (
-        <Card>
-          <CardContent>
-            <SearchableTable 
-              columns={columns} 
-              data={tableData}
-              pagination={{
-                pageIndex: page - 1,
-                pageSize: 10,
-                pageCount: totalPages,
-                onPageChange: (newPage) => setPage(newPage + 1),
-                onPageSizeChange: () => {}
-              }}
-            />
-          </CardContent>
-        </Card>
-      )}
-    </Box>
-  );
+      <Box sx={{ p: 3 }}>
+        <Alert severity="error">Please sign in to view activity logs</Alert>
+      </Box>
+    );
   }
 
   return (
@@ -808,41 +578,7 @@ export default function ActivityLogsPage() {
           <Alert severity="error">{error}</Alert>
         </Box>
       ) : logs.length === 0 ? (
-        <>
-          <Alert severity="info">
-          No activity logs were found. This could be because:
-          <ul className="mt-2 list-disc ml-5">
-            <li>There are no activities recorded yet</li>
-            <li>Your user role doesn't have access to these activities</li>
-            <li>There may be a data retrieval issue</li>
-          </ul>
-          <Button 
-            variant="contained" 
-            color="primary" 
-            onClick={handleRefresh}
-            className="mt-3"
-            size="small"
-          >
-            Refresh Activity Logs
-          </Button>
-        </Alert>
-          <Button 
-            variant="contained" 
-            color="primary" 
-            onClick={handleRefresh}
-            sx={{ mt: 2 }}
-          >
-            Refresh Activity Logs
-          </Button>
-          <Button 
-            variant="outlined" 
-            color="secondary" 
-            onClick={() => console.log("Current logs:", logs, "Current tableData:", tableData)}
-            sx={{ mt: 2, ml: 2 }}
-          >
-            Debug: Log Data
-          </Button>
-        </>
+        <Alert severity="info">No activity logs found</Alert>
       ) : (
         <Card>
           <CardContent>
