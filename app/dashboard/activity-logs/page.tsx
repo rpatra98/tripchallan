@@ -101,7 +101,7 @@ interface ActivityLogsResponse {
 type ActivityLogDetails = {
   device?: string;
   reasonText?: string;
-  amount?: number;
+  amount?: string | number;  // Accept both string and number
   recipientName?: string;
   [key: string]: unknown;
 };
@@ -363,7 +363,13 @@ export default function ActivityLogsPage() {
           email: log.user?.email || "No email"
         },
         action: log.action,
-        details: { ...log.details, amount: log.details.amount ? Number(log.details.amount) : undefined },
+        details: { 
+          ...log.details, 
+          // Safely convert amount to string if it's not already 
+          amount: log.details.amount 
+            ? (typeof log.details.amount === 'string' ? log.details.amount : String(log.details.amount)) 
+            : undefined 
+        },
         targetUser: log.targetUser ? {
           name: log.targetUser.name,
           email: log.targetUser.email
