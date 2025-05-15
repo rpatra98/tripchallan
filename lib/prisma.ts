@@ -11,95 +11,73 @@ const globalForPrisma = global as unknown as { prisma: any };
 // Check if we're running in production and if this is a build or serverless function
 const isBuilding = process.env.VERCEL_ENV === 'production' && process.env.NEXT_PHASE === 'phase-production-build';
 
-// Create a more comprehensive mock Prisma client for build time and error scenarios
+// Create a mock client for Vercel deployment errors
 const createMockPrismaClient = () => {
-  console.warn('Using mock PrismaClient due to configuration issues');
-  // Return a mock client with basic operations that won't fail
-  return {
-    $extends: () => createMockPrismaClient(),
-    user: {
-      findUnique: async () => null,
-      findMany: async () => [],
-      create: async () => ({}),
-      update: async () => ({}),
-      delete: async () => ({})
-    },
-    session: {
-      findUnique: async () => null,
-      findMany: async () => [],
-      create: async () => ({}),
-      update: async () => ({}),
-      delete: async () => ({})
-    },
-    // Add other models as needed with basic mock implementations
-    $disconnect: async () => {},
-    $connect: async () => {}
-  } as any;
-};
-
-// Safely create PrismaClient with error handling
-const createPrismaClient = () => {
-  // Check if required environment variables are present
-  if (!process.env.DATABASE_URL && !isBuilding) {
-    console.error("DATABASE_URL is missing! Using mock client instead.");
-    return createMockPrismaClient();
-  }
+  console.warn("Using mock PrismaClient due to configuration issues");
   
-  try {
-    console.log("Initializing PrismaClient with DATABASE_URL configuration...");
-    // Make a safer initialization that shouldn't break builds
-    // @ts-ignore - Ignore type errors for Prisma client options
-    const prismaClientOptions = {
-      log: process.env.NODE_ENV === 'development' 
-        ? ['query', 'error', 'warn'] 
-        : ['error'],
-      errorFormat: 'pretty',
-    };
-
-    // Initialize the client with appropriate error handling
-    // @ts-ignore - Ignore type errors for Prisma client initialization
-    const client = new PrismaClient(prismaClientOptions);
-    
-    // Try to apply Prisma Accelerate extension safely
-    try {
-      return client.$extends(withAccelerate()).$extends({
-        query: {
-          // @ts-ignore - ignore the parameter typing errors
-          async $allOperations(params: any) {
-            const { operation, model, args, query } = params;
-            try {
-              return await query(args);
-            } catch (error) {
-              console.error(`Prisma Error [${model}.${operation}]:`, error);
-              // For specific operations, return empty results instead of failing
-              if (operation === 'findMany') return [];
-              if (operation === 'findUnique' || operation === 'findFirst') return null;
-              throw error;
+  // This creates a proxy that returns empty results for queries
+  // but doesn't throw errors that would break the application
+  return new Proxy({}, {
+    get: function(target, prop) {
+      if (prop === "$disconnect") {
+        return async () => {};
+      }
+      
+      // For any model property (user, session, etc)
+      return new Proxy({}, {
+        get: function(target, method) {
+          return async () => {
+            console.log(`Mock Prisma Client: ${String(prop)}.${String(method)} called`);
+            
+            // Methods that return a single item
+            if (["findUnique", "findFirst", "create", "update", "delete"].includes(String(method))) {
+              return null;
             }
-          },
-        },
+            
+            // Methods that return arrays
+            if (["findMany"].includes(String(method))) {
+              return [];
+            }
+            
+            // Methods that return counts
+            if (["count"].includes(String(method))) {
+              return 0;
+            }
+            
+            return null;
+          };
+        }
       });
-    } catch (extendError) {
-      console.error("Error applying Prisma extensions:", extendError);
-      // Return the basic client if extensions fail
-      return client;
     }
-  } catch (e) {
-    console.error("Failed to initialize Prisma client:", e);
-    return createMockPrismaClient();
+  });
+};
+
+// Use global to share a single instance across modules in dev
+// but prevent sharing across hot reloads
+declare global {
+  var prisma: PrismaClient | undefined;
+}
+
+// Create PrismaClient with error handling
+const prismaClientCreator = (): any => {
+  try {
+    return new PrismaClient();
+  } catch (error: any) {
+    console.error("Error initializing PrismaClient:", error.message);
+    
+    if (process.env.VERCEL === "1" || process.env.NODE_ENV === "production") {
+      return createMockPrismaClient();
+    }
+    
+    throw error;
   }
 };
 
-// Use a real Prisma client for runtime, mock during build
-export const prisma = 
-  // If it's already been created and we're not in the build phase, reuse it
-  globalForPrisma.prisma || 
-  // During build phase on Vercel, use a mock client
-  (isBuilding ? createMockPrismaClient() : createPrismaClient());
+// Set up client with better error handling for different environments
+export const prisma = global.prisma || prismaClientCreator();
 
-// Only save the instance if we're not building and not in production
-if (process.env.NODE_ENV !== 'production' && !isBuilding) {
-  globalForPrisma.prisma = prisma;
+if (process.env.NODE_ENV !== "production") {
+  global.prisma = prisma;
 }
 
 // Export Prisma-generated types and enums
