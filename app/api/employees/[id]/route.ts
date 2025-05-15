@@ -10,24 +10,34 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   try {
+    console.log(`Attempting to fetch employee with ID: ${params.id}`);
+    
     // Get the authenticated user's session
     const session = await getServerSession(authOptions);
     
     if (!session || !session.user) {
+      console.log('Unauthorized: No session or user');
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+    
+    console.log(`User attempting access: ${session.user.id}, role: ${session.user.role}`);
     
     // Check for authorization
     const currentUser = await prisma.user.findUnique({
       where: { id: session.user.id },
-      select: { id: true, role: true, companyId: true }
+      select: { 
+        id: true, 
+        role: true, 
+        companyId: true 
+      }
     });
     
     if (!currentUser) {
+      console.log('Unauthorized: User not found in database');
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
     
-    // Get the employee
+    // Get the employee with detailed information
     const employee = await prisma.user.findUnique({
       where: { id: params.id, role: UserRole.EMPLOYEE },
       include: {
@@ -42,19 +52,44 @@ export async function GET(
     });
     
     if (!employee) {
+      console.log('Employee not found');
       return NextResponse.json({ error: "Employee not found" }, { status: 404 });
     }
+    
+    console.log('Employee found:', {
+      id: employee.id,
+      companyId: employee.companyId,
+      company: employee.company
+    });
     
     // Check if the current user has permission to view this employee
     const isAdmin = currentUser.role === UserRole.ADMIN || currentUser.role === UserRole.SUPERADMIN;
     const isCompany = currentUser.role === UserRole.COMPANY;
-    // For COMPANY users, check if employee belongs to this company
-    const isEmployeeOfCompany = isCompany && currentUser.id === employee.companyId;
     
-    console.log('Auth check:', {
+    // Multiple ways to check company-employee relationship
+    let isEmployeeOfCompany = false;
+    
+    if (isCompany) {
+      // Method 1: Direct companyId match
+      const directMatch = currentUser.id === employee.companyId;
+      
+      // Method 2: Check if company relation points to current user
+      const companyMatch = employee.company && employee.company.id === currentUser.id;
+      
+      isEmployeeOfCompany = directMatch || companyMatch;
+      
+      console.log('Company-Employee relationship checks:', {
+        directMatch,
+        companyMatch,
+        finalResult: isEmployeeOfCompany
+      });
+    }
+    
+    console.log('Full auth check:', {
       currentUserId: currentUser.id,
       currentUserRole: currentUser.role,
       employeeCompanyId: employee.companyId,
+      employeeCompanyObj: employee.company,
       isAdmin,
       isCompany,
       isEmployeeOfCompany
@@ -62,9 +97,11 @@ export async function GET(
     
     // Allow access if user is an admin or the company that owns this employee
     if (!isAdmin && !isEmployeeOfCompany) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
+      console.log('Access denied: User is not admin and not the company owner of this employee');
+      return NextResponse.json({ error: "Unauthorized: You don't have permission to view this employee" }, { status: 403 });
     }
     
+    console.log('Access granted to employee details');
     return NextResponse.json(employee);
   } catch (error) {
     console.error("Error fetching employee:", error);
