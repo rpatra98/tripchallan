@@ -43,10 +43,7 @@ import {
   Stack,
   Grid
 } from '@mui/material';
-import { formatDate, detectDevice } from '@/lib/utils';
-import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
-import { LocalizationProvider, DatePicker } from '@mui/x-date-pickers';
-import { format } from 'date-fns';
+import { formatDate, detectDevice } from '@/lib/utils';import { format } from 'date-fns';// DatePicker components removed to fix deployment issues
 
 // Simple TypeScript interfaces
 interface User {
@@ -122,6 +119,17 @@ export default function ActivityLogsPage() {
     resourceType: ''
   });
   const [activeFilters, setActiveFilters] = useState<string[]>([]);
+
+  // Handle date input changes
+  const handleStartDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const dateValue = e.target.value ? new Date(e.target.value) : null;
+    setFilters({...filters, startDate: dateValue});
+  };
+
+  const handleEndDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const dateValue = e.target.value ? new Date(e.target.value) : null;
+    setFilters({...filters, endDate: dateValue});
+  };
 
   // Fetch activity logs with robust error handling
   const fetchActivityLogs = useCallback(async (pageNum: number, useDebugMode = false) => {
@@ -211,9 +219,9 @@ export default function ActivityLogsPage() {
       const result = await response.json();
       alert(`Created ${result.logs?.length || 0} test logs. Refreshing...`);
       fetchActivityLogs(1, true);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error creating test logs:', error);
-      alert(`Error creating test logs: ${error instanceof Error ? error.message : String(error)}`);
+      alert(`Error creating test logs: ${error.message || String(error)}`);
     } finally {
       setIsLoading(false);
     }
@@ -528,84 +536,92 @@ export default function ActivityLogsPage() {
             
             <Divider sx={{ mb: 3 }} />
             
-            <LocalizationProvider dateAdapter={AdapterDateFns}>
-              <Stack spacing={3}>
-                <FormControl fullWidth size="small">
-                  <InputLabel>Action</InputLabel>
-                  <Select
-                    value={filters.action}
-                    label="Action"
-                    onChange={(e) => setFilters({...filters, action: e.target.value as string})}
-                  >
-                    <MenuItem value="">All Actions</MenuItem>
-                    {availableActions.map(action => (
-                      <MenuItem key={action} value={action}>{formatAction(action)}</MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
-                
-                <DatePicker
-                  label="Start Date"
-                  value={filters.startDate}
-                  onChange={(newValue: Date | null) => setFilters({...filters, startDate: newValue})}
-                  slotProps={{ textField: { size: 'small', fullWidth: true } }}
-                />
-                
-                <DatePicker
-                  label="End Date"
-                  value={filters.endDate}
-                  onChange={(newValue: Date | null) => setFilters({...filters, endDate: newValue})}
-                  slotProps={{ textField: { size: 'small', fullWidth: true } }}
-                />
-                
-                <FormControl fullWidth size="small">
-                  <InputLabel>User</InputLabel>
-                  <Select
-                    value={filters.user}
-                    label="User"
-                    onChange={(e) => setFilters({...filters, user: e.target.value as string})}
-                  >
-                    <MenuItem value="">All Users</MenuItem>
-                    {availableUsers.map(user => (
-                      <MenuItem key={user.email} value={user.email}>
-                        {user.name} ({user.email})
-                      </MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
-                
-                <FormControl fullWidth size="small">
-                  <InputLabel>Resource Type</InputLabel>
-                  <Select
-                    value={filters.resourceType}
-                    label="Resource Type"
-                    onChange={(e) => setFilters({...filters, resourceType: e.target.value as string})}
-                  >
-                    <MenuItem value="">All Resources</MenuItem>
-                    {availableResourceTypes.map(type => (
-                      <MenuItem key={type} value={type}>{type}</MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
-                
-                <Box sx={{ display: 'flex', gap: 2, mt: 2 }}>
-                  <Button 
-                    variant="contained" 
-                    fullWidth
-                    onClick={() => setFilterDrawerOpen(false)}
-                  >
-                    Apply Filters
-                  </Button>
-                  <Button 
-                    variant="outlined" 
-                    fullWidth
-                    onClick={resetFilters}
-                  >
-                    Reset
-                  </Button>
-                </Box>
-              </Stack>
-            </LocalizationProvider>
+            <Stack spacing={3}>
+              <FormControl fullWidth size="small">
+                <InputLabel>Action</InputLabel>
+                <Select
+                  value={filters.action}
+                  label="Action"
+                  onChange={(e) => setFilters({...filters, action: e.target.value as string})}
+                >
+                  <MenuItem value="">All Actions</MenuItem>
+                  {availableActions.map(action => (
+                    <MenuItem key={action} value={action}>{formatAction(action)}</MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+              
+              <TextField
+                label="Start Date"
+                type="date"
+                value={filters.startDate ? format(filters.startDate, 'yyyy-MM-dd') : ''}
+                onChange={handleStartDateChange}
+                fullWidth
+                size="small"
+                InputLabelProps={{
+                  shrink: true,
+                }}
+              />
+              
+              <TextField
+                label="End Date"
+                type="date"
+                value={filters.endDate ? format(filters.endDate, 'yyyy-MM-dd') : ''}
+                onChange={handleEndDateChange}
+                fullWidth
+                size="small"
+                InputLabelProps={{
+                  shrink: true,
+                }}
+              />
+              
+              <FormControl fullWidth size="small">
+                <InputLabel>User</InputLabel>
+                <Select
+                  value={filters.user}
+                  label="User"
+                  onChange={(e) => setFilters({...filters, user: e.target.value as string})}
+                >
+                  <MenuItem value="">All Users</MenuItem>
+                  {availableUsers.map(user => (
+                    <MenuItem key={user.email} value={user.email}>
+                      {user.name} ({user.email})
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+              
+              <FormControl fullWidth size="small">
+                <InputLabel>Resource Type</InputLabel>
+                <Select
+                  value={filters.resourceType}
+                  label="Resource Type"
+                  onChange={(e) => setFilters({...filters, resourceType: e.target.value as string})}
+                >
+                  <MenuItem value="">All Resources</MenuItem>
+                  {availableResourceTypes.map(type => (
+                    <MenuItem key={type} value={type}>{type}</MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+              
+              <Box sx={{ display: 'flex', gap: 2, mt: 2 }}>
+                <Button 
+                  variant="contained" 
+                  fullWidth
+                  onClick={() => setFilterDrawerOpen(false)}
+                >
+                  Apply Filters
+                </Button>
+                <Button 
+                  variant="outlined" 
+                  fullWidth
+                  onClick={resetFilters}
+                >
+                  Reset
+                </Button>
+              </Box>
+            </Stack>
           </Box>
         </Drawer>
         
