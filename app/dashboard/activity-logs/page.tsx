@@ -97,6 +97,7 @@ interface ActivityLogsResponse {
     hasNextPage: boolean;
     hasPrevPage: boolean;
   }
+}
 
 // Zod schemas for runtime validation
 const UserSchema = z.object({
@@ -140,14 +141,12 @@ const ActivityLogsResponseSchema = z.object({
     hasNextPage: false,
     hasPrevPage: false
   })
-});
-;
-}
+})
 
 type ActivityLogDetails = {
   device?: string;
   reasonText?: string;
-  amount?: number;
+  amount?: string | number;
   recipientName?: string;
   [key: string]: unknown;
 };
@@ -166,7 +165,7 @@ type ActivityLogRow = {
   };
   createdAt: string;
   userAgent?: string;
-  targetResourceType?: string;  // Added this to fix TypeScript errors
+  targetResourceType: string;  // Required, not optional
 };
 
 type RowProps = {
