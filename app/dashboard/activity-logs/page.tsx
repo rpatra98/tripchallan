@@ -120,6 +120,16 @@ type ActivityLogRow = {
   };
   createdAt: string;
   userAgent?: string;
+  targetResourceType?: string;  // Added this to fix TypeScript errors
+};
+  action: string;
+  details: ActivityLogDetails;
+  targetUser?: {
+    name: string;
+    email: string;
+  };
+  createdAt: string;
+  userAgent?: string;
 };
 
 type RowProps = {
@@ -363,9 +373,12 @@ export default function ActivityLogsPage() {
           email: log.user?.email || "No email"
         },
         action: log.action,
-        details: {
-          ...log.details,
-          amount: log.details.amount ? Number(log.details.amount) : undefined
+        details: { 
+          ...log.details, 
+          // Safely convert amount to number if it's not already 
+          amount: log.details.amount 
+            ? (typeof log.details.amount === 'number' ? log.details.amount : Number(log.details.amount)) 
+            : undefined 
         },
         targetUser: log.targetUser ? {
           name: log.targetUser.name,
@@ -373,9 +386,10 @@ export default function ActivityLogsPage() {
         } : undefined,
         createdAt: log.createdAt,
         userAgent: log.userAgent,
-          targetResourceType: log.targetResourceType
+        targetResourceType: log.targetResourceType
       }));
       
+      console.log("Transformed data:", formattedData.length, "rows");
       setTableData(formattedData);
     } else {
       setTableData([]);
@@ -567,6 +581,30 @@ export default function ActivityLogsPage() {
               pagination={{
                 pageIndex: page - 1,
                 pageSize: 10,
+                pageCount: totalPages,
+                onPageChange: (newPage) => setPage(newPage + 1),
+                onPageSizeChange: () => {}
+              }}
+            />
+          </CardContent>
+        </Card>
+      )}
+    </Box>
+      ) : error ? (
+        <Box sx={{ p: 3 }}>
+          <Alert severity="error">{error}</Alert>
+        </Box>
+      ) : logs.length === 0 ? (
+        <Alert severity="info">No activity logs found</Alert>
+      ) : (
+        <Card>
+          <CardContent>
+            <SearchableTable 
+              columns={columns} 
+              data={tableData}
+              pagination={{
+                pageIndex: page - 1,
+                pageSize: 10, 
                 pageCount: totalPages,
                 onPageChange: (newPage) => setPage(newPage + 1),
                 onPageSizeChange: () => {}
