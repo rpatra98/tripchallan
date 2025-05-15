@@ -1491,75 +1491,215 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
 
               <Box sx={{ mb: 2 }}>
                 <Typography variant="subtitle1" fontWeight="bold">
-            {isGuard ? "Trip ID" : "Session ID"}
-          </Typography>
-          <Typography variant="body1" gutterBottom>
-            {session.id}
-          </Typography>
-        </Box>
+                  {isGuard ? "Trip ID" : "Session ID"}
+                </Typography>
+                <Typography variant="body1" gutterBottom>
+                  {session.id}
+                </Typography>
+              </Box>
 
-        <Divider sx={{ my: 2 }} />
+              <Divider sx={{ my: 2 }} />
 
-        <Box sx={{ display: "flex", alignItems: "center", mb: 2 }}>
-          <LocationOn color="action" sx={{ mr: 1 }} />
-          <Box>
-            <Typography variant="subtitle2" color="text.secondary">
-              Source Location
-            </Typography>
-            <Typography variant="body1">
-              {session.source}
-            </Typography>
-          </Box>
-        </Box>
+              <Box sx={{ display: "flex", alignItems: "center", mb: 2 }}>
+                <LocationOn color="action" sx={{ mr: 1 }} />
+                <Box>
+                  <Typography variant="subtitle2" color="text.secondary">
+                    Source Location
+                  </Typography>
+                  <Typography variant="body1">
+                    {session.source}
+                  </Typography>
+                </Box>
+              </Box>
 
-        <Box sx={{ display: "flex", alignItems: "center", mb: 2 }}>
-          <DirectionsCar color="action" sx={{ mr: 1 }} />
-          <Box>
-            <Typography variant="subtitle2" color="text.secondary">
-              Destination
-            </Typography>
-            <Typography variant="body1">
-              {session.destination}
-            </Typography>
-          </Box>
-        </Box>
+              <Box sx={{ display: "flex", alignItems: "center", mb: 2 }}>
+                <DirectionsCar color="action" sx={{ mr: 1 }} />
+                <Box>
+                  <Typography variant="subtitle2" color="text.secondary">
+                    Destination
+                  </Typography>
+                  <Typography variant="body1">
+                    {session.destination}
+                  </Typography>
+                </Box>
+              </Box>
 
-        <Box sx={{ display: "flex", alignItems: "center", mb: 2 }}>
-          <AccessTime color="action" sx={{ mr: 1 }} />
-          <Box>
-            <Typography variant="subtitle2" color="text.secondary">
-              Created At
-            </Typography>
-            <Typography variant="body1">
-              {formatDate(session.createdAt)}
-            </Typography>
-          </Box>
-        </Box>
+              <Box sx={{ display: "flex", alignItems: "center", mb: 2 }}>
+                <AccessTime color="action" sx={{ mr: 1 }} />
+                <Box>
+                  <Typography variant="subtitle2" color="text.secondary">
+                    Created At
+                  </Typography>
+                  <Typography variant="body1">
+                    {formatDate(session.createdAt)}
+                  </Typography>
+                </Box>
+              </Box>
 
-        <Box sx={{ display: "flex", alignItems: "center", mb: 2 }}>
-          <VerifiedUser color="action" sx={{ mr: 1 }} />
-          <Box>
-            <Typography variant="subtitle2" color="text.secondary">
-              Created By
-            </Typography>
-            <Typography variant="body1">
-              {session.createdBy.name} ({session.createdBy.email})
-            </Typography>
-          </Box>
-        </Box>
+              <Box sx={{ display: "flex", alignItems: "center", mb: 2 }}>
+                <VerifiedUser color="action" sx={{ mr: 1 }} />
+                <Box>
+                  <Typography variant="subtitle2" color="text.secondary">
+                    Created By
+                  </Typography>
+                  <Typography variant="body1">
+                    {session.createdBy.name} ({session.createdBy.email})
+                  </Typography>
+                </Box>
+              </Box>
 
-        <Box sx={{ display: "flex", alignItems: "center", mb: 2 }}>
-          <VerifiedUser color="action" sx={{ mr: 1 }} />
-          <Box>
-            <Typography variant="subtitle2" color="text.secondary">
-              Company
-            </Typography>
-            <Typography variant="body1">
-              {session.company.name}
-            </Typography>
-          </Box>
-        </Box>
+              <Box sx={{ display: "flex", alignItems: "center", mb: 2 }}>
+                <VerifiedUser color="action" sx={{ mr: 1 }} />
+                <Box>
+                  <Typography variant="subtitle2" color="text.secondary">
+                    Company
+                  </Typography>
+                  <Typography variant="body1">
+                    {session.company.name}
+                  </Typography>
+                </Box>
+              </Box>
 
+              {/* Trip Details Section - Hide from GUARD users for IN_PROGRESS sessions */}
+              {session.tripDetails && Object.keys(session.tripDetails).length > 0 && 
+                !(isGuard && session.status === SessionStatus.IN_PROGRESS) && (
+                <>
+                  <Divider sx={{ my: 2 }} />
+                  
+                  <Typography variant="h6" gutterBottom>
+                    Trip Details
+                  </Typography>
+                  
+                  <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 2 }}>
+                    {session.tripDetails.transporterName && (
+                      <Box>
+                        <Typography variant="subtitle2" color="text.secondary">Transporter Name</Typography>
+                        <Typography variant="body1">{session.tripDetails.transporterName}</Typography>
+                      </Box>
+                    )}
+                    
+                    {session.tripDetails.materialName && (
+                      <Box>
+                        <Typography variant="subtitle2" color="text.secondary">Material Name</Typography>
+                        <Typography variant="body1">{session.tripDetails.materialName}</Typography>
+                      </Box>
+                    )}
+                    
+                    {session.tripDetails.vehicleNumber && (
+                      <Box>
+                        <Typography variant="subtitle2" color="text.secondary">Vehicle Number</Typography>
+                        <Typography variant="body1">{session.tripDetails.vehicleNumber}</Typography>
+                      </Box>
+                    )}
+                    
+                    {session.tripDetails.gpsImeiNumber && (
+                      <Box>
+                        <Typography variant="subtitle2" color="text.secondary">GPS IMEI Number</Typography>
+                        <Typography variant="body1">{session.tripDetails.gpsImeiNumber}</Typography>
+                      </Box>
+                    )}
+                    
+                    {session.tripDetails.driverName && (
+                      <Box>
+                        <Typography variant="subtitle2" color="text.secondary">Driver Name</Typography>
+                        <Typography variant="body1">{session.tripDetails.driverName}</Typography>
+                      </Box>
+                    )}
+                    
+                    {session.tripDetails.driverContactNumber && (
+                      <Box>
+                        <Typography variant="subtitle2" color="text.secondary">Driver Contact</Typography>
+                        <Typography variant="body1">{session.tripDetails.driverContactNumber}</Typography>
+                      </Box>
+                    )}
+                    
+                    {session.tripDetails.loaderName && (
+                      <Box>
+                        <Typography variant="subtitle2" color="text.secondary">Loader Name</Typography>
+                        <Typography variant="body1">{session.tripDetails.loaderName}</Typography>
+                      </Box>
+                    )}
+                    
+                    {session.tripDetails.challanRoyaltyNumber && (
+                      <Box>
+                        <Typography variant="subtitle2" color="text.secondary">Challan/Royalty Number</Typography>
+                        <Typography variant="body1">{session.tripDetails.challanRoyaltyNumber}</Typography>
+                      </Box>
+                    )}
+                    
+                    {session.tripDetails.doNumber && (
+                      <Box>
+                        <Typography variant="subtitle2" color="text.secondary">DO Number</Typography>
+                        <Typography variant="body1">{session.tripDetails.doNumber}</Typography>
+                      </Box>
+                    )}
+                    
+                    {session.tripDetails.freight !== undefined && (
+                      <Box>
+                        <Typography variant="subtitle2" color="text.secondary">Freight</Typography>
+                        <Typography variant="body1">{session.tripDetails.freight}</Typography>
+                      </Box>
+                    )}
+                    
+                    {session.tripDetails.qualityOfMaterials && (
+                      <Box>
+                        <Typography variant="subtitle2" color="text.secondary">Quality of Materials</Typography>
+                        <Typography variant="body1">{session.tripDetails.qualityOfMaterials}</Typography>
+                      </Box>
+                    )}
+                    
+                    {session.tripDetails.tpNumber && (
+                      <Box>
+                        <Typography variant="subtitle2" color="text.secondary">TP Number</Typography>
+                        <Typography variant="body1">{session.tripDetails.tpNumber}</Typography>
+                      </Box>
+                    )}
+                    
+                    {session.tripDetails.grossWeight !== undefined && (
+                      <Box>
+                        <Typography variant="subtitle2" color="text.secondary">Gross Weight</Typography>
+                        <Typography variant="body1">{session.tripDetails.grossWeight} kg</Typography>
+                      </Box>
+                    )}
+                    
+                    {session.tripDetails.tareWeight !== undefined && (
+                      <Box>
+                        <Typography variant="subtitle2" color="text.secondary">Tare Weight</Typography>
+                        <Typography variant="body1">{session.tripDetails.tareWeight} kg</Typography>
+                      </Box>
+                    )}
+                    
+                    {session.tripDetails.netMaterialWeight !== undefined && (
+                      <Box>
+                        <Typography variant="subtitle2" color="text.secondary">Net Material Weight</Typography>
+                        <Typography variant="body1">{session.tripDetails.netMaterialWeight} kg</Typography>
+                      </Box>
+                    )}
+                    
+                    {session.tripDetails.loaderMobileNumber && (
+                      <Box>
+                        <Typography variant="subtitle2" color="text.secondary">Loader Mobile</Typography>
+                        <Typography variant="body1">{session.tripDetails.loaderMobileNumber}</Typography>
+                      </Box>
+                    )}
+                  </Box>
+                </>
+              )}
+              
+              {/* Show Seal Information - Hide barcode from GUARD users for IN_PROGRESS sessions */}
+              {session.seal && (
+                <>
+                  <Divider sx={{ my: 2 }} />
+                  
+                  <Typography variant="h6" gutterBottom>
+                    Seal Information
+                  </Typography>
+                  
+                  <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 2 }}>
+                    {/* Only show seal barcode if not a GUARD or session is not IN_PROGRESS */}
+                    {!(isGuard && session.status === SessionStatus.IN_PROGRESS) && (
+                      <Box>
+                        <Typography variant="subtitle2" color="text.secondary">Seal Barcode</Typography>
         {/* Trip Details Section - Hide from GUARD users for IN_PROGRESS sessions */}
         {session.tripDetails && Object.keys(session.tripDetails).length > 0 && 
           !(isGuard && session.status === SessionStatus.IN_PROGRESS) && (
