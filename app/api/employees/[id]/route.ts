@@ -15,27 +15,12 @@ export async function GET(
     // Get the authenticated user's session
     const session = await getServerSession(authOptions);
     
-    if (!session || !session.user) {
+    if (!session?.user) {
       console.log('Unauthorized: No session or user');
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
     
     console.log(`User attempting access: ${session.user.id}, role: ${session.user.role}`);
-    
-    // Check for authorization
-    const currentUser = await prisma.user.findUnique({
-      where: { id: session.user.id },
-      select: { 
-        id: true, 
-        role: true, 
-        companyId: true 
-      }
-    });
-    
-    if (!currentUser) {
-      console.log('Unauthorized: User not found in database');
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
     
     // Get the employee with detailed information
     const employee = await prisma.user.findUnique({
@@ -63,42 +48,62 @@ export async function GET(
     });
     
     // Check if the current user has permission to view this employee
-    const isAdmin = currentUser.role === UserRole.ADMIN || currentUser.role === UserRole.SUPERADMIN;
-    const isCompany = currentUser.role === UserRole.COMPANY;
+    const isAdmin = session.user.role === UserRole.ADMIN || session.user.role === UserRole.SUPERADMIN;
+    const isSelf = session.user.id === params.id; // Allow users to view themselves
     
-    // Multiple ways to check company-employee relationship
-    let isEmployeeOfCompany = false;
+    // For company users, we need to check if the employee belongs to them
+    let hasCompanyAccess = false;
     
-    if (isCompany) {
-      // Method 1: Direct companyId match
-      const directMatch = currentUser.id === employee.companyId;
+    if (session.user.role === UserRole.COMPANY) {
+      const companyId = session.user.id;
       
-      // Method 2: Check if company relation points to current user
-      const companyMatch = employee.company && employee.company.id === currentUser.id;
+      // First check direct relationship
+      if (employee.companyId === companyId) {
+        hasCompanyAccess = true;
+      }
+      // Then check company field relationship
+      else if (employee.company && employee.company.id === companyId) {
+        hasCompanyAccess = true;
+      }
+      // Try to find a Company record association
+      else {
+        const companyRecord = await prisma.company.findFirst({
+          where: {
+            OR: [
+              { id: companyId },
+              {
+                employees: {
+                  some: {
+                    id: companyId
+                  }
+                }
+              }
+            ]
+          },
+          include: {
+            employees: {
+              where: {
+                id: employee.id
+              }
+            }
+          }
+        });
+        
+        if (companyRecord && companyRecord.employees && companyRecord.employees.length > 0) {
+          hasCompanyAccess = true;
+        }
+      }
       
-      isEmployeeOfCompany = directMatch || companyMatch;
-      
-      console.log('Company-Employee relationship checks:', {
-        directMatch,
-        companyMatch,
-        finalResult: isEmployeeOfCompany
-      });
+      console.log(`Company access check for ${session.user.id} to employee ${params.id}: ${hasCompanyAccess}`);
     }
     
-    console.log('Full auth check:', {
-      currentUserId: currentUser.id,
-      currentUserRole: currentUser.role,
-      employeeCompanyId: employee.companyId,
-      employeeCompanyObj: employee.company,
-      isAdmin,
-      isCompany,
-      isEmployeeOfCompany
-    });
-    
-    // Allow access if user is an admin or the company that owns this employee
-    if (!isAdmin && !isEmployeeOfCompany) {
-      console.log('Access denied: User is not admin and not the company owner of this employee');
-      return NextResponse.json({ error: "Unauthorized: You don't have permission to view this employee" }, { status: 403 });
+    // Allow access if: admin, self, or company with proper association
+    if (!isAdmin && !isSelf && !hasCompanyAccess) {
+      console.log('Access denied: User does not have permission to view this employee');
+      return NextResponse.json(
+        { error: "You don't have permission to view this employee" }, 
+        { status: 403 }
+      );
     }
     
     console.log('Access granted to employee details');
