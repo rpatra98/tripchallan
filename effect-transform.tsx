@@ -29,7 +29,7 @@ useEffect(() => {
     
     const formattedData = validLogs.map(log => {
       try {
-        return {
+        const transformed = {
           id: log.id || `unknown-${Math.random()}`,
           user: {
             name: log.user?.name || "Unknown User",
@@ -49,6 +49,9 @@ useEffect(() => {
           userAgent: log.userAgent || undefined,
           targetResourceType: log.targetResourceType || "UNKNOWN"
         };
+        
+        console.log("Transformed log:", log.id, "->", transformed.action);
+        return transformed;
       } catch (itemError) {
         console.error("Error processing log item:", itemError, log);
         return null;

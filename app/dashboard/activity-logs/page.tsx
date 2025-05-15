@@ -152,7 +152,7 @@ type ActivityLogRow = {
   };
   createdAt: string;
   userAgent?: string;
-  targetResourceType: string;
+  targetResourceType?: string;
 };
 
 type RowProps = {
@@ -466,13 +466,18 @@ export default function ActivityLogsPage() {
   const [isSessionChecked, setIsSessionChecked] = useState(false);
   const [tableData, setTableData] = useState<ActivityLogRow[]>([]);
 
-  const fetchActivityLogs = useCallback(async (pageNum: number) => {
+  const fetchActivityLogs = useCallback(async (pageNum: number, useDebugMode = false) => {
     try {
-      console.log(`Fetching activity logs for page ${pageNum}...`);
+      console.log(`Fetching activity logs for page ${pageNum}...${useDebugMode ? ' (DEBUG MODE)' : ''}`);
       setIsLoading(true);
       setError("");
       
-      const response = await fetch(`/api/activity-logs?page=${pageNum}`);
+      // Add debug flag to bypass permission filtering when needed
+      const url = useDebugMode 
+        ? `/api/activity-logs?page=${pageNum}&debug=true`
+        : `/api/activity-logs?page=${pageNum}`;
+      
+      const response = await fetch(url);
       
       if (!response.ok) {
         throw new Error(`Failed to fetch activity logs: ${response.status}`);
@@ -582,7 +587,18 @@ export default function ActivityLogsPage() {
 
   return (
     <Box sx={{ p: 3 }}>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 4, alignItems: 'center' }}>
+      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mb: 4 }}>
+        {/* Debug message for SUPERADMIN */}
+        {session?.user?.role === "SUPERADMIN" && (
+          <Alert severity="info" sx={{ mb: 2 }}>
+            <Typography variant="body2">
+              If you don't see any activity logs, use the "Force Create Test Logs" button to create sample data.
+              Then use "Debug Mode" to view all logs regardless of permissions.
+            </Typography>
+          </Alert>
+        )}
+        
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <Typography variant="h4" sx={{ fontWeight: 'bold', color: 'primary.main' }}>
           Activity Logs
         </Typography>
@@ -594,109 +610,27 @@ export default function ActivityLogsPage() {
               color="secondary"
               onClick={async () => {
                 try {
-                  const response = await fetch('/api/debug-logs?createSample=true');
+                  setIsLoading(true);
+                  const response = await fetch('/api/force-create-test-logs');
                   if (response.ok) {
                     const result = await response.json();
-                    alert(`Created ${result.createdSampleLogs} sample logs. Refreshing...`);
-                    handleRefresh();
+                    alert(`Created ${result.logs?.length || 0} test logs. Refreshing...`);
+                    fetchActivityLogs(1, true); // Fetch with debug mode
                   } else {
-                    alert('Failed to create sample logs');
+                    const errorText = await response.text();
+                    alert(`Failed to create test logs: ${errorText}`);
                   }
                 } catch (error) {
-                  console.error("Error creating sample logs:", error);
-                  alert('Error creating sample logs');
-                }
-              }}
-              startIcon={<Star size={16} />}
-            >
-              Create Test Logs
-            </Button>
-            
-            <Button
-              variant="outlined"
-              color="warning"
-              onClick={async () => {
-                try {
-                  setIsLoading(true);
-                  const response = await fetch('/api/debug-activity-logs');
-                  if (!response.ok) {
-                    throw new Error(`Failed to fetch debug logs: ${response.status}`);
-                  }
-                  
-                  const data = await response.json();
-                  console.log("Debug activity logs response:", data);
-                  
-                  if (!data.logs || !Array.isArray(data.logs)) {
-                    alert('No logs found in debug mode');
-                    setLogs([]);
-                  } else {
-                    setLogs(data.logs);
-                    setTotalPages(data.meta?.totalPages || 1);
-                    alert(`Found ${data.logs.length} logs in debug mode`);
-                  }
-                } catch (error) {
-                  console.error("Error fetching debug logs:", error);
-                  alert(`Error fetching debug logs: ${error.message}`);
+                  console.error("Error creating test logs:", error);
+                  alert(`Error creating test logs: ${error.message}`);
                 } finally {
                   setIsLoading(false);
                 }
               }}
-              startIcon={<AlertTriangle size={16} />}
+              startIcon={<Star size={16} />}
             >
-              Debug Mode
+              Force Create Test Logs
             </Button>
-          </Box>
-        )}
-      </Box>
-
-      {isLoading ? (
-        <Box sx={{ display: "flex", justifyContent: "center", p: 3 }}>
-          <CircularProgress />
-        </Box>
-      ) : error ? (
-        <Box sx={{ p: 3 }}>
-          <Alert severity="error">{error}</Alert>
-        </Box>
-      ) : logs?.length === 0 ? (
-        <Box sx={{ p: 3 }}>
-          <Alert severity="info">
-            <Typography variant="body1" sx={{ mb: 1 }}>No activity logs found. This could be because:</Typography>
-            <ul>
-              <li>There are no activities recorded yet in the system</li>
-              <li>Your user role doesn't have permission to view these logs</li>
-              <li>There was an error retrieving the data</li>
-            </ul>
-            <Box sx={{ mt: 2, display: 'flex', gap: 2 }}>
-              <Button
-                variant="contained"
-                color="primary"
-                onClick={handleRefresh}
-                startIcon={<RefreshCw size={16} />}
-              >
-                Refresh Activity Logs
-              </Button>
-              {session.user?.role === "SUPERADMIN" && (
-                <Button
-                  variant="outlined"
-                  color="secondary"
-                  onClick={async () => {
-                    try {
-                      const response = await fetch('/api/debug-logs?createSample=true');
-                      if (response.ok) {
-                        const result = await response.json();
-                        alert(`Created ${result.createdSampleLogs} sample logs. Refreshing...`);
-                        handleRefresh();
-                      } else {
-                        alert('Failed to create sample logs');
-                      }
-                    } catch (error) {
-                      console.error("Error creating sample logs:", error);
-                      alert('Error creating sample logs');
-                    }
-                  }}
-                >
-                  Create Test Logs
-                </Button>
               )}
             </Box>
           </Alert>

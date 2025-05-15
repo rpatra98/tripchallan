@@ -31,6 +31,13 @@ type ActivityLog = {
 };
 
 async function handler(req: NextRequest) {
+  // Debug flags for testing
+  const url = new URL(req.url);
+  const bypassPermissions = url.searchParams.get("debug") === "true";
+  
+  if (bypassPermissions) {
+    console.log("DEBUG MODE: Bypassing permission filters for activity logs");
+  }
   try {
     const session = await getServerSession(authOptions);
     
@@ -61,7 +68,13 @@ async function handler(req: NextRequest) {
     }
     
     // Filter options based on user role
-    const userIds: string[] = [];
+  const userIds: string[] = [];
+  
+  // DEBUG MODE: Skip permission filtering when debug flag is set
+  if (bypassPermissions) {
+    console.log("DEBUG MODE: Skipping user ID filtering for activity logs");
+    // Continue with no userIds filter, which will return all logs
+  } else {
     
     // SUPERADMIN can see activity for all users - no filtering needed
     if (session.user.role === UserRole.SUPERADMIN) {
@@ -186,7 +199,9 @@ async function handler(req: NextRequest) {
       }
     }
     
-    // Get activity logs based on filtered user IDs
+      } // End of permission filtering
+  
+  // Get activity logs based on filtered user IDs
     let result: {
       logs: ActivityLog[];
       meta: {
@@ -199,8 +214,8 @@ async function handler(req: NextRequest) {
       };
     };
 
-    // Always fetch logs for SUPERADMIN, even if userIds array is empty
-    if (userIds.length > 0 || session.user.role === UserRole.SUPERADMIN) {
+    // Always fetch logs for SUPERADMIN or when in debug mode, even if userIds array is empty
+    if (userIds.length > 0 || session.user.role === UserRole.SUPERADMIN || bypassPermissions) {
       // Custom filtering for deviceType if provided
       let customWhere: any = undefined;
       
