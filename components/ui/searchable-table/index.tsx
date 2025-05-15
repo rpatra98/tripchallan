@@ -40,6 +40,21 @@ export function SearchableTable({ columns, data, pagination }: SearchableTablePr
         const value = getValue(item, searchColumn);
         if (value === null || value === undefined) return false;
         
+        // Special case for hasCreatedResources (Status column)
+        if (searchColumn === "hasCreatedResources") {
+          const hasResourcesTerms = ["has resources", "true", "yes"];
+          const noResourcesTerms = ["no resources", "false", "no"];
+          
+          const searchLower = searchTerm.toLowerCase();
+          
+          // Check if the search term matches any of the special cases
+          if (hasResourcesTerms.some(term => term.includes(searchLower))) {
+            return value === true;
+          } else if (noResourcesTerms.some(term => term.includes(searchLower))) {
+            return value === false;
+          }
+        }
+        
         // For objects and arrays, stringify before searching
         const stringValue = typeof value === 'object' 
           ? JSON.stringify(value).toLowerCase() 
@@ -75,6 +90,19 @@ export function SearchableTable({ columns, data, pagination }: SearchableTablePr
       return null;
     }
   };
+
+  // Helper function to get placeholder text for the search input
+  const getPlaceholderText = () => {
+    if (!searchColumn) return "Select a column first";
+    
+    const column = columns.find(col => col.accessorKey === searchColumn);
+    
+    if (searchColumn === "hasCreatedResources") {
+      return "Search for 'Has Resources' or 'No Resources'...";
+    }
+    
+    return `Search in ${column?.header}...`;
+  };
   
   return (
     <div>
@@ -96,7 +124,7 @@ export function SearchableTable({ columns, data, pagination }: SearchableTablePr
         <div className="flex-1 min-w-[200px]">
           <input
             type="text"
-            placeholder={searchColumn ? `Search in ${columns.find(col => col.accessorKey === searchColumn)?.header}...` : "Select a column first"}
+            placeholder={getPlaceholderText()}
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
