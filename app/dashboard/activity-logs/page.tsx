@@ -438,6 +438,29 @@ export default function ActivityLogsPage() {
     }
   };
 
+  const getActionIcon = (action: string) => {
+    switch (action) {
+      case "LOGIN":
+        return <Monitor className="mr-2 text-green-600" size={18} />;
+      case "LOGOUT":
+        return <ArrowLeft className="mr-2 text-orange-600" size={18} />;
+      case "CREATE":
+        return <Star className="mr-2 text-blue-600" size={18} />;
+      case "UPDATE":
+        return <RefreshCw className="mr-2 text-blue-500" size={18} />;
+      case "DELETE":
+        return <X className="mr-2 text-red-600" size={18} />;
+      case "TRANSFER":
+        return <ArrowLeftRight className="mr-2 text-purple-600" size={18} />;
+      case "ALLOCATE":
+        return <Gift className="mr-2 text-green-600" size={18} />;
+      case "VIEW":
+        return <Binoculars className="mr-2 text-gray-600" size={18} />;
+      default:
+        return <Filter className="mr-2 text-gray-500" size={18} />;
+    }
+  };
+
   const renderLogDetails = (log: ActivityLog) => {
     const details = log.details;
     
@@ -595,7 +618,7 @@ export default function ActivityLogsPage() {
                   mb: 3,
                   borderRadius: '10px',
                   borderLeft: 6,
-                  borderColor: getActionColor(log.action),
+                  bordercolor: getActionColor(log.action),
                   boxShadow: '0 4px 6px rgba(0,0,0,0.05)',
                   transition: 'transform 0.2s, box-shadow 0.2s',
                   '&:hover': {
@@ -728,6 +751,9 @@ export default function ActivityLogsPage() {
     </Box>
   );
 } 
+
+
+
 
 
 
