@@ -430,6 +430,73 @@ export default function ActivityLogsPage() {
 
   return (
     <Box sx={{ p: 3 }}>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 4 }}>
+        <Typography variant="h4" sx={{ fontWeight: 'bold', color: 'primary.main' }}>
+          Activity Logs
+        </Typography>
+        
+        {session.user?.role === "SUPERADMIN" && (
+          <Box sx={{ display: 'flex', gap: 2 }}>
+            <Button
+              variant="outlined"
+              color="secondary"
+              onClick={async () => {
+                try {
+                  const response = await fetch('/api/debug-logs?createSample=true');
+                  if (response.ok) {
+                    const result = await response.json();
+                    alert(`Created ${result.createdSampleLogs} sample logs. Refreshing...`);
+                    handleRefresh();
+                  } else {
+                    alert('Failed to create sample logs');
+                  }
+                } catch (error) {
+                  console.error("Error creating sample logs:", error);
+                  alert('Error creating sample logs');
+                }
+              }}
+              startIcon={<Star size={16} />}
+            >
+              Create Test Logs
+            </Button>
+            
+            <Button
+              variant="outlined"
+              color="warning"
+              onClick={async () => {
+                try {
+                  setIsLoading(true);
+                  const response = await fetch('/api/debug-activity-logs');
+                  if (!response.ok) {
+                    throw new Error(`Failed to fetch debug logs: ${response.status}`);
+                  }
+                  
+                  const data = await response.json();
+                  console.log("Debug activity logs response:", data);
+                  
+                  if (!data.logs || !Array.isArray(data.logs)) {
+                    alert('No logs found in debug mode');
+                    setLogs([]);
+                  } else {
+                    setLogs(data.logs);
+                    setTotalPages(data.meta?.totalPages || 1);
+                    alert(`Found ${data.logs.length} logs in debug mode`);
+                  }
+                } catch (error) {
+                  console.error("Error fetching debug logs:", error);
+                  alert(`Error fetching debug logs: ${error.message}`);
+                } finally {
+                  setIsLoading(false);
+                }
+              }}
+              startIcon={<AlertTriangle size={16} />}
+            >
+              Debug Mode
+            </Button>
+          </Box>
+        )}
+      </Box>
+
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mb: 4 }}>
         {/* Debug message for SUPERADMIN */}
         {session?.user?.role === "SUPERADMIN" && (
@@ -463,28 +530,6 @@ export default function ActivityLogsPage() {
             >
               Export CSV
             </Button>
-            
-            {session?.user?.role === "SUPERADMIN" && (
-              <>
-                <Button
-                  variant="outlined"
-                  color="secondary"
-                  onClick={createTestLogs}
-                  startIcon={<Star size={16} />}
-                >
-                  Create Test Logs
-                </Button>
-                
-                <Button
-                  variant="outlined"
-                  color="warning"
-                  onClick={fetchGuaranteedData}
-                  startIcon={<AlertTriangle size={16} />}
-                >
-                  Show Guaranteed Data
-                </Button>
-              </>
-            )}
           </Box>
         </Box>
         
