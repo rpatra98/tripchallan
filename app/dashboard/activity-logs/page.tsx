@@ -543,7 +543,7 @@ export default function ActivityLogsPage() {
           </>
         );
         
-      case "USER_LIST":
+            case "USER_LIST":
         return (
           <>
             <Typography variant="body2">
@@ -618,7 +618,7 @@ export default function ActivityLogsPage() {
                   mb: 3,
                   borderRadius: '10px',
                   borderLeft: 6,
-                  bordercolor: getActionColor(log.action),
+                  borderColor: getActionColor(log.action),
                   boxShadow: '0 4px 6px rgba(0,0,0,0.05)',
                   transition: 'transform 0.2s, box-shadow 0.2s',
                   '&:hover': {
@@ -751,6 +751,8 @@ export default function ActivityLogsPage() {
     </Box>
   );
 } 
+
+
 
 
 
