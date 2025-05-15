@@ -27,9 +27,13 @@ export const GET = withAuth(
       const userRole = session.user.role;
       const userId = session.user.id;
 
-      if (userRole !== UserRole.ADMIN && userRole !== UserRole.SUPERADMIN) {
+      // Allow operators to access their own permissions
+      const isSelfAccess = userId === employeeId;
+      
+      // If not an admin or not accessing own permissions, reject
+      if (userRole !== UserRole.ADMIN && userRole !== UserRole.SUPERADMIN && !isSelfAccess) {
         return NextResponse.json(
-          { error: "Only admins can view operator permissions" },
+          { error: "Only admins can view other operator's permissions" },
           { status: 403 }
         );
       }
@@ -57,8 +61,8 @@ export const GET = withAuth(
         );
       }
 
-      // For ADMIN role, check if they created this employee
-      if (userRole === UserRole.ADMIN) {
+      // For ADMIN role, check if they created this employee (unless it's self-access)
+      if (userRole === UserRole.ADMIN && !isSelfAccess) {
         if (employee.createdById !== userId) {
           // Check if admin created any company user linked to this employee
           const employeeCompany = await prisma.user.findFirst({
@@ -91,7 +95,8 @@ export const GET = withAuth(
       );
     }
   },
-  [UserRole.ADMIN, UserRole.SUPERADMIN]
+  // Allow employees to access this endpoint
+  [UserRole.ADMIN, UserRole.SUPERADMIN, UserRole.EMPLOYEE]
 );
 
 // PUT endpoint to update operator permissions
