@@ -16,9 +16,12 @@ import {
   Button,
   Box,
   CircularProgress,
-  Alert
+  Alert,
+  TextField,
+  InputAdornment,
+  Grid
 } from "@mui/material";
-import { Add, Person } from "@mui/icons-material";
+import { Add, Person, Search } from "@mui/icons-material";
 import { UserRole } from "@/prisma/enums";
 
 interface Employee {
@@ -35,6 +38,8 @@ export default function EmployeesPage() {
   const router = useRouter();
   const { data: session } = useSession();
   const [employees, setEmployees] = useState<Employee[]>([]);
+  const [filteredEmployees, setFilteredEmployees] = useState<Employee[]>([]);
+  const [searchQuery, setSearchQuery] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -44,6 +49,22 @@ export default function EmployeesPage() {
       fetchEmployees();
     }
   }, [session]);
+
+  useEffect(() => {
+    // Filter employees based on search query
+    if (searchQuery.trim() === "") {
+      setFilteredEmployees(employees);
+    } else {
+      const query = searchQuery.toLowerCase();
+      const filtered = employees.filter(
+        (employee) =>
+          employee.name.toLowerCase().includes(query) ||
+          employee.email.toLowerCase().includes(query) ||
+          (employee.subrole || employee.role).toLowerCase().includes(query)
+      );
+      setFilteredEmployees(filtered);
+    }
+  }, [searchQuery, employees]);
 
   const fetchEmployees = async () => {
     setLoading(true);
@@ -63,6 +84,7 @@ export default function EmployeesPage() {
       
       const data = await response.json();
       setEmployees(data);
+      setFilteredEmployees(data);
       setError("");
     } catch (err) {
       console.error("Error fetching employees:", err);
@@ -74,6 +96,10 @@ export default function EmployeesPage() {
 
   const handleCreateEmployee = () => {
     router.push("/dashboard/employees/create");
+  };
+
+  const handleSearchChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    setSearchQuery(event.target.value);
   };
 
   if (!session) {
@@ -108,14 +134,31 @@ export default function EmployeesPage() {
         </Alert>
       )}
 
+      <Box mb={3}>
+        <TextField
+          fullWidth
+          variant="outlined"
+          placeholder="Search by name, email or role..."
+          value={searchQuery}
+          onChange={handleSearchChange}
+          InputProps={{
+            startAdornment: (
+              <InputAdornment position="start">
+                <Search />
+              </InputAdornment>
+            ),
+          }}
+        />
+      </Box>
+
       {loading ? (
         <Box display="flex" justifyContent="center" mt={4}>
           <CircularProgress />
         </Box>
-      ) : employees.length === 0 ? (
+      ) : filteredEmployees.length === 0 ? (
         <Paper sx={{ p: 3, textAlign: "center" }}>
           <Typography variant="body1">
-            No employees found.
+            {searchQuery ? "No employees match your search criteria." : "No employees found."}
           </Typography>
         </Paper>
       ) : (
@@ -132,7 +175,7 @@ export default function EmployeesPage() {
               </TableRow>
             </TableHead>
             <TableBody>
-              {employees.map((employee) => (
+              {filteredEmployees.map((employee) => (
                 <TableRow key={employee.id} hover>
                   <TableCell>{employee.name}</TableCell>
                   <TableCell>{employee.email}</TableCell>
