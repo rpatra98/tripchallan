@@ -349,14 +349,29 @@ export const POST = withAuth(
           userId: newUser.id,
           userRole: newUser.role,
           userEmail: newUser.email,
+          userName: newUser.name,
+          createdAt: new Date().toISOString(),
           // Include operator permissions in the activity log if this is an operator
           ...(body.subrole === EmployeeSubrole.OPERATOR && body.permissions 
             ? { 
                 subrole: body.subrole,
                 operatorPermissions: body.permissions 
               } 
-            : {})
+            : {}),
+          // Include company information if creating a COMPANY
+          ...(body.role === UserRole.COMPANY && newUser.company 
+            ? { 
+                companyId: newUser.company.id,
+                companyName: newUser.company.name
+              }
+            : {}),
+          // Summary text for better display
+          summaryText: `${body.role === UserRole.COMPANY ? 'Company' : 
+                        (body.role === UserRole.EMPLOYEE ? 
+                          (body.subrole === EmployeeSubrole.OPERATOR ? 'Operator' : 'Employee') : 
+                          body.role)} ${newUser.name} (${newUser.email})`
         },
+        targetUserId: newUser.id,
         targetResourceId: newUser.id,
         targetResourceType: "USER"
       });

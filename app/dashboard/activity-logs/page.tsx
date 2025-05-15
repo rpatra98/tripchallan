@@ -41,6 +41,8 @@ interface ActivityLog {
     userId?: string;
     userRole?: string;
     userEmail?: string;
+    userName?: string;
+    createdAt?: string;
     sessionId?: string;
     source?: string;
     destination?: string;
@@ -59,6 +61,10 @@ interface ActivityLog {
     };
     resultCount?: number;
     totalCount?: number;
+    summaryText?: string;
+    companyName?: string;
+    subrole?: string;
+    operatorPermissions?: Record<string, boolean>;
   };
   user: {
     id: string;
@@ -433,6 +439,43 @@ export default function ActivityLogsPage() {
     
     switch (log.targetResourceType) {
       case "USER":
+        // Check if this is a user creation log with our enhanced details
+        if (log.action === "CREATE" && details.summaryText) {
+          return (
+            <>
+              <Typography variant="body2" fontWeight="medium" color="primary.main">
+                Created: {details.summaryText}
+              </Typography>
+              
+              {details.userRole === "COMPANY" && details.companyName && (
+                <Typography variant="body2">
+                  Company: {details.companyName}
+                </Typography>
+              )}
+              
+              {details.userRole === "EMPLOYEE" && details.subrole && (
+                <Typography variant="body2">
+                  Role: {details.subrole}
+                </Typography>
+              )}
+              
+              {details.subrole === "OPERATOR" && details.operatorPermissions && (
+                <Typography variant="body2">
+                  Permissions: {Object.entries(details.operatorPermissions)
+                    .filter(([_, value]) => value === true)
+                    .map(([key]) => key.replace('can', ''))
+                    .join(', ')}
+                </Typography>
+              )}
+              
+              <Typography variant="body2" color="text.secondary">
+                Created at: {new Date(details.createdAt).toLocaleString()}
+              </Typography>
+            </>
+          );
+        }
+        
+        // Default USER display for other types of actions
         return (
           <>
             <Typography variant="body2">

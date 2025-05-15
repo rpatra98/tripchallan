@@ -107,8 +107,12 @@ async function handler(req: NextRequest) {
           select: { id: true }
         });
         
-        // Add only IDs of COMPANY and EMPLOYEE users they created (exclude self)
+        // Add IDs of COMPANY and EMPLOYEE users they created
         userIds.push(...createdUsers.map((user: { id: string }) => user.id));
+        
+        // Important: Include the ADMIN's own ID to see their activities too
+        // This lets admins see when they create users
+        userIds.push(session.user.id);
       }
     }
     // COMPANY can see activity for their employees
@@ -276,6 +280,30 @@ async function handler(req: NextRequest) {
         };
       } else {
         customWhere = excludeSelfLoginFilter;
+      }
+      
+      // Add a special case for ADMIN to see their own CREATE activities
+      if (session.user.role === UserRole.ADMIN) {
+        // If no custom where clause exists yet, create one
+        if (!customWhere) {
+          customWhere = {};
+        }
+
+        // If userIds doesn't include admin's ID yet (e.g., for specific userId requests)
+        // Modify the custom where to include the admin's CREATE activities
+        if (!userIds.includes(session.user.id)) {
+          customWhere = {
+            OR: [
+              customWhere,
+              {
+                AND: [
+                  { userId: session.user.id },
+                  { action: ActivityAction.CREATE }
+                ]
+              }
+            ]
+          };
+        }
       }
       
       result = await getActivityLogs({
