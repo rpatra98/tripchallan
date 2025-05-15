@@ -41,12 +41,29 @@ export function formatDate(date: Date | string): string {
   const now = new Date();
   const diffInHours = (now.getTime() - d.getTime()) / (1000 * 60 * 60);
   
+  // Format the time with seconds and AM/PM
+  const timeFormat = { 
+    hour: 'numeric' as const, 
+    minute: 'numeric' as const, 
+    second: 'numeric' as const, 
+    hour12: true 
+  };
+  
   if (diffInHours < 24) {
-    return `Today at ${d.toLocaleTimeString()}`;
+    return `Today at ${d.toLocaleTimeString(undefined, timeFormat)}`;
   } else if (diffInHours < 48) {
-    return `Yesterday at ${d.toLocaleTimeString()}`;
+    return `Yesterday at ${d.toLocaleTimeString(undefined, timeFormat)}`;
   } else {
-    return `${d.toLocaleDateString()} at ${d.toLocaleTimeString()}`;
+    // Format: Month Day, Year h:mm:ss AM/PM
+    return d.toLocaleString(undefined, {
+      year: 'numeric' as const,
+      month: 'short' as const,
+      day: 'numeric' as const,
+      hour: 'numeric' as const,
+      minute: 'numeric' as const,
+      second: 'numeric' as const,
+      hour12: true
+    });
   }
 }
 

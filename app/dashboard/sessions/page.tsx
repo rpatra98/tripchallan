@@ -91,7 +91,7 @@ export default function SessionsPage() {
   }, [fetchSessions]);
 
   const formatDate = (dateString: string) => {
-    return format(new Date(dateString), "MMM d, yyyy");
+    return format(new Date(dateString), "MMM d, yyyy h:mm:ss a");
   };
 
   const handleViewDetails = (sessionId: string) => {

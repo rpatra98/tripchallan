@@ -397,7 +397,15 @@ export default function ActivityLogsPage() {
   const formatDate = (dateString: string) => {
     try {
       const date = new Date(dateString);
-      return date.toLocaleString();
+      return date.toLocaleString(undefined, {
+      year: numeric,
+      month: short,
+      day: numeric,
+      hour: numeric,
+      minute: numeric,
+      second: numeric,
+      hour12: true
+    });
     } catch (err) {
       return dateString;
     }
