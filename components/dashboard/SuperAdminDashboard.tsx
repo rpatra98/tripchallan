@@ -308,7 +308,7 @@ export default function SuperAdminDashboard({ user: initialUser }: SuperAdminDas
                   <div>
                     <h4 className="font-medium mb-2">Your Coin Balance</h4>
                     <p className="text-3xl font-bold text-yellow-600">
-                      {session?.user?.coins !== undefined ? session.user.coins : currentUser.coins} Coins
+                      {session?.user?.coins} Coins
                     </p>
                   </div>
                   <Button 
@@ -335,7 +335,7 @@ export default function SuperAdminDashboard({ user: initialUser }: SuperAdminDas
                 <div>
                   <h4 className="font-medium mb-2">Transfer Coins to Admins</h4>
                   <SuperAdminTransferCoinsForm 
-                    currentBalance={session?.user?.coins || currentUser.coins} 
+                    currentBalance={session?.user?.coins || 0} 
                     onSuccess={handleTransferSuccess} 
                   />
                 </div>
