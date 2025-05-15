@@ -15,22 +15,17 @@ import {
   Typography,
   Paper,
   Chip,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
   Box,
   CircularProgress,
   Alert
 } from "@mui/material";
-import { ArrowLeft, Plus, Trash2 } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Eye } from "lucide-react";
 import { format } from "date-fns";
 import toast from "react-hot-toast";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
 import { UserRole, EmployeeSubrole } from "@/prisma/enums";
+import { SearchableTable } from "@/components/ui/searchable-table";
 
 interface Session {
   id: string;
@@ -137,6 +132,74 @@ export default function SessionsPage() {
   const isOperator = sessionData?.user?.role === UserRole.EMPLOYEE && 
                      sessionData?.user?.subrole === EmployeeSubrole.OPERATOR;
 
+  // Define table columns
+  const columns = [
+    {
+      accessorKey: "id",
+      header: "ID",
+      cell: ({ row }: { row: any }) => (
+        <span>{row.id.substring(0, 8)}...</span>
+      ),
+      searchable: true,
+    },
+    {
+      accessorKey: "source",
+      header: "Source",
+      searchable: true,
+    },
+    {
+      accessorKey: "destination",
+      header: "Destination",
+      searchable: true,
+    },
+    {
+      accessorKey: "company.name",
+      header: "Company",
+      searchable: true,
+    },
+    {
+      accessorKey: "createdBy.name",
+      header: "Created By",
+      searchable: true,
+    },
+    {
+      accessorKey: "status",
+      header: "Status",
+      cell: ({ row }: { row: any }) => (
+        <Chip 
+          label={row.status} 
+          color={row.status === "COMPLETED" ? "success" : "warning"}
+          size="small"
+          variant="outlined"
+        />
+      ),
+      searchable: true,
+    },
+    {
+      accessorKey: "createdAt",
+      header: "Created On",
+      cell: ({ row }: { row: any }) => (
+        <span>{formatDate(row.createdAt)}</span>
+      ),
+      searchable: true,
+    },
+    {
+      accessorKey: "actions",
+      header: "Actions",
+      cell: ({ row }: { row: any }) => (
+        <Button
+          component={Link}
+          href={`/dashboard/sessions/${row.id}`}
+          size="small"
+          variant="outlined"
+        >
+          View Details
+        </Button>
+      ),
+      searchable: false,
+    },
+  ];
+
   if (loading) {
     return (
       <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
@@ -178,60 +241,9 @@ export default function SessionsPage() {
         )}
       </div>
 
-      <TableContainer component={Paper}>
-        <Table>
-          <TableHead>
-            <TableRow>
-              <TableCell>ID</TableCell>
-              <TableCell>Source</TableCell>
-              <TableCell>Destination</TableCell>
-              <TableCell>Company</TableCell>
-              <TableCell>Created By</TableCell>
-              <TableCell>Status</TableCell>
-              <TableCell>Created On</TableCell>
-              <TableCell align="right">Actions</TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {sessions.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={8} align="center">
-                  No sessions found
-                </TableCell>
-              </TableRow>
-            ) : (
-              sessions.map((session) => (
-                <TableRow key={session.id}>
-                  <TableCell>{session.id.substring(0, 8)}...</TableCell>
-                  <TableCell>{session.source}</TableCell>
-                  <TableCell>{session.destination}</TableCell>
-                  <TableCell>{session.company.name}</TableCell>
-                  <TableCell>{session.createdBy.name}</TableCell>
-                  <TableCell>
-                    <Chip 
-                      label={session.status} 
-                      color={session.status === "COMPLETED" ? "success" : "warning"}
-                      size="small"
-                      variant="outlined"
-                    />
-                  </TableCell>
-                  <TableCell>{formatDate(session.createdAt)}</TableCell>
-                  <TableCell align="right">
-                    <Button
-                      component={Link}
-                      href={`/dashboard/sessions/${session.id}`}
-                      size="small"
-                      variant="outlined"
-                    >
-                      View Details
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
-      </TableContainer>
+      <Paper>
+        <SearchableTable columns={columns} data={sessions} />
+      </Paper>
     </div>
   );
 } 
