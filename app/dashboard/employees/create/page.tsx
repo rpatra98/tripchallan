@@ -186,6 +186,10 @@ export default function CreateEmployeePage() {
         });
         const userData = await userResponse.json();
         
+        // Store current coin balance in localStorage to retrieve after redirect
+        localStorage.setItem('lastCoinBalance', userData.coins.toString());
+        localStorage.setItem('coinBalanceUpdatedAt', Date.now().toString());
+        
         // Force global session update with the latest coin data
         if (session && session.user) {
           // Update the session context explicitly

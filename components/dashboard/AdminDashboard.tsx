@@ -214,30 +214,40 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
     await fetchCurrentUser();
   };
 
-  // Add useEffect hook to refresh coin balance when dashboard is loaded
+  // Use a more aggressive refresh strategy for coin balance
   useEffect(() => {
+    // Initial load
     fetchCurrentUser();
-    // Refresh coin balance every time component mounts
-  }, []);
-
-  // More aggressive refresh strategy
-  useEffect(() => {
-    const refreshCoins = async () => {
-      await fetchCurrentUser();
-    };
-
-    // Set up refreshing on visibility change (tab focus)
+    
+    // Set up refresh on visibility change (tab focus)
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
-        refreshCoins();
+        fetchCurrentUser();
       }
     };
-
+    
+    // Set up refresh on storage event (for cross-tab synchronization)
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'coinBalanceUpdatedAt') {
+        fetchCurrentUser();
+      }
+    };
+    
     document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('storage', handleStorageChange);
+    
+    // Refresh every 30 seconds while page is visible
+    const intervalId = setInterval(() => {
+      if (document.visibilityState === 'visible') {
+        fetchCurrentUser();
+      }
+    }, 30000);
     
     // Cleanup
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('storage', handleStorageChange);
+      clearInterval(intervalId);
     };
   }, []);
 

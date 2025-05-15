@@ -61,6 +61,42 @@ export default function DashboardLayout({
     setCurrentPath(window.location.pathname);
   }, []);
 
+  // Effect to check localStorage for recent coin balance updates
+  useEffect(() => {
+    const checkLocalCoinBalance = () => {
+      try {
+        const lastCoinBalance = localStorage.getItem('lastCoinBalance');
+        const updatedAt = localStorage.getItem('coinBalanceUpdatedAt');
+        
+        if (lastCoinBalance && updatedAt) {
+          // Only use localStorage value if it's less than 10 seconds old
+          const updateTime = parseInt(updatedAt);
+          const now = Date.now();
+          const secondsSinceUpdate = (now - updateTime) / 1000;
+          
+          if (secondsSinceUpdate < 10) {
+            console.log('Using recent coin balance from localStorage:', lastCoinBalance);
+            setCurrentCoinBalance(parseInt(lastCoinBalance));
+            setLastBalanceUpdate(now);
+            
+            // Clear localStorage after using it
+            setTimeout(() => {
+              localStorage.removeItem('lastCoinBalance');
+              localStorage.removeItem('coinBalanceUpdatedAt');
+            }, 1000);
+            
+            // Force refresh session data as well
+            refreshUserSession();
+          }
+        }
+      } catch (error) {
+        console.error('Error checking localStorage for coin balance:', error);
+      }
+    };
+    
+    checkLocalCoinBalance();
+  }, []);
+
   // Effect to initialize coin balance from session
   useEffect(() => {
     if (session?.user?.coins !== undefined) {
