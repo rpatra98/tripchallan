@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useSession } from "next-auth/react";
 import { UserRole, ActivityAction } from "@/prisma/enums";
+
 import {
   DataTable,
   Card,
@@ -16,8 +17,19 @@ import {
   SelectValue,
   Input,
   DatePicker,
-  SearchableTable,
 } from "@/components/ui";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  TablePagination,
+  IconButton
+} from "@mui/material";
+import KeyboardArrowLeft from "@mui/icons-material/KeyboardArrowLeft";
+import KeyboardArrowRight from "@mui/icons-material/KeyboardArrowRight";
 import { 
   ArrowLeft, 
   Smartphone, 
@@ -127,194 +139,6 @@ type RowProps = {
     original: ActivityLogRow;
   };
 };
-
-// Column definition for the activity logs table
-const columns = [
-  {
-    accessorKey: "user",
-    header: "User",
-    searchable: true,
-    cell: ({ row }: RowProps) => {
-      try {
-        const userData = row?.original?.user;
-        if (!userData) return <span>-</span>;
-        
-        return (
-          <div className="flex flex-col">
-            <span className="font-medium">{userData.name || 'Unknown'}</span>
-            <span className="text-xs text-muted-foreground">{userData.email || 'No email'}</span>
-          </div>
-        );
-      } catch (err) {
-        console.error("Error rendering User column:", err);
-        return <span>-</span>;
-      }
-    },
-  },
-  {
-    accessorKey: "action",
-    header: "Action",
-    searchable: true,
-    cell: ({ row }: RowProps) => {
-      try {
-        const action = row?.original?.action;
-        const details = row?.original?.details;
-        const userAgent = row?.original?.userAgent;
-        
-        if (!action) return <span>-</span>;
-        
-        return (
-          <div className="flex items-center gap-2">
-            {/* Highlight login/logout actions with a colored badge */}
-            {action === "LOGIN" || action === "LOGOUT" ? (
-              <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
-                action === "LOGIN" ? "bg-green-100 text-green-800" : "bg-orange-100 text-orange-800"
-              }`}>
-                {action.toLowerCase()}
-              </span>
-            ) : (
-              <span className="capitalize">{action.toLowerCase().replace(/_/g, ' ')}</span>
-            )}
-            
-            {/* Display device icon for login/logout events */}
-            {(action === "LOGIN" || action === "LOGOUT") && userAgent && (
-              <div className="ml-2" title={`${action} from ${detectDevice(userAgent).type} device`}>
-                {detectDevice(userAgent).isMobile ? (
-                  <Smartphone className="h-4 w-4 text-muted-foreground" />
-                ) : (
-                  <Monitor className="h-4 w-4 text-muted-foreground" />
-                )}
-              </div>
-            )}
-          </div>
-        );
-      } catch (err) {
-        console.error("Error rendering Action column:", err);
-        return <span>-</span>;
-      }
-    },
-  },
-  {
-    accessorKey: "details",
-    header: "Details",
-    searchable: true,
-    cell: ({ row }: RowProps) => {
-      try {
-        const details = row?.original?.details;
-        const action = row?.original?.action;
-        if (!details) return <span>-</span>;
-        
-        // For login/logout events, show device info
-        if (action === "LOGIN" || action === "LOGOUT") {
-          const deviceType = details.device || "unknown";
-          return (
-            <div className="flex flex-col">
-              <span className="text-sm whitespace-normal break-words max-w-sm">
-                {action === "LOGIN" ? "Logged in from" : "Logged out from"} {deviceType} device
-              </span>
-              {details.reasonText && (
-                <span className="text-xs text-muted-foreground">
-                  {details.reasonText}
-                </span>
-              )}
-            </div>
-          );
-        }
-        
-        // For transfer events, show recipient and amount
-        if (action === "TRANSFER") {
-          return (
-            <div className="flex flex-col">
-              <span className="text-sm whitespace-normal break-words max-w-sm">
-                Transferred {details.amount} coins to {details.recipientName || "user"}
-              </span>
-              {details.reasonText && (
-                <span className="text-xs text-muted-foreground">
-                  Reason: {details.reasonText}
-                </span>
-              )}
-            </div>
-          );
-        }
-        
-        // For other actions with structured details, convert to readable format
-        if (typeof details === 'object') {
-          // Convert object to readable string, excluding certain technical fields
-          const excludeKeys = ['deviceDetails', 'userAgent'];
-          const detailsText = Object.entries(details)
-            .filter(([key]) => !excludeKeys.includes(key))
-            .map(([key, value]) => {
-              // Skip nested objects
-              if (typeof value === 'object' && value !== null) {
-                return `${key}: [object]`;
-              }
-              return `${key}: ${String(value)}`;
-            })
-            .join(', ');
-          
-          return (
-            <div className="flex flex-col">
-              <span className="text-sm whitespace-normal break-words max-w-sm">
-                {detailsText}
-              </span>
-            </div>
-          );
-        }
-        
-        // Default fallback for string or primitive details
-        return (
-          <div className="flex flex-col">
-            <span className="text-sm whitespace-normal break-words max-w-sm">
-              {String(details)}
-            </span>
-          </div>
-        );
-      } catch (err) {
-        console.error("Error rendering Details column:", err);
-        return <span>-</span>;
-      }
-    },
-  },
-  {
-    accessorKey: "targetUser",
-    header: "Target User",
-    searchable: true,
-    cell: ({ row }: RowProps) => {
-      try {
-        const targetUser = row?.original?.targetUser;
-        if (!targetUser) return <span>-</span>;
-        
-        return (
-          <div className="flex flex-col">
-            <span className="font-medium">{targetUser.name || 'Unknown'}</span>
-            <span className="text-xs text-muted-foreground">{targetUser.email || 'No email'}</span>
-          </div>
-        );
-      } catch (err) {
-        console.error("Error rendering Target User column:", err);
-        return <span>-</span>;
-      }
-    },
-  },
-  {
-    accessorKey: "createdAt",
-    header: "Time",
-    searchable: true,
-    cell: ({ row }: RowProps) => {
-      try {
-        if (!row?.original) return <span>-</span>;
-        
-        const createdAt = row.original.createdAt;
-        if (!createdAt) return <span>-</span>;
-        
-        return <span>{formatDate(createdAt)}</span>;
-      } catch (err) {
-        console.error("Error rendering Time column:", err);
-        return <span>-</span>;
-      }
-    },
-  },
-];
 
 export default function ActivityLogsPage() {
   const { data: session } = useSession();
@@ -563,16 +387,141 @@ export default function ActivityLogsPage() {
       ) : (
         <Card>
           <CardContent>
-            <SearchableTable 
-              columns={columns} 
-              data={tableData}
-              pagination={{
-                pageIndex: page - 1,
-                pageSize: 10,
-                pageCount: totalPages,
-                onPageChange: (newPage) => setPage(newPage + 1),
-                onPageSizeChange: () => {}
-              }}
+            <TableContainer>
+              <Table>
+                <TableHead>
+                  <TableRow>
+                    <TableCell>User</TableCell>
+                    <TableCell>Action</TableCell>
+                    <TableCell>Details</TableCell>
+                    <TableCell>Target User</TableCell>
+                    <TableCell>Time</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {tableData.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={5} align="center">
+                        No logs available
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    tableData.map((log) => (
+                      <TableRow key={log.id}>
+                        <TableCell>
+                          <div>
+                            <span className="font-medium">{log.user.name}</span>
+                            <br />
+                            <span className="text-xs text-muted-foreground">{log.user.email}</span>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            {log.action === "LOGIN" || log.action === "LOGOUT" ? (
+                              <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                                log.action === "LOGIN" ? "bg-green-100 text-green-800" : "bg-orange-100 text-orange-800"
+                              }`}>
+                                {log.action.toLowerCase()}
+                              </span>
+                            ) : (
+                              <span className="capitalize">{log.action.toLowerCase().replace(/_/g, ' ')}</span>
+                            )}
+
+                            {(log.action === "LOGIN" || log.action === "LOGOUT") && log.userAgent && (
+                              <div title={`${log.action} from ${detectDevice(log.userAgent).type} device`}>
+                                {detectDevice(log.userAgent).isMobile ? (
+                                  <Smartphone className="h-4 w-4 text-muted-foreground" />
+                                ) : (
+                                  <Monitor className="h-4 w-4 text-muted-foreground" />
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          {(() => {
+                            // For login/logout events, show device info
+                            if (log.action === "LOGIN" || log.action === "LOGOUT") {
+                              const deviceType = log.details.device || "unknown";
+                              return (
+                                <div>
+                                  <span>
+                                    {log.action === "LOGIN" ? "Logged in from" : "Logged out from"} {deviceType} device
+                                  </span>
+                                  {log.details.reasonText && (
+                                    <div className="text-xs text-muted-foreground">
+                                      {log.details.reasonText}
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            }
+
+                            // For transfer events, show recipient and amount
+                            if (log.action === "TRANSFER") {
+                              return (
+                                <div>
+                                  <span>
+                                    Transferred {log.details.amount} coins to {log.details.recipientName || "user"}
+                                  </span>
+                                  {log.details.reasonText && (
+                                    <div className="text-xs text-muted-foreground">
+                                      Reason: {log.details.reasonText}
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            }
+
+                            // For other actions with structured details, convert to readable format
+                            if (typeof log.details === 'object') {
+                              // Convert object to readable string, excluding certain technical fields
+                              const excludeKeys = ['deviceDetails', 'userAgent'];
+                              const detailsText = Object.entries(log.details)
+                                .filter(([key]) => !excludeKeys.includes(key))
+                                .map(([key, value]) => {
+                                  // Skip nested objects
+                                  if (typeof value === 'object' && value !== null) {
+                                    return `${key}: [object]`;
+                                  }
+                                  return `${key}: ${String(value)}`;
+                                })
+                                .join(', ');
+
+                              return <span>{detailsText}</span>;
+                            }
+
+                            // Default fallback for string or primitive details
+                            return <span>{String(log.details)}</span>;
+                          })()}
+                        </TableCell>
+                        <TableCell>
+                          {log.targetUser ? (
+                            <div>
+                              <span className="font-medium">{log.targetUser.name}</span>
+                              <br />
+                              <span className="text-xs text-muted-foreground">{log.targetUser.email}</span>
+                            </div>
+                          ) : (
+                            "-"
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {formatDate(log.createdAt)}
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </TableContainer>
+            <TablePagination
+              component="div"
+              count={totalPages * 10} // Approximate total count based on page count
+              page={page - 1}
+              onPageChange={(_, newPage) => setPage(newPage + 1)}
+              rowsPerPage={10}
+              rowsPerPageOptions={[10]}
             />
           </CardContent>
         </Card>
@@ -580,4 +529,6 @@ export default function ActivityLogsPage() {
     </Box>
   );
 }
+
+
 
