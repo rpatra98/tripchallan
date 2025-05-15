@@ -47,23 +47,63 @@ import { formatDate, detectDevice } from '@/lib/utils';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { LocalizationProvider, DatePicker } from '@mui/x-date-pickers';
 import { format } from 'date-fns';
-import { 
-  ActivityLog, 
-  ActivityLogDetails, 
-  ActivityLogRow,
-  FilterOptions 
-} from './types';
-import useTransformLogs, { extractFilterOptions } from './effect-transform';
+
+// Simple TypeScript interfaces
+interface User {
+  id?: string;
+  name?: string;
+  email?: string;
+  role?: string;
+}
+
+interface ActivityDetails {
+  [key: string]: any;
+}
+
+interface ActivityLog {
+  id: string;
+  action: string;
+  targetResourceType?: string;
+  targetResourceId?: string;
+  userId: string;
+  createdAt: string;
+  userAgent?: string;
+  targetUser?: User;
+  user?: User;
+  details?: ActivityDetails;
+}
+
+interface ActivityLogRow {
+  id: string;
+  user: {
+    name: string;
+    email: string;
+  };
+  action: string;
+  details: ActivityDetails;
+  targetUser?: {
+    name: string;
+    email: string;
+  };
+  createdAt: string;
+  userAgent?: string;
+  targetResourceType?: string;
+}
+
+interface FilterOptions {
+  action: string;
+  startDate: Date | null;
+  endDate: Date | null;
+  user: string;
+  resourceType: string;
+}
 
 // Main component
 export default function ActivityLogsPage() {
   const router = useRouter();
   const { data: session, status } = useSession();
   const [logs, setLogs] = useState<ActivityLog[]>([]);
-  
-  // Use our custom transform hook to handle log data transformation
-  const { tableData } = useTransformLogs(logs);
-  
+  const [tableData, setTableData] = useState<ActivityLogRow[]>([]);
   const [filteredData, setFilteredData] = useState<ActivityLogRow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
@@ -82,19 +122,6 @@ export default function ActivityLogsPage() {
     resourceType: ''
   });
   const [activeFilters, setActiveFilters] = useState<string[]>([]);
-
-  // Extract filter options when tableData changes
-  useEffect(() => {
-    if (tableData.length > 0) {
-      const { actions, users, resourceTypes } = extractFilterOptions(tableData);
-      setAvailableActions(actions);
-      setAvailableUsers(users);
-      setAvailableResourceTypes(resourceTypes);
-      setFilteredData(tableData);
-    } else {
-      setFilteredData([]);
-    }
-  }, [tableData]);
 
   // Fetch activity logs with robust error handling
   const fetchActivityLogs = useCallback(async (pageNum: number, useDebugMode = false) => {
@@ -192,6 +219,69 @@ export default function ActivityLogsPage() {
     }
   }, [fetchActivityLogs]);
 
+  // Transform API data to table format safely
+  useEffect(() => {
+    console.log('Transform effect running. Logs count:', logs?.length);
+    
+    if (!logs || !Array.isArray(logs) || logs.length === 0) {
+      console.log('No logs to transform');
+      setTableData([]);
+      return;
+    }
+    
+    try {
+      const formattedData = logs.map(log => {
+        try {
+          return {
+            id: log.id || `unknown-${Math.random()}`,
+            user: {
+              name: log.user?.name || 'Unknown User',
+              email: log.user?.email || 'No email'
+            },
+            action: log.action || 'UNKNOWN',
+            details: log.details || {},
+            targetUser: log.targetUser ? {
+              name: log.targetUser.name || 'Unknown',
+              email: log.targetUser.email || 'No email'
+            } : undefined,
+            createdAt: log.createdAt || new Date().toISOString(),
+            userAgent: log.userAgent || undefined,
+            targetResourceType: log.targetResourceType || 'UNKNOWN'
+          };
+        } catch (err) {
+          console.error('Error processing log item:', err, log);
+          return null;
+        }
+      }).filter(Boolean) as ActivityLogRow[];
+      
+      console.log('Transformed data:', formattedData.length, 'items');
+      setTableData(formattedData);
+      setFilteredData(formattedData);
+      
+      // Extract available filter options
+      const actions = Array.from(new Set(formattedData.map(item => item.action)));
+      const users = formattedData.reduce((acc, item) => {
+        const userKey = `${item.user.email}`;
+        if (!acc.some(u => u.email === item.user.email)) {
+          acc.push(item.user);
+        }
+        return acc;
+      }, [] as {name: string, email: string}[]);
+      const resourceTypes = Array.from(new Set(formattedData
+        .map(item => item.targetResourceType)
+        .filter(Boolean) as string[]
+      ));
+      
+      setAvailableActions(actions);
+      setAvailableUsers(users);
+      setAvailableResourceTypes(resourceTypes);
+    } catch (error) {
+      console.error('Error transforming logs:', error);
+      setTableData([]);
+      setFilteredData([]);
+    }
+  }, [logs]);
+
   // Apply filters effect
   useEffect(() => {
     if (tableData.length === 0) return;
@@ -264,7 +354,7 @@ export default function ActivityLogsPage() {
   };
 
   // Render device icon
-  const renderDeviceIcon = (details?: ActivityLogDetails, userAgent?: string) => {
+  const renderDeviceIcon = (details?: ActivityDetails, userAgent?: string) => {
     const device = details?.device || detectDevice(userAgent || '');
     if (device === 'mobile') {
       return <Smartphone size={16} />;
@@ -346,7 +436,7 @@ export default function ActivityLogsPage() {
           <Alert severity="info" sx={{ mb: 2 }}>
             <Typography variant="body2">
               If you don't see any activity logs, use the "Create Test Logs" button to create sample data.
-              Then use "Debug Mode" to view logs regardless of permissions.
+              Then use "Show Guaranteed Data" to view logs regardless of permissions.
             </Typography>
           </Alert>
         )}

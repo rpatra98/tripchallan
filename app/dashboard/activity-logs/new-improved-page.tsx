@@ -346,7 +346,7 @@ export default function ActivityLogsPage() {
           <Alert severity="info" sx={{ mb: 2 }}>
             <Typography variant="body2">
               If you don't see any activity logs, use the "Create Test Logs" button to create sample data.
-              Then use "Debug Mode" to view logs regardless of permissions.
+              Then use "Show Guaranteed Data" to view logs regardless of permissions.
             </Typography>
           </Alert>
         )}

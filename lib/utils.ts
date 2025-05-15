@@ -1,5 +1,6 @@
 import { type ClassValue, clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
+import { format as fnsFormat } from "date-fns";
 
 /**
  * Combines class names using clsx and tailwind-merge
@@ -21,23 +22,25 @@ export function detectDevice(userAgent: string = "") {
   const ua = userAgent.toLowerCase();
   const isMobile = /mobile|android|iphone|ipad|ipod|blackberry|windows phone/i.test(ua);
   
-  return {
-    type: isMobile ? "mobile" : "desktop",
-    isMobile,
-    isDesktop: !isMobile,
-    userAgent
-  };
+  return isMobile ? "mobile" : "desktop";
 }
 
 /**
  * Formats a date for display
  * @param date The date to format
+ * @param formatStr Optional format string for date-fns
  * @returns Formatted date string
  */
-export function formatDate(date: Date | string): string {
+export function formatDate(date: Date | string, formatStr?: string): string {
   if (!date) return '';
   
   const d = new Date(date);
+  
+  // If format string is provided, use date-fns formatting
+  if (formatStr) {
+    return fnsFormat(d, formatStr);
+  }
+  
   const now = new Date();
   const diffInHours = (now.getTime() - d.getTime()) / (1000 * 60 * 60);
   
