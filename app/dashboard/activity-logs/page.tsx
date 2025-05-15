@@ -122,15 +122,6 @@ type ActivityLogRow = {
   userAgent?: string;
   targetResourceType?: string;  // Added this to fix TypeScript errors
 };
-  action: string;
-  details: ActivityLogDetails;
-  targetUser?: {
-    name: string;
-    email: string;
-  };
-  createdAt: string;
-  userAgent?: string;
-};
 
 type RowProps = {
   row: {
@@ -581,30 +572,6 @@ export default function ActivityLogsPage() {
               pagination={{
                 pageIndex: page - 1,
                 pageSize: 10,
-                pageCount: totalPages,
-                onPageChange: (newPage) => setPage(newPage + 1),
-                onPageSizeChange: () => {}
-              }}
-            />
-          </CardContent>
-        </Card>
-      )}
-    </Box>
-      ) : error ? (
-        <Box sx={{ p: 3 }}>
-          <Alert severity="error">{error}</Alert>
-        </Box>
-      ) : logs.length === 0 ? (
-        <Alert severity="info">No activity logs found</Alert>
-      ) : (
-        <Card>
-          <CardContent>
-            <SearchableTable 
-              columns={columns} 
-              data={tableData}
-              pagination={{
-                pageIndex: page - 1,
-                pageSize: 10, 
                 pageCount: totalPages,
                 onPageChange: (newPage) => setPage(newPage + 1),
                 onPageSizeChange: () => {}
