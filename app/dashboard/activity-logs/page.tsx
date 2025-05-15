@@ -51,15 +51,19 @@ import {
   ActivityLog, 
   ActivityLogDetails, 
   ActivityLogRow,
-  FilterOptions
+  FilterOptions 
 } from './types';
+import useTransformLogs, { extractFilterOptions } from './effect-transform';
 
 // Main component
 export default function ActivityLogsPage() {
   const router = useRouter();
   const { data: session, status } = useSession();
   const [logs, setLogs] = useState<ActivityLog[]>([]);
-  const [tableData, setTableData] = useState<ActivityLogRow[]>([]);
+  
+  // Use our custom transform hook to handle log data transformation
+  const { tableData } = useTransformLogs(logs);
+  
   const [filteredData, setFilteredData] = useState<ActivityLogRow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
@@ -78,6 +82,19 @@ export default function ActivityLogsPage() {
     resourceType: ''
   });
   const [activeFilters, setActiveFilters] = useState<string[]>([]);
+
+  // Extract filter options when tableData changes
+  useEffect(() => {
+    if (tableData.length > 0) {
+      const { actions, users, resourceTypes } = extractFilterOptions(tableData);
+      setAvailableActions(actions);
+      setAvailableUsers(users);
+      setAvailableResourceTypes(resourceTypes);
+      setFilteredData(tableData);
+    } else {
+      setFilteredData([]);
+    }
+  }, [tableData]);
 
   // Fetch activity logs with robust error handling
   const fetchActivityLogs = useCallback(async (pageNum: number, useDebugMode = false) => {
@@ -174,69 +191,6 @@ export default function ActivityLogsPage() {
       setIsLoading(false);
     }
   }, [fetchActivityLogs]);
-
-  // Transform API data to table format safely
-  useEffect(() => {
-    console.log('Transform effect running. Logs count:', logs?.length);
-    
-    if (!logs || !Array.isArray(logs) || logs.length === 0) {
-      console.log('No logs to transform');
-      setTableData([]);
-      return;
-    }
-    
-    try {
-      const formattedData = logs.map(log => {
-        try {
-          return {
-            id: log.id || `unknown-${Math.random()}`,
-            user: {
-              name: log.user?.name || 'Unknown User',
-              email: log.user?.email || 'No email'
-            },
-            action: log.action || 'UNKNOWN',
-            details: log.details || {},
-            targetUser: log.targetUser ? {
-              name: log.targetUser.name || 'Unknown',
-              email: log.targetUser.email || 'No email'
-            } : undefined,
-            createdAt: log.createdAt || new Date().toISOString(),
-            userAgent: log.userAgent || undefined,
-            targetResourceType: log.targetResourceType || 'UNKNOWN'
-          };
-        } catch (err) {
-          console.error('Error processing log item:', err, log);
-          return null;
-        }
-      }).filter(Boolean) as ActivityLogRow[];
-      
-      console.log('Transformed data:', formattedData.length, 'items');
-      setTableData(formattedData);
-      setFilteredData(formattedData);
-      
-      // Extract available filter options
-      const actions = Array.from(new Set(formattedData.map(item => item.action)));
-      const users = formattedData.reduce((acc, item) => {
-        const userKey = `${item.user.email}`;
-        if (!acc.some(u => u.email === item.user.email)) {
-          acc.push(item.user);
-        }
-        return acc;
-      }, [] as {name: string, email: string}[]);
-      const resourceTypes = Array.from(new Set(formattedData
-        .map(item => item.targetResourceType)
-        .filter(Boolean) as string[]
-      ));
-      
-      setAvailableActions(actions);
-      setAvailableUsers(users);
-      setAvailableResourceTypes(resourceTypes);
-    } catch (error) {
-      console.error('Error transforming logs:', error);
-      setTableData([]);
-      setFilteredData([]);
-    }
-  }, [logs]);
 
   // Apply filters effect
   useEffect(() => {
