@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
-import { authOptions } from "@/app/api/auth/[...nextauth]/route";
+import { authOptions } from "@/lib/auth-options";
 import { prisma } from "@/lib/prisma";
-import { logActivity } from "@/lib/activity-logger";
-import { UserRole, EmployeeSubrole } from "@/prisma/enums";
+import { addActivityLog } from "@/lib/activity-logger";
+import { UserRole, EmployeeSubrole, ActivityAction } from "@/prisma/enums";
 
 export async function PUT(
   request: NextRequest,
@@ -94,8 +94,8 @@ export async function PUT(
     });
     
     // Log activity
-    await logActivity({
-      action: "UPDATE_SESSION",
+    await addActivityLog({
+      action: ActivityAction.UPDATE,
       userId: userId,
       targetResourceId: sessionId,
       targetResourceType: "SESSION",
