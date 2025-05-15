@@ -15,13 +15,13 @@ import {
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { detectDevice, formatDate } from "@/lib/utils";
-import { Box, Typography, Paper, CircularProgress, Alert , Button } from "@mui/material";
+import { Box, Typography, Card, CardContent, Paper, CircularProgress, Alert , Button , Button } from "@mui/material";
 import { z } from "zod";
 
 interface ActivityLog {
   id: string;
   action: string;
-  targetResourceType: string;
+  targetResourceType?: string;
   targetResourceId: string;
   userId: string;
   createdAt: string;
@@ -95,13 +95,13 @@ const ActivityLogDetailsSchema = z.record(z.unknown()).optional().nullable();
 const ActivityLogSchema = z.object({
   id: z.string(),
   action: z.string(),
-  targetResourceType: z.string().nullable().optional(),
+  targetResourceType: z.string().nullable().optional().nullable().optional(),
   targetResourceId: z.string().nullable().optional(),
   userId: z.string(),
   createdAt: z.string().or(z.date()),
   userAgent: z.string().nullable().optional(),
   details: ActivityLogDetailsSchema,
-  user: UserSchema.nullable().optional(),
+  user: UserSchema.nullable().optional().nullable().optional(),
   targetUser: UserSchema.nullable().optional()
 });
 
@@ -589,7 +589,7 @@ export default function ActivityLogsPage() {
     <Box sx={{ p: 3 }}>
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mb: 4 }}>
         {/* Debug message for SUPERADMIN */}
-        {session?.user?.role === "SUPERADMIN" && (
+        {session?.user.role === "SUPERADMIN" && (
           <Alert severity="info" sx={{ mb: 2 }}>
             <Typography variant="body2">
               If you don't see any activity logs, use the "Force Create Test Logs" button to create sample data.
@@ -603,7 +603,7 @@ export default function ActivityLogsPage() {
           Activity Logs
         </Typography>
         
-        {session?.user?.role === "SUPERADMIN" && (
+        {session?.user.role === "SUPERADMIN" && (
           <Box sx={{ display: 'flex', gap: 2 }}>
             <Button
               variant="outlined"
@@ -638,9 +638,9 @@ export default function ActivityLogsPage() {
       ) : (
         <Card>
           <CardContent>
-            <SearchableTable 
-              columns={columns} 
-              data={tableData}
+            <SearchableTable
+              columns={columns}
+              data={tableData || []}
               pagination={{
                 pageIndex: page - 1,
                 pageSize: 10,
