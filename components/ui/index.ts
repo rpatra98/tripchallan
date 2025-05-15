@@ -9,4 +9,5 @@ export * from './input';
 export * from './popover';
 export * from './select';
 export * from './skeleton';
-export * from './tabs'; 
+export * from './tabs';
+export * from './searchable-table'; 

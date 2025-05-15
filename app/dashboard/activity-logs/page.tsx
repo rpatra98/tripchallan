@@ -16,7 +16,7 @@ import {
   SelectValue,
   Input,
   DatePicker,
-} from "@/components/ui";
+  SearchableTable,} from "@/components/ui";
 import { 
   ArrowLeft, 
   Smartphone, 
@@ -132,17 +132,47 @@ const columns = [
   {
     accessorKey: "user",
     header: "User",
+    searchable: true,
     cell: ({ row }: RowProps) => {
       try {
         const userData = row?.original?.user;
         if (!userData) return <span>-</span>;
         
-        return (
-          <div className="flex flex-col">
-            <span className="font-medium">{userData.name || 'Unknown'}</span>
-            <span className="text-xs text-muted-foreground">{userData.email || 'No email'}</span>
-          </div>
-        );
+          return (
+    <Box sx={{ p: 3 }}>
+      <Typography variant="h4" sx={{ mb: 4, fontWeight: 'bold', color: 'primary.main' }}>
+        Activity Logs
+      </Typography>
+
+      {isLoading ? (
+        <Box sx={{ display: "flex", justifyContent: "center", p: 3 }}>
+          <CircularProgress />
+        </Box>
+      ) : error ? (
+        <Box sx={{ p: 3 }}>
+          <Alert severity="error">{error}</Alert>
+        </Box>
+      ) : logs.length === 0 ? (
+        <Alert severity="info">No activity logs found</Alert>
+      ) : (
+        <Card>
+          <CardContent>
+            <SearchableTable 
+              columns={columns} 
+              data={tableData}
+              pagination={{
+                pageIndex: page - 1,
+                pageSize: 10,
+                pageCount: totalPages,
+                onPageChange: (newPage) => setPage(newPage + 1),
+                onPageSizeChange: () => {}
+              }}
+            />
+          </CardContent>
+        </Card>
+      )}
+    </Box>
+  );
       } catch (err) {
         console.error("Error rendering User column:", err);
         return <span>-</span>;
@@ -152,6 +182,7 @@ const columns = [
   {
     accessorKey: "action",
     header: "Action",
+    searchable: true,
     cell: ({ row }: RowProps) => {
       try {
         const action = row?.original?.action;
@@ -160,31 +191,41 @@ const columns = [
         
         if (!action) return <span>-</span>;
         
-        return (
-          <div className="flex items-center gap-2">
-            {/* Highlight login/logout actions with a colored badge */}
-            {action === "LOGIN" || action === "LOGOUT" ? (
-              <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
-                action === "LOGIN" ? "bg-green-100 text-green-800" : "bg-orange-100 text-orange-800"
-              }`}>
-                {action.toLowerCase()}
-              </span>
-            ) : (
-              <span className="capitalize">{action.toLowerCase().replace(/_/g, ' ')}</span>
-            )}
-            
-            {/* Display device icon for login/logout events */}
-            {(action === "LOGIN" || action === "LOGOUT") && userAgent && (
-              <div className="ml-2" title={`${action} from ${detectDevice(userAgent).type} device`}>
-                {detectDevice(userAgent).isMobile ? (
-                  <Smartphone className="h-4 w-4 text-muted-foreground" />
-                ) : (
-                  <Monitor className="h-4 w-4 text-muted-foreground" />
-                )}
-              </div>
-            )}
-          </div>
-        );
+          return (
+    <Box sx={{ p: 3 }}>
+      <Typography variant="h4" sx={{ mb: 4, fontWeight: 'bold', color: 'primary.main' }}>
+        Activity Logs
+      </Typography>
+
+      {isLoading ? (
+        <Box sx={{ display: "flex", justifyContent: "center", p: 3 }}>
+          <CircularProgress />
+        </Box>
+      ) : error ? (
+        <Box sx={{ p: 3 }}>
+          <Alert severity="error">{error}</Alert>
+        </Box>
+      ) : logs.length === 0 ? (
+        <Alert severity="info">No activity logs found</Alert>
+      ) : (
+        <Card>
+          <CardContent>
+            <SearchableTable 
+              columns={columns} 
+              data={tableData}
+              pagination={{
+                pageIndex: page - 1,
+                pageSize: 10,
+                pageCount: totalPages,
+                onPageChange: (newPage) => setPage(newPage + 1),
+                onPageSizeChange: () => {}
+              }}
+            />
+          </CardContent>
+        </Card>
+      )}
+    </Box>
+  );
       } catch (err) {
         console.error("Error rendering Action column:", err);
         return <span>-</span>;
@@ -194,6 +235,7 @@ const columns = [
   {
     accessorKey: "details",
     header: "Details",
+    searchable: true,
     cell: ({ row }: RowProps) => {
       try {
         const details = row?.original?.details;
@@ -203,34 +245,80 @@ const columns = [
         // For login/logout events, show device info
         if (action === "LOGIN" || action === "LOGOUT") {
           const deviceType = details.device || "unknown";
-          return (
-            <div className="flex flex-col">
-              <span className="text-sm whitespace-normal break-words max-w-sm">
-                {action === "LOGIN" ? "Logged in from" : "Logged out from"} {deviceType} device
-              </span>
-              {details.reasonText && (
-                <span className="text-xs text-muted-foreground">
-                  {details.reasonText}
-                </span>
-              )}
-            </div>
-          );
+            return (
+    <Box sx={{ p: 3 }}>
+      <Typography variant="h4" sx={{ mb: 4, fontWeight: 'bold', color: 'primary.main' }}>
+        Activity Logs
+      </Typography>
+
+      {isLoading ? (
+        <Box sx={{ display: "flex", justifyContent: "center", p: 3 }}>
+          <CircularProgress />
+        </Box>
+      ) : error ? (
+        <Box sx={{ p: 3 }}>
+          <Alert severity="error">{error}</Alert>
+        </Box>
+      ) : logs.length === 0 ? (
+        <Alert severity="info">No activity logs found</Alert>
+      ) : (
+        <Card>
+          <CardContent>
+            <SearchableTable 
+              columns={columns} 
+              data={tableData}
+              pagination={{
+                pageIndex: page - 1,
+                pageSize: 10,
+                pageCount: totalPages,
+                onPageChange: (newPage) => setPage(newPage + 1),
+                onPageSizeChange: () => {}
+              }}
+            />
+          </CardContent>
+        </Card>
+      )}
+    </Box>
+  );
         }
         
         // For transfer events, show recipient and amount
         if (action === "TRANSFER") {
-          return (
-            <div className="flex flex-col">
-              <span className="text-sm whitespace-normal break-words max-w-sm">
-                Transferred {details.amount} coins to {details.recipientName || "user"}
-              </span>
-              {details.reasonText && (
-                <span className="text-xs text-muted-foreground">
-                  Reason: {details.reasonText}
-                </span>
-              )}
-            </div>
-          );
+            return (
+    <Box sx={{ p: 3 }}>
+      <Typography variant="h4" sx={{ mb: 4, fontWeight: 'bold', color: 'primary.main' }}>
+        Activity Logs
+      </Typography>
+
+      {isLoading ? (
+        <Box sx={{ display: "flex", justifyContent: "center", p: 3 }}>
+          <CircularProgress />
+        </Box>
+      ) : error ? (
+        <Box sx={{ p: 3 }}>
+          <Alert severity="error">{error}</Alert>
+        </Box>
+      ) : logs.length === 0 ? (
+        <Alert severity="info">No activity logs found</Alert>
+      ) : (
+        <Card>
+          <CardContent>
+            <SearchableTable 
+              columns={columns} 
+              data={tableData}
+              pagination={{
+                pageIndex: page - 1,
+                pageSize: 10,
+                pageCount: totalPages,
+                onPageChange: (newPage) => setPage(newPage + 1),
+                onPageSizeChange: () => {}
+              }}
+            />
+          </CardContent>
+        </Card>
+      )}
+    </Box>
+  );
         }
         
         // For other actions with structured details, convert to readable format
@@ -248,23 +336,79 @@ const columns = [
             })
             .join(', ');
           
-          return (
-            <div className="flex flex-col">
-              <span className="text-sm whitespace-normal break-words max-w-sm">
-                {detailsText}
-              </span>
-            </div>
-          );
+            return (
+    <Box sx={{ p: 3 }}>
+      <Typography variant="h4" sx={{ mb: 4, fontWeight: 'bold', color: 'primary.main' }}>
+        Activity Logs
+      </Typography>
+
+      {isLoading ? (
+        <Box sx={{ display: "flex", justifyContent: "center", p: 3 }}>
+          <CircularProgress />
+        </Box>
+      ) : error ? (
+        <Box sx={{ p: 3 }}>
+          <Alert severity="error">{error}</Alert>
+        </Box>
+      ) : logs.length === 0 ? (
+        <Alert severity="info">No activity logs found</Alert>
+      ) : (
+        <Card>
+          <CardContent>
+            <SearchableTable 
+              columns={columns} 
+              data={tableData}
+              pagination={{
+                pageIndex: page - 1,
+                pageSize: 10,
+                pageCount: totalPages,
+                onPageChange: (newPage) => setPage(newPage + 1),
+                onPageSizeChange: () => {}
+              }}
+            />
+          </CardContent>
+        </Card>
+      )}
+    </Box>
+  );
         }
         
         // Default fallback for string or primitive details
-        return (
-          <div className="flex flex-col">
-            <span className="text-sm whitespace-normal break-words max-w-sm">
-              {String(details)}
-            </span>
-          </div>
-        );
+          return (
+    <Box sx={{ p: 3 }}>
+      <Typography variant="h4" sx={{ mb: 4, fontWeight: 'bold', color: 'primary.main' }}>
+        Activity Logs
+      </Typography>
+
+      {isLoading ? (
+        <Box sx={{ display: "flex", justifyContent: "center", p: 3 }}>
+          <CircularProgress />
+        </Box>
+      ) : error ? (
+        <Box sx={{ p: 3 }}>
+          <Alert severity="error">{error}</Alert>
+        </Box>
+      ) : logs.length === 0 ? (
+        <Alert severity="info">No activity logs found</Alert>
+      ) : (
+        <Card>
+          <CardContent>
+            <SearchableTable 
+              columns={columns} 
+              data={tableData}
+              pagination={{
+                pageIndex: page - 1,
+                pageSize: 10,
+                pageCount: totalPages,
+                onPageChange: (newPage) => setPage(newPage + 1),
+                onPageSizeChange: () => {}
+              }}
+            />
+          </CardContent>
+        </Card>
+      )}
+    </Box>
+  );
       } catch (err) {
         console.error("Error rendering Details column:", err);
         return <span>-</span>;
@@ -274,17 +418,47 @@ const columns = [
   {
     accessorKey: "targetUser",
     header: "Target User",
+    searchable: true,
     cell: ({ row }: RowProps) => {
       try {
         const targetUser = row?.original?.targetUser;
         if (!targetUser) return <span>-</span>;
         
-        return (
-          <div className="flex flex-col">
-            <span className="font-medium">{targetUser.name || 'Unknown'}</span>
-            <span className="text-xs text-muted-foreground">{targetUser.email || 'No email'}</span>
-          </div>
-        );
+          return (
+    <Box sx={{ p: 3 }}>
+      <Typography variant="h4" sx={{ mb: 4, fontWeight: 'bold', color: 'primary.main' }}>
+        Activity Logs
+      </Typography>
+
+      {isLoading ? (
+        <Box sx={{ display: "flex", justifyContent: "center", p: 3 }}>
+          <CircularProgress />
+        </Box>
+      ) : error ? (
+        <Box sx={{ p: 3 }}>
+          <Alert severity="error">{error}</Alert>
+        </Box>
+      ) : logs.length === 0 ? (
+        <Alert severity="info">No activity logs found</Alert>
+      ) : (
+        <Card>
+          <CardContent>
+            <SearchableTable 
+              columns={columns} 
+              data={tableData}
+              pagination={{
+                pageIndex: page - 1,
+                pageSize: 10,
+                pageCount: totalPages,
+                onPageChange: (newPage) => setPage(newPage + 1),
+                onPageSizeChange: () => {}
+              }}
+            />
+          </CardContent>
+        </Card>
+      )}
+    </Box>
+  );
       } catch (err) {
         console.error("Error rendering Target User column:", err);
         return <span>-</span>;
@@ -294,6 +468,7 @@ const columns = [
   {
     accessorKey: "createdAt",
     header: "Time",
+    searchable: true,
     cell: ({ row }: RowProps) => {
       try {
         if (!row?.original) return <span>-</span>;
@@ -319,6 +494,7 @@ export default function ActivityLogsPage() {
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [isSessionChecked, setIsSessionChecked] = useState(false);
+  const [tableData, setTableData] = useState<ActivityLogRow[]>([]);
 
   const fetchActivityLogs = useCallback(async (pageNum: number) => {
     try {
@@ -370,6 +546,31 @@ export default function ActivityLogsPage() {
   }, []);
 
   // Check authentication status once
+  // Transform logs to table data format
+  useEffect(() => {
+    if (logs && logs.length > 0) {
+      const formattedData = logs.map(log => ({
+        id: log.id,
+        user: {
+          name: log.user?.name || "Unknown",
+          email: log.user?.email || "No email"
+        },
+        action: log.action,
+        details: log.details || {},
+        targetUser: log.targetUser ? {
+          name: log.targetUser.name,
+          email: log.targetUser.email
+        } : undefined,
+        createdAt: log.createdAt,
+        userAgent: log.userAgent
+      }));
+      
+      setTableData(formattedData);
+    } else {
+      setTableData([]);
+    }
+  }, [logs]);
+
   useEffect(() => {
     if (!session) {
       // Session is still loading, do nothing yet
@@ -386,6 +587,31 @@ export default function ActivityLogsPage() {
   }, [session, router]);
 
   // Only fetch logs when session is checked and user is authenticated
+  // Transform logs to table data format
+  useEffect(() => {
+    if (logs && logs.length > 0) {
+      const formattedData = logs.map(log => ({
+        id: log.id,
+        user: {
+          name: log.user?.name || "Unknown",
+          email: log.user?.email || "No email"
+        },
+        action: log.action,
+        details: log.details || {},
+        targetUser: log.targetUser ? {
+          name: log.targetUser.name,
+          email: log.targetUser.email
+        } : undefined,
+        createdAt: log.createdAt,
+        userAgent: log.userAgent
+      }));
+      
+      setTableData(formattedData);
+    } else {
+      setTableData([]);
+    }
+  }, [logs]);
+
   useEffect(() => {
     if (isSessionChecked && session?.user) {
       console.log("Session authenticated, fetching activity logs...");
@@ -394,6 +620,31 @@ export default function ActivityLogsPage() {
   }, [page, session?.user, fetchActivityLogs, isSessionChecked]);
   
   // Debug: Log activity data when it changes
+  // Transform logs to table data format
+  useEffect(() => {
+    if (logs && logs.length > 0) {
+      const formattedData = logs.map(log => ({
+        id: log.id,
+        user: {
+          name: log.user?.name || "Unknown",
+          email: log.user?.email || "No email"
+        },
+        action: log.action,
+        details: log.details || {},
+        targetUser: log.targetUser ? {
+          name: log.targetUser.name,
+          email: log.targetUser.email
+        } : undefined,
+        createdAt: log.createdAt,
+        userAgent: log.userAgent
+      }));
+      
+      setTableData(formattedData);
+    } else {
+      setTableData([]);
+    }
+  }, [logs]);
+
   useEffect(() => {
     if (logs && logs.length > 0) {
       console.log("Activity types present:", 
@@ -405,27 +656,48 @@ export default function ActivityLogsPage() {
     return new Date(dateString).toLocaleString();
   };
 
-  const getActionColor = (action: string) => {
-    switch (action) {
-      case "LOGIN":
-        return "success.main"; // Green for login
-      case "LOGOUT":
-        return "warning.main"; // Orange for logout
-      case "CREATE":
-        return "info.main"; // Blue for create
-      case "UPDATE":
-        return "primary.main"; // Default primary for update
-      case "DELETE":
-        return "error.main"; // Red for delete
-      case "VIEW":
-        return "text.secondary"; // Gray for view
-      case "ALLOCATE":
-        return "success.light"; // Light green for allocate
-      case "TRANSFER":
-        return "secondary.main"; // Purple for transfer
-      default:
-        return "text.secondary"; // Default gray
-    }
+  const getActionColor = (action: string) => {
+
+    switch (action) {
+
+      case "LOGIN":
+
+        return "success.main"; // Green for login
+
+      case "LOGOUT":
+
+        return "warning.main"; // Orange for logout
+
+      case "CREATE":
+
+        return "info.main"; // Blue for create
+
+      case "UPDATE":
+
+        return "primary.main"; // Default primary for update
+
+      case "DELETE":
+
+        return "error.main"; // Red for delete
+
+      case "VIEW":
+
+        return "text.secondary"; // Gray for view
+
+      case "ALLOCATE":
+
+        return "success.light"; // Light green for allocate
+
+      case "TRANSFER":
+
+        return "secondary.main"; // Purple for transfer
+
+      default:
+
+        return "text.secondary"; // Default gray
+
+    }
+
   };
 
   const getActionIcon = (action: string) => {
@@ -458,127 +730,305 @@ export default function ActivityLogsPage() {
       case "USER":
         // Check if this is a user creation log with our enhanced details
         if (log.action === "CREATE" && details.summaryText) {
-          return (
-            <>
-              <Typography variant="body2" fontWeight="medium" color="primary.main">
-                Created: {details.summaryText}
-              </Typography>
-              
-              {details.userRole === "COMPANY" && details.companyName && (
-                <Typography variant="body2">
-                  Company: {details.companyName}
-                </Typography>
-              )}
-              
-              {details.userRole === "EMPLOYEE" && details.subrole && (
-                <Typography variant="body2">
-                  Role: {details.subrole}
-                </Typography>
-              )}
-              
-              {details.subrole === "OPERATOR" && details.operatorPermissions && (
-                <Typography variant="body2">
-                  Permissions: {Object.entries(details.operatorPermissions)
-                    .filter(([_, value]) => value === true)
-                    .map(([key]) => key.replace('can', ''))
-                    .join(', ')}
-                </Typography>
-              )}
-              
-              <Typography variant="body2" color="text.secondary">
-                Created at: {details.createdAt ? new Date(details.createdAt).toLocaleString() : "Unknown"}
-              </Typography>
-            </>
-          );
+            return (
+    <Box sx={{ p: 3 }}>
+      <Typography variant="h4" sx={{ mb: 4, fontWeight: 'bold', color: 'primary.main' }}>
+        Activity Logs
+      </Typography>
+
+      {isLoading ? (
+        <Box sx={{ display: "flex", justifyContent: "center", p: 3 }}>
+          <CircularProgress />
+        </Box>
+      ) : error ? (
+        <Box sx={{ p: 3 }}>
+          <Alert severity="error">{error}</Alert>
+        </Box>
+      ) : logs.length === 0 ? (
+        <Alert severity="info">No activity logs found</Alert>
+      ) : (
+        <Card>
+          <CardContent>
+            <SearchableTable 
+              columns={columns} 
+              data={tableData}
+              pagination={{
+                pageIndex: page - 1,
+                pageSize: 10,
+                pageCount: totalPages,
+                onPageChange: (newPage) => setPage(newPage + 1),
+                onPageSizeChange: () => {}
+              }}
+            />
+          </CardContent>
+        </Card>
+      )}
+    </Box>
+  );
         }
         
         // Default USER display for other types of actions
-        return (
-          <>
-            <Typography variant="body2">
-              User: {details.userEmail} ({details.userRole})
-            </Typography>
-            {log.targetUser && (
-              <Typography variant="body2">
-                Target User: {log.targetUser.name} ({log.targetUser.role})
-              </Typography>
-            )}
-          </>
-        );
+          return (
+    <Box sx={{ p: 3 }}>
+      <Typography variant="h4" sx={{ mb: 4, fontWeight: 'bold', color: 'primary.main' }}>
+        Activity Logs
+      </Typography>
+
+      {isLoading ? (
+        <Box sx={{ display: "flex", justifyContent: "center", p: 3 }}>
+          <CircularProgress />
+        </Box>
+      ) : error ? (
+        <Box sx={{ p: 3 }}>
+          <Alert severity="error">{error}</Alert>
+        </Box>
+      ) : logs.length === 0 ? (
+        <Alert severity="info">No activity logs found</Alert>
+      ) : (
+        <Card>
+          <CardContent>
+            <SearchableTable 
+              columns={columns} 
+              data={tableData}
+              pagination={{
+                pageIndex: page - 1,
+                pageSize: 10,
+                pageCount: totalPages,
+                onPageChange: (newPage) => setPage(newPage + 1),
+                onPageSizeChange: () => {}
+              }}
+            />
+          </CardContent>
+        </Card>
+      )}
+    </Box>
+  );
         
       case "SESSION":
-        return (
-          <>
-            <Typography variant="body2">
-              Session: {details.sessionId}
-            </Typography>
-            <Typography variant="body2">
-              From: {details.source} to {details.destination}
-            </Typography>
-            {details.barcode && (
-              <Typography variant="body2">
-                Barcode: {details.barcode}
-              </Typography>
-            )}
-            {details.cost && (
-              <Typography variant="body2">
-                Cost: {details.cost}
-              </Typography>
-            )}
-            {details.reasonText && (
-              <Typography variant="body2">
-                Reason: {details.reasonText}
-              </Typography>
-            )}
-          </>
-        );
+          return (
+    <Box sx={{ p: 3 }}>
+      <Typography variant="h4" sx={{ mb: 4, fontWeight: 'bold', color: 'primary.main' }}>
+        Activity Logs
+      </Typography>
+
+      {isLoading ? (
+        <Box sx={{ display: "flex", justifyContent: "center", p: 3 }}>
+          <CircularProgress />
+        </Box>
+      ) : error ? (
+        <Box sx={{ p: 3 }}>
+          <Alert severity="error">{error}</Alert>
+        </Box>
+      ) : logs.length === 0 ? (
+        <Alert severity="info">No activity logs found</Alert>
+      ) : (
+        <Card>
+          <CardContent>
+            <SearchableTable 
+              columns={columns} 
+              data={tableData}
+              pagination={{
+                pageIndex: page - 1,
+                pageSize: 10,
+                pageCount: totalPages,
+                onPageChange: (newPage) => setPage(newPage + 1),
+                onPageSizeChange: () => {}
+              }}
+            />
+          </CardContent>
+        </Card>
+      )}
+    </Box>
+  );
         
-            case "USER_LIST":
-        return (
-          <>
-            <Typography variant="body2">
-              Filters: {Object.entries(details.filters || {})
-                .filter(([_, value]) => value !== undefined)
-                .map(([key, value]) => `${key}: ${value}`)
-                .join(", ")}
-            </Typography>
-            <Typography variant="body2">
-              Results: {details.resultCount} of {details.totalCount}
-            </Typography>
-          </>
-        );
+      case "USER_LIST":
+          return (
+    <Box sx={{ p: 3 }}>
+      <Typography variant="h4" sx={{ mb: 4, fontWeight: 'bold', color: 'primary.main' }}>
+        Activity Logs
+      </Typography>
+
+      {isLoading ? (
+        <Box sx={{ display: "flex", justifyContent: "center", p: 3 }}>
+          <CircularProgress />
+        </Box>
+      ) : error ? (
+        <Box sx={{ p: 3 }}>
+          <Alert severity="error">{error}</Alert>
+        </Box>
+      ) : logs.length === 0 ? (
+        <Alert severity="info">No activity logs found</Alert>
+      ) : (
+        <Card>
+          <CardContent>
+            <SearchableTable 
+              columns={columns} 
+              data={tableData}
+              pagination={{
+                pageIndex: page - 1,
+                pageSize: 10,
+                pageCount: totalPages,
+                onPageChange: (newPage) => setPage(newPage + 1),
+                onPageSizeChange: () => {}
+              }}
+            />
+          </CardContent>
+        </Card>
+      )}
+    </Box>
+  );
         
       default:
-        return (
-          <Typography variant="body2">
-            {JSON.stringify(details, null, 2)}
-          </Typography>
-        );
+          return (
+    <Box sx={{ p: 3 }}>
+      <Typography variant="h4" sx={{ mb: 4, fontWeight: 'bold', color: 'primary.main' }}>
+        Activity Logs
+      </Typography>
+
+      {isLoading ? (
+        <Box sx={{ display: "flex", justifyContent: "center", p: 3 }}>
+          <CircularProgress />
+        </Box>
+      ) : error ? (
+        <Box sx={{ p: 3 }}>
+          <Alert severity="error">{error}</Alert>
+        </Box>
+      ) : logs.length === 0 ? (
+        <Alert severity="info">No activity logs found</Alert>
+      ) : (
+        <Card>
+          <CardContent>
+            <SearchableTable 
+              columns={columns} 
+              data={tableData}
+              pagination={{
+                pageIndex: page - 1,
+                pageSize: 10,
+                pageCount: totalPages,
+                onPageChange: (newPage) => setPage(newPage + 1),
+                onPageSizeChange: () => {}
+              }}
+            />
+          </CardContent>
+        </Card>
+      )}
+    </Box>
+  );
     }
   };
 
   if (!session?.user) {
-    return (
-      <Box sx={{ p: 3 }}>
-        <Alert severity="error">Please sign in to view activity logs</Alert>
-      </Box>
-    );
+      return (
+    <Box sx={{ p: 3 }}>
+      <Typography variant="h4" sx={{ mb: 4, fontWeight: 'bold', color: 'primary.main' }}>
+        Activity Logs
+      </Typography>
+
+      {isLoading ? (
+        <Box sx={{ display: "flex", justifyContent: "center", p: 3 }}>
+          <CircularProgress />
+        </Box>
+      ) : error ? (
+        <Box sx={{ p: 3 }}>
+          <Alert severity="error">{error}</Alert>
+        </Box>
+      ) : logs.length === 0 ? (
+        <Alert severity="info">No activity logs found</Alert>
+      ) : (
+        <Card>
+          <CardContent>
+            <SearchableTable 
+              columns={columns} 
+              data={tableData}
+              pagination={{
+                pageIndex: page - 1,
+                pageSize: 10,
+                pageCount: totalPages,
+                onPageChange: (newPage) => setPage(newPage + 1),
+                onPageSizeChange: () => {}
+              }}
+            />
+          </CardContent>
+        </Card>
+      )}
+    </Box>
+  );
   }
 
   if (isLoading) {
-    return (
-      <Box sx={{ display: "flex", justifyContent: "center", p: 3 }}>
-        <CircularProgress />
-      </Box>
-    );
+      return (
+    <Box sx={{ p: 3 }}>
+      <Typography variant="h4" sx={{ mb: 4, fontWeight: 'bold', color: 'primary.main' }}>
+        Activity Logs
+      </Typography>
+
+      {isLoading ? (
+        <Box sx={{ display: "flex", justifyContent: "center", p: 3 }}>
+          <CircularProgress />
+        </Box>
+      ) : error ? (
+        <Box sx={{ p: 3 }}>
+          <Alert severity="error">{error}</Alert>
+        </Box>
+      ) : logs.length === 0 ? (
+        <Alert severity="info">No activity logs found</Alert>
+      ) : (
+        <Card>
+          <CardContent>
+            <SearchableTable 
+              columns={columns} 
+              data={tableData}
+              pagination={{
+                pageIndex: page - 1,
+                pageSize: 10,
+                pageCount: totalPages,
+                onPageChange: (newPage) => setPage(newPage + 1),
+                onPageSizeChange: () => {}
+              }}
+            />
+          </CardContent>
+        </Card>
+      )}
+    </Box>
+  );
   }
 
   if (error) {
-    return (
-      <Box sx={{ p: 3 }}>
-        <Alert severity="error">{error}</Alert>
-      </Box>
-    );
+      return (
+    <Box sx={{ p: 3 }}>
+      <Typography variant="h4" sx={{ mb: 4, fontWeight: 'bold', color: 'primary.main' }}>
+        Activity Logs
+      </Typography>
+
+      {isLoading ? (
+        <Box sx={{ display: "flex", justifyContent: "center", p: 3 }}>
+          <CircularProgress />
+        </Box>
+      ) : error ? (
+        <Box sx={{ p: 3 }}>
+          <Alert severity="error">{error}</Alert>
+        </Box>
+      ) : logs.length === 0 ? (
+        <Alert severity="info">No activity logs found</Alert>
+      ) : (
+        <Card>
+          <CardContent>
+            <SearchableTable 
+              columns={columns} 
+              data={tableData}
+              pagination={{
+                pageIndex: page - 1,
+                pageSize: 10,
+                pageCount: totalPages,
+                onPageChange: (newPage) => setPage(newPage + 1),
+                onPageSizeChange: () => {}
+              }}
+            />
+          </CardContent>
+        </Card>
+      )}
+    </Box>
+  );
   }
 
   return (
@@ -600,112 +1050,41 @@ export default function ActivityLogsPage() {
                 <Monitor className="ml-2 text-gray-500" size={16} />
               ) : null;
             
-            return (
-              <Paper
-                key={log.id}
-                sx={{
-                  p: 3,
-                  mb: 3,
-                  borderRadius: '10px',
-                  borderLeft: 6,
-                  borderColor: getActionColor(log.action),
-                  boxShadow: '0 4px 6px rgba(0,0,0,0.05)',
-                  transition: 'transform 0.2s, box-shadow 0.2s',
-                  '&:hover': {
-                    boxShadow: '0 6px 10px rgba(0,0,0,0.1)',
-                    transform: 'translateY(-2px)'
-                  }
-                }}
-              >
-                <Box sx={{ display: "flex", justifyContent: "space-between", mb: 1 }}>
-                  <Box sx={{ display: "flex", alignItems: "center" }}>
-                    {getActionIcon(log.action)}
-                    <Typography 
-                      variant="subtitle1" 
-                      sx={{ 
-                        fontWeight: 'bold',
-                        color: getActionColor(log.action),
-                        textTransform: 'uppercase',
-                        letterSpacing: '0.5px',
-                        fontSize: '0.9rem'
-                      }}
-                    >
-                      {log.action}
-                    </Typography>
-                    
-                    {isAuthEvent && deviceIcon}
-                  </Box>
-                  <Typography 
-                    variant="caption" 
-                    sx={{ 
-                      color: "text.secondary",
-                      backgroundColor: 'rgba(0,0,0,0.04)',
-                      padding: '4px 8px',
-                      borderRadius: '4px',
-                      fontSize: '0.75rem'
-                    }}
-                  >
-                    {formatDate(log.createdAt)}
-                  </Typography>
-                </Box>
+              return (
+    <Box sx={{ p: 3 }}>
+      <Typography variant="h4" sx={{ mb: 4, fontWeight: 'bold', color: 'primary.main' }}>
+        Activity Logs
+      </Typography>
 
-                <Box sx={{ 
-                  display: "flex", 
-                  flexDirection: { xs: "column", sm: "row" },
-                  justifyContent: "space-between",
-                  mt: 2
-                }}>
-                  <Box sx={{ flex: 1 }}>
-                    <Typography variant="body2" sx={{ 
-                      mb: 1,
-                      display: 'flex',
-                      alignItems: 'center',
-                      fontWeight: 'medium'
-                    }}>
-                      <span style={{ fontWeight: 'bold', marginRight: '4px' }}>User:</span> 
-                      {log.user.name} 
-                      <span style={{ 
-                        backgroundColor: 'rgba(0,0,0,0.08)', 
-                        padding: '2px 6px', 
-                        borderRadius: '4px', 
-                        fontSize: '0.7rem',
-                        marginLeft: '8px'
-                      }}>
-                        {log.user.role}
-                      </span>
-                    </Typography>
-
-                    {isAuthEvent ? (
-                      <Box sx={{ 
-                        p: 1.5, 
-                        borderRadius: 2,
-                        backgroundColor: log.action === "LOGIN" ? 'rgba(76, 175, 80, 0.08)' : 'rgba(255, 152, 0, 0.08)',
-                        mt: 1
-                      }}>
-                        <Typography variant="body2" sx={{ fontWeight: 'medium' }}>
-                          {log.action === "LOGIN" ? "Logged in from" : "Logged out from"} <b>{deviceType}</b> device
-                        </Typography>
-                        {log.details?.reasonText && (
-                          <Typography variant="body2" sx={{ color: 'text.secondary', mt: 0.5 }}>
-                            Reason: {log.details.reasonText}
-                          </Typography>
-                        )}
-                      </Box>
-                    ) : (
-                      <>
-                        <Typography variant="body2" sx={{ mb: 1 }}>
-                          <span style={{ fontWeight: 'bold', marginRight: '4px' }}>Resource:</span> 
-                          {log.targetResourceType || "N/A"}
-                        </Typography>
-                        <Box sx={{ mt: 1 }}>
-                          {renderLogDetails(log)}
-                        </Box>
-                      </>
-                    )}
-                  </Box>
-                </Box>
-              </Paper>
-            );
+      {isLoading ? (
+        <Box sx={{ display: "flex", justifyContent: "center", p: 3 }}>
+          <CircularProgress />
+        </Box>
+      ) : error ? (
+        <Box sx={{ p: 3 }}>
+          <Alert severity="error">{error}</Alert>
+        </Box>
+      ) : logs.length === 0 ? (
+        <Alert severity="info">No activity logs found</Alert>
+      ) : (
+        <Card>
+          <CardContent>
+            <SearchableTable 
+              columns={columns} 
+              data={tableData}
+              pagination={{
+                pageIndex: page - 1,
+                pageSize: 10,
+                pageCount: totalPages,
+                onPageChange: (newPage) => setPage(newPage + 1),
+                onPageSizeChange: () => {}
+              }}
+            />
+          </CardContent>
+        </Card>
+      )}
+    </Box>
+  );
           })}
           
           {/* Pagination Controls */}
@@ -741,6 +1120,7 @@ export default function ActivityLogsPage() {
     </Box>
   );
 } 
+
 
 
 
