@@ -1,23 +1,5 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
-import { useSession } from "next-auth/react";
-import { UserRole, ActivityAction } from "@/prisma/enums";
-import {
-  DataTable,
-  Card,
-  CardContent,
-  Skeleton,
-  Button,
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-  Input,
-  DatePicker,
-  SearchableTable,
-} from "@/components/ui";
 import { 
   ArrowLeft, 
   Smartphone, 
@@ -25,6 +7,7 @@ import {
   Filter, 
   RefreshCw,
   Star,
+  AlertTriangle,
   X,
   Binoculars,
   Gift,
@@ -32,7 +15,7 @@ import {
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { detectDevice, formatDate } from "@/lib/utils";
-import { Box, Typography, Paper, CircularProgress, Alert } from "@mui/material";
+import { Box, Typography, Paper, CircularProgress, Alert , Button } from "@mui/material";
 import { z } from "zod";
 
 interface ActivityLog {
@@ -511,30 +494,64 @@ export default function ActivityLogsPage() {
 
   // Transform logs to table data format
   useEffect(() => {
-    if (logs && logs.length > 0) {
-      const formattedData = logs.map(log => ({
-        id: log.id,
-        user: {
-          name: log.user?.name || "Unknown",
-          email: log.user?.email || "No email"
-        },
-        action: log.action,
-        details: { 
-          ...log.details, 
-          // Keep amount as is - it can be string or number
-          amount: log.details?.amount !== undefined ? log.details.amount : undefined 
-        },
-        targetUser: log.targetUser ? {
-          name: log.targetUser.name,
-          email: log.targetUser.email
-        } : undefined,
-        createdAt: log.createdAt,
-        userAgent: log.userAgent,
-        targetResourceType: log.targetResourceType
-      }));
+    console.log("Transform effect running. Logs count:", logs?.length);
+    
+    if (!logs || !Array.isArray(logs) || logs.length === 0) {
+      console.log("No logs to transform");
+      setTableData([]);
+      return;
+    }
+    
+    try {
+      // Validate logs data structure before processing
+      const validLogs = logs.filter(log => {
+        if (!log || typeof log !== 'object') {
+          console.warn("Invalid log entry:", log);
+          return false;
+        }
+        return true;
+      });
       
+      if (validLogs.length === 0) {
+        console.warn("No valid logs to display");
+        setTableData([]);
+        return;
+      }
+      
+      console.log("Transforming", validLogs.length, "valid logs");
+      
+      const formattedData = validLogs.map(log => {
+        try {
+          return {
+            id: log.id || `unknown-${Math.random()}`,
+            user: {
+              name: log.user?.name || "Unknown User",
+              email: log.user?.email || "No email"
+            },
+            action: log.action || "UNKNOWN",
+            details: {
+              ...(log.details || {}),
+              // Keep amount as is - it can be string or number
+              amount: log.details?.amount !== undefined ? log.details.amount : undefined
+            },
+            targetUser: log.targetUser ? {
+              name: log.targetUser.name || "Unknown",
+              email: log.targetUser.email || "No email"
+            } : undefined,
+            createdAt: log.createdAt || new Date().toISOString(),
+            userAgent: log.userAgent || undefined,
+            targetResourceType: log.targetResourceType || "UNKNOWN"
+          };
+        } catch (itemError) {
+          console.error("Error processing log item:", itemError, log);
+          return null;
+        }
+      }).filter(Boolean); // Remove any null entries
+      
+      console.log("Successfully transformed", formattedData.length, "entries");
       setTableData(formattedData);
-    } else {
+    } catch (error) {
+      console.error("Error in logs transformation:", error);
       setTableData([]);
     }
   }, [logs]);
@@ -565,9 +582,72 @@ export default function ActivityLogsPage() {
 
   return (
     <Box sx={{ p: 3 }}>
-      <Typography variant="h4" sx={{ mb: 4, fontWeight: 'bold', color: 'primary.main' }}>
-        Activity Logs
-      </Typography>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 4, alignItems: 'center' }}>
+        <Typography variant="h4" sx={{ fontWeight: 'bold', color: 'primary.main' }}>
+          Activity Logs
+        </Typography>
+        
+        {session?.user?.role === "SUPERADMIN" && (
+          <Box sx={{ display: 'flex', gap: 2 }}>
+            <Button
+              variant="outlined"
+              color="secondary"
+              onClick={async () => {
+                try {
+                  const response = await fetch('/api/debug-logs?createSample=true');
+                  if (response.ok) {
+                    const result = await response.json();
+                    alert(`Created ${result.createdSampleLogs} sample logs. Refreshing...`);
+                    handleRefresh();
+                  } else {
+                    alert('Failed to create sample logs');
+                  }
+                } catch (error) {
+                  console.error("Error creating sample logs:", error);
+                  alert('Error creating sample logs');
+                }
+              }}
+              startIcon={<Star size={16} />}
+            >
+              Create Test Logs
+            </Button>
+            
+            <Button
+              variant="outlined"
+              color="warning"
+              onClick={async () => {
+                try {
+                  setIsLoading(true);
+                  const response = await fetch('/api/debug-activity-logs');
+                  if (!response.ok) {
+                    throw new Error(`Failed to fetch debug logs: ${response.status}`);
+                  }
+                  
+                  const data = await response.json();
+                  console.log("Debug activity logs response:", data);
+                  
+                  if (!data.logs || !Array.isArray(data.logs)) {
+                    alert('No logs found in debug mode');
+                    setLogs([]);
+                  } else {
+                    setLogs(data.logs);
+                    setTotalPages(data.meta?.totalPages || 1);
+                    alert(`Found ${data.logs.length} logs in debug mode`);
+                  }
+                } catch (error) {
+                  console.error("Error fetching debug logs:", error);
+                  alert(`Error fetching debug logs: ${error.message}`);
+                } finally {
+                  setIsLoading(false);
+                }
+              }}
+              startIcon={<AlertTriangle size={16} />}
+            >
+              Debug Mode
+            </Button>
+          </Box>
+        )}
+      </Box>
 
       {isLoading ? (
         <Box sx={{ display: "flex", justifyContent: "center", p: 3 }}>
