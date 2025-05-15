@@ -3,7 +3,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { useSession } from "next-auth/react";
 import { UserRole, ActivityAction } from "@/prisma/enums";
-
 import {
   DataTable,
   Card,
@@ -17,19 +16,8 @@ import {
   SelectValue,
   Input,
   DatePicker,
+  SearchableTable,
 } from "@/components/ui";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  TablePagination,
-  IconButton
-} from "@mui/material";
-import KeyboardArrowLeft from "@mui/icons-material/KeyboardArrowLeft";
-import KeyboardArrowRight from "@mui/icons-material/KeyboardArrowRight";
 import { 
   ArrowLeft, 
   Smartphone, 
@@ -113,7 +101,7 @@ interface ActivityLogsResponse {
 type ActivityLogDetails = {
   device?: string;
   reasonText?: string;
-  amount?: string | number;  // Accept both string and number
+  amount?: number;
   recipientName?: string;
   [key: string]: unknown;
 };
@@ -249,206 +237,340 @@ const columns = [
           );
         }
         
-        // For create actions, format based on the target resource type
-                            if (log.action === "CREATE") {
-                              // Creating a user
-                              if (log.targetResourceType === "USER") {
-                                return (
-                                  <div>
-                                    <span>Created a new user account</span>
-                                    {log.details.userRole && (
-                                      <div className="text-xs text-muted-foreground">
-                                        Role: {log.details.userRole}
-                                      </div>
-                                    )}
-                                  </div>
-                                );
-                              }
-                              
-                              // Creating a company
-                              if (log.targetResourceType === "COMPANY") {
-                                return (
-                                  <div>
-                                    <span>Created a new company: {log.details.companyName || "Unnamed"}</span>
-                                  </div>
-                                );
-                              }
-                              
-                              // Creating a session
-                              if (log.targetResourceType === "SESSION") {
-                                return (
-                                  <div>
-                                    <span>Started a new session</span>
-                                    {log.details.sessionId && (
-                                      <div className="text-xs text-muted-foreground">
-                                        Session ID: {log.details.sessionId}
-                                      </div>
-                                    )}
-                                  </div>
-                                );
-                              }
-                            }
-                            
-                            // For update actions, format based on the target resource type
-                            if (log.action === "UPDATE") {
-                              // Updating a user
-                              if (log.targetResourceType === "USER") {
-                                return (
-                                  <div>
-                                    <span>Updated user information</span>
-                                    {log.details.userRole && (
-                                      <div className="text-xs text-muted-foreground">
-                                        Changed role to: {log.details.userRole}
-                                      </div>
-                                    )}
-                                    {log.details.summaryText && (
-                                      <div className="text-xs text-muted-foreground">
-                                        {log.details.summaryText}
-                                      </div>
-                                    )}
-                                  </div>
-                                );
-                              }
-                              
-                              // Updating a company
-                              if (log.targetResourceType === "COMPANY") {
-                                return (
-                                  <div>
-                                    <span>Updated company information</span>
-                                    {log.details.companyName && (
-                                      <div className="text-xs text-muted-foreground">
-                                        Company: {log.details.companyName}
-                                      </div>
-                                    )}
-                                  </div>
-                                );
-                              }
-                              
-                              // Updating a session
-                              if (log.targetResourceType === "SESSION") {
-                                return (
-                                  <div>
-                                    <span>Updated session details</span>
-                                    {log.details.sessionId && (
-                                      <div className="text-xs text-muted-foreground">
-                                        Session ID: {log.details.sessionId}
-                                      </div>
-                                    )}
-                                    {log.details.summaryText && (
-                                      <div className="text-xs text-muted-foreground">
-                                        {log.details.summaryText}
-                                      </div>
-                                    )}
-                                  </div>
-                                );
-                              }
-                            }
-                            
-                            // For delete actions
-                            if (log.action === "DELETE") {
-                              return (
-                                <div>
-                                  <span>Deleted a {log.targetResourceType?.toLowerCase()?.replace(/_/g, ' ') || "resource"}</span>
-                                  {log.details.summaryText && (
-                                    <div className="text-xs text-muted-foreground">
-                                      {log.details.summaryText}
-                                    </div>
-                                  )}
-                                </div>
-                              );
-                            }
-                            
-                            // For view actions
-                            if (log.action === "VIEW") {
-                              return (
-                                <div>
-                                  <span>Viewed {log.targetResourceType?.toLowerCase()?.replace(/_/g, ' ') || "information"}</span>
-                                  {log.details.summaryText && (
-                                    <div className="text-xs text-muted-foreground">
-                                      {log.details.summaryText}
-                                    </div>
-                                  )}
-                                </div>
-                              );
-                            }
-                            
-                            // For allocate actions (typically coins or resources)
-                            if (log.action === "ALLOCATE") {
-                              return (
-                                <div>
-                                  <span>
-                                    Allocated {log.details.amount || ""} {log.targetResourceType?.toLowerCase()?.replace(/_/g, ' ') || "resources"}
-                                  </span>
-                                  {log.details.reasonText && (
-                                    <div className="text-xs text-muted-foreground">
-                                      Reason: {log.details.reasonText}
-                                    </div>
-                                  )}
-                                </div>
-                              );
-                            }
+        // For other actions with structured details, convert to readable format
+        if (typeof details === 'object') {
+          // Convert object to readable string, excluding certain technical fields
+          const excludeKeys = ['deviceDetails', 'userAgent'];
+          const detailsText = Object.entries(details)
+            .filter(([key]) => !excludeKeys.includes(key))
+            .map(([key, value]) => {
+              // Skip nested objects
+              if (typeof value === 'object' && value !== null) {
+                return `${key}: [object]`;
+              }
+              return `${key}: ${String(value)}`;
+            })
+            .join(', ');
+          
+          return (
+            <div className="flex flex-col">
+              <span className="text-sm whitespace-normal break-words max-w-sm">
+                {detailsText}
+              </span>
+            </div>
+          );
+        }
+        
+        // Default fallback for string or primitive details
+        return (
+          <div className="flex flex-col">
+            <span className="text-sm whitespace-normal break-words max-w-sm">
+              {String(details)}
+            </span>
+          </div>
+        );
+      } catch (err) {
+        console.error("Error rendering Details column:", err);
+        return <span>-</span>;
+      }
+    },
+  },
+  {
+    accessorKey: "targetUser",
+    header: "Target User",
+    searchable: true,
+    cell: ({ row }: RowProps) => {
+      try {
+        const targetUser = row?.original?.targetUser;
+        if (!targetUser) return <span>-</span>;
+        
+        return (
+          <div className="flex flex-col">
+            <span className="font-medium">{targetUser.name || 'Unknown'}</span>
+            <span className="text-xs text-muted-foreground">{targetUser.email || 'No email'}</span>
+          </div>
+        );
+      } catch (err) {
+        console.error("Error rendering Target User column:", err);
+        return <span>-</span>;
+      }
+    },
+  },
+  {
+    accessorKey: "createdAt",
+    header: "Time",
+    searchable: true,
+    cell: ({ row }: RowProps) => {
+      try {
+        if (!row?.original) return <span>-</span>;
+        
+        const createdAt = row.original.createdAt;
+        if (!createdAt) return <span>-</span>;
+        
+        return <span>{formatDate(createdAt)}</span>;
+      } catch (err) {
+        console.error("Error rendering Time column:", err);
+        return <span>-</span>;
+      }
+    },
+  },
+];
 
-                            // For other actions with structured details, create a more readable format
-                            if (typeof log.details === 'object') {
-                              // Try to generate a meaningful summary based on available fields
-                              let mainDescription = `${log.action.toLowerCase().replace(/_/g, ' ')} ${log.targetResourceType?.toLowerCase()?.replace(/_/g, ' ') || ""}`.trim();
-                              
-                              // Extract key details to display separately
-                              const importantDetails = [];
-                              
-                              // Check for common descriptive fields
-                              if (log.details.summaryText) importantDetails.push(log.details.summaryText);
-                              if (log.details.reasonText) importantDetails.push(`Reason: ${log.details.reasonText}`);
-                              if (log.details.amount) importantDetails.push(`Amount: ${log.details.amount}`);
-                              if (log.details.userName) importantDetails.push(`User: ${log.details.userName}`);
-                              if (log.details.companyName) importantDetails.push(`Company: ${log.details.companyName}`);
-                              if (log.details.sessionId) importantDetails.push(`Session: ${log.details.sessionId}`);
-                              
-                              return (
-                                <div>
-                                  <span className="capitalize">{mainDescription}</span>
-                                  {importantDetails.length > 0 && (
-                                    <div className="text-xs text-muted-foreground mt-1">
-                                      {importantDetails.map((detail, index) => (
-                                        <div key={index}>{detail}</div>
-                                      ))}
-                                    </div>
-                                  )}
-                                </div>
-                              );
-                            }
+export default function ActivityLogsPage() {
+  const { data: session } = useSession();
+  const router = useRouter();
+  const [logs, setLogs] = useState<ActivityLog[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [isSessionChecked, setIsSessionChecked] = useState(false);
+  const [tableData, setTableData] = useState<ActivityLogRow[]>([]);
 
-                            // Default fallback for string or primitive details
-                            return <span>{String(log.details || "-")}</span>;
-                          })()}
-                        </TableCell>
-                        <TableCell>
-                          {log.targetUser ? (
-                            <div>
-                              <span className="font-medium">{log.targetUser.name}</span>
-                              <br />
-                              <span className="text-xs text-muted-foreground">{log.targetUser.email}</span>
-                            </div>
-                          ) : (
-                            "-"
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          {formatDate(log.createdAt)}
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
-            </TableContainer>
-            <TablePagination
-              component="div"
-              count={totalPages * 10} // Approximate total count based on page count
-              page={page - 1}
-              onPageChange={(_, newPage) => setPage(newPage + 1)}
-              rowsPerPage={10}
-              rowsPerPageOptions={[10]}
+  const fetchActivityLogs = useCallback(async (pageNum: number) => {
+    try {
+      console.log(`Fetching activity logs for page ${pageNum}...`);
+      setIsLoading(true);
+      setError("");
+      
+      const response = await fetch(`/api/activity-logs?page=${pageNum}`);
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch activity logs: ${response.status}`);
+      }
+      
+      const data: ActivityLogsResponse = await response.json();
+      
+      setLogs(data.logs);
+      setTotalPages(data.meta.totalPages);
+      setError("");
+    } catch (err) {
+      console.error("Error fetching activity logs:", err);
+      setError("Failed to load activity logs. Please try again later.");
+      setLogs([]);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  // Transform logs to table data format
+  useEffect(() => {
+    if (logs && logs.length > 0) {
+      const formattedData = logs.map(log => ({
+        id: log.id,
+        user: {
+          name: log.user?.name || "Unknown",
+          email: log.user?.email || "No email"
+        },
+        action: log.action,
+        details: {
+          ...log.details,
+          amount: log.details.amount ? Number(log.details.amount) : undefined
+        },
+        targetUser: log.targetUser ? {
+          name: log.targetUser.name,
+          email: log.targetUser.email
+        } : undefined,
+        createdAt: log.createdAt,
+        userAgent: log.userAgent,
+          targetResourceType: log.targetResourceType
+      }));
+      
+      setTableData(formattedData);
+    } else {
+      setTableData([]);
+    }
+  }, [logs]);
+
+  useEffect(() => {
+    if (!session && !isSessionChecked) {
+      setIsSessionChecked(true);
+      return;
+    }
+    
+    if (session?.user) {
+      console.log("Session is available, fetching activity logs...");
+      fetchActivityLogs(page);
+    }
+  }, [session, page, fetchActivityLogs, isSessionChecked]);
+
+  const handleRefresh = () => {
+    fetchActivityLogs(page);
+  };
+
+  const formatDate = (dateString: string) => {
+    try {
+      const date = new Date(dateString);
+      return date.toLocaleString(undefined, {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+        hour: 'numeric',
+        minute: 'numeric',
+        second: 'numeric',
+        hour12: true
+      });
+    } catch (err) {
+      return dateString;
+    }
+  };
+
+  const getActionColor = (action: string) => {
+    switch (action) {
+      case "LOGIN":
+        return "success.main"; // Green for login
+      case "LOGOUT":
+        return "warning.main"; // Orange for logout
+      case "CREATE":
+        return "info.main"; // Blue for create
+      case "UPDATE":
+        return "primary.main"; // Default primary for update
+      case "DELETE":
+        return "error.main"; // Red for delete
+      case "VIEW":
+        return "text.secondary"; // Gray for view
+      case "ALLOCATE":
+        return "success.light"; // Light green for allocate
+      case "TRANSFER":
+        return "secondary.main"; // Purple for transfer
+      default:
+        return "text.secondary"; // Default gray
+    }
+  };
+
+  const getActionIcon = (action: string) => {
+    switch (action) {
+      case "LOGIN":
+        return <Smartphone className="mr-2 text-success-600" size={18} />;
+      case "LOGOUT":
+        return <ArrowLeft className="mr-2 text-warning-600" size={18} />;
+      case "CREATE":
+        return <Star className="mr-2 text-info-600" size={18} />;
+      case "UPDATE":
+        return <RefreshCw className="mr-2 text-primary-600" size={18} />;
+      case "DELETE":
+        return <X className="mr-2 text-error-600" size={18} />;
+      case "VIEW":
+        return <Binoculars className="mr-2 text-gray-600" size={18} />;
+      case "ALLOCATE":
+        return <Gift className="mr-2 text-success-500" size={18} />;
+      case "TRANSFER":
+        return <ArrowLeftRight className="mr-2 text-secondary-600" size={18} />;
+      default:
+        return <Filter className="mr-2 text-gray-600" size={18} />;
+    }
+  };
+
+  const renderLogDetails = (log: ActivityLog) => {
+    switch (log.targetResourceType) {
+      case "USER":
+        return (
+          <>
+            <Typography variant="body2">
+              User: {log.targetUser?.name || log.details.userName || "Unknown"}
+            </Typography>
+            {log.details.userRole && (
+              <Typography variant="body2">
+                Role: {log.details.userRole}
+              </Typography>
+            )}
+          </>
+        );
+      
+      case "COMPANY":
+        return (
+          <>
+            <Typography variant="body2">
+              Company: {log.details.companyName || "Unknown"}
+            </Typography>
+            {log.details.createdAt && (
+              <Typography variant="body2">
+                Created: {formatDate(log.details.createdAt.toString())}
+              </Typography>
+            )}
+          </>
+        );
+        
+      case "SESSION":
+        return (
+          <>
+            <Typography variant="body2">
+              Session ID: {log.details.sessionId || "N/A"}
+            </Typography>
+            {log.details.device && (
+              <Typography variant="body2">
+                Device: {log.details.device}
+              </Typography>
+            )}
+          </>
+        );
+        
+      case "USER_LIST":
+        return (
+          <>
+            <Typography variant="body2">
+              Filters: {Object.entries(log.details.filters || {})
+                .filter(([_, value]) => value !== undefined)
+                .map(([key, value]) => `${key}: ${value}`)
+                .join(", ")}
+            </Typography>
+            <Typography variant="body2">
+              Results: {log.details.resultCount} of {log.details.totalCount}
+            </Typography>
+          </>
+        );
+        
+      default:
+        // For any other resource type, show a summary text if available
+        return log.details.summaryText ? (
+          <Typography variant="body2">{log.details.summaryText}</Typography>
+        ) : (
+          // Otherwise, just show the resource type
+          <Typography variant="body2">
+            Resource: {log.targetResourceType}
+            {log.targetResourceId ? ` (ID: ${log.targetResourceId})` : ''}
+          </Typography>
+        );
+    }
+  };
+
+  if (!session?.user) {
+    return (
+      <Box sx={{ p: 3 }}>
+        <Alert severity="error">Please sign in to view activity logs</Alert>
+      </Box>
+    );
+  }
+
+  return (
+    <Box sx={{ p: 3 }}>
+      <Typography variant="h4" sx={{ mb: 4, fontWeight: 'bold', color: 'primary.main' }}>
+        Activity Logs
+      </Typography>
+
+      {isLoading ? (
+        <Box sx={{ display: "flex", justifyContent: "center", p: 3 }}>
+          <CircularProgress />
+        </Box>
+      ) : error ? (
+        <Box sx={{ p: 3 }}>
+          <Alert severity="error">{error}</Alert>
+        </Box>
+      ) : logs.length === 0 ? (
+        <Alert severity="info">No activity logs found</Alert>
+      ) : (
+        <Card>
+          <CardContent>
+            <SearchableTable 
+              columns={columns} 
+              data={tableData}
+              pagination={{
+                pageIndex: page - 1,
+                pageSize: 10,
+                pageCount: totalPages,
+                onPageChange: (newPage) => setPage(newPage + 1),
+                onPageSizeChange: () => {}
+              }}
             />
           </CardContent>
         </Card>
@@ -456,6 +578,4 @@ const columns = [
     </Box>
   );
 }
-
-
 
