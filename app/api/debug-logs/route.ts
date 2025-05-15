@@ -12,83 +12,57 @@ async function handler() {
   try {
     const session = await getServerSession(authOptions);
     
-    // Allow all user roles to use this endpoint during debugging
-    if (!session?.user) {
+    if (!session?.user || session.user.role !== UserRole.SUPERADMIN) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
     
-    // Check for login/logout activities in the database
-    const loginActivities = await prisma.activityLog.findMany({
-      where: { action: ActivityAction.LOGIN },
-      take: 10,
-      orderBy: { createdAt: 'desc' },
-      include: {
-        user: {
-          select: { id: true, name: true, email: true }
-        }
-      }
-    });
+    // Check total count of activity logs
+    const totalLogsCount = await prisma.activityLog.count();
     
-    const logoutActivities = await prisma.activityLog.findMany({
-      where: { action: ActivityAction.LOGOUT },
-      take: 10, 
-      orderBy: { createdAt: 'desc' },
-      include: {
-        user: {
-          select: { id: true, name: true, email: true }
-        }
-      }
-    });
-    
-    // Count total login/logout activities
-    const loginCount = await prisma.activityLog.count({
-      where: { action: ActivityAction.LOGIN }
-    });
-    
-    const logoutCount = await prisma.activityLog.count({
-      where: { action: ActivityAction.LOGOUT }
-    });
-    
-    // Get the current user's activities, regardless of the role-based permissions
-    // This helps determine if the issue is with permissions or data
-    const currentUserActivities = await prisma.activityLog.findMany({
-      where: { 
-        userId: session.user.id,
-        action: { in: [ActivityAction.LOGIN, ActivityAction.LOGOUT] }  
-      },
+    // Get sample of recent logs
+    const recentLogs = await prisma.activityLog.findMany({
       take: 5,
-      orderBy: { createdAt: 'desc' },
-    });
-    
-    // Return comprehensive debug information
-    return NextResponse.json({
-      loginActivities: loginActivities.map(log => ({
-        id: log.id,
-        userId: log.userId,
-        userName: log.user?.name,
-        email: log.user?.email,
-        createdAt: log.createdAt,
-        details: log.details,
-        userAgent: log.userAgent
-      })),
-      logoutActivities: logoutActivities.map(log => ({
-        id: log.id,
-        userId: log.userId,
-        userName: log.user?.name,
-        email: log.user?.email,
-        createdAt: log.createdAt,
-        details: log.details,
-        userAgent: log.userAgent
-      })),
-      currentUserActivities,
-      counts: {
-        login: loginCount,
-        logout: logoutCount
+      orderBy: {
+        createdAt: "desc"
       },
-      currentUser: {
-        id: session.user.id,
-        role: session.user.role
+      include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            role: true
+          }
+        },
+        targetUser: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            role: true
+          }
+        }
       }
+    });
+
+    // Get counts by action type
+    const actionCounts = await Promise.all(
+      Object.values(ActivityAction).map(async (action) => {
+        const count = await prisma.activityLog.count({
+          where: { action: action as ActivityAction }
+        });
+        return { action, count };
+      })
+    );
+    
+    // Return diagnostic info
+    return NextResponse.json({
+      totalLogsCount,
+      recentLogs,
+      actionCounts,
+      message: totalLogsCount > 0 
+        ? "Activity logs exist in the database" 
+        : "No activity logs found in the database"
     });
   } catch (error) {
     console.error("Error checking activity logs:", error);
