@@ -17,7 +17,18 @@ import {
   Input,
   DatePicker,
 } from "@/components/ui";
-import { ArrowLeft, Smartphone, Monitor, Filter, RefreshCw } from "lucide-react";
+import { 
+  ArrowLeft, 
+  Smartphone, 
+  Monitor, 
+  Filter, 
+  RefreshCw,
+  Star,
+  X,
+  Binoculars,
+  Gift,
+  ArrowLeftRight
+} from "lucide-react";
 import { useRouter } from "next/navigation";
 import { detectDevice, formatDate } from "@/lib/utils";
 import { Box, Typography, Paper, CircularProgress, Alert } from "@mui/material";
@@ -407,28 +418,21 @@ export default function ActivityLogsPage() {
       case "DELETE":
         return "error.main"; // Red for delete
       case "VIEW":
-        return "secondary.main"; // Secondary for view
-      case "TRANSFER":
-        return "purple"; // Purple for transfers
-      default:
-        return "text.secondary"; // Default gray
-    }
-  };
-
-  const getActionIcon = (action: string) => {
-    switch (action) {
-      case "LOGIN":
-        return <Monitor className="mr-2 text-green-600" size={18} />;
+        return <Binoculars className="mr-2 text-gray-600" size={18} />;
       case "LOGOUT":
         return <ArrowLeft className="mr-2 text-orange-600" size={18} />;
       case "CREATE":
-        return <Filter className="mr-2 text-blue-600" size={18} />;
+        return <Star className="mr-2 text-blue-600" size={18} />;
       case "UPDATE":
         return <RefreshCw className="mr-2 text-blue-500" size={18} />;
       case "DELETE":
-        return <Filter className="mr-2 text-red-600" size={18} />;
+        return <X className="mr-2 text-red-600" size={18} />;
+      case "VIEW":
+        return <Binoculars className="mr-2 text-gray-600" size={18} />;
+      case "ALLOCATE":
+        return <Gift className="mr-2 text-green-600" size={18} />;
       case "TRANSFER":
-        return <Filter className="mr-2 text-purple-600" size={18} />;
+        return <ArrowLeftRight className="mr-2 text-purple-600" size={18} />;
       default:
         return <Filter className="mr-2 text-gray-500" size={18} />;
     }
@@ -469,7 +473,7 @@ export default function ActivityLogsPage() {
               )}
               
               <Typography variant="body2" color="text.secondary">
-                Created at: {new Date(details.createdAt).toLocaleString()}
+                Created at: {details.createdAt ? new Date(details.createdAt).toLocaleString() : "Unknown"}
               </Typography>
             </>
           );
@@ -522,7 +526,7 @@ export default function ActivityLogsPage() {
             <Typography variant="body2">
               Filters: {Object.entries(details.filters || {})
                 .filter(([_, value]) => value !== undefined)
-                .map(([key, value]) => `${key}: ${value}`)
+                .map(([key, value]) => \: \)
                 .join(", ")}
             </Typography>
             <Typography variant="body2">
@@ -724,3 +728,8 @@ export default function ActivityLogsPage() {
     </Box>
   );
 } 
+
+
+
+
+
