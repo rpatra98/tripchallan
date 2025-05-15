@@ -13,18 +13,12 @@ import {
   CardContent,
   CardHeader,
   Typography,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  Paper,
   Chip,
   CircularProgress,
   Box,
   Alert,
-  IconButton
+  IconButton,
+  Paper
 } from "@mui/material";
 import { ArrowLeft, Plus, Trash2, Eye } from "lucide-react";
 import { format } from "date-fns";
@@ -32,6 +26,7 @@ import toast from "react-hot-toast";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
 import { UserRole } from "@/prisma/enums";
+import { SearchableTable } from "@/components/ui/searchable-table";
 
 interface AdminUser {
   id: string;
@@ -151,6 +146,75 @@ export default function AdminsPage() {
     }
   };
 
+  // Define table columns
+  const columns = [
+    {
+      accessorKey: "name",
+      header: "Name",
+      searchable: true,
+    },
+    {
+      accessorKey: "email",
+      header: "Email",
+      searchable: true,
+    },
+    {
+      accessorKey: "coins",
+      header: "Coins",
+      cell: ({ row }: { row: any }) => (
+        <span>{(row.original.coins || 0).toLocaleString()}</span>
+      ),
+      searchable: true,
+    },
+    {
+      accessorKey: "createdAt",
+      header: "Created On",
+      cell: ({ row }: { row: any }) => (
+        <span>{formatDate(row.original.createdAt)}</span>
+      ),
+      searchable: false,
+    },
+    {
+      accessorKey: "hasCreatedResources",
+      header: "Status",
+      cell: ({ row }: { row: any }) => (
+        <Chip 
+          label={row.original.hasCreatedResources ? "Has Resources" : "No Resources"} 
+          color={row.original.hasCreatedResources ? "warning" : "success"}
+          size="small"
+          variant="outlined"
+        />
+      ),
+      searchable: false,
+    },
+    {
+      accessorKey: "actions",
+      header: "Actions",
+      cell: ({ row }: { row: any }) => (
+        <div className="flex justify-end gap-2">
+          <IconButton 
+            size="small"
+            onClick={() => handleViewDetails(row.original.id)}
+            title="View Details"
+          >
+            <Eye size={18} />
+          </IconButton>
+          <IconButton 
+            size="small"
+            onClick={() => {
+              setDeleteConfirmOpen(true);
+              setAdminToDelete(row.original.id);
+            }}
+            title="Delete Admin"
+          >
+            <Trash2 size={18} />
+          </IconButton>
+        </div>
+      ),
+      searchable: false,
+    },
+  ];
+
   if (loading) {
     return (
       <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
@@ -179,65 +243,9 @@ export default function AdminsPage() {
         </Button>
       </div>
 
-      <TableContainer component={Paper}>
-        <Table>
-          <TableHead>
-            <TableRow>
-              <TableCell>Name</TableCell>
-              <TableCell>Email</TableCell>
-              <TableCell>Coins</TableCell>
-              <TableCell>Created On</TableCell>
-              <TableCell>Status</TableCell>
-              <TableCell align="right">Actions</TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {admins.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={6} align="center">
-                  No admin users found
-                </TableCell>
-              </TableRow>
-            ) : (
-              admins.map((admin) => (
-                <TableRow key={admin.id}>
-                  <TableCell>{admin.name}</TableCell>
-                  <TableCell>{admin.email}</TableCell>
-                  <TableCell>{(admin.coins || 0).toLocaleString()}</TableCell>
-                  <TableCell>{formatDate(admin.createdAt)}</TableCell>
-                  <TableCell>
-                    <Chip 
-                      label={admin.hasCreatedResources ? "Has Resources" : "No Resources"} 
-                      color={admin.hasCreatedResources ? "warning" : "success"}
-                      size="small"
-                      variant="outlined"
-                    />
-                  </TableCell>
-                  <TableCell align="right">
-                    <IconButton 
-                      size="small"
-                      onClick={() => handleViewDetails(admin.id)}
-                      title="View Details"
-                    >
-                      <Eye size={18} />
-                    </IconButton>
-                    <IconButton 
-                      size="small"
-                      onClick={() => {
-                        setDeleteConfirmOpen(true);
-                        setAdminToDelete(admin.id);
-                      }}
-                      title="Delete Admin"
-                    >
-                      <Trash2 size={18} />
-                    </IconButton>
-                  </TableCell>
-                </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
-      </TableContainer>
+      <Paper>
+        <SearchableTable columns={columns} data={admins} />
+      </Paper>
 
       <Dialog
         open={deleteConfirmOpen}
