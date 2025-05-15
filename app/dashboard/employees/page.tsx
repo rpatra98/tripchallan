@@ -39,7 +39,7 @@ interface Employee {
   createdAt: string;
 }
 
-type SearchColumn = 'name' | 'email' | 'role' | 'all';
+type SearchColumn = 'name' | 'email' | 'role' | 'coins' | 'created' | 'all';
 
 export default function EmployeesPage() {
   const router = useRouter();
@@ -70,7 +70,9 @@ export default function EmployeesPage() {
           return (
             employee.name.toLowerCase().includes(query) ||
             employee.email.toLowerCase().includes(query) ||
-            (employee.subrole || employee.role).toLowerCase().includes(query)
+            (employee.subrole || employee.role).toLowerCase().includes(query) ||
+            employee.coins.toString().includes(query) ||
+            new Date(employee.createdAt).toLocaleDateString().toLowerCase().includes(query)
           );
         } else if (searchColumn === 'name') {
           return employee.name.toLowerCase().includes(query);
@@ -78,6 +80,10 @@ export default function EmployeesPage() {
           return employee.email.toLowerCase().includes(query);
         } else if (searchColumn === 'role') {
           return (employee.subrole || employee.role).toLowerCase().includes(query);
+        } else if (searchColumn === 'coins') {
+          return employee.coins.toString().includes(query);
+        } else if (searchColumn === 'created') {
+          return new Date(employee.createdAt).toLocaleDateString().toLowerCase().includes(query);
         }
         return false;
       });
@@ -183,13 +189,17 @@ export default function EmployeesPage() {
                 <MenuItem value="name">Name</MenuItem>
                 <MenuItem value="email">Email</MenuItem>
                 <MenuItem value="role">Role</MenuItem>
+                <MenuItem value="coins">Coins</MenuItem>
+                <MenuItem value="created">Created Date</MenuItem>
               </Select>
             </FormControl>
             
             <TextField
               fullWidth
               variant="outlined"
-              placeholder="Enter search term..."
+              placeholder={searchColumn === 'coins' ? "Enter number of coins..." : 
+                           searchColumn === 'created' ? "Enter date (e.g., 1/1/2023)..." : 
+                           "Enter search term..."}
               value={searchQuery}
               onChange={handleSearchChange}
               InputProps={{
