@@ -1,3 +1,6 @@
+$filePath = "app/dashboard/activity-logs/page.tsx"
+
+$correctContent = @'
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
@@ -566,3 +569,9 @@ export default function ActivityLogsPage() {
     </Box>
   );
 }
+'@
+
+# Write the fixed content to the file
+Set-Content -Path $filePath -Value $correctContent
+
+Write-Host "Fixed activity logs page content" 
