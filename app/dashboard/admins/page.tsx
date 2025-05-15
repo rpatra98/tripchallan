@@ -162,7 +162,7 @@ export default function AdminsPage() {
       accessorKey: "coins",
       header: "Coins",
       cell: ({ row }: { row: any }) => (
-        <span>{(row.original.coins || 0).toLocaleString()}</span>
+        <span>{(row.coins || 0).toLocaleString()}</span>
       ),
       searchable: true,
     },
@@ -170,7 +170,7 @@ export default function AdminsPage() {
       accessorKey: "createdAt",
       header: "Created On",
       cell: ({ row }: { row: any }) => (
-        <span>{formatDate(row.original.createdAt)}</span>
+        <span>{formatDate(row.createdAt)}</span>
       ),
       searchable: false,
     },
@@ -179,8 +179,8 @@ export default function AdminsPage() {
       header: "Status",
       cell: ({ row }: { row: any }) => (
         <Chip 
-          label={row.original.hasCreatedResources ? "Has Resources" : "No Resources"} 
-          color={row.original.hasCreatedResources ? "warning" : "success"}
+          label={row.hasCreatedResources ? "Has Resources" : "No Resources"} 
+          color={row.hasCreatedResources ? "warning" : "success"}
           size="small"
           variant="outlined"
         />
@@ -194,7 +194,7 @@ export default function AdminsPage() {
         <div className="flex justify-end gap-2">
           <IconButton 
             size="small"
-            onClick={() => handleViewDetails(row.original.id)}
+            onClick={() => handleViewDetails(row.id)}
             title="View Details"
           >
             <Eye size={18} />
@@ -203,7 +203,7 @@ export default function AdminsPage() {
             size="small"
             onClick={() => {
               setDeleteConfirmOpen(true);
-              setAdminToDelete(row.original.id);
+              setAdminToDelete(row.id);
             }}
             title="Delete Admin"
           >
