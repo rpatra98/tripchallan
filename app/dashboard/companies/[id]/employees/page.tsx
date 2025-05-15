@@ -17,10 +17,13 @@ import {
   Alert,
   Collapse,
   IconButton,
-  Divider
+  Divider,
+  Card,
+  CardContent
 } from "@mui/material";
 import { Person, ArrowBack, KeyboardArrowUp, KeyboardArrowDown, Refresh } from "@mui/icons-material";
 import Link from "next/link";
+import { SearchableTable } from "@/components/ui";
 
 interface Employee {
   id: string;
@@ -31,6 +34,75 @@ interface Employee {
   coins: number;
   createdAt: string;
 }
+
+interface EmployeeWithCompanyId extends Employee {
+  companyId: string;
+}
+
+interface RowProps {
+  row: {
+    original: EmployeeWithCompanyId;
+  };
+}
+
+// Define columns for the searchable table
+const columns = [
+  {
+    accessorKey: "name",
+    header: "Name",
+    searchable: true,
+    cell: ({ row }: RowProps) => row.original.name || "-",
+  },
+  {
+    accessorKey: "email",
+    header: "Email",
+    searchable: true,
+    cell: ({ row }: RowProps) => row.original.email || "-",
+  },
+  {
+    accessorKey: "role",
+    header: "Role",
+    searchable: true,
+    cell: ({ row }: RowProps) => (row.original.subrole ? `${row.original.role} (${row.original.subrole})` : row.original.role) || "-",
+  },
+  {
+    accessorKey: "coins",
+    header: "Coins",
+    searchable: true,
+    cell: ({ row }: RowProps) => {
+      if (row.original.role === "GUARD") return "Not Applicable";
+      return (row.original.coins || 0).toLocaleString();
+    },
+  },
+  {
+    accessorKey: "createdAt",
+    header: "Created",
+    searchable: true,
+    cell: ({ row }: RowProps) => {
+      const date = new Date(row.original.createdAt);
+      return date.toLocaleDateString() + " " + date.toLocaleTimeString();
+    },
+  },
+  {
+    accessorKey: "actions",
+    header: "Actions",
+    searchable: false,
+    cell: ({ row }: RowProps) => (
+      <Link 
+        href={`/dashboard/employees/${row.original.id}?source=company&companyId=${row.original.companyId}`}
+        style={{ textDecoration: 'none' }}
+      >
+        <Button
+          variant="outlined"
+          size="small"
+          startIcon={<Person />}
+        >
+          Full Profile
+        </Button>
+      </Link>
+    ),
+  },
+];
 
 // Row component with expandable details
 function EmployeeRow({ employee, companyId }: { employee: Employee, companyId: string }) {
@@ -302,29 +374,17 @@ export default function CompanyEmployeesPage() {
           </Typography>
         </Paper>
       ) : (
-        <TableContainer component={Paper}>
-          <Table>
-            <TableHead>
-              <TableRow>
-                <TableCell style={{ width: 50 }}></TableCell>
-                <TableCell>Name</TableCell>
-                <TableCell>Email</TableCell>
-                <TableCell>Role</TableCell>
-                <TableCell>Coins</TableCell>
-                <TableCell>Created</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {employees.map((employee) => (
-                <EmployeeRow 
-                  key={employee.id}
-                  employee={employee}
-                  companyId={companyId}
-                />
-              ))}
-            </TableBody>
-          </Table>
-        </TableContainer>
+        <Card>
+          <CardContent>
+            <SearchableTable 
+              columns={columns} 
+              data={employees.map(employee => ({
+                ...employee,
+                companyId: companyId
+              }))}
+            />
+          </CardContent>
+        </Card>
       )}
     </div>
   );
