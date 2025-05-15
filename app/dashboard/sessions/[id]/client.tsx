@@ -165,9 +165,6 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
     [userRole]
   );
   
-  // Check if user can edit sessions (OPERATOR with edit permission or ADMIN/SUPERADMIN)
-  const [canEdit, setCanEdit] = useState(false);
-  
   // Check if the session can be verified
   const canVerify = useMemo(() => 
     isGuard && 
@@ -223,29 +220,26 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
 
   // Check if user has edit permission
   useEffect(() => {
-    const checkEditPermission = async () => {
-      // Admins and superadmins can always edit
-      if (userRole === "ADMIN" || userRole === "SUPERADMIN") {
-        setCanEdit(true);
-        return;
-      }
-      
-      // Operators need special permission
-      if (userRole === "EMPLOYEE" && userSubrole === EmployeeSubrole.OPERATOR && authSession?.user?.id) {
-        try {
-          const response = await fetch(`/api/employees/${authSession.user.id}/permissions`);
-          const data = await response.json();
+    // Admins and superadmins can always edit
+    if (userRole === "ADMIN" || userRole === "SUPERADMIN") {
+      setCanEdit(true);
+      return;
+    }
+    
+    // Operators need special permission
+    if (userRole === "EMPLOYEE" && userSubrole === EmployeeSubrole.OPERATOR && authSession?.user?.id) {
+      fetch(`/api/employees/${authSession.user.id}/permissions`)
+        .then(response => response.json())
+        .then(data => {
           setCanEdit(data.canEdit || false);
-        } catch (error) {
+        })
+        .catch(error => {
           console.error("Error checking edit permission:", error);
           setCanEdit(false);
-        }
-      } else {
-        setCanEdit(false);
-      }
-    };
-    
-    checkEditPermission();
+        });
+    } else {
+      setCanEdit(false);
+    }
   }, [userRole, userSubrole, authSession?.user?.id]);
 
   useEffect(() => {
@@ -1475,438 +1469,27 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
                 <Typography variant="h4" component="h1">
                   {isGuard ? "Trip Details" : "Session Details"}
                 </Typography>
-                <Chip 
-                  label={session.status} 
-                  color={getStatusColor(session.status)}
-                  size="medium"
-                />
+                <Box display="flex" alignItems="center" gap={2}>
+                  {canEdit && (
+                    <Button
+                      component={Link}
+                      href={`/dashboard/sessions/${sessionId}/edit`}
+                      startIcon={<Edit />}
+                      variant="outlined"
+                    >
+                      Edit
+                    </Button>
+                  )}
+                  <Chip 
+                    label={session.status} 
+                    color={getStatusColor(session.status)}
+                    size="medium"
+                  />
+                </Box>
               </Box>
 
               <Box sx={{ mb: 2 }}>
                 <Typography variant="subtitle1" fontWeight="bold">
-                  {isGuard ? "Trip ID" : "Session ID"}
-                </Typography>
-                <Typography variant="body1" gutterBottom>
-                  {session.id}
-                </Typography>
-              </Box>
-
-              <Divider sx={{ my: 2 }} />
-
-              <Box sx={{ display: "flex", alignItems: "center", mb: 2 }}>
-                <LocationOn color="action" sx={{ mr: 1 }} />
-                <Box>
-                  <Typography variant="subtitle2" color="text.secondary">
-                    Source Location
-                  </Typography>
-                  <Typography variant="body1">
-                    {session.source}
-                  </Typography>
-                </Box>
-              </Box>
-
-              <Box sx={{ display: "flex", alignItems: "center", mb: 2 }}>
-                <DirectionsCar color="action" sx={{ mr: 1 }} />
-                <Box>
-                  <Typography variant="subtitle2" color="text.secondary">
-                    Destination
-                  </Typography>
-                  <Typography variant="body1">
-                    {session.destination}
-                  </Typography>
-                </Box>
-              </Box>
-
-              <Box sx={{ display: "flex", alignItems: "center", mb: 2 }}>
-                <AccessTime color="action" sx={{ mr: 1 }} />
-                <Box>
-                  <Typography variant="subtitle2" color="text.secondary">
-                    Created At
-                  </Typography>
-                  <Typography variant="body1">
-                    {formatDate(session.createdAt)}
-                  </Typography>
-                </Box>
-              </Box>
-
-              <Box sx={{ display: "flex", alignItems: "center", mb: 2 }}>
-                <VerifiedUser color="action" sx={{ mr: 1 }} />
-                <Box>
-                  <Typography variant="subtitle2" color="text.secondary">
-                    Created By
-                  </Typography>
-                  <Typography variant="body1">
-                    {session.createdBy.name} ({session.createdBy.email})
-                  </Typography>
-                </Box>
-              </Box>
-
-              <Box sx={{ display: "flex", alignItems: "center", mb: 2 }}>
-                <VerifiedUser color="action" sx={{ mr: 1 }} />
-                <Box>
-                  <Typography variant="subtitle2" color="text.secondary">
-                    Company
-                  </Typography>
-                  <Typography variant="body1">
-                    {session.company.name}
-                  </Typography>
-                </Box>
-              </Box>
-
-              {/* Trip Details Section - Hide from GUARD users for IN_PROGRESS sessions */}
-              {session.tripDetails && Object.keys(session.tripDetails).length > 0 && 
-                !(isGuard && session.status === SessionStatus.IN_PROGRESS) && (
-                <>
-                  <Divider sx={{ my: 2 }} />
-                  
-                  <Typography variant="h6" gutterBottom>
-                    Trip Details
-                  </Typography>
-                  
-                  <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 2 }}>
-                    {session.tripDetails.transporterName && (
-                      <Box>
-                        <Typography variant="subtitle2" color="text.secondary">Transporter Name</Typography>
-                        <Typography variant="body1">{session.tripDetails.transporterName}</Typography>
-                      </Box>
-                    )}
-                    
-                    {session.tripDetails.materialName && (
-                      <Box>
-                        <Typography variant="subtitle2" color="text.secondary">Material Name</Typography>
-                        <Typography variant="body1">{session.tripDetails.materialName}</Typography>
-                      </Box>
-                    )}
-                    
-                    {session.tripDetails.vehicleNumber && (
-                      <Box>
-                        <Typography variant="subtitle2" color="text.secondary">Vehicle Number</Typography>
-                        <Typography variant="body1">{session.tripDetails.vehicleNumber}</Typography>
-                      </Box>
-                    )}
-                    
-                    {session.tripDetails.gpsImeiNumber && (
-                      <Box>
-                        <Typography variant="subtitle2" color="text.secondary">GPS IMEI Number</Typography>
-                        <Typography variant="body1">{session.tripDetails.gpsImeiNumber}</Typography>
-                      </Box>
-                    )}
-                    
-                    {session.tripDetails.driverName && (
-                      <Box>
-                        <Typography variant="subtitle2" color="text.secondary">Driver Name</Typography>
-                        <Typography variant="body1">{session.tripDetails.driverName}</Typography>
-                      </Box>
-                    )}
-                    
-                    {session.tripDetails.driverContactNumber && (
-                      <Box>
-                        <Typography variant="subtitle2" color="text.secondary">Driver Contact</Typography>
-                        <Typography variant="body1">{session.tripDetails.driverContactNumber}</Typography>
-                      </Box>
-                    )}
-                    
-                    {session.tripDetails.loaderName && (
-                      <Box>
-                        <Typography variant="subtitle2" color="text.secondary">Loader Name</Typography>
-                        <Typography variant="body1">{session.tripDetails.loaderName}</Typography>
-                      </Box>
-                    )}
-                    
-                    {session.tripDetails.challanRoyaltyNumber && (
-                      <Box>
-                        <Typography variant="subtitle2" color="text.secondary">Challan/Royalty Number</Typography>
-                        <Typography variant="body1">{session.tripDetails.challanRoyaltyNumber}</Typography>
-                      </Box>
-                    )}
-                    
-                    {session.tripDetails.doNumber && (
-                      <Box>
-                        <Typography variant="subtitle2" color="text.secondary">DO Number</Typography>
-                        <Typography variant="body1">{session.tripDetails.doNumber}</Typography>
-                      </Box>
-                    )}
-                    
-                    {session.tripDetails.freight !== undefined && (
-                      <Box>
-                        <Typography variant="subtitle2" color="text.secondary">Freight</Typography>
-                        <Typography variant="body1">{session.tripDetails.freight}</Typography>
-                      </Box>
-                    )}
-                    
-                    {session.tripDetails.qualityOfMaterials && (
-                      <Box>
-                        <Typography variant="subtitle2" color="text.secondary">Quality of Materials</Typography>
-                        <Typography variant="body1">{session.tripDetails.qualityOfMaterials}</Typography>
-                      </Box>
-                    )}
-                    
-                    {session.tripDetails.tpNumber && (
-                      <Box>
-                        <Typography variant="subtitle2" color="text.secondary">TP Number</Typography>
-                        <Typography variant="body1">{session.tripDetails.tpNumber}</Typography>
-                      </Box>
-                    )}
-                    
-                    {session.tripDetails.grossWeight !== undefined && (
-                      <Box>
-                        <Typography variant="subtitle2" color="text.secondary">Gross Weight</Typography>
-                        <Typography variant="body1">{session.tripDetails.grossWeight} kg</Typography>
-                      </Box>
-                    )}
-                    
-                    {session.tripDetails.tareWeight !== undefined && (
-                      <Box>
-                        <Typography variant="subtitle2" color="text.secondary">Tare Weight</Typography>
-                        <Typography variant="body1">{session.tripDetails.tareWeight} kg</Typography>
-                      </Box>
-                    )}
-                    
-                    {session.tripDetails.netMaterialWeight !== undefined && (
-                      <Box>
-                        <Typography variant="subtitle2" color="text.secondary">Net Material Weight</Typography>
-                        <Typography variant="body1">{session.tripDetails.netMaterialWeight} kg</Typography>
-                      </Box>
-                    )}
-                    
-                    {session.tripDetails.loaderMobileNumber && (
-                      <Box>
-                        <Typography variant="subtitle2" color="text.secondary">Loader Mobile</Typography>
-                        <Typography variant="body1">{session.tripDetails.loaderMobileNumber}</Typography>
-                      </Box>
-                    )}
-                  </Box>
-                </>
-              )}
-            </Paper>
-            
-            {/* The rest of the session detail components... */}
-          </>
-        )}
-
-        {/* Verification Form */}
-        {verificationFormOpen && (
-          <Paper elevation={2} sx={{ p: 3, mb: 3 }}>
-            <Box sx={{ mb: 3 }}>
-              <Typography variant="h5" gutterBottom>
-                Trip Verification Process
-              </Typography>
-              
-              <Box sx={{ mb: 3 }}>
-                <Typography variant="body2" gutterBottom>
-                  Verification Progress:
-                </Typography>
-                <Box sx={{ width: '100%', bgcolor: 'background.paper', borderRadius: 1, overflow: 'hidden' }}>
-                  <Box 
-                    sx={{ 
-                      height: 10, 
-                      width: `${verificationProgress}%`, 
-                      bgcolor: 'primary.main',
-                      transition: 'width 0.3s ease-in-out'
-                    }} 
-                  />
-                </Box>
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 0.5 }}>
-                  <Typography variant="caption" color="text.secondary">
-                    {verificationProgress}% Complete
-                  </Typography>
-                  <Typography variant="caption" color="text.secondary">
-                    Step {verificationStep + 1} of 3
-                  </Typography>
-                </Box>
-              </Box>
-            </Box>
-            
-            {verificationStep === 0 && renderTripDetailsVerification()}
-            {verificationStep === 1 && renderImageVerification()}
-            {verificationStep === 2 && renderSealVerification()}
-          </Paper>
-        )}
-
-        {/* Dialogs and other UI components */}
-        <Dialog open={confirmDialogOpen} onClose={closeConfirmDialog}>
-          <DialogTitle>Confirm Trip Verification</DialogTitle>
-          <DialogContent>
-            <DialogContentText>
-              Are you sure you want to verify this trip? This action will mark the trip as completed and cannot be undone.
-            </DialogContentText>
-            <DialogContentText sx={{ mt: 2, fontWeight: 'bold' }}>
-              Please confirm that:
-            </DialogContentText>
-            <Box component="ul" sx={{ mt: 1 }}>
-              <Box component="li">You have physically inspected the seal with barcode: {session?.seal?.barcode}</Box>
-              <Box component="li">You have verified all trip details are accurate</Box>
-              <Box component="li">The vehicle and materials match the description</Box>
-            </Box>
-          </DialogContent>
-          <DialogActions>
-            <Button onClick={closeConfirmDialog} color="inherit">Cancel</Button>
-            <Button 
-              onClick={handleVerifySeal} 
-              color="success" 
-              variant="contained"
-              disabled={verifying}
-            >
-              {verifying ? "Verifying..." : "Confirm Trip Verification"}
-            </Button>
-          </DialogActions>
-        </Dialog>
-
-        {/* Verification Form Dialog */}
-        <Dialog 
-          open={verificationFormOpen} 
-          onClose={() => setVerificationFormOpen(false)}
-          maxWidth="md"
-          fullWidth
-          sx={{ '& .MuiDialogContent-root': { px: 3, pb: 3 } }}
-        >
-          <DialogTitle>
-            Trip Verification Process
-            <LinearProgress 
-              variant="determinate" 
-              value={verificationProgress} 
-              sx={{ mt: 1 }}
-            />
-            <Typography variant="caption" display="block" sx={{ mt: 0.5 }}>
-              Step {verificationStep + 1} of 3: {
-                verificationStep === 0 ? "Trip Details Verification (Independent)" :
-                verificationStep === 1 ? "Image Verification" :
-                "Seal Verification"
-              }
-            </Typography>
-            {verificationStep === 0 && (
-              <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.5 }}>
-                Enter values exactly as you observe them, without seeing what the Operator entered
-              </Typography>
-            )}
-          </DialogTitle>
-          <DialogContent>
-            {verificationStep === 0 && renderTripDetailsVerification()}
-            {verificationStep === 1 && renderImageVerification()}
-            {verificationStep === 2 && renderSealVerification()}
-          </DialogContent>
-        </Dialog>
-
-        {/* Add Reports Section for SUPERADMIN, ADMIN, and COMPANY users */}
-        {canAccessReports && (
-          <Paper elevation={2} sx={{ p: 3, mb: 3 }}>
-            <Typography variant="h6" gutterBottom>
-              Session Reports
-            </Typography>
-            
-            <Typography variant="body2" paragraph color="text.secondary">
-              Generate and download reports for this session in your preferred format.
-            </Typography>
-            
-            <Box sx={{ display: 'flex', gap: 2 }}>
-              <Button
-                variant="contained"
-                color="primary"
-                startIcon={reportLoading === 'pdf' ? <CircularProgress size={20} color="inherit" /> : <PictureAsPdf />}
-                onClick={handlePdfDownload}
-                disabled={reportLoading !== null}
-              >
-                {reportLoading === 'pdf' ? 'Generating...' : 'Download PDF Report'}
-              </Button>
-              
-              <Button
-                variant="outlined"
-                color="primary"
-                startIcon={reportLoading === 'text' ? <CircularProgress size={20} color="inherit" /> : <Description />}
-                onClick={handleTextReportDownload}
-                disabled={reportLoading !== null}
-              >
-                {reportLoading === 'text' ? 'Generating...' : 'Download Text Report'}
-              </Button>
-              
-              <Button
-                variant="outlined"
-                color="primary"
-                startIcon={reportLoading === 'excel' ? <CircularProgress size={20} color="inherit" /> : <TableChart />}
-                onClick={handleExcelDownload}
-                disabled={reportLoading !== null}
-              >
-                {reportLoading === 'excel' ? 'Generating...' : 'Download Excel Report'}
-              </Button>
-            </Box>
-          </Paper>
-        )}
-
-        {/* Comment section */}
-        {!verificationFormOpen && <CommentSection sessionId={sessionId} />}
-
-        {/* Verification Results */}
-        {renderVerificationResults()}
-
-        {/* Verification Box for Guards */}
-        {canVerify && (
-          <Paper elevation={2} sx={{ p: 3, mb: 3, bgcolor: 'rgba(76, 175, 80, 0.05)', borderLeft: '4px solid #4caf50' }}>
-            <Box display="flex" justifyContent="space-between" alignItems="center">
-              <Box>
-                <Typography variant="h6" gutterBottom color="success.main" sx={{ display: 'flex', alignItems: 'center' }}>
-                  <CheckCircle sx={{ mr: 1 }} />
-                  Trip Ready for Verification
-                </Typography>
-                <Typography variant="body2">
-                  As a Guard, you need to independently verify each detail of this trip against physical inspection. You will not see the Operator's entries until after you submit your verification.
-                </Typography>
-              </Box>
-              <Button
-                variant="contained"
-                color="success"
-                startIcon={<CheckCircle />}
-                onClick={startVerification}
-              >
-                Start Verification
-              </Button>
-            </Box>
-            
-            {verificationSuccess && (
-              <Alert severity="success" sx={{ mt: 2 }}>
-                Seal verified successfully! The trip is now marked as completed.
-              </Alert>
-            )}
-            
-            {error && (
-              <Alert severity="error" sx={{ mt: 2 }}>
-                {error}
-              </Alert>
-            )}
-          </Paper>
-        )}
-      </Container>
-    );
-  }
-
-  return (
-    <Container maxWidth="md">
-      <Box mb={3}>
-        <Button
-          component={Link}
-          href="/dashboard/sessions"
-          startIcon={<ArrowBack />}
-        >
-          Back to Sessions
-        </Button>
-      </Box>
-
-      {/* Regular session view */}
-      <Paper elevation={2} sx={{ p: 3, mb: 3 }}>
-        {/* Session details */}
-        <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
-          <Typography variant="h4" component="h1">
-            {isGuard ? "Trip Details" : "Session Details"}
-          </Typography>
-          <Chip 
-            label={session.status} 
-            color={getStatusColor(session.status)}
-            size="medium"
-          />
-        </Box>
-
-        {/* Basic session info */}
-        <Box sx={{ mb: 2 }}>
-          <Typography variant="subtitle1" fontWeight="bold">
             {isGuard ? "Trip ID" : "Session ID"}
           </Typography>
           <Typography variant="body1" gutterBottom>
