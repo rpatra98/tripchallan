@@ -51,7 +51,8 @@ import {
   ActivityLog, 
   ActivityLogDetails, 
   ActivityLogRow,
-  FilterOptions 
+  FilterOptions,
+  User
 } from './types';
 import useTransformLogs, { extractFilterOptions } from './effect-transform';
 
@@ -184,9 +185,9 @@ export default function ActivityLogsPage() {
       const result = await response.json();
       alert(`Created ${result.logs?.length || 0} test logs. Refreshing...`);
       fetchActivityLogs(1, true);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error creating test logs:', error);
-      alert(`Error creating test logs: ${error instanceof Error ? error.message : String(error)}`);
+      alert(`Error creating test logs: ${error.message || String(error)}`);
     } finally {
       setIsLoading(false);
     }
