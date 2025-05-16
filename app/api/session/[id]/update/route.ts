@@ -31,6 +31,7 @@ export async function PUT(
       where: { id: sessionId },
       include: {
         company: true,
+        seal: true
       }
     });
     
@@ -46,7 +47,7 @@ export async function PUT(
     const userRole = session.user.role;
     const userSubrole = session.user.subrole;
     
-    // Only operators with edit permission or admins/superadmins can edit sessions
+    // Only operators with edit permission can edit sessions
     if (userRole === UserRole.EMPLOYEE && userSubrole === EmployeeSubrole.OPERATOR) {
       // Check if operator has permission to edit sessions
       const employee = await prisma.user.findUnique({
@@ -62,11 +63,42 @@ export async function PUT(
           { status: 403 }
         );
       }
-    } else if (userRole !== UserRole.ADMIN && userRole !== UserRole.SUPERADMIN) {
+    } else {
       return NextResponse.json(
         { error: "You don't have permission to edit sessions" },
         { status: 403 }
       );
+    }
+    
+    // Process image updates if any
+    const imageUpdates = data.images || {};
+    
+    // Update seal information if provided and not already verified
+    let sealUpdates: any = undefined;
+    if (data.seal && data.seal.barcode) {
+      // Check if the session already has a seal
+      if (existingSession.seal) {
+        // Only allow updating if the seal is not verified
+        if (!existingSession.seal.verified) {
+          sealUpdates = {
+            seal: {
+              update: {
+                barcode: data.seal.barcode
+              }
+            }
+          };
+        }
+      } else {
+        // Create new seal
+        sealUpdates = {
+          seal: {
+            create: {
+              barcode: data.seal.barcode,
+              verified: false
+            }
+          }
+        };
+      }
     }
     
     // Update session with new data
@@ -75,6 +107,7 @@ export async function PUT(
       data: {
         source: data.source,
         destination: data.destination,
+        
         // Only update tripDetails if provided
         ...(data.tripDetails && {
           tripDetails: {
@@ -85,11 +118,26 @@ export async function PUT(
             },
           },
         }),
+        
+        // Update images
+        images: {
+          gpsImeiPicture: imageUpdates.gpsImeiPicture || null,
+          vehicleNumberPlatePicture: imageUpdates.vehicleNumberPlatePicture || null,
+          driverPicture: imageUpdates.driverPicture || null,
+          sealingImages: imageUpdates.sealingImages || [],
+          vehicleImages: imageUpdates.vehicleImages || [],
+          additionalImages: imageUpdates.additionalImages || []
+        },
+        
+        // Update seal if needed
+        ...sealUpdates,
+        
         // Record update timestamp
         updatedAt: new Date(),
       },
       include: {
         company: true,
+        seal: true
       },
     });
     
@@ -105,6 +153,8 @@ export async function PUT(
           source: data.source,
           destination: data.destination,
           ...(data.tripDetails && { tripDetails: data.tripDetails }),
+          ...(data.images && { images: data.images }),
+          ...(data.seal && { seal: data.seal })
         },
       },
     });

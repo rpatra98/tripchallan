@@ -15,12 +15,19 @@ import {
   Stepper,
   Step,
   StepLabel,
-  Stack
+  Stack,
+  Divider,
+  Card,
+  CardMedia,
+  CardContent,
+  IconButton
 } from "@mui/material";
 import { 
   ArrowBack, 
   ArrowForward, 
-  Save
+  Save,
+  PhotoCamera,
+  Delete
 } from "@mui/icons-material";
 import Link from "next/link";
 import { EmployeeSubrole } from "@/prisma/enums";
@@ -50,6 +57,19 @@ type SessionDetails = {
     loadingSite?: string;
     receiverPartyName?: string;
   };
+  images?: {
+    gpsImeiPicture?: string;
+    vehicleNumberPlatePicture?: string;
+    driverPicture?: string;
+    sealingImages?: string[];
+    vehicleImages?: string[];
+    additionalImages?: string[];
+  };
+  seal?: {
+    id: string;
+    barcode: string;
+    verified: boolean;
+  } | null;
 };
 
 export default function EditSessionPage({ params }: { params: { id: string } }) {
@@ -83,6 +103,23 @@ export default function EditSessionPage({ params }: { params: { id: string } }) 
     tareWeight: 0,
     netMaterialWeight: 0,
     loaderMobileNumber: ""
+  });
+
+  // Seal data
+  const [sealData, setSealData] = useState({
+    id: "",
+    barcode: "",
+    verified: false
+  });
+
+  // Image data
+  const [imageData, setImageData] = useState({
+    gpsImeiPicture: "",
+    vehicleNumberPlatePicture: "",
+    driverPicture: "", 
+    sealingImages: [] as string[],
+    vehicleImages: [] as string[],
+    additionalImages: [] as string[]
   });
 
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
@@ -123,6 +160,27 @@ export default function EditSessionPage({ params }: { params: { id: string } }) 
           netMaterialWeight: data.tripDetails?.netMaterialWeight || 0,
           loaderMobileNumber: data.tripDetails?.loaderMobileNumber || ""
         });
+
+        // Populate seal data if exists
+        if (data.seal) {
+          setSealData({
+            id: data.seal.id || "",
+            barcode: data.seal.barcode || "",
+            verified: data.seal.verified || false
+          });
+        }
+
+        // Populate image data if exists
+        if (data.images) {
+          setImageData({
+            gpsImeiPicture: data.images.gpsImeiPicture || "",
+            vehicleNumberPlatePicture: data.images.vehicleNumberPlatePicture || "",
+            driverPicture: data.images.driverPicture || "",
+            sealingImages: data.images.sealingImages || [],
+            vehicleImages: data.images.vehicleImages || [],
+            additionalImages: data.images.additionalImages || []
+          });
+        }
       } catch (error) {
         console.error("Error fetching session:", error);
         setError("Failed to load session data. Please try again.");
@@ -253,7 +311,11 @@ export default function EditSessionPage({ params }: { params: { id: string } }) 
             tareWeight: Number(formData.tareWeight),
             netMaterialWeight: Number(formData.netMaterialWeight),
             loaderMobileNumber: formData.loaderMobileNumber
-          }
+          },
+          images: imageData,
+          seal: sealData.barcode ? {
+            barcode: sealData.barcode
+          } : undefined
         }),
       });
       
@@ -270,6 +332,23 @@ export default function EditSessionPage({ params }: { params: { id: string } }) 
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  // Handle seal barcode change
+  const handleSealChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { value } = e.target;
+    setSealData(prev => ({
+      ...prev,
+      barcode: value
+    }));
+  };
+
+  // Handle image data changes
+  const handleImageChange = (type: keyof typeof imageData, url: string) => {
+    setImageData(prev => ({
+      ...prev,
+      [type]: url
+    }));
   };
 
   if (status === "loading" || isLoading) {
@@ -315,6 +394,8 @@ export default function EditSessionPage({ params }: { params: { id: string } }) 
         </Box>
         
         <form onSubmit={handleSubmit}>
+          <Typography variant="h6" gutterBottom>Basic Information</Typography>
+          <Divider sx={{ mb: 2 }} />
           <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
             <Box sx={{ flex: '1 1 45%', minWidth: '240px' }}>
               <TextField
@@ -556,6 +637,143 @@ export default function EditSessionPage({ params }: { params: { id: string } }) 
                 InputProps={{ readOnly: true }}
                 margin="normal"
               />
+            </Box>
+          </Box>
+
+          {/* Seal Information Section */}
+          <Typography variant="h6" sx={{ mt: 4 }} gutterBottom>Seal Information</Typography>
+          <Divider sx={{ mb: 2 }} />
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
+            <Box sx={{ flex: '1 1 45%', minWidth: '240px' }}>
+              <TextField
+                fullWidth
+                label="Seal Barcode"
+                value={sealData.barcode}
+                onChange={handleSealChange}
+                margin="normal"
+                disabled={sealData.verified}
+                helperText={sealData.verified ? "Seal is verified and cannot be modified" : ""}
+              />
+            </Box>
+          </Box>
+
+          {/* Images Section */}
+          <Typography variant="h6" sx={{ mt: 4 }} gutterBottom>Images</Typography>
+          <Divider sx={{ mb: 2 }} />
+          
+          <Box sx={{ mb: 3 }}>
+            <Typography variant="subtitle1" gutterBottom>Driver & Vehicle Images</Typography>
+            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
+              {/* Driver Picture */}
+              <Box sx={{ flex: '1 1 30%', minWidth: '240px' }}>
+                <Card>
+                  <CardContent>
+                    <Typography variant="subtitle2" gutterBottom>Driver Picture</Typography>
+                    {imageData.driverPicture ? (
+                      <>
+                        <CardMedia
+                          component="img"
+                          height="140"
+                          image={imageData.driverPicture}
+                          alt="Driver"
+                          sx={{ objectFit: 'cover', mb: 1 }}
+                        />
+                        <TextField
+                          fullWidth
+                          size="small"
+                          label="Image URL"
+                          value={imageData.driverPicture}
+                          onChange={(e) => handleImageChange('driverPicture', e.target.value)}
+                          margin="dense"
+                        />
+                      </>
+                    ) : (
+                      <TextField
+                        fullWidth
+                        label="Image URL"
+                        placeholder="Enter image URL"
+                        value={imageData.driverPicture}
+                        onChange={(e) => handleImageChange('driverPicture', e.target.value)}
+                        margin="normal"
+                      />
+                    )}
+                  </CardContent>
+                </Card>
+              </Box>
+
+              {/* Vehicle Number Plate */}
+              <Box sx={{ flex: '1 1 30%', minWidth: '240px' }}>
+                <Card>
+                  <CardContent>
+                    <Typography variant="subtitle2" gutterBottom>Vehicle Number Plate</Typography>
+                    {imageData.vehicleNumberPlatePicture ? (
+                      <>
+                        <CardMedia
+                          component="img"
+                          height="140"
+                          image={imageData.vehicleNumberPlatePicture}
+                          alt="Vehicle Number Plate"
+                          sx={{ objectFit: 'cover', mb: 1 }}
+                        />
+                        <TextField
+                          fullWidth
+                          size="small"
+                          label="Image URL"
+                          value={imageData.vehicleNumberPlatePicture}
+                          onChange={(e) => handleImageChange('vehicleNumberPlatePicture', e.target.value)}
+                          margin="dense"
+                        />
+                      </>
+                    ) : (
+                      <TextField
+                        fullWidth
+                        label="Image URL"
+                        placeholder="Enter image URL"
+                        value={imageData.vehicleNumberPlatePicture}
+                        onChange={(e) => handleImageChange('vehicleNumberPlatePicture', e.target.value)}
+                        margin="normal"
+                      />
+                    )}
+                  </CardContent>
+                </Card>
+              </Box>
+
+              {/* GPS IMEI Picture */}
+              <Box sx={{ flex: '1 1 30%', minWidth: '240px' }}>
+                <Card>
+                  <CardContent>
+                    <Typography variant="subtitle2" gutterBottom>GPS IMEI Picture</Typography>
+                    {imageData.gpsImeiPicture ? (
+                      <>
+                        <CardMedia
+                          component="img"
+                          height="140"
+                          image={imageData.gpsImeiPicture}
+                          alt="GPS IMEI"
+                          sx={{ objectFit: 'cover', mb: 1 }}
+                        />
+                        <TextField
+                          fullWidth
+                          size="small"
+                          label="Image URL"
+                          value={imageData.gpsImeiPicture}
+                          onChange={(e) => handleImageChange('gpsImeiPicture', e.target.value)}
+                          margin="dense"
+                        />
+                      </>
+                    ) : (
+                      <TextField
+                        fullWidth
+                        label="Image URL"
+                        placeholder="Enter image URL"
+                        value={imageData.gpsImeiPicture}
+                        onChange={(e) => handleImageChange('gpsImeiPicture', e.target.value)}
+                        margin="normal"
+                      />
+                    )}
+                  </CardContent>
+                </Card>
+              </Box>
             </Box>
           </Box>
 
