@@ -149,7 +149,7 @@ export default function EditSessionPage({ params }: { params: { id: string } }) 
         fetch('/api/employees/' + session.user.id + '/permissions')
           .then(response => response.json())
           .then(data => {
-            if (!data.canEdit) {
+            if (!data.canModify) {
               setError("You don't have permission to edit trips. Please contact your administrator.");
               setTimeout(() => {
                 router.push("/dashboard");

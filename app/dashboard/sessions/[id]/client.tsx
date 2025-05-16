@@ -231,7 +231,7 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
       fetch(`/api/employees/${authSession.user.id}/permissions`)
         .then(response => response.json())
         .then(data => {
-          setCanEdit(data.canEdit || false);
+          setCanEdit(data.canModify || false);
         })
         .catch(error => {
           console.error("Error checking edit permission:", error);

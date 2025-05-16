@@ -49,14 +49,14 @@ export async function PUT(
     // Only operators with edit permission or admins/superadmins can edit sessions
     if (userRole === UserRole.EMPLOYEE && userSubrole === EmployeeSubrole.OPERATOR) {
       // Check if operator has permission to edit sessions
-      const employee = await prisma.employee.findUnique({
+      const employee = await prisma.user.findUnique({
         where: { id: userId },
         include: {
-          permissions: true,
+          operatorPermissions: true,
         },
       });
       
-      if (!employee?.permissions?.canEdit) {
+      if (!employee?.operatorPermissions?.canModify) {
         return NextResponse.json(
           { error: "You don't have permission to edit sessions" },
           { status: 403 }
