@@ -37,6 +37,14 @@ export default function EmployeeDashboard({ user }: EmployeeDashboardProps) {
   // Check if user is an OPERATOR (they can manage trips and have coins)
   const isOperator = user.subrole === EmployeeSubrole.OPERATOR;
 
+  // Fetch latest user data when component mounts for Operators
+  useEffect(() => {
+    if (isOperator) {
+      console.log("Component mounted, fetching current user data");
+      fetchCurrentUser();
+    }
+  }, [isOperator]);
+
   // Fetch latest user data when tab changes to coins
   useEffect(() => {
     if (activeTab === "coins" && isOperator) {
@@ -74,13 +82,21 @@ export default function EmployeeDashboard({ user }: EmployeeDashboardProps) {
   const fetchCurrentUser = async () => {
     try {
       try {
-        const response = await fetch(`/api/users/${session?.user?.id || user.id}`);
+        // Add cache busting to ensure we get fresh data
+        const response = await fetch(`/api/users/${session?.user?.id || user.id}`, {
+          cache: 'no-store',
+          headers: {
+            'pragma': 'no-cache',
+            'cache-control': 'no-cache'
+          }
+        });
         const data = await response.json();
         
         if (data.user) {
           setCurrentUser(data.user);
           // Update session to reflect the latest user data
           await refreshUserSession();
+          console.log("Updated user data - current coins:", data.user.coins);
           return;
         }
       } catch (err) {
@@ -89,13 +105,20 @@ export default function EmployeeDashboard({ user }: EmployeeDashboardProps) {
       
       // Fallback: try /api/users/me endpoint
       try {
-        const meResponse = await fetch('/api/users/me');
+        const meResponse = await fetch('/api/users/me', {
+          cache: 'no-store',
+          headers: {
+            'pragma': 'no-cache',
+            'cache-control': 'no-cache'
+          }
+        });
         const meData = await meResponse.json();
         
         if (meData.id) {
           setCurrentUser(meData);
           // Update session to reflect the latest user data
           await refreshUserSession();
+          console.log("Updated user data (fallback) - current coins:", meData.coins);
         }
       } catch (meErr) {
         console.error("Error in fallback user fetch:", meErr);
@@ -472,7 +495,7 @@ export default function EmployeeDashboard({ user }: EmployeeDashboardProps) {
                     <div>
                       <h4 className="font-medium mb-2">Your Coin Balance</h4>
                       <p className="text-3xl font-bold text-yellow-600">
-                        {session?.user?.coins !== undefined ? session.user.coins : (currentUser?.coins !== undefined ? currentUser.coins : user.coins)} Coins
+                        {currentUser?.coins !== undefined ? currentUser.coins : session?.user?.coins || user.coins} Coins
                       </p>
                       <p className="text-sm text-gray-500 mt-2">
                         Each session creation costs 1 coin.
