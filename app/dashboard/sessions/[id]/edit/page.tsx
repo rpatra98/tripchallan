@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useContext } from "react";
+import { useState, useEffect, useContext, useRef } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { 
@@ -27,7 +27,8 @@ import {
   ArrowForward, 
   Save,
   PhotoCamera,
-  Delete
+  Delete,
+  Clear
 } from "@mui/icons-material";
 import Link from "next/link";
 import { EmployeeSubrole } from "@/prisma/enums";
@@ -351,6 +352,97 @@ export default function EditSessionPage({ params }: { params: { id: string } }) 
     }));
   };
 
+  // Function to handle image upload
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>, type: keyof typeof imageData) => {
+    if (!e.target.files || e.target.files.length === 0) return;
+    
+    const file = e.target.files[0];
+    const formData = new FormData();
+    formData.append('file', file);
+    
+    try {
+      setIsSubmitting(true);
+      setError("");
+      
+      const response = await fetch('/api/upload', {
+        method: 'POST',
+        body: formData
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to upload image');
+      }
+      
+      const data = await response.json();
+      
+      // Update the image data with the new URL
+      handleImageChange(type, data.url);
+      
+    } catch (error) {
+      console.error("Error uploading image:", error);
+      setError(error instanceof Error ? error.message : "Failed to upload image. Please try again.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+  
+  // Function to delete an image
+  const handleDeleteImage = (type: keyof typeof imageData) => {
+    // If type is an array, we need special handling
+    if (Array.isArray(imageData[type])) {
+      setImageData(prev => ({
+        ...prev,
+        [type]: []
+      }));
+    } else {
+      // For single image fields
+      handleImageChange(type, '');
+    }
+  };
+
+  // Update the sealing images upload handler
+  const handleMultipleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>, type: 'sealingImages' | 'vehicleImages' | 'additionalImages') => {
+    if (!e.target.files || e.target.files.length === 0) return;
+    
+    setIsSubmitting(true);
+    setError("");
+    
+    try {
+      const uploadedUrls: string[] = [];
+      
+      // Process each file
+      for (const file of Array.from(e.target.files)) {
+        const formData = new FormData();
+        formData.append('file', file);
+        
+        const response = await fetch('/api/upload', {
+          method: 'POST',
+          body: formData
+        });
+        
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || 'Failed to upload image');
+        }
+        
+        const data = await response.json();
+        uploadedUrls.push(data.url);
+      }
+      
+      // Add the new URLs to the existing array
+      setImageData(prev => ({
+        ...prev,
+        [type]: [...prev[type], ...uploadedUrls]
+      }));
+    } catch (error) {
+      console.error("Error uploading images:", error);
+      setError(error instanceof Error ? error.message : "Failed to upload images. Please try again.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   if (status === "loading" || isLoading) {
     return (
       <Container maxWidth="md" sx={{ my: 4 }}>
@@ -671,13 +763,22 @@ export default function EditSessionPage({ params }: { params: { id: string } }) 
                     <Typography variant="subtitle2" gutterBottom>Driver Picture</Typography>
                     {imageData.driverPicture ? (
                       <>
-                        <CardMedia
-                          component="img"
-                          height="140"
-                          image={imageData.driverPicture}
-                          alt="Driver"
-                          sx={{ objectFit: 'cover', mb: 1 }}
-                        />
+                        <Box sx={{ position: 'relative' }}>
+                          <CardMedia
+                            component="img"
+                            height="140"
+                            image={imageData.driverPicture}
+                            alt="Driver"
+                            sx={{ objectFit: 'cover', mb: 1 }}
+                          />
+                          <IconButton 
+                            sx={{ position: 'absolute', top: 5, right: 5, bgcolor: 'rgba(255,255,255,0.7)' }}
+                            size="small"
+                            onClick={() => handleDeleteImage('driverPicture')}
+                          >
+                            <Clear />
+                          </IconButton>
+                        </Box>
                         <TextField
                           fullWidth
                           size="small"
@@ -688,14 +789,34 @@ export default function EditSessionPage({ params }: { params: { id: string } }) 
                         />
                       </>
                     ) : (
-                      <TextField
-                        fullWidth
-                        label="Image URL"
-                        placeholder="Enter image URL"
-                        value={imageData.driverPicture}
-                        onChange={(e) => handleImageChange('driverPicture', e.target.value)}
-                        margin="normal"
-                      />
+                      <>
+                        <Button
+                          variant="outlined"
+                          component="label"
+                          startIcon={<PhotoCamera />}
+                          fullWidth
+                          sx={{ height: '56px', mb: 1 }}
+                        >
+                          Upload Image
+                          <input
+                            type="file"
+                            hidden
+                            accept="image/*"
+                            onChange={(e) => handleImageUpload(e, 'driverPicture')}
+                          />
+                        </Button>
+                        <Typography variant="caption" display="block" gutterBottom>
+                          OR
+                        </Typography>
+                        <TextField
+                          fullWidth
+                          label="Image URL"
+                          placeholder="Enter image URL"
+                          value={imageData.driverPicture}
+                          onChange={(e) => handleImageChange('driverPicture', e.target.value)}
+                          margin="normal"
+                        />
+                      </>
                     )}
                   </CardContent>
                 </Card>
@@ -708,13 +829,22 @@ export default function EditSessionPage({ params }: { params: { id: string } }) 
                     <Typography variant="subtitle2" gutterBottom>Vehicle Number Plate</Typography>
                     {imageData.vehicleNumberPlatePicture ? (
                       <>
-                        <CardMedia
-                          component="img"
-                          height="140"
-                          image={imageData.vehicleNumberPlatePicture}
-                          alt="Vehicle Number Plate"
-                          sx={{ objectFit: 'cover', mb: 1 }}
-                        />
+                        <Box sx={{ position: 'relative' }}>
+                          <CardMedia
+                            component="img"
+                            height="140"
+                            image={imageData.vehicleNumberPlatePicture}
+                            alt="Vehicle Number Plate"
+                            sx={{ objectFit: 'cover', mb: 1 }}
+                          />
+                          <IconButton 
+                            sx={{ position: 'absolute', top: 5, right: 5, bgcolor: 'rgba(255,255,255,0.7)' }}
+                            size="small"
+                            onClick={() => handleDeleteImage('vehicleNumberPlatePicture')}
+                          >
+                            <Clear />
+                          </IconButton>
+                        </Box>
                         <TextField
                           fullWidth
                           size="small"
@@ -725,14 +855,34 @@ export default function EditSessionPage({ params }: { params: { id: string } }) 
                         />
                       </>
                     ) : (
-                      <TextField
-                        fullWidth
-                        label="Image URL"
-                        placeholder="Enter image URL"
-                        value={imageData.vehicleNumberPlatePicture}
-                        onChange={(e) => handleImageChange('vehicleNumberPlatePicture', e.target.value)}
-                        margin="normal"
-                      />
+                      <>
+                        <Button
+                          variant="outlined"
+                          component="label"
+                          startIcon={<PhotoCamera />}
+                          fullWidth
+                          sx={{ height: '56px', mb: 1 }}
+                        >
+                          Upload Image
+                          <input
+                            type="file"
+                            hidden
+                            accept="image/*"
+                            onChange={(e) => handleImageUpload(e, 'vehicleNumberPlatePicture')}
+                          />
+                        </Button>
+                        <Typography variant="caption" display="block" gutterBottom>
+                          OR
+                        </Typography>
+                        <TextField
+                          fullWidth
+                          label="Image URL"
+                          placeholder="Enter image URL"
+                          value={imageData.vehicleNumberPlatePicture}
+                          onChange={(e) => handleImageChange('vehicleNumberPlatePicture', e.target.value)}
+                          margin="normal"
+                        />
+                      </>
                     )}
                   </CardContent>
                 </Card>
@@ -745,13 +895,22 @@ export default function EditSessionPage({ params }: { params: { id: string } }) 
                     <Typography variant="subtitle2" gutterBottom>GPS IMEI Picture</Typography>
                     {imageData.gpsImeiPicture ? (
                       <>
-                        <CardMedia
-                          component="img"
-                          height="140"
-                          image={imageData.gpsImeiPicture}
-                          alt="GPS IMEI"
-                          sx={{ objectFit: 'cover', mb: 1 }}
-                        />
+                        <Box sx={{ position: 'relative' }}>
+                          <CardMedia
+                            component="img"
+                            height="140"
+                            image={imageData.gpsImeiPicture}
+                            alt="GPS IMEI"
+                            sx={{ objectFit: 'cover', mb: 1 }}
+                          />
+                          <IconButton 
+                            sx={{ position: 'absolute', top: 5, right: 5, bgcolor: 'rgba(255,255,255,0.7)' }}
+                            size="small"
+                            onClick={() => handleDeleteImage('gpsImeiPicture')}
+                          >
+                            <Clear />
+                          </IconButton>
+                        </Box>
                         <TextField
                           fullWidth
                           size="small"
@@ -762,18 +921,148 @@ export default function EditSessionPage({ params }: { params: { id: string } }) 
                         />
                       </>
                     ) : (
-                      <TextField
-                        fullWidth
-                        label="Image URL"
-                        placeholder="Enter image URL"
-                        value={imageData.gpsImeiPicture}
-                        onChange={(e) => handleImageChange('gpsImeiPicture', e.target.value)}
-                        margin="normal"
-                      />
+                      <>
+                        <Button
+                          variant="outlined"
+                          component="label"
+                          startIcon={<PhotoCamera />}
+                          fullWidth
+                          sx={{ height: '56px', mb: 1 }}
+                        >
+                          Upload Image
+                          <input
+                            type="file"
+                            hidden
+                            accept="image/*"
+                            onChange={(e) => handleImageUpload(e, 'gpsImeiPicture')}
+                          />
+                        </Button>
+                        <Typography variant="caption" display="block" gutterBottom>
+                          OR
+                        </Typography>
+                        <TextField
+                          fullWidth
+                          label="Image URL"
+                          placeholder="Enter image URL"
+                          value={imageData.gpsImeiPicture}
+                          onChange={(e) => handleImageChange('gpsImeiPicture', e.target.value)}
+                          margin="normal"
+                        />
+                      </>
                     )}
                   </CardContent>
                 </Card>
               </Box>
+            </Box>
+          </Box>
+
+          {/* Add section for additional image types */}
+          <Box sx={{ mb: 3 }}>
+            <Typography variant="subtitle1" gutterBottom>Sealing & Additional Images</Typography>
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+              {/* Sealing Images */}
+              <Card>
+                <CardContent>
+                  <Typography variant="subtitle2" gutterBottom>Sealing Images</Typography>
+                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mb: 2 }}>
+                    {imageData.sealingImages && imageData.sealingImages.length > 0 ? (
+                      imageData.sealingImages.map((img, index) => (
+                        <Box key={index} sx={{ position: 'relative', width: 120, height: 120 }}>
+                          <img 
+                            src={img} 
+                            alt={`Sealing ${index+1}`} 
+                            style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '4px' }} 
+                          />
+                          <IconButton 
+                            sx={{ position: 'absolute', top: 5, right: 5, bgcolor: 'rgba(255,255,255,0.7)' }}
+                            size="small"
+                            onClick={() => {
+                              const updatedImages = [...imageData.sealingImages];
+                              updatedImages.splice(index, 1);
+                              setImageData(prev => ({
+                                ...prev,
+                                sealingImages: updatedImages
+                              }));
+                            }}
+                          >
+                            <Clear />
+                          </IconButton>
+                        </Box>
+                      ))
+                    ) : (
+                      <Typography variant="body2" color="text.secondary">No sealing images</Typography>
+                    )}
+                  </Box>
+                  <Button
+                    variant="outlined"
+                    component="label"
+                    startIcon={<PhotoCamera />}
+                    fullWidth
+                    disabled={isSubmitting}
+                  >
+                    {isSubmitting ? "Uploading..." : "Add Sealing Images"}
+                    <input
+                      type="file"
+                      hidden
+                      accept="image/*"
+                      multiple
+                      onChange={(e) => handleMultipleImageUpload(e, 'sealingImages')}
+                    />
+                  </Button>
+                </CardContent>
+              </Card>
+
+              {/* Vehicle Images */}
+              <Card>
+                <CardContent>
+                  <Typography variant="subtitle2" gutterBottom>Vehicle Images</Typography>
+                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mb: 2 }}>
+                    {imageData.vehicleImages && imageData.vehicleImages.length > 0 ? (
+                      imageData.vehicleImages.map((img, index) => (
+                        <Box key={index} sx={{ position: 'relative', width: 120, height: 120 }}>
+                          <img 
+                            src={img} 
+                            alt={`Vehicle ${index+1}`} 
+                            style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '4px' }} 
+                          />
+                          <IconButton 
+                            sx={{ position: 'absolute', top: 5, right: 5, bgcolor: 'rgba(255,255,255,0.7)' }}
+                            size="small"
+                            onClick={() => {
+                              const updatedImages = [...imageData.vehicleImages];
+                              updatedImages.splice(index, 1);
+                              setImageData(prev => ({
+                                ...prev,
+                                vehicleImages: updatedImages
+                              }));
+                            }}
+                          >
+                            <Clear />
+                          </IconButton>
+                        </Box>
+                      ))
+                    ) : (
+                      <Typography variant="body2" color="text.secondary">No vehicle images</Typography>
+                    )}
+                  </Box>
+                  <Button
+                    variant="outlined"
+                    component="label"
+                    startIcon={<PhotoCamera />}
+                    fullWidth
+                    disabled={isSubmitting}
+                  >
+                    {isSubmitting ? "Uploading..." : "Add Vehicle Images"}
+                    <input
+                      type="file"
+                      hidden
+                      accept="image/*"
+                      multiple
+                      onChange={(e) => handleMultipleImageUpload(e, 'vehicleImages')}
+                    />
+                  </Button>
+                </CardContent>
+              </Card>
             </Box>
           </Box>
 
