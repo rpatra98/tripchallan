@@ -174,6 +174,23 @@ export default function CreateSessionPage() {
     }
   }, [status, session, router]);
 
+  // Get user coin balance
+  const [userCoins, setUserCoins] = useState<number | null>(null);
+  useEffect(() => {
+    if (status === "authenticated" && session?.user) {
+      fetch('/api/users/' + session.user.id)
+        .then(response => response.json())
+        .then(data => {
+          if (data && typeof data.coins === 'number') {
+            setUserCoins(data.coins);
+          }
+        })
+        .catch(err => {
+          console.error("Error fetching user data:", err);
+        });
+    }
+  }, [status, session]);
+
   const handleLoadingDetailsChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setLoadingDetails(prev => ({
@@ -457,6 +474,23 @@ export default function CreateSessionPage() {
             {error}
           </Alert>
         )}
+
+        {/* Coin notice */}
+        <Alert severity="info" sx={{ mb: 3 }}>
+          <Typography fontWeight="medium">
+            Creating a new session costs 1 coin from your balance.
+            {userCoins !== null && (
+              <> Your current balance: <strong>{userCoins} {userCoins === 1 ? 'coin' : 'coins'}</strong>.</>
+            )}
+            {userCoins !== null && userCoins < 1 && (
+              <Box mt={1}>
+                <Typography color="error" fontWeight="bold">
+                  You don't have enough coins to create a session. Please contact an administrator to allocate more coins.
+                </Typography>
+              </Box>
+            )}
+          </Typography>
+        </Alert>
 
         <Stepper activeStep={activeStep} alternativeLabel sx={{ mb: 4 }}>
           {steps.map((label) => (
@@ -996,7 +1030,7 @@ export default function CreateSessionPage() {
                   type="submit"
                   variant="contained"
                   color="primary"
-                  disabled={isSubmitting}
+                  disabled={isSubmitting || (userCoins !== null && userCoins < 1)}
                 >
                   {isSubmitting ? (
                     <CircularProgress size={24} color="inherit" />

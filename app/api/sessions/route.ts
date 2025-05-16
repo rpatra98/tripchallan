@@ -460,8 +460,23 @@ export const POST = withAuth(
         );
       }
       
+      // Check if operator has enough coins (minimum 1 coin needed)
+      const operatorCoins = employee.coins ?? 0;
+      if (operatorCoins < 1) {
+        return NextResponse.json(
+          { error: "Insufficient coins. You need at least 1 coin to create a session." },
+          { status: 400 }
+        );
+      }
+      
       // Create session with a seal in a transaction
       const result = await prisma.$transaction(async (tx: any) => {
+        // Deduct coin from operator
+        const updatedOperator = await tx.user.update({
+          where: { id: userId },
+          data: { coins: { decrement: 1 } }
+        });
+      
         // First create the session with only the fields in the schema
         const newSession = await tx.session.create({
           data: {
@@ -477,6 +492,17 @@ export const POST = withAuth(
             barcode: scannedCodes.length > 0 ? scannedCodes[0] : `SEAL-${Date.now()}`,
             sessionId: newSession.id, // Link the seal to the session
           },
+        });
+
+        // Create coin transaction record - coin is spent, not transferred
+        await tx.coinTransaction.create({
+          data: {
+            fromUserId: userId as string,
+            toUserId: userId as string, // Operator spends the coin (not transferred to another user)
+            amount: 1,
+            reason: "SESSION_CREATION",
+            reasonText: `Session ID: ${newSession.id} - Session creation cost`
+          }
         });
 
         // Store all the trip details in the activity log
