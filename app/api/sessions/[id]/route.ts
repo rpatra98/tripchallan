@@ -5,125 +5,19 @@ import prisma from "@/lib/prisma";
 import { withAuth } from "@/lib/auth";
 import { UserRole, EmployeeSubrole, SessionStatus, ActivityAction } from "@/prisma/enums";
 import { addActivityLog } from "@/lib/activity-logger";
+import { GET as getSessionDetails } from "@/app/api/session/[id]/route";
 
-// For fetching a single session
-export const GET = withAuth(
-  async (req: NextRequest) => {
-    try {
-      const session = await getServerSession(authOptions);
-      if (!session?.user) {
-        return NextResponse.json(
-          { error: "Authentication required" },
-          { status: 401 }
-        );
-      }
-
-      // Extract ID from URL
-      const url = new URL(req.url);
-      const pathParts = url.pathname.split('/').filter(Boolean);
-      const sessionId = pathParts[pathParts.indexOf('sessions') + 1];
-
-      // Get user's role, company ID, etc.
-      const userId = session.user.id;
-      const userRole = session.user.role;
-      const userDetails = await prisma.user.findUnique({
-        where: { id: userId },
-        select: { companyId: true, subrole: true }
-      });
-
-      // Fetch the session with related data
-      const sessionData = await prisma.session.findUnique({
-        where: { id: sessionId },
-        include: {
-          company: true,
-          createdBy: {
-            select: { id: true, name: true, email: true, subrole: true }
-          },
-          seal: {
-            include: {
-              verifiedBy: {
-                select: { id: true, name: true, email: true }
-              }
-            }
-          },
-          comments: {
-            include: {
-              user: {
-                select: { id: true, name: true, email: true, role: true }
-              }
-            },
-            orderBy: { createdAt: 'asc' }
-          }
-        }
-      });
-
-      if (!sessionData) {
-        return NextResponse.json(
-          { error: "Session not found" },
-          { status: 404 }
-        );
-      }
-
-      // Check authorization based on user role
-      let canAccess = false;
-
-      if (userRole === UserRole.SUPERADMIN) {
-        canAccess = true;
-      } else if (userRole === UserRole.ADMIN) {
-        // Admin can access sessions from companies they created
-        const company = await prisma.user.findUnique({
-          where: { id: sessionData.companyId },
-          select: { createdById: true }
-        });
-        canAccess = company?.createdById === userId;
-      } else if (userRole === UserRole.COMPANY) {
-        // Company can access their own sessions
-        canAccess = sessionData.companyId === userId;
-      } else if (userRole === UserRole.EMPLOYEE) {
-        if (!userDetails?.companyId) {
-          return NextResponse.json(
-            { error: "Employee is not associated with a company" },
-            { status: 403 }
-          );
-        }
-        
-        // Employee can access sessions from their company
-        canAccess = sessionData.companyId === userDetails.companyId;
-      }
-
-      if (!canAccess) {
-        return NextResponse.json(
-          { error: "You are not authorized to access this session" },
-          { status: 403 }
-        );
-      }
-
-      // Fetch activity logs related to this session
-      const activityLogs = await prisma.activityLog.findMany({
-        where: {
-          targetResourceId: sessionId,
-          targetResourceType: 'session'
-        },
-        orderBy: { createdAt: 'asc' }
-      });
-
-      // Add activity logs to session data
-      const enhancedSessionData = {
-        ...sessionData,
-        activityLogs
-      };
-
-      return NextResponse.json(enhancedSessionData);
-    } catch (error) {
-      console.error("Error fetching session details:", error);
-      return NextResponse.json(
-        { error: "Failed to fetch session details" },
-        { status: 500 }
-      );
-    }
-  },
-  [UserRole.SUPERADMIN, UserRole.ADMIN, UserRole.COMPANY, UserRole.EMPLOYEE]
-);
+/**
+ * API route handler for getting session details
+ * This is a wrapper around the actual implementation to provide multiple access points
+ */
+export const GET = async (
+  req: NextRequest,
+  context: { params: { id: string } }
+) => {
+  // Forward the request to the actual implementation
+  return getSessionDetails(req, context);
+};
 
 // For updating a session
 export const PUT = withAuth(

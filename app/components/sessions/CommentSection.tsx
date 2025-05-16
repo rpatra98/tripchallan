@@ -41,23 +41,35 @@ export default function CommentSection({ sessionId }: CommentSectionProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [isFetching, setIsFetching] = useState(true);
   const [error, setError] = useState("");
+  const [loadFailed, setLoadFailed] = useState(false);
 
   const fetchComments = useCallback(async () => {
+    if (!sessionId) {
+      console.log("No session ID for comments, skipping fetch");
+      setIsFetching(false);
+      return;
+    }
+    
     setIsFetching(true);
     setError("");
     
     try {
+      console.log("Fetching comments for session:", sessionId);
       const response = await fetch(`/api/comments?sessionId=${sessionId}`);
       
       if (!response.ok) {
+        console.error(`Comments API Error (${response.status}):`, await response.text());
         throw new Error("Failed to fetch comments");
       }
       
       const data = await response.json();
+      console.log(`Loaded ${data.length} comments`);
       setComments(data);
+      setLoadFailed(false);
     } catch (err) {
       console.error("Error fetching comments:", err);
       setError("Failed to load comments");
+      setLoadFailed(true);
     } finally {
       setIsFetching(false);
     }

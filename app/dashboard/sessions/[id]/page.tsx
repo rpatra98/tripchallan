@@ -1,10 +1,9 @@
 "use server";
 
 import { Suspense } from "react";
-// Import from components.tsx to avoid TypeScript module resolution issues
-import { SessionDetailClient } from "./components";
+import SessionDetailClient from "./client";
 
-export default async function SessionDetailPage({ 
+export default function SessionDetailPage({ 
   params 
 }: { 
   params: { id: string } 

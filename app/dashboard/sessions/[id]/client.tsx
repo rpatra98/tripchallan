@@ -186,21 +186,41 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
 
     try {
       console.log("Fetching session details for ID:", sessionId);
-      const response = await fetch(`/api/session/${sessionId}`);
       
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error(`API Error (${response.status}):`, errorText);
-        
-        if (response.status === 404) {
-          throw new Error("Session not found");
-        } else {
-          throw new Error(`Failed to fetch session details: ${response.status} ${response.statusText}`);
+      // Try both API endpoints to provide redundancy
+      const apiUrls = [
+        `/api/session/${sessionId}`,
+        `/api/sessions/${sessionId}`
+      ];
+      
+      let response;
+      let errorText = '';
+      
+      // Try each endpoint until one works
+      for (const url of apiUrls) {
+        console.log(`Attempting to fetch from ${url}`);
+        try {
+          response = await fetch(url);
+          if (response.ok) {
+            console.log(`Successfully fetched data from ${url}`);
+            break;
+          } else {
+            const error = await response.text();
+            errorText += `${url}: ${response.status} - ${error}\n`;
+            console.error(`API Error (${response.status}) from ${url}:`, error);
+          }
+        } catch (err) {
+          errorText += `${url}: ${err}\n`;
+          console.error(`Fetch error from ${url}:`, err);
         }
       }
       
+      if (!response || !response.ok) {
+        throw new Error(`Failed to fetch session details: ${errorText}`);
+      }
+      
       const data = await response.json();
-      console.log("Session data received:", !!data);
+      console.log("Session data received:", !!data, data ? Object.keys(data) : 'no data');
       setSession(data);
     } catch (err) {
       console.error("Error fetching session details:", err);
