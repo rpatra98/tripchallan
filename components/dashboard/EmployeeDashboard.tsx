@@ -325,7 +325,7 @@ export default function EmployeeDashboard({ user }: EmployeeDashboardProps) {
               {isOperator && (
                 <div className="mt-4 flex items-center text-yellow-600 font-bold">
                   <LocalAtm fontSize="small" className="mr-1" />
-                  <span>{session?.user?.coins !== undefined ? session.user.coins : (currentUser?.coins !== undefined ? currentUser.coins : user.coins)} Coins</span>
+                  <span>{currentUser?.coins !== undefined ? currentUser.coins : session?.user?.coins || user.coins} Coins</span>
                 </div>
               )}
             </div>
@@ -477,7 +477,7 @@ export default function EmployeeDashboard({ user }: EmployeeDashboardProps) {
                     {isOperator && (
                       <div>
                         <h4 className="text-sm font-medium text-gray-500 mb-1">Coins</h4>
-                        <p className="text-gray-900">{session?.user?.coins !== undefined ? session.user.coins : (currentUser?.coins !== undefined ? currentUser.coins : user.coins)}</p>
+                        <p className="text-gray-900">{currentUser?.coins !== undefined ? currentUser.coins : session?.user?.coins || user.coins}</p>
                       </div>
                     )}
                   </div>
