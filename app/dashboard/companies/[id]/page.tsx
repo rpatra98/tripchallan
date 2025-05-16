@@ -4,11 +4,22 @@ import { authOptions } from "@/lib/auth-options";
 import prisma from "@/lib/prisma";
 import { UserRole, EmployeeSubrole } from "@/prisma/enums";
 import Link from "next/link";
+import { cookies } from "next/headers";
 
 // Add dynamic export to ensure Next.js treats this as a dynamic route
 export const dynamic = 'force-dynamic';
 export const fetchCache = 'force-no-store';
 export const revalidate = 0;
+
+// Add employee interface
+interface Employee {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+  subrole?: string;
+  coins?: number;
+}
 
 export default async function CompanyDetailPage({ params }: { params: { id: string } }) {
   const companyId = params.id;
@@ -65,16 +76,16 @@ export default async function CompanyDetailPage({ params }: { params: { id: stri
       );
     }
 
-    // Get employees for this company
-    const employees = await prisma.user.findMany({
-      where: {
-        companyId: companyId,
-        role: UserRole.EMPLOYEE,
+    // Get employees for this company using the API route
+    const cookieStore = cookies();
+    const employeesResponse = await fetch(`${process.env.NEXTAUTH_URL}/api/companies/${companyId}/employees`, {
+      headers: {
+        cookie: cookieStore.toString(),
       },
-      orderBy: {
-        name: "asc",
-      },
+      next: { revalidate: 0 },
     });
+    
+    const employees = await employeesResponse.json() as Employee[];
 
     return (
       <div className="container mx-auto px-4 py-8">
@@ -107,12 +118,7 @@ export default async function CompanyDetailPage({ params }: { params: { id: stri
         <div className="bg-white shadow-md rounded-lg p-6">
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-xl font-semibold">Employees</h2>
-            <Link 
-              href={`/dashboard/employees/create?companyId=${company.id}`}
-              className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
-            >
-              Add Employee
-            </Link>
+            {/* Add Employee button removed as requested */}
           </div>
 
           {employees.length === 0 ? (
