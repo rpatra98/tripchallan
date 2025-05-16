@@ -3,7 +3,7 @@
 import { Suspense } from "react";
 import SessionDetailClient from "./client";
 
-export default function SessionDetailPage({ 
+export default async function SessionDetailPage({ 
   params 
 }: { 
   params: { id: string } 
