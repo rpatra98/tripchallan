@@ -241,13 +241,7 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
 
   // Check if user has edit permission
   useEffect(() => {
-    // Admins and superadmins can always edit
-    if (userRole === "ADMIN" || userRole === "SUPERADMIN") {
-      setCanEdit(true);
-      return;
-    }
-    
-    // Operators need special permission
+    // Only OPERATOR users with canModify permission can edit
     if (userRole === "EMPLOYEE" && userSubrole === EmployeeSubrole.OPERATOR && authSession?.user?.id) {
       fetch(`/api/employees/${authSession.user.id}/permissions`)
         .then(response => response.json())
