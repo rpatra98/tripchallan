@@ -37,7 +37,8 @@ import {
   PictureAsPdf,
   TableChart,
   Description,
-  Edit
+  Edit,
+  BusinessCenter
 } from "@mui/icons-material";
 import Link from "next/link";
 import { SessionStatus, EmployeeSubrole } from "@/prisma/enums";
@@ -714,7 +715,178 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
 
       {/* Main content */}
       <Paper elevation={2} sx={{ p: 3, mb: 3 }}>
-        {/* Session details content */}
+        <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
+          <Typography variant="h4" component="h1">
+            Session Details
+          </Typography>
+          <Box display="flex" alignItems="center" gap={2}>
+            {canEdit && session.status !== SessionStatus.COMPLETED && (
+              <Button
+                component={Link}
+                href={`/dashboard/sessions/${sessionId}/edit`}
+                startIcon={<Edit />}
+                variant="outlined"
+                size="small"
+              >
+                Edit
+              </Button>
+            )}
+            <Chip 
+              label={session.status} 
+              color={getStatusColor(session.status)}
+              size="medium"
+            />
+          </Box>
+        </Box>
+
+        <Box mb={3}>
+          <Typography variant="h6" gutterBottom>
+            Basic Information
+          </Typography>
+          <Divider sx={{ mb: 2 }} />
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
+            <Box sx={{ flex: '1 0 45%', minWidth: '250px' }}>
+              <Box display="flex" alignItems="center" mb={1}>
+                <LocationOn color="primary" sx={{ mr: 1 }} />
+                <Typography variant="body1">
+                  <strong>Source:</strong> {session.source}
+                </Typography>
+              </Box>
+            </Box>
+            <Box sx={{ flex: '1 0 45%', minWidth: '250px' }}>
+              <Box display="flex" alignItems="center" mb={1}>
+                <LocationOn color="primary" sx={{ mr: 1 }} />
+                <Typography variant="body1">
+                  <strong>Destination:</strong> {session.destination}
+                </Typography>
+              </Box>
+            </Box>
+            <Box sx={{ flex: '1 0 45%', minWidth: '250px' }}>
+              <Box display="flex" alignItems="center" mb={1}>
+                <AccessTime color="primary" sx={{ mr: 1 }} />
+                <Typography variant="body1">
+                  <strong>Created:</strong> {formatDate(session.createdAt)}
+                </Typography>
+              </Box>
+            </Box>
+            <Box sx={{ flex: '1 0 45%', minWidth: '250px' }}>
+              <Box display="flex" alignItems="center" mb={1}>
+                <BusinessCenter color="primary" sx={{ mr: 1 }} />
+                <Typography variant="body1">
+                  <strong>Company:</strong> {session.company?.name || "N/A"}
+                </Typography>
+              </Box>
+            </Box>
+          </Box>
+        </Box>
+
+        {session.tripDetails && Object.keys(session.tripDetails).length > 0 && (
+          <Box mb={3}>
+            <Typography variant="h6" gutterBottom>
+              Trip Details
+            </Typography>
+            <Divider sx={{ mb: 2 }} />
+            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
+              {Object.entries(session.tripDetails).map(([key, value]) => (
+                value && (
+                  <Box key={key} sx={{ flex: '1 0 45%', minWidth: '250px' }}>
+                    <Typography variant="body1">
+                      <strong>{getFieldLabel(key)}:</strong> {String(value)}
+                    </Typography>
+                  </Box>
+                )
+              ))}
+            </Box>
+          </Box>
+        )}
+
+        {session.seal && (
+          <Box mb={3}>
+            <Typography variant="h6" gutterBottom>
+              Seal Information
+            </Typography>
+            <Divider sx={{ mb: 2 }} />
+            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
+              <Box sx={{ flex: '1 0 45%', minWidth: '250px' }}>
+                <Typography variant="body1">
+                  <strong>Barcode:</strong> {session.seal.barcode}
+                </Typography>
+              </Box>
+              <Box sx={{ flex: '1 0 45%', minWidth: '250px' }}>
+                <Typography variant="body1">
+                  <strong>Status:</strong>{" "}
+                  {session.seal.verified ? (
+                    <Box component="span" sx={{ display: "inline-flex", alignItems: "center" }}>
+                      Verified <CheckCircle color="success" sx={{ ml: 0.5 }} />
+                    </Box>
+                  ) : (
+                    <Box component="span" sx={{ display: "inline-flex", alignItems: "center" }}>
+                      Unverified <Warning color="warning" sx={{ ml: 0.5 }} />
+                    </Box>
+                  )}
+                </Typography>
+              </Box>
+              {session.seal.verified && session.seal.verifiedBy && (
+                <Box sx={{ flex: '1 0 45%', minWidth: '250px' }}>
+                  <Typography variant="body1">
+                    <strong>Verified By:</strong> {session.seal.verifiedBy.name}
+                  </Typography>
+                </Box>
+              )}
+              {session.seal.verified && session.seal.scannedAt && (
+                <Box sx={{ flex: '1 0 45%', minWidth: '250px' }}>
+                  <Typography variant="body1">
+                    <strong>Verified At:</strong> {formatDate(session.seal.scannedAt)}
+                  </Typography>
+                </Box>
+              )}
+            </Box>
+          </Box>
+        )}
+
+        {session.images && Object.keys(session.images).some(key => {
+          const value = session.images && session.images[key as keyof typeof session.images];
+          return !!value;
+        }) && (
+          <Box mb={3}>
+            <Typography variant="h6" gutterBottom>
+              Images
+            </Typography>
+            <Divider sx={{ mb: 2 }} />
+            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
+              {session.images.driverPicture && (
+                <Box sx={{ flex: '1 0 30%', minWidth: '200px' }}>
+                  <Typography variant="subtitle2" gutterBottom>Driver</Typography>
+                  <img 
+                    src={session.images.driverPicture} 
+                    alt="Driver" 
+                    style={{ width: '100%', maxHeight: '200px', objectFit: 'cover', borderRadius: '4px' }} 
+                  />
+                </Box>
+              )}
+              {session.images.vehicleNumberPlatePicture && (
+                <Box sx={{ flex: '1 0 30%', minWidth: '200px' }}>
+                  <Typography variant="subtitle2" gutterBottom>Number Plate</Typography>
+                  <img 
+                    src={session.images.vehicleNumberPlatePicture} 
+                    alt="Vehicle Number Plate" 
+                    style={{ width: '100%', maxHeight: '200px', objectFit: 'cover', borderRadius: '4px' }} 
+                  />
+                </Box>
+              )}
+              {session.images.gpsImeiPicture && (
+                <Box sx={{ flex: '1 0 30%', minWidth: '200px' }}>
+                  <Typography variant="subtitle2" gutterBottom>GPS/IMEI</Typography>
+                  <img 
+                    src={session.images.gpsImeiPicture} 
+                    alt="GPS IMEI" 
+                    style={{ width: '100%', maxHeight: '200px', objectFit: 'cover', borderRadius: '4px' }} 
+                  />
+                </Box>
+              )}
+            </Box>
+          </Box>
+        )}
       </Paper>
 
       {/* Comment section */}
