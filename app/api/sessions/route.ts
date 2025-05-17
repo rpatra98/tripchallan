@@ -713,6 +713,9 @@ export const POST = withAuth(
                 companyId: employee.companyId || "", // Ensure companyId is not null
                 status: "IN_PROGRESS", // Set to IN_PROGRESS directly since we're creating a seal
               },
+            }).catch((error: Error) => {
+              console.error("Error creating session:", error);
+              throw new Error(`Session creation failed: ${error.message}`);
             });
             console.log(`Session created with ID: ${newSession.id}`);
             
@@ -723,6 +726,9 @@ export const POST = withAuth(
                 barcode: scannedCodes.length > 0 ? scannedCodes[0] : `SEAL-${Date.now()}`,
                 sessionId: newSession.id, // Link the seal to the session
               },
+            }).catch((error: Error) => {
+              console.error("Error creating seal:", error);
+              throw new Error(`Seal creation failed: ${error.message}`);
             });
             console.log(`Seal created with barcode: ${seal.barcode}`);
 
@@ -736,6 +742,9 @@ export const POST = withAuth(
                 reason: "SESSION_CREATION",
                 reasonText: `Session ID: ${newSession.id} - Session creation cost`
               }
+            }).catch((error: Error) => {
+              console.error("Error creating coin transaction:", error);
+              throw new Error(`Coin transaction failed: ${error.message}`);
             });
             console.log("Coin transaction created successfully");
 
@@ -772,10 +781,25 @@ export const POST = withAuth(
                   }
                 }
               }
+            }).catch((error: Error) => {
+              console.error("Error creating activity log for trip details:", error);
+              throw new Error(`Activity log creation failed: ${error.message}`);
             });
             console.log("Trip details stored successfully");
 
             console.log("Storing base64 image data in activity log");
+            
+            // Check the size of the JSON before storing
+            const imageDataSize = JSON.stringify(imageBase64Data).length;
+            console.log(`Size of base64 image data: ${imageDataSize} bytes (${(imageDataSize / (1024 * 1024)).toFixed(2)}MB)`);
+            
+            // Image data may be too large - Prisma has limits for JSON fields
+            const MAX_JSON_SIZE = 10 * 1024 * 1024; // 10MB is a reasonable limit for Prisma JSON fields
+            if (imageDataSize > MAX_JSON_SIZE) {
+              console.error(`Base64 image data too large: ${imageDataSize} bytes exceeds limit of ${MAX_JSON_SIZE} bytes`);
+              throw new Error(`Base64 image data too large (${(imageDataSize / (1024 * 1024)).toFixed(2)}MB). Please use smaller or fewer images. Try reducing resolution or quality.`);
+            }
+            
             // Store base64 image data in a separate activity log entry
             await tx.activityLog.create({
               data: {
@@ -787,6 +811,9 @@ export const POST = withAuth(
                   imageBase64Data
                 }
               }
+            }).catch((error: Error) => {
+              console.error("Error storing base64 image data:", error);
+              throw new Error(`Storing image data failed: ${error.message}. Try reducing image count, size, or quality.`);
             });
             console.log("Base64 image data stored successfully");
             
@@ -808,9 +835,31 @@ export const POST = withAuth(
         });
       } catch (error) {
         console.error("Error in session creation transaction:", error);
+        
+        // Provide more specific error message
+        let errorMessage = "Database transaction failed";
+        let statusCode = 500;
+        
+        if (error instanceof Error) {
+          errorMessage = error.message;
+          
+          // Check for specific error patterns to provide better guidance
+          if (errorMessage.includes("base64") && errorMessage.includes("large")) {
+            statusCode = 413; // Payload Too Large
+            errorMessage = `${error.message} Try using fewer images or smaller images (max 2MB per image, total 10MB).`;
+          } else if (errorMessage.includes("too large")) {
+            statusCode = 413;
+          } else if (errorMessage.includes("JSON")) {
+            statusCode = 413;
+            errorMessage = "Data payload is too large. Try using fewer or smaller images.";
+          } else if (errorMessage.includes("timeout") || errorMessage.includes("timed out")) {
+            errorMessage = "Request timed out processing images. Try using smaller or fewer images.";
+          }
+        }
+        
         return NextResponse.json(
-          { error: `Failed to create session: ${error instanceof Error ? error.message : 'Database transaction failed'}` },
-          { status: 500 }
+          { error: `Failed to create session: ${errorMessage}` },
+          { status: statusCode }
         );
       }
     } catch (error) {

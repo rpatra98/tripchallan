@@ -93,6 +93,30 @@ const ImageProcessingInfo = () => (
   </Box>
 );
 
+const ImageErrorDisplay = ({ show }: { show: boolean }) => {
+  if (!show) return null;
+  
+  return (
+    <Box sx={{ mt: 2, mb: 3, p: 2, bgcolor: 'error.light', borderRadius: 1 }}>
+      <Typography variant="subtitle2" color="error.contrastText" gutterBottom>
+        <strong>Image Upload Requirements:</strong>
+      </Typography>
+      <Typography variant="body2" component="div" color="error.contrastText">
+        <ul style={{ marginTop: '8px', paddingLeft: '20px', marginBottom: '4px' }}>
+          <li>Each image must be smaller than 2MB</li>
+          <li>Total upload size must be under 10MB</li>
+          <li>Maximum 3 images per category</li>
+          <li>Recommended resolution: 1280x960 or smaller</li>
+          <li>Try reducing image quality if needed</li>
+        </ul>
+      </Typography>
+      <Typography variant="body2" color="error.contrastText" sx={{ mt: 1 }}>
+        If you're having trouble, try using the camera at a lower resolution or use an image compression app before uploading.
+      </Typography>
+    </Box>
+  );
+};
+
 // Convert file to base64
 const fileToBase64 = (file: File): Promise<string> => {
   return new Promise((resolve, reject) => {
@@ -101,6 +125,101 @@ const fileToBase64 = (file: File): Promise<string> => {
     reader.onload = () => resolve(reader.result as string);
     reader.onerror = error => reject(error);
   });
+};
+
+// Validate image size and count
+const validateImageSizeAndCount = (
+  gpsImeiPicture: File | null,
+  vehicleNumberPlatePicture: File | null,
+  driverPicture: File | null,
+  sealingImages: File[],
+  vehicleImages: File[],
+  additionalImages: File[]
+): { valid: boolean; message: string; details: string } => {
+  const MAX_SINGLE_FILE_SIZE = 2 * 1024 * 1024; // 2MB
+  const MAX_TOTAL_SIZE = 10 * 1024 * 1024; // 10MB
+  const MAX_IMAGES_PER_CATEGORY = 3;
+  
+  // Check single file sizes first
+  if (gpsImeiPicture && gpsImeiPicture.size > MAX_SINGLE_FILE_SIZE) {
+    return {
+      valid: false,
+      message: `GPS IMEI picture is too large (${(gpsImeiPicture.size / (1024 * 1024)).toFixed(2)}MB)`,
+      details: `Maximum size allowed is 2MB per image. Try resizing the image before uploading.`
+    };
+  }
+  
+  if (vehicleNumberPlatePicture && vehicleNumberPlatePicture.size > MAX_SINGLE_FILE_SIZE) {
+    return {
+      valid: false,
+      message: `Vehicle number plate picture is too large (${(vehicleNumberPlatePicture.size / (1024 * 1024)).toFixed(2)}MB)`,
+      details: `Maximum size allowed is 2MB per image. Try resizing the image before uploading.`
+    };
+  }
+  
+  if (driverPicture && driverPicture.size > MAX_SINGLE_FILE_SIZE) {
+    return {
+      valid: false,
+      message: `Driver picture is too large (${(driverPicture.size / (1024 * 1024)).toFixed(2)}MB)`,
+      details: `Maximum size allowed is 2MB per image. Try resizing the image before uploading.`
+    };
+  }
+  
+  // Check array file sizes and count
+  if (sealingImages.length > MAX_IMAGES_PER_CATEGORY) {
+    return {
+      valid: false,
+      message: `Too many sealing images (${sealingImages.length})`,
+      details: `Maximum ${MAX_IMAGES_PER_CATEGORY} images allowed per category. Please remove some images.`
+    };
+  }
+  
+  if (vehicleImages.length > MAX_IMAGES_PER_CATEGORY) {
+    return {
+      valid: false,
+      message: `Too many vehicle images (${vehicleImages.length})`,
+      details: `Maximum ${MAX_IMAGES_PER_CATEGORY} images allowed per category. Please remove some images.`
+    };
+  }
+  
+  if (additionalImages.length > MAX_IMAGES_PER_CATEGORY) {
+    return {
+      valid: false,
+      message: `Too many additional images (${additionalImages.length})`,
+      details: `Maximum ${MAX_IMAGES_PER_CATEGORY} images allowed per category. Please remove some images.`
+    };
+  }
+  
+  // Check for large files in arrays
+  for (const file of [...sealingImages, ...vehicleImages, ...additionalImages]) {
+    if (file.size > MAX_SINGLE_FILE_SIZE) {
+      return {
+        valid: false,
+        message: `Image ${file.name} is too large (${(file.size / (1024 * 1024)).toFixed(2)}MB)`,
+        details: `Maximum size allowed is 2MB per image. Try resizing the image before uploading.`
+      };
+    }
+  }
+  
+  // Calculate total size
+  const totalSize = [
+    gpsImeiPicture, 
+    vehicleNumberPlatePicture, 
+    driverPicture,
+    ...sealingImages,
+    ...vehicleImages,
+    ...additionalImages
+  ].reduce((acc, file) => acc + (file?.size || 0), 0);
+  
+  if (totalSize > MAX_TOTAL_SIZE) {
+    return {
+      valid: false,
+      message: `Total image size is too large (${(totalSize / (1024 * 1024)).toFixed(2)}MB)`,
+      details: `Maximum total size allowed is 10MB. Try using fewer images or reducing their size/quality.`
+    };
+  }
+  
+  return { valid: true, message: "", details: "" };
 };
 
 async function resizeImage(file: File, maxWidth = 1024, maxHeight = 1024, quality = 0.8, maxSizeInMB = 1): Promise<File> {
@@ -187,6 +306,7 @@ export default function CreateSessionPage() {
   const { refreshUserSession } = useContext(SessionUpdateContext);
   const [activeStep, setActiveStep] = useState(0);
   const [error, setError] = useState("");
+  const [errorDetails, setErrorDetails] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   
   // Step 1: Loading Details
@@ -456,7 +576,24 @@ export default function CreateSessionPage() {
       return;
     }
     
+    // Validate image size and count before proceeding
+    const validation = validateImageSizeAndCount(
+      imagesForm.gpsImeiPicture,
+      imagesForm.vehicleNumberPlatePicture,
+      imagesForm.driverPicture,
+      imagesForm.sealingImages,
+      imagesForm.vehicleImages,
+      imagesForm.additionalImages
+    );
+    
+    if (!validation.valid) {
+      setError(validation.message);
+      setErrorDetails(validation.details);
+      return;
+    }
+    
     setError("");
+    setErrorDetails("");
     setIsSubmitting(true);
 
     try {
@@ -491,6 +628,7 @@ export default function CreateSessionPage() {
         } catch (error) {
           console.error("Error processing GPS IMEI image:", error);
           setError("Error processing GPS IMEI image. Try using a smaller image.");
+          setErrorDetails("Images need to be under 2MB each, and the total size of all images should be under 10MB.");
           setIsSubmitting(false);
           return;
         }
@@ -509,6 +647,7 @@ export default function CreateSessionPage() {
         } catch (error) {
           console.error("Error processing vehicle number plate image:", error);
           setError("Error processing vehicle number plate image. Try using a smaller image.");
+          setErrorDetails("Images need to be under 2MB each, and the total size of all images should be under 10MB.");
           setIsSubmitting(false);
           return;
         }
@@ -527,6 +666,7 @@ export default function CreateSessionPage() {
         } catch (error) {
           console.error("Error processing driver picture:", error);
           setError("Error processing driver picture. Try using a smaller image.");
+          setErrorDetails("Images need to be under 2MB each, and the total size of all images should be under 10MB.");
           setIsSubmitting(false);
           return;
         }
@@ -555,6 +695,7 @@ export default function CreateSessionPage() {
         } catch (error) {
           console.error(`Error processing sealing image ${i}:`, error);
           setError(`Error processing sealing image ${i}. Try using a smaller image.`);
+          setErrorDetails("Images need to be under 2MB each, and the total size of all images should be under 10MB.");
           setIsSubmitting(false);
           return;
         }
@@ -575,6 +716,7 @@ export default function CreateSessionPage() {
         } catch (error) {
           console.error(`Error processing vehicle image ${i}:`, error);
           setError(`Error processing vehicle image ${i}. Try using a smaller image.`);
+          setErrorDetails("Images need to be under 2MB each, and the total size of all images should be under 10MB.");
           setIsSubmitting(false);
           return;
         }
@@ -595,6 +737,7 @@ export default function CreateSessionPage() {
         } catch (error) {
           console.error(`Error processing additional image ${i}:`, error);
           setError(`Error processing additional image ${i}. Try using a smaller image.`);
+          setErrorDetails("Images need to be under 2MB each, and the total size of all images should be under 10MB.");
           setIsSubmitting(false);
           return;
         }
@@ -627,10 +770,26 @@ export default function CreateSessionPage() {
         let errorData;
         try {
           errorData = await response.json();
-          throw new Error(errorData.error || "Failed to create trip");
+          let mainError = errorData.error || "Failed to create trip";
+          let detailsError = "";
+          
+          // Extract the main error from potentially longer message
+          if (mainError.includes(":")) {
+            const parts = mainError.split(":");
+            mainError = parts[0].trim();
+            detailsError = parts.slice(1).join(":").trim();
+          }
+          
+          throw new Error(mainError, { cause: detailsError });
         } catch (jsonError) {
           // If we can't parse JSON, use the status text
-          throw new Error(`Server error: ${response.status} ${response.statusText}. Try using smaller images.`);
+          if (response.status === 500) {
+            throw new Error("Server error. The images might be too large or there was a problem processing them.", 
+              { cause: "Try reducing the number of images, their size, or resolution. Maximum total upload should be under 10MB." });
+          } else {
+            throw new Error(`Server error: ${response.status} ${response.statusText}.`, 
+              { cause: "Try using smaller images or fewer images." });
+          }
         }
       }
       
@@ -642,8 +801,16 @@ export default function CreateSessionPage() {
       // Redirect to the sessions page on success
       router.push("/dashboard/sessions");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "An unknown error occurred");
-      console.error("Error submitting form:", err);
+      const error = err as Error;
+      console.error("Error submitting form:", error);
+      setError(error.message || "An unknown error occurred");
+      
+      // Check if we have detailed error information
+      if (error.cause) {
+        setErrorDetails(error.cause as string);
+      } else if (error.message.includes("smaller images") || error.message.includes("too large")) {
+        setErrorDetails("Try reducing image size or using fewer images. Each image should be under 2MB, and total upload should be under 10MB.");
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -678,9 +845,18 @@ export default function CreateSessionPage() {
 
         {error && (
           <Alert severity="error" sx={{ mb: 3 }}>
-            {error}
+            <Typography fontWeight="medium">
+              {error}
+            </Typography>
+            {errorDetails && (
+              <Typography variant="body2" sx={{ mt: 1 }}>
+                {errorDetails}
+              </Typography>
+            )}
           </Alert>
         )}
+        
+        <ImageErrorDisplay show={!!error && (error.includes("image") || error.includes("large") || errorDetails.includes("image") || errorDetails.includes("MB"))} />
 
         {/* Coin notice */}
         <Alert severity="info" sx={{ mb: 3 }}>
