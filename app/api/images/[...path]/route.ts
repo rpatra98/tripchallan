@@ -4,9 +4,8 @@ import prisma from "@/lib/prisma";
 import fs from 'fs';
 import path from 'path';
 import { UserRole } from "@/prisma/enums";
-import { getImageUrl } from "@/lib/cloudinary";
 
-// Directory for storing uploaded files
+// Directory for storing uploaded files (kept for backward compatibility)
 const UPLOAD_DIR = path.join(process.cwd(), 'uploads');
 
 // Create directory only in development, not in production (Vercel has read-only filesystem)
@@ -49,71 +48,74 @@ export const GET = withAuth(
         );
       }
 
-      // First check if we have any cloud URLs stored in activity logs
-      if (process.env.NODE_ENV === 'production') {
-        const imageActivityLog = await prisma.activityLog.findFirst({
-          where: {
-            targetResourceId: sessionId,
-            targetResourceType: "session",
-            action: "UPLOAD_IMAGES",
-          },
-          orderBy: {
-            createdAt: 'desc',
-          },
-        });
+      // Retrieve base64 image data from activity logs
+      const imageActivityLog = await prisma.activityLog.findFirst({
+        where: {
+          targetResourceId: sessionId,
+          targetResourceType: "session",
+          action: "STORE_IMAGES",
+        },
+        orderBy: {
+          createdAt: 'desc',
+        },
+      });
 
-        if (imageActivityLog?.details && typeof imageActivityLog.details === 'object') {
-          const details = imageActivityLog.details as any;
-          if (details.cloudinaryImageUrls) {
-            const urls = details.cloudinaryImageUrls;
-            
-            // Determine which URL to return based on image type
-            let imageUrl = null;
-            if (imageType === 'gpsImei' && urls.gpsImeiPicture) {
-              imageUrl = urls.gpsImeiPicture;
-            } else if (imageType === 'vehicleNumber' && urls.vehicleNumberPlatePicture) {
-              imageUrl = urls.vehicleNumberPlatePicture;
-            } else if (imageType === 'driver' && urls.driverPicture) {
-              imageUrl = urls.driverPicture;
-            } else if (imageType === 'sealing' && urls.sealingImages) {
-              // Handle array of images stored as comma-separated string
-              const sealingUrls = urls.sealingImages.split(',');
-              if (index !== null && sealingUrls.length > parseInt(index)) {
-                imageUrl = sealingUrls[parseInt(index)];
-              }
-            } else if (imageType === 'vehicle' && urls.vehicleImages) {
-              const vehicleUrls = urls.vehicleImages.split(',');
-              if (index !== null && vehicleUrls.length > parseInt(index)) {
-                imageUrl = vehicleUrls[parseInt(index)];
-              }
-            } else if (imageType === 'additional' && urls.additionalImages) {
-              const additionalUrls = urls.additionalImages.split(',');
-              if (index !== null && additionalUrls.length > parseInt(index)) {
-                imageUrl = additionalUrls[parseInt(index)];
-              }
+      if (imageActivityLog?.details && typeof imageActivityLog.details === 'object') {
+        const details = imageActivityLog.details as any;
+        if (details.imageBase64Data) {
+          const imageData = details.imageBase64Data;
+          
+          // Determine which image data to return based on image type
+          let base64Image = null;
+          let contentType = 'image/jpeg'; // Default content type
+          
+          if (imageType === 'gpsImei' && imageData.gpsImeiPicture) {
+            base64Image = imageData.gpsImeiPicture.data;
+            contentType = imageData.gpsImeiPicture.contentType || contentType;
+          } else if (imageType === 'vehicleNumber' && imageData.vehicleNumberPlatePicture) {
+            base64Image = imageData.vehicleNumberPlatePicture.data;
+            contentType = imageData.vehicleNumberPlatePicture.contentType || contentType;
+          } else if (imageType === 'driver' && imageData.driverPicture) {
+            base64Image = imageData.driverPicture.data;
+            contentType = imageData.driverPicture.contentType || contentType;
+          } else if (imageType === 'sealing' && imageData.sealingImages && imageData.sealingImages.length > 0) {
+            // Handle array of images
+            if (index !== null && parseInt(index) < imageData.sealingImages.length) {
+              const imageEntry = imageData.sealingImages[parseInt(index)];
+              base64Image = imageEntry.data;
+              contentType = imageEntry.contentType || contentType;
             }
-            
-            // If we found a URL, redirect to it
-            if (imageUrl) {
-              return NextResponse.redirect(imageUrl);
+          } else if (imageType === 'vehicle' && imageData.vehicleImages && imageData.vehicleImages.length > 0) {
+            if (index !== null && parseInt(index) < imageData.vehicleImages.length) {
+              const imageEntry = imageData.vehicleImages[parseInt(index)];
+              base64Image = imageEntry.data;
+              contentType = imageEntry.contentType || contentType;
+            }
+          } else if (imageType === 'additional' && imageData.additionalImages && imageData.additionalImages.length > 0) {
+            if (index !== null && parseInt(index) < imageData.additionalImages.length) {
+              const imageEntry = imageData.additionalImages[parseInt(index)];
+              base64Image = imageEntry.data;
+              contentType = imageEntry.contentType || contentType;
             }
           }
-        }
-        
-        // If we didn't find a stored URL, get a Cloudinary URL using the path pattern
-        // This is a fallback for newer images that might follow a different pattern
-        try {
-          // Convert index to number or undefined (not null)
-          const indexParam = index !== null ? parseInt(index) : undefined;
-          const cloudinaryUrl = getImageUrl(sessionId, imageType, indexParam);
-          return NextResponse.redirect(cloudinaryUrl);
-        } catch (error) {
-          console.error("Error getting Cloudinary URL:", error);
-          // Fall through to placeholder image
+          
+          // If we found a base64 image, return it
+          if (base64Image) {
+            // Convert base64 to buffer
+            const imageBuffer = Buffer.from(base64Image, 'base64');
+            
+            // Return image with appropriate content type
+            return new NextResponse(imageBuffer, {
+              headers: {
+                'Content-Type': contentType,
+                'Cache-Control': 'public, max-age=3600',
+              },
+            });
+          }
         }
       }
 
-      // In development, try to serve from local filesystem
+      // Try to serve from local filesystem (for backward compatibility)
       if (process.env.NODE_ENV !== 'production') {
         const filePath = index !== null 
           ? path.join(UPLOAD_DIR, sessionId, imageType, index) 

@@ -46,6 +46,13 @@ async function saveFormFilesArray(formData: FormData, prefix: string, dirPath: s
   }
 }
 
+// Helper function to convert File to base64
+async function fileToBase64(file: File): Promise<string> {
+  const arrayBuffer = await file.arrayBuffer();
+  const buffer = Buffer.from(arrayBuffer);
+  return buffer.toString('base64');
+}
+
 interface QueryOptions {
   skip: number;
   take: number;
@@ -468,6 +475,54 @@ export const POST = withAuth(
           { status: 400 }
         );
       }
+
+      // Process images to base64
+      let imageBase64Data: Record<string, any> = {};
+      
+      // Process single images
+      if (gpsImeiPicture) {
+        imageBase64Data.gpsImeiPicture = {
+          contentType: gpsImeiPicture.type,
+          data: await fileToBase64(gpsImeiPicture)
+        };
+      }
+      
+      if (vehicleNumberPlatePicture) {
+        imageBase64Data.vehicleNumberPlatePicture = {
+          contentType: vehicleNumberPlatePicture.type,
+          data: await fileToBase64(vehicleNumberPlatePicture)
+        };
+      }
+      
+      if (driverPicture) {
+        imageBase64Data.driverPicture = {
+          contentType: driverPicture.type,
+          data: await fileToBase64(driverPicture)
+        };
+      }
+      
+      // Process array images
+      imageBase64Data.sealingImages = [];
+      imageBase64Data.vehicleImages = [];
+      imageBase64Data.additionalImages = [];
+      
+      // Helper function to extract and convert files from FormData
+      const processFormDataFiles = async (prefix: string, targetArray: any[]) => {
+        let index = 0;
+        while (formData.get(`${prefix}[${index}]`)) {
+          const file = formData.get(`${prefix}[${index}]`) as File;
+          targetArray.push({
+            contentType: file.type,
+            data: await fileToBase64(file)
+          });
+          index++;
+        }
+      };
+      
+      // Process each type of array images
+      await processFormDataFiles('sealingImages', imageBase64Data.sealingImages);
+      await processFormDataFiles('vehicleImages', imageBase64Data.vehicleImages);
+      await processFormDataFiles('additionalImages', imageBase64Data.additionalImages);
       
       // Create session with a seal in a transaction
       const result = await prisma.$transaction(async (tx: any) => {
@@ -538,110 +593,24 @@ export const POST = withAuth(
             }
           }
         });
+
+        // Store base64 image data in a separate activity log entry
+        await tx.activityLog.create({
+          data: {
+            userId: userId as string,
+            action: "STORE_IMAGES",
+            targetResourceId: newSession.id,
+            targetResourceType: "session",
+            details: {
+              imageBase64Data
+            }
+          }
+        });
         
         return { session: newSession, seal };
       });
       
-      // Handle file storage
-      try {
-        // In development, save to local filesystem
-        if (process.env.NODE_ENV !== 'production') {
-          try {
-            const sessionDir = path.join(UPLOAD_DIR, result.session.id);
-            if (!fs.existsSync(sessionDir)) {
-              fs.mkdirSync(sessionDir, { recursive: true });
-            }
-            
-            // Save main images
-            if (gpsImeiPicture) await saveFormFile(gpsImeiPicture, path.join(sessionDir, 'gpsImei'));
-            if (vehicleNumberPlatePicture) await saveFormFile(vehicleNumberPlatePicture, path.join(sessionDir, 'vehicleNumber'));
-            if (driverPicture) await saveFormFile(driverPicture, path.join(sessionDir, 'driver'));
-            
-            // Save array-based images
-            await saveFormFilesArray(formData, 'sealingImages', path.join(sessionDir, 'sealing'));
-            await saveFormFilesArray(formData, 'vehicleImages', path.join(sessionDir, 'vehicle'));
-            await saveFormFilesArray(formData, 'additionalImages', path.join(sessionDir, 'additional'));
-          } catch (fileError) {
-            console.error("Error saving files to filesystem:", fileError);
-          }
-        }
-        
-        // In production, upload to Cloudinary
-        if (process.env.NODE_ENV === 'production') {
-          // Import cloudinary functions
-          const { uploadImageBuffer } = await import('@/lib/cloudinary');
-          
-          // Create folder based on session ID
-          const sessionFolder = `sessions/${result.session.id}`;
-          
-          // Upload individual images
-          const imageUrls: Record<string, string> = {};
-          
-          // Upload main images
-          if (gpsImeiPicture) {
-            const buffer = Buffer.from(await gpsImeiPicture.arrayBuffer());
-            imageUrls.gpsImeiPicture = await uploadImageBuffer(buffer, `${sessionFolder}/gpsImei`);
-          }
-          
-          if (vehicleNumberPlatePicture) {
-            const buffer = Buffer.from(await vehicleNumberPlatePicture.arrayBuffer());
-            imageUrls.vehicleNumberPlatePicture = await uploadImageBuffer(buffer, `${sessionFolder}/vehicleNumber`);
-          }
-          
-          if (driverPicture) {
-            const buffer = Buffer.from(await driverPicture.arrayBuffer());
-            imageUrls.driverPicture = await uploadImageBuffer(buffer, `${sessionFolder}/driver`);
-          }
-          
-          // Upload arrays of images
-          imageUrls.sealingImages = [] as unknown as string;
-          imageUrls.vehicleImages = [] as unknown as string;
-          imageUrls.additionalImages = [] as unknown as string;
-          
-          // Helper function to extract and upload files from FormData
-          const uploadFormDataFiles = async (prefix: string, targetFolder: string): Promise<string[]> => {
-            const urls: string[] = [];
-            let index = 0;
-            while (formData.get(`${prefix}[${index}]`)) {
-              const file = formData.get(`${prefix}[${index}]`) as File;
-              const buffer = Buffer.from(await file.arrayBuffer());
-              const url = await uploadImageBuffer(buffer, `${sessionFolder}/${targetFolder}/${index}`);
-              urls.push(url);
-              index++;
-            }
-            return urls;
-          };
-          
-          // Upload each type of array images
-          const sealingImageUrls = await uploadFormDataFiles('sealingImages', 'sealing');
-          const vehicleImageUrls = await uploadFormDataFiles('vehicleImages', 'vehicle');
-          const additionalImageUrls = await uploadFormDataFiles('additionalImages', 'additional');
-          
-          // Assign to the imageUrls object
-          imageUrls.sealingImages = sealingImageUrls.join(',');
-          imageUrls.vehicleImages = vehicleImageUrls.join(',');
-          imageUrls.additionalImages = additionalImageUrls.join(',');
-          
-          // Store the uploaded image URLs in activity log or database
-          // This is done in a separate activity log entry
-          await prisma.activityLog.create({
-            data: {
-              userId: userId as string,
-              action: "UPLOAD_IMAGES",
-              targetResourceId: result.session.id,
-              targetResourceType: "session",
-              details: {
-                cloudinaryImageUrls: imageUrls
-              }
-            }
-          });
-          
-          console.log("Successfully uploaded images to cloud storage");
-        }
-      } catch (fileError) {
-        console.error("Error handling files:", fileError);
-        // We continue even if file handling fails; the session is already created
-      }
+      // Skip file storage since we're using base64
       
       return NextResponse.json({
         success: true,
