@@ -84,6 +84,103 @@ const FileUploadHelp = () => (
   </Box>
 );
 
+const ImageProcessingInfo = () => (
+  <Box sx={{ mt: 2, mb: 3, p: 2, bgcolor: 'success.light', borderRadius: 1 }}>
+    <Typography variant="body2" color="success.contrastText">
+      <strong>Improved Image Storage:</strong> Images are automatically compressed and stored securely in the database. 
+      This ensures they will always display correctly on all devices, even when viewing past trips.
+    </Typography>
+  </Box>
+);
+
+// Convert file to base64
+const fileToBase64 = (file: File): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = error => reject(error);
+  });
+};
+
+async function resizeImage(file: File, maxWidth = 1024, maxHeight = 1024, quality = 0.8, maxSizeInMB = 1): Promise<File> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = (event) => {
+      const img = new Image();
+      img.src = event.target?.result as string;
+      img.onload = () => {
+        let width = img.width;
+        let height = img.height;
+        
+        // Calculate the new dimensions
+        if (width > height) {
+          if (width > maxWidth) {
+            height = Math.round(height * maxWidth / width);
+            width = maxWidth;
+          }
+        } else {
+          if (height > maxHeight) {
+            width = Math.round(width * maxHeight / height);
+            height = maxHeight;
+          }
+        }
+        
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          reject(new Error('Could not get canvas context'));
+          return;
+        }
+        
+        ctx.drawImage(img, 0, 0, width, height);
+        
+        // Convert to blob with quality setting
+        canvas.toBlob((blob) => {
+          if (!blob) {
+            reject(new Error('Canvas to Blob conversion failed'));
+            return;
+          }
+          
+          // Check if the size is still too large
+          if (blob.size > maxSizeInMB * 1024 * 1024) {
+            // If still too large, try with lower quality
+            if (quality > 0.5) {
+              resizeImage(file, maxWidth, maxHeight, quality - 0.1, maxSizeInMB)
+                .then(resolve)
+                .catch(reject);
+            } else {
+              // Reduce dimensions further if quality reduction isn't enough
+              resizeImage(file, Math.round(maxWidth * 0.8), Math.round(maxHeight * 0.8), 0.7, maxSizeInMB)
+                .then(resolve)
+                .catch(reject);
+            }
+            return;
+          }
+          
+          // Convert blob to file
+          const resizedFile = new File([blob], file.name, {
+            type: 'image/jpeg',
+            lastModified: Date.now(),
+          });
+          
+          resolve(resizedFile);
+        }, 'image/jpeg', quality);
+      };
+      img.onerror = (error) => {
+        reject(error);
+      };
+    };
+    reader.onerror = (error) => {
+      reject(error);
+    };
+  });
+}
+
 export default function CreateSessionPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
@@ -376,25 +473,135 @@ export default function CreateSessionPage() {
       // Add timestamps for loading details
       formData.append('loadingDetailsTimestamps', JSON.stringify(loadingDetails.timestamps));
       
-      // Add image files
-      if (imagesForm.gpsImeiPicture) formData.append('gpsImeiPicture', imagesForm.gpsImeiPicture);
-      if (imagesForm.vehicleNumberPlatePicture) formData.append('vehicleNumberPlatePicture', imagesForm.vehicleNumberPlatePicture);
-      if (imagesForm.driverPicture) formData.append('driverPicture', imagesForm.driverPicture);
+      // Prepare base64 image data
+      const imageBase64Data: Record<string, any> = {};
+      
+      // Convert individual images to base64
+      if (imagesForm.gpsImeiPicture) {
+        try {
+          // Resize the image first
+          const resizedImage = await resizeImage(imagesForm.gpsImeiPicture, 1024, 1024, 0.8, 1);
+          const base64Data = await fileToBase64(resizedImage);
+          imageBase64Data.gpsImeiPicture = {
+            data: base64Data.split(',')[1], // Remove data URL prefix
+            contentType: resizedImage.type,
+            name: resizedImage.name
+          };
+          formData.append('gpsImeiPicture', resizedImage);
+        } catch (error) {
+          console.error("Error processing GPS IMEI image:", error);
+          setError("Error processing GPS IMEI image. Try using a smaller image.");
+          setIsSubmitting(false);
+          return;
+        }
+      }
+      
+      if (imagesForm.vehicleNumberPlatePicture) {
+        try {
+          const resizedImage = await resizeImage(imagesForm.vehicleNumberPlatePicture, 1024, 1024, 0.8, 1);
+          const base64Data = await fileToBase64(resizedImage);
+          imageBase64Data.vehicleNumberPlatePicture = {
+            data: base64Data.split(',')[1],
+            contentType: resizedImage.type,
+            name: resizedImage.name
+          };
+          formData.append('vehicleNumberPlatePicture', resizedImage);
+        } catch (error) {
+          console.error("Error processing vehicle number plate image:", error);
+          setError("Error processing vehicle number plate image. Try using a smaller image.");
+          setIsSubmitting(false);
+          return;
+        }
+      }
+      
+      if (imagesForm.driverPicture) {
+        try {
+          const resizedImage = await resizeImage(imagesForm.driverPicture, 1024, 1024, 0.8, 1);
+          const base64Data = await fileToBase64(resizedImage);
+          imageBase64Data.driverPicture = {
+            data: base64Data.split(',')[1],
+            contentType: resizedImage.type,
+            name: resizedImage.name
+          };
+          formData.append('driverPicture', resizedImage);
+        } catch (error) {
+          console.error("Error processing driver picture:", error);
+          setError("Error processing driver picture. Try using a smaller image.");
+          setIsSubmitting(false);
+          return;
+        }
+      }
+      
+      // Process array images
+      imageBase64Data.sealingImages = [];
+      imageBase64Data.vehicleImages = [];
+      imageBase64Data.additionalImages = [];
       
       // Add multiple files - limit the number of files to reduce payload size
       const maxImagesPerCategory = 3; // Limit to 3 images per category
       
-      imagesForm.sealingImages.slice(0, maxImagesPerCategory).forEach((file, index) => {
-        formData.append(`sealingImages[${index}]`, file);
-      });
+      // Process sealing images
+      for (let i = 0; i < Math.min(imagesForm.sealingImages.length, maxImagesPerCategory); i++) {
+        try {
+          const file = imagesForm.sealingImages[i];
+          const resizedImage = await resizeImage(file, 1024, 1024, 0.8, 1);
+          const base64Data = await fileToBase64(resizedImage);
+          imageBase64Data.sealingImages.push({
+            data: base64Data.split(',')[1],
+            contentType: resizedImage.type,
+            name: resizedImage.name
+          });
+          formData.append(`sealingImages[${i}]`, resizedImage);
+        } catch (error) {
+          console.error(`Error processing sealing image ${i}:`, error);
+          setError(`Error processing sealing image ${i}. Try using a smaller image.`);
+          setIsSubmitting(false);
+          return;
+        }
+      }
       
-      imagesForm.vehicleImages.slice(0, maxImagesPerCategory).forEach((file, index) => {
-        formData.append(`vehicleImages[${index}]`, file);
-      });
+      // Process vehicle images
+      for (let i = 0; i < Math.min(imagesForm.vehicleImages.length, maxImagesPerCategory); i++) {
+        try {
+          const file = imagesForm.vehicleImages[i];
+          const resizedImage = await resizeImage(file, 1024, 1024, 0.8, 1);
+          const base64Data = await fileToBase64(resizedImage);
+          imageBase64Data.vehicleImages.push({
+            data: base64Data.split(',')[1],
+            contentType: resizedImage.type,
+            name: resizedImage.name
+          });
+          formData.append(`vehicleImages[${i}]`, resizedImage);
+        } catch (error) {
+          console.error(`Error processing vehicle image ${i}:`, error);
+          setError(`Error processing vehicle image ${i}. Try using a smaller image.`);
+          setIsSubmitting(false);
+          return;
+        }
+      }
       
-      imagesForm.additionalImages.slice(0, maxImagesPerCategory).forEach((file, index) => {
-        formData.append(`additionalImages[${index}]`, file);
-      });
+      // Process additional images
+      for (let i = 0; i < Math.min(imagesForm.additionalImages.length, maxImagesPerCategory); i++) {
+        try {
+          const file = imagesForm.additionalImages[i];
+          const resizedImage = await resizeImage(file, 1024, 1024, 0.8, 1);
+          const base64Data = await fileToBase64(resizedImage);
+          imageBase64Data.additionalImages.push({
+            data: base64Data.split(',')[1],
+            contentType: resizedImage.type,
+            name: resizedImage.name
+          });
+          formData.append(`additionalImages[${i}]`, resizedImage);
+        } catch (error) {
+          console.error(`Error processing additional image ${i}:`, error);
+          setError(`Error processing additional image ${i}. Try using a smaller image.`);
+          setIsSubmitting(false);
+          return;
+        }
+      }
+      
+      // Add the base64 image data to the form
+      formData.append('imageBase64Data', JSON.stringify(imageBase64Data));
       
       // Add QR code data
       formData.append('scannedCodes', JSON.stringify(imagesForm.scannedCodes));
@@ -760,6 +967,7 @@ export default function CreateSessionPage() {
                   Images & Verification
                 </Typography>
                 <FileUploadHelp />
+                <ImageProcessingInfo />
               </Box>
               
               <Box sx={{ width: { xs: '100%', md: '47%' } }}>

@@ -546,133 +546,149 @@ export const POST = withAuth(
       console.log("Starting image processing to base64");
       let imageBase64Data: Record<string, any> = {};
       
-      try {
-        // Process single images
-        if (gpsImeiPicture) {
-          try {
-            console.log(`Processing GPS IMEI picture: ${gpsImeiPicture.name}, size: ${gpsImeiPicture.size} bytes`);
-            imageBase64Data.gpsImeiPicture = {
-              contentType: gpsImeiPicture.type,
-              data: await fileToBase64(gpsImeiPicture)
-            };
-            console.log("GPS IMEI picture processed successfully");
-          } catch (error) {
-            console.error("Error processing GPS IMEI picture:", error);
-            return NextResponse.json(
-              { error: `Failed to process GPS IMEI picture: ${error instanceof Error ? error.message : 'Unknown error'}` },
-              { status: 413 }
-            );
-          }
+      // Check if client already sent base64 data
+      const clientBase64Data = formData.get('imageBase64Data');
+      if (clientBase64Data) {
+        try {
+          console.log("Using client-provided base64 image data");
+          imageBase64Data = JSON.parse(clientBase64Data as string);
+          console.log("Successfully parsed client base64 image data");
+        } catch (error) {
+          console.error("Error parsing client base64 image data:", error);
+          // Continue with server-side processing if client data is invalid
         }
-        
-        if (vehicleNumberPlatePicture) {
-          try {
-            console.log(`Processing vehicle number plate picture: ${vehicleNumberPlatePicture.name}, size: ${vehicleNumberPlatePicture.size} bytes`);
-            imageBase64Data.vehicleNumberPlatePicture = {
-              contentType: vehicleNumberPlatePicture.type,
-              data: await fileToBase64(vehicleNumberPlatePicture)
-            };
-            console.log("Vehicle number plate picture processed successfully");
-          } catch (error) {
-            console.error("Error processing vehicle number plate picture:", error);
-            return NextResponse.json(
-              { error: `Failed to process vehicle number plate picture: ${error instanceof Error ? error.message : 'Unknown error'}` },
-              { status: 413 }
-            );
-          }
-        }
-        
-        if (driverPicture) {
-          try {
-            console.log(`Processing driver picture: ${driverPicture.name}, size: ${driverPicture.size} bytes`);
-            imageBase64Data.driverPicture = {
-              contentType: driverPicture.type,
-              data: await fileToBase64(driverPicture)
-            };
-            console.log("Driver picture processed successfully");
-          } catch (error) {
-            console.error("Error processing driver picture:", error);
-            return NextResponse.json(
-              { error: `Failed to process driver picture: ${error instanceof Error ? error.message : 'Unknown error'}` },
-              { status: 413 }
-            );
-          }
-        }
-        
-        // Process array images
-        imageBase64Data.sealingImages = [];
-        imageBase64Data.vehicleImages = [];
-        imageBase64Data.additionalImages = [];
-        
-        // Helper function to extract and convert files from FormData
-        const processFormDataFiles = async (prefix: string, targetArray: any[], displayName: string) => {
-          console.log(`Processing ${displayName} images`);
-          let index = 0;
-          let errors = [];
-          
-          while (formData.get(`${prefix}[${index}]`)) {
+      }
+      
+      // If we don't have client-side base64 data, process images on the server
+      if (!clientBase64Data || Object.keys(imageBase64Data).length === 0) {
+        try {
+          // Process single images
+          if (gpsImeiPicture) {
             try {
-              const file = formData.get(`${prefix}[${index}]`) as File;
-              console.log(`Processing ${displayName}[${index}]: ${file.name}, size: ${file.size} bytes`);
-              
-              targetArray.push({
-                contentType: file.type,
-                data: await fileToBase64(file)
-              });
-              
-              console.log(`Successfully processed ${displayName}[${index}]`);
+              console.log(`Processing GPS IMEI picture: ${gpsImeiPicture.name}, size: ${gpsImeiPicture.size} bytes`);
+              imageBase64Data.gpsImeiPicture = {
+                contentType: gpsImeiPicture.type,
+                data: await fileToBase64(gpsImeiPicture)
+              };
+              console.log("GPS IMEI picture processed successfully");
             } catch (error) {
-              console.error(`Error processing ${displayName}[${index}]:`, error);
-              errors.push(`${displayName} image #${index+1}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+              console.error("Error processing GPS IMEI picture:", error);
+              return NextResponse.json(
+                { error: `Failed to process GPS IMEI picture: ${error instanceof Error ? error.message : 'Unknown error'}` },
+                { status: 413 }
+              );
             }
-            index++;
           }
           
-          if (errors.length > 0) {
-            throw new Error(`Failed to process some ${displayName} images: ${errors.join('; ')}`);
+          if (vehicleNumberPlatePicture) {
+            try {
+              console.log(`Processing vehicle number plate picture: ${vehicleNumberPlatePicture.name}, size: ${vehicleNumberPlatePicture.size} bytes`);
+              imageBase64Data.vehicleNumberPlatePicture = {
+                contentType: vehicleNumberPlatePicture.type,
+                data: await fileToBase64(vehicleNumberPlatePicture)
+              };
+              console.log("Vehicle number plate picture processed successfully");
+            } catch (error) {
+              console.error("Error processing vehicle number plate picture:", error);
+              return NextResponse.json(
+                { error: `Failed to process vehicle number plate picture: ${error instanceof Error ? error.message : 'Unknown error'}` },
+                { status: 413 }
+              );
+            }
           }
           
-          console.log(`Successfully processed ${index} ${displayName} images`);
-        };
-        
-        // Process each type of array images
-        try {
-          await processFormDataFiles('sealingImages', imageBase64Data.sealingImages, 'Sealing');
+          if (driverPicture) {
+            try {
+              console.log(`Processing driver picture: ${driverPicture.name}, size: ${driverPicture.size} bytes`);
+              imageBase64Data.driverPicture = {
+                contentType: driverPicture.type,
+                data: await fileToBase64(driverPicture)
+              };
+              console.log("Driver picture processed successfully");
+            } catch (error) {
+              console.error("Error processing driver picture:", error);
+              return NextResponse.json(
+                { error: `Failed to process driver picture: ${error instanceof Error ? error.message : 'Unknown error'}` },
+                { status: 413 }
+              );
+            }
+          }
+          
+          // Process array images
+          imageBase64Data.sealingImages = [];
+          imageBase64Data.vehicleImages = [];
+          imageBase64Data.additionalImages = [];
+          
+          // Helper function to extract and convert files from FormData
+          const processFormDataFiles = async (prefix: string, targetArray: any[], displayName: string) => {
+            console.log(`Processing ${displayName} images`);
+            let index = 0;
+            let errors = [];
+            
+            while (formData.get(`${prefix}[${index}]`)) {
+              try {
+                const file = formData.get(`${prefix}[${index}]`) as File;
+                console.log(`Processing ${displayName}[${index}]: ${file.name}, size: ${file.size} bytes`);
+                
+                targetArray.push({
+                  contentType: file.type,
+                  data: await fileToBase64(file)
+                });
+                
+                console.log(`Successfully processed ${displayName}[${index}]`);
+              } catch (error) {
+                console.error(`Error processing ${displayName}[${index}]:`, error);
+                errors.push(`${displayName} image #${index+1}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+              }
+              index++;
+            }
+            
+            if (errors.length > 0) {
+              throw new Error(`Failed to process some ${displayName} images: ${errors.join('; ')}`);
+            }
+            
+            console.log(`Successfully processed ${index} ${displayName} images`);
+          };
+          
+          // Process each type of array images
+          try {
+            await processFormDataFiles('sealingImages', imageBase64Data.sealingImages, 'Sealing');
+          } catch (error) {
+            console.error("Error processing sealing images:", error);
+            return NextResponse.json(
+              { error: error instanceof Error ? error.message : 'Failed to process sealing images' },
+              { status: 413 }
+            );
+          }
+          
+          try {
+            await processFormDataFiles('vehicleImages', imageBase64Data.vehicleImages, 'Vehicle');
+          } catch (error) {
+            console.error("Error processing vehicle images:", error);
+            return NextResponse.json(
+              { error: error instanceof Error ? error.message : 'Failed to process vehicle images' },
+              { status: 413 }
+            );
+          }
+          
+          try {
+            await processFormDataFiles('additionalImages', imageBase64Data.additionalImages, 'Additional');
+          } catch (error) {
+            console.error("Error processing additional images:", error);
+            return NextResponse.json(
+              { error: error instanceof Error ? error.message : 'Failed to process additional images' },
+              { status: 413 }
+            );
+          }
+          
+          console.log("All images processed successfully");
         } catch (error) {
-          console.error("Error processing sealing images:", error);
+          console.error("Error processing images:", error);
           return NextResponse.json(
-            { error: error instanceof Error ? error.message : 'Failed to process sealing images' },
-            { status: 413 }
+            { error: `Failed to process images: ${error instanceof Error ? error.message : 'Unknown error'}` },
+            { status: 500 }
           );
         }
-        
-        try {
-          await processFormDataFiles('vehicleImages', imageBase64Data.vehicleImages, 'Vehicle');
-        } catch (error) {
-          console.error("Error processing vehicle images:", error);
-          return NextResponse.json(
-            { error: error instanceof Error ? error.message : 'Failed to process vehicle images' },
-            { status: 413 }
-          );
-        }
-        
-        try {
-          await processFormDataFiles('additionalImages', imageBase64Data.additionalImages, 'Additional');
-        } catch (error) {
-          console.error("Error processing additional images:", error);
-          return NextResponse.json(
-            { error: error instanceof Error ? error.message : 'Failed to process additional images' },
-            { status: 413 }
-          );
-        }
-        
-        console.log("All images processed successfully");
-      } catch (error) {
-        console.error("Error processing images:", error);
-        return NextResponse.json(
-          { error: `Failed to process images: ${error instanceof Error ? error.message : 'Unknown error'}` },
-          { status: 500 }
-        );
       }
       
       // Create session with a seal in a transaction
