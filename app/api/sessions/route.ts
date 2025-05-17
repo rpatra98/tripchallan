@@ -48,9 +48,25 @@ async function saveFormFilesArray(formData: FormData, prefix: string, dirPath: s
 
 // Helper function to convert File to base64
 async function fileToBase64(file: File): Promise<string> {
-  const arrayBuffer = await file.arrayBuffer();
-  const buffer = Buffer.from(arrayBuffer);
-  return buffer.toString('base64');
+  try {
+    console.log(`Converting file to base64: ${file.name}, size: ${file.size} bytes, type: ${file.type}`);
+    
+    // Implement size check - 2MB limit
+    const MAX_FILE_SIZE = 2 * 1024 * 1024; // 2MB
+    if (file.size > MAX_FILE_SIZE) {
+      console.error(`File too large: ${file.name}, size: ${file.size} bytes`);
+      throw new Error(`File too large: ${file.name}. Maximum size is 2MB.`);
+    }
+    
+    const arrayBuffer = await file.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+    const base64 = buffer.toString('base64');
+    console.log(`Successfully converted file to base64: ${file.name}, base64 length: ${base64.length}`);
+    return base64;
+  } catch (error) {
+    console.error(`Error converting file to base64: ${file.name}`, error);
+    throw error;
+  }
 }
 
 interface QueryOptions {
@@ -384,20 +400,25 @@ export const GET = withAuth(handler, [
 // Add POST handler for session creation
 export const POST = withAuth(
   async (req: NextRequest) => {
+    console.log("Starting session creation process");
     try {
       const session = await getServerSession(authOptions);
       const userId = session?.user.id;
       const userRole = session?.user.role;
       const userSubrole = session?.user.subrole;
 
+      console.log(`User ID: ${userId}, Role: ${userRole}, Subrole: ${userSubrole}`);
+
       // Only OPERATORS can create sessions
       if (userRole !== UserRole.EMPLOYEE || userSubrole !== EmployeeSubrole.OPERATOR) {
+        console.error("Unauthorized session creation attempt: User is not an operator");
         return NextResponse.json(
           { error: "Unauthorized. Only operators can create sessions" },
           { status: 403 }
         );
       }
 
+      console.log("Checking operator permissions");
       // Check if the operator has permission to create sessions
       const permissions = await prisma.operatorPermissions.findUnique({
         where: { userId: userId }
@@ -450,9 +471,54 @@ export const POST = withAuth(
       const scannedCodes = scannedCodesJson ? JSON.parse(scannedCodesJson) : [];
 
       // Extract files information
+      console.log("Extracting file information from form data");
       const gpsImeiPicture = formData.get('gpsImeiPicture') as File;
       const vehicleNumberPlatePicture = formData.get('vehicleNumberPlatePicture') as File;
       const driverPicture = formData.get('driverPicture') as File;
+      
+      // Log file information
+      if (gpsImeiPicture) {
+        console.log(`GPS IMEI picture: ${gpsImeiPicture.name}, ${gpsImeiPicture.size} bytes, ${gpsImeiPicture.type}`);
+      }
+      if (vehicleNumberPlatePicture) {
+        console.log(`Vehicle number plate picture: ${vehicleNumberPlatePicture.name}, ${vehicleNumberPlatePicture.size} bytes, ${vehicleNumberPlatePicture.type}`);
+      }
+      if (driverPicture) {
+        console.log(`Driver picture: ${driverPicture.name}, ${driverPicture.size} bytes, ${driverPicture.type}`);
+      }
+      
+      // Check for array images and log counts
+      let sealingImagesCount = 0;
+      let vehicleImagesCount = 0;
+      let additionalImagesCount = 0;
+      
+      // Count the number of images in each category
+      for (const key of formData.keys()) {
+        if (key.startsWith('sealingImages')) sealingImagesCount++;
+        if (key.startsWith('vehicleImages')) vehicleImagesCount++;
+        if (key.startsWith('additionalImages')) additionalImagesCount++;
+      }
+      
+      console.log(`Found ${sealingImagesCount} sealing images, ${vehicleImagesCount} vehicle images, and ${additionalImagesCount} additional images`);
+      
+      // Set a limit for total number of images to prevent overloading the database
+      const MAX_TOTAL_IMAGES = 15;
+      const totalImages = (gpsImeiPicture ? 1 : 0) + 
+                         (vehicleNumberPlatePicture ? 1 : 0) + 
+                         (driverPicture ? 1 : 0) + 
+                         sealingImagesCount + 
+                         vehicleImagesCount + 
+                         additionalImagesCount;
+                         
+      console.log(`Total number of images: ${totalImages}`);
+      
+      if (totalImages > MAX_TOTAL_IMAGES) {
+        console.error(`Too many images: ${totalImages} exceeds limit of ${MAX_TOTAL_IMAGES}`);
+        return NextResponse.json(
+          { error: `Too many images. Maximum allowed is ${MAX_TOTAL_IMAGES}, but received ${totalImages}.` },
+          { status: 413 }
+        );
+      }
       
       // Get employee data to determine company association
       const employee = await prisma.user.findUnique({
@@ -477,150 +543,286 @@ export const POST = withAuth(
       }
 
       // Process images to base64
+      console.log("Starting image processing to base64");
       let imageBase64Data: Record<string, any> = {};
       
-      // Process single images
-      if (gpsImeiPicture) {
-        imageBase64Data.gpsImeiPicture = {
-          contentType: gpsImeiPicture.type,
-          data: await fileToBase64(gpsImeiPicture)
-        };
-      }
-      
-      if (vehicleNumberPlatePicture) {
-        imageBase64Data.vehicleNumberPlatePicture = {
-          contentType: vehicleNumberPlatePicture.type,
-          data: await fileToBase64(vehicleNumberPlatePicture)
-        };
-      }
-      
-      if (driverPicture) {
-        imageBase64Data.driverPicture = {
-          contentType: driverPicture.type,
-          data: await fileToBase64(driverPicture)
-        };
-      }
-      
-      // Process array images
-      imageBase64Data.sealingImages = [];
-      imageBase64Data.vehicleImages = [];
-      imageBase64Data.additionalImages = [];
-      
-      // Helper function to extract and convert files from FormData
-      const processFormDataFiles = async (prefix: string, targetArray: any[]) => {
-        let index = 0;
-        while (formData.get(`${prefix}[${index}]`)) {
-          const file = formData.get(`${prefix}[${index}]`) as File;
-          targetArray.push({
-            contentType: file.type,
-            data: await fileToBase64(file)
-          });
-          index++;
+      try {
+        // Process single images
+        if (gpsImeiPicture) {
+          try {
+            console.log(`Processing GPS IMEI picture: ${gpsImeiPicture.name}, size: ${gpsImeiPicture.size} bytes`);
+            imageBase64Data.gpsImeiPicture = {
+              contentType: gpsImeiPicture.type,
+              data: await fileToBase64(gpsImeiPicture)
+            };
+            console.log("GPS IMEI picture processed successfully");
+          } catch (error) {
+            console.error("Error processing GPS IMEI picture:", error);
+            return NextResponse.json(
+              { error: `Failed to process GPS IMEI picture: ${error instanceof Error ? error.message : 'Unknown error'}` },
+              { status: 413 }
+            );
+          }
         }
-      };
-      
-      // Process each type of array images
-      await processFormDataFiles('sealingImages', imageBase64Data.sealingImages);
-      await processFormDataFiles('vehicleImages', imageBase64Data.vehicleImages);
-      await processFormDataFiles('additionalImages', imageBase64Data.additionalImages);
+        
+        if (vehicleNumberPlatePicture) {
+          try {
+            console.log(`Processing vehicle number plate picture: ${vehicleNumberPlatePicture.name}, size: ${vehicleNumberPlatePicture.size} bytes`);
+            imageBase64Data.vehicleNumberPlatePicture = {
+              contentType: vehicleNumberPlatePicture.type,
+              data: await fileToBase64(vehicleNumberPlatePicture)
+            };
+            console.log("Vehicle number plate picture processed successfully");
+          } catch (error) {
+            console.error("Error processing vehicle number plate picture:", error);
+            return NextResponse.json(
+              { error: `Failed to process vehicle number plate picture: ${error instanceof Error ? error.message : 'Unknown error'}` },
+              { status: 413 }
+            );
+          }
+        }
+        
+        if (driverPicture) {
+          try {
+            console.log(`Processing driver picture: ${driverPicture.name}, size: ${driverPicture.size} bytes`);
+            imageBase64Data.driverPicture = {
+              contentType: driverPicture.type,
+              data: await fileToBase64(driverPicture)
+            };
+            console.log("Driver picture processed successfully");
+          } catch (error) {
+            console.error("Error processing driver picture:", error);
+            return NextResponse.json(
+              { error: `Failed to process driver picture: ${error instanceof Error ? error.message : 'Unknown error'}` },
+              { status: 413 }
+            );
+          }
+        }
+        
+        // Process array images
+        imageBase64Data.sealingImages = [];
+        imageBase64Data.vehicleImages = [];
+        imageBase64Data.additionalImages = [];
+        
+        // Helper function to extract and convert files from FormData
+        const processFormDataFiles = async (prefix: string, targetArray: any[], displayName: string) => {
+          console.log(`Processing ${displayName} images`);
+          let index = 0;
+          let errors = [];
+          
+          while (formData.get(`${prefix}[${index}]`)) {
+            try {
+              const file = formData.get(`${prefix}[${index}]`) as File;
+              console.log(`Processing ${displayName}[${index}]: ${file.name}, size: ${file.size} bytes`);
+              
+              targetArray.push({
+                contentType: file.type,
+                data: await fileToBase64(file)
+              });
+              
+              console.log(`Successfully processed ${displayName}[${index}]`);
+            } catch (error) {
+              console.error(`Error processing ${displayName}[${index}]:`, error);
+              errors.push(`${displayName} image #${index+1}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+            }
+            index++;
+          }
+          
+          if (errors.length > 0) {
+            throw new Error(`Failed to process some ${displayName} images: ${errors.join('; ')}`);
+          }
+          
+          console.log(`Successfully processed ${index} ${displayName} images`);
+        };
+        
+        // Process each type of array images
+        try {
+          await processFormDataFiles('sealingImages', imageBase64Data.sealingImages, 'Sealing');
+        } catch (error) {
+          console.error("Error processing sealing images:", error);
+          return NextResponse.json(
+            { error: error instanceof Error ? error.message : 'Failed to process sealing images' },
+            { status: 413 }
+          );
+        }
+        
+        try {
+          await processFormDataFiles('vehicleImages', imageBase64Data.vehicleImages, 'Vehicle');
+        } catch (error) {
+          console.error("Error processing vehicle images:", error);
+          return NextResponse.json(
+            { error: error instanceof Error ? error.message : 'Failed to process vehicle images' },
+            { status: 413 }
+          );
+        }
+        
+        try {
+          await processFormDataFiles('additionalImages', imageBase64Data.additionalImages, 'Additional');
+        } catch (error) {
+          console.error("Error processing additional images:", error);
+          return NextResponse.json(
+            { error: error instanceof Error ? error.message : 'Failed to process additional images' },
+            { status: 413 }
+          );
+        }
+        
+        console.log("All images processed successfully");
+      } catch (error) {
+        console.error("Error processing images:", error);
+        return NextResponse.json(
+          { error: `Failed to process images: ${error instanceof Error ? error.message : 'Unknown error'}` },
+          { status: 500 }
+        );
+      }
       
       // Create session with a seal in a transaction
-      const result = await prisma.$transaction(async (tx: any) => {
-        // Deduct coin from operator
-        const updatedOperator = await tx.user.update({
-          where: { id: userId },
-          data: { coins: { decrement: 1 } }
-        });
-      
-        // First create the session with only the fields in the schema
-        const newSession = await tx.session.create({
-          data: {
-            ...sessionData,
-            companyId: employee.companyId || "", // Ensure companyId is not null
-            status: "IN_PROGRESS", // Set to IN_PROGRESS directly since we're creating a seal
-          },
-        });
+      try {
+        console.log("Starting database transaction for session creation");
         
-        // Then create the seal associated with the session
-        const seal = await tx.seal.create({
-          data: {
-            barcode: scannedCodes.length > 0 ? scannedCodes[0] : `SEAL-${Date.now()}`,
-            sessionId: newSession.id, // Link the seal to the session
-          },
-        });
+        const result = await prisma.$transaction(async (tx: any) => {
+          try {
+            console.log("Deducting coin from operator");
+            // Deduct coin from operator
+            const updatedOperator = await tx.user.update({
+              where: { id: userId },
+              data: { coins: { decrement: 1 } }
+            });
+            console.log("Coin deducted successfully");
+          
+            console.log("Creating new session");
+            // First create the session with only the fields in the schema
+            const newSession = await tx.session.create({
+              data: {
+                ...sessionData,
+                companyId: employee.companyId || "", // Ensure companyId is not null
+                status: "IN_PROGRESS", // Set to IN_PROGRESS directly since we're creating a seal
+              },
+            });
+            console.log(`Session created with ID: ${newSession.id}`);
+            
+            console.log("Creating seal for session");
+            // Then create the seal associated with the session
+            const seal = await tx.seal.create({
+              data: {
+                barcode: scannedCodes.length > 0 ? scannedCodes[0] : `SEAL-${Date.now()}`,
+                sessionId: newSession.id, // Link the seal to the session
+              },
+            });
+            console.log(`Seal created with barcode: ${seal.barcode}`);
 
-        // Create coin transaction record - coin is spent, not transferred
-        await tx.coinTransaction.create({
-          data: {
-            fromUserId: userId as string,
-            toUserId: userId as string, // Operator spends the coin (not transferred to another user)
-            amount: 1,
-            reason: "SESSION_CREATION",
-            reasonText: `Session ID: ${newSession.id} - Session creation cost`
-          }
-        });
-
-        // Store all the trip details in the activity log
-        await tx.activityLog.create({
-          data: {
-            userId: userId as string,
-            action: "CREATE",
-            targetResourceId: newSession.id,
-            targetResourceType: "session",
-            details: {
-              tripDetails: {
-                ...tripDetails,
-              },
-              images: {
-                gpsImeiPicture: gpsImeiPicture ? `/api/images/${newSession.id}/gpsImei` : null,
-                vehicleNumberPlatePicture: vehicleNumberPlatePicture ? `/api/images/${newSession.id}/vehicleNumber` : null,
-                driverPicture: driverPicture ? `/api/images/${newSession.id}/driver` : null,
-                sealingImages: Array.from({ length: getFileCountFromFormData(formData, 'sealingImages') }, 
-                  (_, i) => `/api/images/${newSession.id}/sealing/${i}`),
-                vehicleImages: Array.from({ length: getFileCountFromFormData(formData, 'vehicleImages') }, 
-                  (_, i) => `/api/images/${newSession.id}/vehicle/${i}`),
-                additionalImages: Array.from({ length: getFileCountFromFormData(formData, 'additionalImages') }, 
-                  (_, i) => `/api/images/${newSession.id}/additional/${i}`),
-              },
-              timestamps: {
-                loadingDetails: loadingDetailsTimestamps ? JSON.parse(loadingDetailsTimestamps as string) : {},
-                imagesForm: imagesFormTimestamps ? JSON.parse(imagesFormTimestamps as string) : {},
-              },
-              qrCodes: {
-                primaryBarcode: scannedCodes.length > 0 ? scannedCodes[0] : `SEAL-${Date.now()}`,
-                additionalBarcodes: scannedCodes.length > 1 ? scannedCodes.slice(1) : []
+            console.log("Creating coin transaction record");
+            // Create coin transaction record - coin is spent, not transferred
+            await tx.coinTransaction.create({
+              data: {
+                fromUserId: userId as string,
+                toUserId: userId as string, // Operator spends the coin (not transferred to another user)
+                amount: 1,
+                reason: "SESSION_CREATION",
+                reasonText: `Session ID: ${newSession.id} - Session creation cost`
               }
-            }
-          }
-        });
+            });
+            console.log("Coin transaction created successfully");
 
-        // Store base64 image data in a separate activity log entry
-        await tx.activityLog.create({
-          data: {
-            userId: userId as string,
-            action: "STORE_IMAGES",
-            targetResourceId: newSession.id,
-            targetResourceType: "session",
-            details: {
-              imageBase64Data
-            }
+            console.log("Storing trip details in activity log");
+            // Store all the trip details in the activity log
+            await tx.activityLog.create({
+              data: {
+                userId: userId as string,
+                action: "CREATE",
+                targetResourceId: newSession.id,
+                targetResourceType: "session",
+                details: {
+                  tripDetails: {
+                    ...tripDetails,
+                  },
+                  images: {
+                    gpsImeiPicture: gpsImeiPicture ? `/api/images/${newSession.id}/gpsImei` : null,
+                    vehicleNumberPlatePicture: vehicleNumberPlatePicture ? `/api/images/${newSession.id}/vehicleNumber` : null,
+                    driverPicture: driverPicture ? `/api/images/${newSession.id}/driver` : null,
+                    sealingImages: Array.from({ length: getFileCountFromFormData(formData, 'sealingImages') }, 
+                      (_, i) => `/api/images/${newSession.id}/sealing/${i}`),
+                    vehicleImages: Array.from({ length: getFileCountFromFormData(formData, 'vehicleImages') }, 
+                      (_, i) => `/api/images/${newSession.id}/vehicle/${i}`),
+                    additionalImages: Array.from({ length: getFileCountFromFormData(formData, 'additionalImages') }, 
+                      (_, i) => `/api/images/${newSession.id}/additional/${i}`),
+                  },
+                  timestamps: {
+                    loadingDetails: loadingDetailsTimestamps ? JSON.parse(loadingDetailsTimestamps as string) : {},
+                    imagesForm: imagesFormTimestamps ? JSON.parse(imagesFormTimestamps as string) : {},
+                  },
+                  qrCodes: {
+                    primaryBarcode: scannedCodes.length > 0 ? scannedCodes[0] : `SEAL-${Date.now()}`,
+                    additionalBarcodes: scannedCodes.length > 1 ? scannedCodes.slice(1) : []
+                  }
+                }
+              }
+            });
+            console.log("Trip details stored successfully");
+
+            console.log("Storing base64 image data in activity log");
+            // Store base64 image data in a separate activity log entry
+            await tx.activityLog.create({
+              data: {
+                userId: userId as string,
+                action: "STORE_IMAGES",
+                targetResourceId: newSession.id,
+                targetResourceType: "session",
+                details: {
+                  imageBase64Data
+                }
+              }
+            });
+            console.log("Base64 image data stored successfully");
+            
+            return { session: newSession, seal };
+          } catch (error) {
+            console.error("Error in database transaction:", error);
+            throw error; // Rethrow to trigger transaction rollback
           }
         });
         
-        return { session: newSession, seal };
-      });
-      
-      // Skip file storage since we're using base64
-      
-      return NextResponse.json({
-        success: true,
-        sessionId: result.session.id,
-        message: "Session created successfully",
-      });
+        console.log("Database transaction completed successfully");
+        
+        // Skip file storage since we're using base64
+        
+        return NextResponse.json({
+          success: true,
+          sessionId: result.session.id,
+          message: "Session created successfully",
+        });
+      } catch (error) {
+        console.error("Error in session creation transaction:", error);
+        return NextResponse.json(
+          { error: `Failed to create session: ${error instanceof Error ? error.message : 'Database transaction failed'}` },
+          { status: 500 }
+        );
+      }
     } catch (error) {
       console.error("Error creating session:", error);
+      
+      // Handle different types of errors with appropriate status codes
+      if (error instanceof Error) {
+        if (error.message.includes("too large") || error.message.includes("size limit")) {
+          return NextResponse.json(
+            { error: `Failed to create session: ${error.message}` },
+            { status: 413 }
+          );
+        } else if (error.message.includes("Unauthorized") || error.message.includes("permission")) {
+          return NextResponse.json(
+            { error: `Failed to create session: ${error.message}` },
+            { status: 403 }
+          );
+        } else if (error.message.includes("not found")) {
+          return NextResponse.json(
+            { error: `Failed to create session: ${error.message}` },
+            { status: 404 }
+          );
+        }
+      }
+      
+      // Default error response
       return NextResponse.json(
-        { error: "Failed to create session" },
+        { error: error instanceof Error ? `Failed to create session: ${error.message}` : "Failed to create session due to an unknown error" },
         { status: 500 }
       );
     }
