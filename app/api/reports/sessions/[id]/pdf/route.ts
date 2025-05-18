@@ -4,7 +4,7 @@ import { authOptions } from "@/lib/auth-options";
 import { withAuth } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { UserRole } from "@/prisma/enums";
-import PDFDocument from 'pdfkit';
+import { jsPDF } from 'jspdf';
 
 interface TripDetails {
   transporterName?: string;
@@ -164,47 +164,52 @@ export const GET = withAuth(
       }
       
       try {
-        // Create a PDF document with simpler options
-        const doc = new PDFDocument({ 
-          margin: 50, 
-          size: 'A4',
-          info: {
-            Title: `Session Report - ${sessionId}`,
-            Author: 'CBUMS System',
-          },
-          font: 'Courier', // Use Courier font which is built-in
-          compress: true,
-          autoFirstPage: true,
-          bufferPages: true
-        });
+        // Create a PDF document using jsPDF
+        const doc = new jsPDF();
         
-        const chunks: Buffer[] = [];
+        let yPos = 10;
+        const lineHeight = 7;
+        const leftMargin = 10;
+        const pageWidth = doc.internal.pageSize.getWidth();
         
-        // Collect data chunks
-        doc.on('data', chunk => chunks.push(chunk));
-        
-        // Add content to the PDF document
-        doc.fontSize(20).text('Session Report', { align: 'center' });
-        doc.moveDown();
+        // Add Title
+        doc.setFontSize(16);
+        doc.text('Session Report', pageWidth / 2, yPos, { align: 'center' });
+        yPos += lineHeight * 2;
         
         // Session Basic Info
-        doc.fontSize(16).text('Session Information');
-        doc.moveDown(0.5);
-        doc.fontSize(12);
-        doc.text(`Session ID: ${safeText(sessionData.id)}`);
-        doc.text(`Status: ${safeText(sessionData.status)}`);
-        doc.text(`Created At: ${formatDate(sessionData.createdAt)}`);
-        doc.text(`Source: ${safeText(sessionData.source) || 'N/A'}`);
-        doc.text(`Destination: ${safeText(sessionData.destination) || 'N/A'}`);
-        doc.text(`Company: ${safeText(sessionData.company.name) || 'N/A'}`);
-        doc.text(`Created By: ${safeText(sessionData.createdBy.name) || 'N/A'} (${safeText(sessionData.createdBy.email) || 'N/A'})`);
-        doc.moveDown();
+        doc.setFontSize(14);
+        doc.text('Session Information', leftMargin, yPos);
+        yPos += lineHeight;
+        doc.setFontSize(10);
+        
+        doc.text(`Session ID: ${safeText(sessionData.id)}`, leftMargin, yPos);
+        yPos += lineHeight;
+        doc.text(`Status: ${safeText(sessionData.status)}`, leftMargin, yPos);
+        yPos += lineHeight;
+        doc.text(`Created At: ${formatDate(sessionData.createdAt)}`, leftMargin, yPos);
+        yPos += lineHeight;
+        doc.text(`Source: ${safeText(sessionData.source) || 'N/A'}`, leftMargin, yPos);
+        yPos += lineHeight;
+        doc.text(`Destination: ${safeText(sessionData.destination) || 'N/A'}`, leftMargin, yPos);
+        yPos += lineHeight;
+        doc.text(`Company: ${safeText(sessionData.company.name) || 'N/A'}`, leftMargin, yPos);
+        yPos += lineHeight;
+        doc.text(`Created By: ${safeText(sessionData.createdBy.name) || 'N/A'} (${safeText(sessionData.createdBy.email) || 'N/A'})`, leftMargin, yPos);
+        yPos += lineHeight * 2;
         
         // Trip Details
         if (Object.keys(tripDetails).length > 0) {
-          doc.fontSize(16).text('Trip Details');
-          doc.moveDown(0.5);
-          doc.fontSize(12);
+          // Check if we need a new page
+          if (yPos > 250) {
+            doc.addPage();
+            yPos = 10;
+          }
+          
+          doc.setFontSize(14);
+          doc.text('Trip Details', leftMargin, yPos);
+          yPos += lineHeight;
+          doc.setFontSize(10);
           
           for (const [key, value] of Object.entries(tripDetails)) {
             try {
@@ -212,38 +217,65 @@ export const GET = withAuth(
               const formattedKey = key.replace(/([A-Z])/g, ' $1')
                 .replace(/^./, str => str.toUpperCase());
               
-              doc.text(`${formattedKey}: ${safeText(value as string | number | boolean | null | undefined)}`);
+              // Check if we need a new page
+              if (yPos > 270) {
+                doc.addPage();
+                yPos = 10;
+              }
+              
+              doc.text(`${formattedKey}: ${safeText(value as string | number | boolean | null | undefined)}`, leftMargin, yPos);
+              yPos += lineHeight;
             } catch {
               console.error(`Error processing trip detail ${key}`);
               // Skip this field if there's an error
               continue;
             }
           }
-          doc.moveDown();
+          yPos += lineHeight;
         }
         
         // Seal Information
         if (sessionData.seal) {
-          doc.fontSize(16).text('Seal Information');
-          doc.moveDown(0.5);
-          doc.fontSize(12);
-          doc.text(`Barcode: ${safeText(sessionData.seal.barcode) || 'N/A'}`);
-          doc.text(`Status: ${sessionData.seal.verified ? 'Verified' : 'Not Verified'}`);
+          // Check if we need a new page
+          if (yPos > 250) {
+            doc.addPage();
+            yPos = 10;
+          }
+          
+          doc.setFontSize(14);
+          doc.text('Seal Information', leftMargin, yPos);
+          yPos += lineHeight;
+          doc.setFontSize(10);
+          
+          doc.text(`Barcode: ${safeText(sessionData.seal.barcode) || 'N/A'}`, leftMargin, yPos);
+          yPos += lineHeight;
+          doc.text(`Status: ${sessionData.seal.verified ? 'Verified' : 'Not Verified'}`, leftMargin, yPos);
+          yPos += lineHeight;
           
           if (sessionData.seal.verified && sessionData.seal.verifiedBy) {
-            doc.text(`Verified By: ${safeText(sessionData.seal.verifiedBy.name) || 'N/A'}`);
+            doc.text(`Verified By: ${safeText(sessionData.seal.verifiedBy.name) || 'N/A'}`, leftMargin, yPos);
+            yPos += lineHeight;
+            
             if (sessionData.seal.scannedAt) {
-              doc.text(`Verified At: ${formatDate(sessionData.seal.scannedAt)}`);
+              doc.text(`Verified At: ${formatDate(sessionData.seal.scannedAt)}`, leftMargin, yPos);
+              yPos += lineHeight;
             }
           }
-          doc.moveDown();
+          yPos += lineHeight;
         }
         
         // Comments section if available
         if (sessionData.comments && sessionData.comments.length > 0) {
-          doc.fontSize(16).text('Comments');
-          doc.moveDown(0.5);
-          doc.fontSize(12);
+          // Check if we need a new page
+          if (yPos > 250) {
+            doc.addPage();
+            yPos = 10;
+          }
+          
+          doc.setFontSize(14);
+          doc.text('Comments', leftMargin, yPos);
+          yPos += lineHeight;
+          doc.setFontSize(10);
           
           for (let i = 0; i < Math.min(sessionData.comments.length, 5); i++) {
             try {
@@ -252,9 +284,16 @@ export const GET = withAuth(
               const commentDate = formatDate(comment.createdAt);
               const commentText = comment.message || '(No text)';
               
-              doc.text(`${userName} on ${commentDate}:`);
-              doc.text(commentText, { indent: 20 });
-              doc.moveDown(0.5);
+              // Check if we need a new page
+              if (yPos > 270) {
+                doc.addPage();
+                yPos = 10;
+              }
+              
+              doc.text(`${userName} on ${commentDate}:`, leftMargin, yPos);
+              yPos += lineHeight;
+              doc.text(commentText, leftMargin + 5, yPos);
+              yPos += lineHeight * 1.5;
             } catch {
               console.error(`Error processing comment ${i}`);
               continue;
@@ -262,40 +301,21 @@ export const GET = withAuth(
           }
         }
         
-        // Finalize PDF
-        doc.end();
+        // Get the PDF as a buffer
+        const pdfOutput = doc.output('arraybuffer');
+        const pdfBuffer = Buffer.from(pdfOutput);
         
-        return new Promise<NextResponse>((resolve, reject) => {
-          doc.on('end', () => {
-            try {
-              const pdfBuffer = Buffer.concat(chunks);
-              
-              if (!pdfBuffer || pdfBuffer.length === 0) {
-                reject(new Error('Generated PDF is empty'));
-                return;
-              }
-              
-              const response = new NextResponse(pdfBuffer);
-              
-              response.headers.set('Content-Type', 'application/pdf');
-              response.headers.set('Content-Disposition', `attachment; filename="session-${sessionId}.pdf"`);
-              response.headers.set('Content-Length', pdfBuffer.length.toString());
-              response.headers.set('Cache-Control', 'no-cache, no-store, must-revalidate');
-              response.headers.set('Pragma', 'no-cache');
-              response.headers.set('Expires', '0');
-              
-              resolve(response);
-            } catch (err) {
-              console.error("Error creating response:", err);
-              reject(err);
-            }
-          });
-          
-          doc.on('error', (err) => {
-            console.error("PDF document error:", err);
-            reject(err);
-          });
-        });
+        // Create response with PDF
+        const response = new NextResponse(pdfBuffer);
+        
+        response.headers.set('Content-Type', 'application/pdf');
+        response.headers.set('Content-Disposition', `attachment; filename="session-${sessionId}.pdf"`);
+        response.headers.set('Content-Length', pdfBuffer.length.toString());
+        response.headers.set('Cache-Control', 'no-cache, no-store, must-revalidate');
+        response.headers.set('Pragma', 'no-cache');
+        response.headers.set('Expires', '0');
+        
+        return response;
       } catch (docError: unknown) {
         console.error("Error creating PDF document:", docError);
         return NextResponse.json(

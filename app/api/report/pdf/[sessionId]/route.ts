@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { withAuth } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { UserRole } from "@/prisma/enums";
-import PDFDocument from "pdfkit";
+import { jsPDF } from "jspdf";
 
 // Helper function to format dates safely
 const formatDate = (dateString: string | Date) => {
@@ -84,86 +84,126 @@ async function handler(
     }
 
     try {
-      // Create PDF document with better options
-      const doc = new PDFDocument({ 
-        margin: 50, 
-        size: 'A4',
-        info: {
-          Title: `Session Report - ${sessionId}`,
-          Author: 'CBUMS System',
-        },
-        font: 'Courier', // Use Courier font which is built-in
-        compress: true,
-        autoFirstPage: true,
-        bufferPages: true
-      });
-    
-    // Set response headers
-    const chunks: Buffer[] = [];
-    
-    doc.on('data', (chunk) => {
-      chunks.push(chunk);
-    });
-    
-    // Generate PDF content
-    // Header
-    doc.fontSize(20).text("Session Report", { align: "center" });
-    doc.moveDown();
-    
-    // Session details
-    doc.fontSize(16).text("Session Details");
-    doc.moveDown(0.5);
-    doc.fontSize(12);
-      doc.text(`Session ID: ${safeText(session.id)}`);
-      doc.text(`Created on: ${formatDate(session.createdAt)}`);
-      doc.text(`Status: ${safeText(session.status)}`);
-      doc.text(`Source: ${safeText(session.source)}`);
-      doc.text(`Destination: ${safeText(session.destination)}`);
-    doc.moveDown();
-    
-    // Company details
-    doc.fontSize(16).text("Company Information");
-    doc.moveDown(0.5);
-    doc.fontSize(12);
-      doc.text(`Company: ${safeText(session.company.name)}`);
-      doc.text(`Email: ${safeText(session.company.email)}`);
-    if (session.company.phone) {
-        doc.text(`Phone: ${safeText(session.company.phone)}`);
-    }
-    if (session.company.address) {
-        doc.text(`Address: ${safeText(session.company.address)}`);
-    }
-    doc.moveDown();
-    
-    // Creator details
-    doc.fontSize(16).text("Created By");
-    doc.moveDown(0.5);
-    doc.fontSize(12);
-      doc.text(`Name: ${safeText(session.createdBy.name)}`);
-      doc.text(`Email: ${safeText(session.createdBy.email)}`);
-      doc.text(`Role: ${safeText(session.createdBy.subrole)}`);
-    doc.moveDown();
-    
-    // Seal information
-    doc.fontSize(16).text("Seal Information");
-    doc.moveDown(0.5);
-    doc.fontSize(12);
-      doc.text(`Barcode: ${safeText(session.seal?.barcode) || 'N/A'}`);
-    doc.text(`Verified: ${session.seal?.verified ? "Yes" : "No"}`);
-    if (session.seal?.scannedAt) {
-        doc.text(`Scanned at: ${formatDate(session.seal.scannedAt)}`);
-    }
-    if (session.seal?.verifiedBy) {
-        doc.text(`Verified by: ${safeText(session.seal.verifiedBy.name)} (${safeText(session.seal.verifiedBy.subrole)})`);
-    }
-    doc.moveDown();
-    
-    // Comments
-    if (session.comments.length > 0) {
-      doc.fontSize(16).text("Comments");
-      doc.moveDown(0.5);
-      doc.fontSize(12);
+      // Create a PDF document using jsPDF
+      const doc = new jsPDF();
       
+      let yPos = 10;
+      const lineHeight = 7;
+      const leftMargin = 10;
+      const pageWidth = doc.internal.pageSize.getWidth();
+      
+      // Add Title
+      doc.setFontSize(16);
+      doc.text('Session Report', pageWidth / 2, yPos, { align: 'center' });
+      yPos += lineHeight * 2;
+      
+      // Session details
+      doc.setFontSize(14);
+      doc.text("Session Details", leftMargin, yPos);
+      yPos += lineHeight;
+      doc.setFontSize(10);
+      
+      doc.text(`Session ID: ${safeText(session.id)}`, leftMargin, yPos);
+      yPos += lineHeight;
+      doc.text(`Created on: ${formatDate(session.createdAt)}`, leftMargin, yPos);
+      yPos += lineHeight;
+      doc.text(`Status: ${safeText(session.status)}`, leftMargin, yPos);
+      yPos += lineHeight;
+      doc.text(`Source: ${safeText(session.source)}`, leftMargin, yPos);
+      yPos += lineHeight;
+      doc.text(`Destination: ${safeText(session.destination)}`, leftMargin, yPos);
+      yPos += lineHeight * 2;
+      
+      // Company details
+      // Check if we need a new page
+      if (yPos > 250) {
+        doc.addPage();
+        yPos = 10;
+      }
+      
+      doc.setFontSize(14);
+      doc.text("Company Information", leftMargin, yPos);
+      yPos += lineHeight;
+      doc.setFontSize(10);
+      
+      doc.text(`Company: ${safeText(session.company.name)}`, leftMargin, yPos);
+      yPos += lineHeight;
+      doc.text(`Email: ${safeText(session.company.email)}`, leftMargin, yPos);
+      yPos += lineHeight;
+      
+      if (session.company.phone) {
+        doc.text(`Phone: ${safeText(session.company.phone)}`, leftMargin, yPos);
+        yPos += lineHeight;
+      }
+      
+      if (session.company.address) {
+        doc.text(`Address: ${safeText(session.company.address)}`, leftMargin, yPos);
+        yPos += lineHeight;
+      }
+      
+      yPos += lineHeight;
+      
+      // Creator details
+      // Check if we need a new page
+      if (yPos > 250) {
+        doc.addPage();
+        yPos = 10;
+      }
+      
+      doc.setFontSize(14);
+      doc.text("Created By", leftMargin, yPos);
+      yPos += lineHeight;
+      doc.setFontSize(10);
+      
+      doc.text(`Name: ${safeText(session.createdBy.name)}`, leftMargin, yPos);
+      yPos += lineHeight;
+      doc.text(`Email: ${safeText(session.createdBy.email)}`, leftMargin, yPos);
+      yPos += lineHeight;
+      doc.text(`Role: ${safeText(session.createdBy.subrole)}`, leftMargin, yPos);
+      yPos += lineHeight * 2;
+      
+      // Seal information
+      // Check if we need a new page
+      if (yPos > 250) {
+        doc.addPage();
+        yPos = 10;
+      }
+      
+      doc.setFontSize(14);
+      doc.text("Seal Information", leftMargin, yPos);
+      yPos += lineHeight;
+      doc.setFontSize(10);
+      
+      doc.text(`Barcode: ${safeText(session.seal?.barcode) || 'N/A'}`, leftMargin, yPos);
+      yPos += lineHeight;
+      doc.text(`Verified: ${session.seal?.verified ? "Yes" : "No"}`, leftMargin, yPos);
+      yPos += lineHeight;
+      
+      if (session.seal?.scannedAt) {
+        doc.text(`Scanned at: ${formatDate(session.seal.scannedAt)}`, leftMargin, yPos);
+        yPos += lineHeight;
+      }
+      
+      if (session.seal?.verifiedBy) {
+        doc.text(`Verified by: ${safeText(session.seal.verifiedBy.name)} (${safeText(session.seal.verifiedBy.subrole)})`, leftMargin, yPos);
+        yPos += lineHeight;
+      }
+      
+      yPos += lineHeight;
+      
+      // Comments
+      if (session.comments.length > 0) {
+        // Check if we need a new page
+        if (yPos > 250) {
+          doc.addPage();
+          yPos = 10;
+        }
+        
+        doc.setFontSize(14);
+        doc.text("Comments", leftMargin, yPos);
+        yPos += lineHeight;
+        doc.setFontSize(10);
+        
         for (let i = 0; i < Math.min(session.comments.length, 5); i++) {
           try {
             const comment = session.comments[i];
@@ -171,50 +211,38 @@ async function handler(
             const userRole = comment.user?.role || '';
             const commentDate = formatDate(comment.createdAt);
             
-            doc.text(`${safeText(userName)} (${safeText(userRole)}) on ${commentDate}:`, { continued: false });
-            doc.text(safeText(comment.message), { indent: 20 });
-        doc.moveDown(0.5);
+            // Check if we need a new page
+            if (yPos > 270) {
+              doc.addPage();
+              yPos = 10;
+            }
+            
+            doc.text(`${safeText(userName)} (${safeText(userRole)}) on ${commentDate}:`, leftMargin, yPos);
+            yPos += lineHeight;
+            doc.text(safeText(comment.message), leftMargin + 5, yPos);
+            yPos += lineHeight * 1.5;
           } catch (error: unknown) {
             console.error("Error processing comment:", error);
             continue;
           }
         }
-    }
-    
-    // Finalize PDF
-    doc.end();
-    
-      return new Promise<NextResponse>((resolve, reject) => {
-      doc.on('end', () => {
-          try {
-        const pdfBuffer = Buffer.concat(chunks);
-            
-            if (!pdfBuffer || pdfBuffer.length === 0) {
-              reject(new Error('Generated PDF is empty'));
-              return;
-            }
-            
-        const response = new NextResponse(pdfBuffer);
-        
-        response.headers.set('Content-Type', 'application/pdf');
-        response.headers.set('Content-Disposition', `attachment; filename="session-${sessionId}.pdf"`);
-            response.headers.set('Content-Length', pdfBuffer.length.toString());
-            response.headers.set('Cache-Control', 'no-cache, no-store, must-revalidate');
-            response.headers.set('Pragma', 'no-cache');
-            response.headers.set('Expires', '0');
-            
-            resolve(response);
-          } catch (err) {
-            console.error("Error creating response:", err);
-            reject(err);
-          }
-    });
-        
-        doc.on('error', (err) => {
-          console.error("PDF document error:", err);
-          reject(err);
-        });
-      });
+      }
+      
+      // Get the PDF as a buffer
+      const pdfOutput = doc.output('arraybuffer');
+      const pdfBuffer = Buffer.from(pdfOutput);
+      
+      // Create response with PDF
+      const response = new NextResponse(pdfBuffer);
+      
+      response.headers.set('Content-Type', 'application/pdf');
+      response.headers.set('Content-Disposition', `attachment; filename="session-${sessionId}.pdf"`);
+      response.headers.set('Content-Length', pdfBuffer.length.toString());
+      response.headers.set('Cache-Control', 'no-cache, no-store, must-revalidate');
+      response.headers.set('Pragma', 'no-cache');
+      response.headers.set('Expires', '0');
+      
+      return response;
     } catch (docError) {
       console.error("Error creating PDF document:", docError);
       return NextResponse.json(
