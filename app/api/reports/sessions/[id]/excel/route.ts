@@ -124,6 +124,73 @@ export const GET = withAuth(
       // Get direct session data (for fields that might not be in activityLog)
       const directTripDetails = detailedSessionData.tripDetails || {};
       
+      // Debug: Log the full session data structure
+      console.log(`[EXCEL REPORT] Session Data Structure:`, JSON.stringify({
+        hasDetails: !!detailedSessionData,
+        hasTripDetails: !!detailedSessionData.tripDetails,
+        directTripDetails: directTripDetails,
+        dataKeys: Object.keys(detailedSessionData || {}),
+        rawTripDetails: detailedSessionData.tripDetails
+      }));
+      
+      // Try other potential places where trip data might be stored
+      let otherPossibleTripFields: Record<string, any> = {};
+      
+      // Look for trip data in direct session fields (they may be at root level)
+      const tripDataFieldNames = [
+        // Standard fields
+        'transporterName', 'materialName', 'vehicleNumber', 'gpsImeiNumber', 'driverName',
+        'driverContactNumber', 'loaderName', 'loaderMobileNumber', 'challanRoyaltyNumber',
+        'doNumber', 'tpNumber', 'qualityOfMaterials', 'freight', 'grossWeight',
+        'tareWeight', 'netMaterialWeight', 'loadingSite', 'receiverPartyName',
+        
+        // Additional possible field names (with different casing or naming conventions)
+        'transporter_name', 'material_name', 'vehicle_number', 'gps_imei', 'driver_name',
+        'driver_contact', 'loader_name', 'loader_mobile', 'challan_number', 'royalty_number',
+        'do_number', 'tp_number', 'quality', 'material_quality', 'material_weight',
+        'gross_weight', 'tare_weight', 'net_weight', 'loading_site', 'receiver_name',
+        'receiverName', 'receiverContact', 'receiver_contact', 'materialType', 'material_type',
+        'vehicleType', 'vehicle_type', 'consignmentNumber', 'consignment_number',
+        'customerName', 'customer_name', 'customerContact', 'customer_contact',
+        'billingDetails', 'billing_details', 'paymentDetails', 'payment_details'
+      ];
+      
+      // Check if any trip fields exist directly in the session object
+      for (const field of tripDataFieldNames) {
+        if (field in detailedSessionData && detailedSessionData[field as keyof typeof detailedSessionData] !== undefined) {
+          otherPossibleTripFields[field] = detailedSessionData[field as keyof typeof detailedSessionData];
+        }
+      }
+      
+      // Check for JSON data in the session object
+      for (const [key, value] of Object.entries(detailedSessionData)) {
+        // Check if the field is a JSON string that we might need to parse
+        if (typeof value === 'string' && (value.startsWith('{') || value.startsWith('['))) {
+          try {
+            const parsedValue = JSON.parse(value);
+            // If it contains trip details, extract them
+            if (parsedValue && typeof parsedValue === 'object') {
+              for (const field of tripDataFieldNames) {
+                if (field in parsedValue) {
+                  otherPossibleTripFields[field] = parsedValue[field];
+                }
+              }
+            }
+          } catch (e) {
+            // Not valid JSON, ignore
+          }
+        }
+        
+        // Check if the field is an object that might contain trip details
+        if (value && typeof value === 'object' && !Array.isArray(value)) {
+          for (const field of tripDataFieldNames) {
+            if (field in value) {
+              otherPossibleTripFields[field] = (value as any)[field];
+            }
+          }
+        }
+      }
+      
       // Get all images
       const images = detailedSessionData.images || {};
       
@@ -218,10 +285,16 @@ export const GET = withAuth(
       };
       
       // Use the real trip details from both sources, use sample only if nothing available
-      let combinedTripDetails = { ...directTripDetails };
+      let combinedTripDetails = { ...directTripDetails, ...otherPossibleTripFields };
       if (tripDetails && Object.keys(tripDetails).length > 0) {
         combinedTripDetails = { ...combinedTripDetails, ...tripDetails };
       }
+      
+      // Log the final combined details 
+      console.log(`[EXCEL REPORT] Final Combined Trip Details:`, 
+        Object.keys(combinedTripDetails).length, 
+        JSON.stringify(combinedTripDetails)
+      );
       
       // Only use sample data if no real data is available
       const finalTripDetails = Object.keys(combinedTripDetails).length > 0 
