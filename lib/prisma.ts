@@ -1,6 +1,6 @@
 // Simplify the approach to avoid TypeScript errors during build
 // @ts-ignore
-import { PrismaClient } from '../prisma/generated/prisma';
+import { PrismaClient } from '@prisma/client';
 // Add Prisma Accelerate extension
 // @ts-ignore
 import { withAccelerate } from '@prisma/extension-accelerate';
@@ -81,6 +81,6 @@ if (process.env.NODE_ENV !== "production") {
 }
 
 // Export Prisma-generated types and enums
-export * from '../prisma/generated/prisma';
+// export * from '@prisma/client'; // Or be more specific about what's re-exported
 
 export default prisma; 
