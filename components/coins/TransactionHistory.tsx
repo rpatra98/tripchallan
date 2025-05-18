@@ -142,7 +142,16 @@ export default function TransactionHistory({ userId, limit = 10, refreshTrigger 
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
             {transactions.map((transaction) => {
-              const isReceived = transaction.toUser?.id === (userId || session?.user?.id);
+              // Special case for SESSION_CREATION - this is always a deduction even if to/from are the same
+              const isSessionCreation = transaction.reason === 'SESSION_CREATION';
+              
+              // For normal transactions, received is when toUser matches current user
+              const isReceived = !isSessionCreation && transaction.toUser?.id === (userId || session?.user?.id);
+              
+              // For session creation, it's always a spent coin (negative)
+              const amountDisplay = isSessionCreation 
+                ? '-' + transaction.amount
+                : (isReceived ? '+' : '-') + transaction.amount;
               
               return (
                 <tr key={transaction.id}>
@@ -166,9 +175,9 @@ export default function TransactionHistory({ userId, limit = 10, refreshTrigger 
                     </div>
                   </td>
                   <td className={`px-6 py-4 whitespace-nowrap text-sm font-medium ${
-                    isReceived ? 'text-green-600' : 'text-red-600'
+                    isSessionCreation || !isReceived ? 'text-red-600' : 'text-green-600'
                   }`}>
-                    {isReceived ? '+' : '-'}{transaction.amount}
+                    {amountDisplay}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                     {transaction.reason 
