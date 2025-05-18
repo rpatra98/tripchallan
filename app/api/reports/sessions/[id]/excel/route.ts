@@ -152,7 +152,16 @@ export const GET = withAuth(
         'receiverName', 'receiverContact', 'receiver_contact', 'materialType', 'material_type',
         'vehicleType', 'vehicle_type', 'consignmentNumber', 'consignment_number',
         'customerName', 'customer_name', 'customerContact', 'customer_contact',
-        'billingDetails', 'billing_details', 'paymentDetails', 'payment_details'
+        'billingDetails', 'billing_details', 'paymentDetails', 'payment_details',
+        
+        // Additional expanded field names
+        'consignor', 'consignee', 'originLocation', 'destinationLocation', 'origin_location', 
+        'destination_location', 'pickupDate', 'deliveryDate', 'pickup_date', 'delivery_date', 
+        'invoiceNumber', 'invoice_number', 'weightUnit', 'weight_unit', 'vehicleCapacity', 
+        'vehicle_capacity', 'transitTime', 'transit_time', 'routeDetails', 'route_details',
+        'permitNumber', 'permit_number', 'fuelType', 'fuel_type', 'driverLicense', 'driver_license',
+        'insuranceDetails', 'insurance_details', 'maintenanceDetails', 'maintenance_details',
+        'trackingNumber', 'tracking_number', 'paymentStatus', 'payment_status'
       ];
       
       // Check if any trip fields exist directly in the session object
@@ -162,7 +171,22 @@ export const GET = withAuth(
         }
       }
       
+      // Also check in sessionData directly in case it has additional props
+      for (const field of tripDataFieldNames) {
+        if (field in sessionData && sessionData[field as keyof typeof sessionData] !== undefined) {
+          otherPossibleTripFields[field] = sessionData[field as keyof typeof sessionData];
+        }
+      }
+      
       // Check for JSON data in the session object
+      const checkObjectForTripFields = (obj: any) => {
+        for (const field of tripDataFieldNames) {
+          if (field in obj) {
+            otherPossibleTripFields[field] = obj[field];
+          }
+        }
+      };
+      
       for (const [key, value] of Object.entries(detailedSessionData)) {
         // Check if the field is a JSON string that we might need to parse
         if (typeof value === 'string' && (value.startsWith('{') || value.startsWith('['))) {
@@ -170,9 +194,14 @@ export const GET = withAuth(
             const parsedValue = JSON.parse(value);
             // If it contains trip details, extract them
             if (parsedValue && typeof parsedValue === 'object') {
-              for (const field of tripDataFieldNames) {
-                if (field in parsedValue) {
-                  otherPossibleTripFields[field] = parsedValue[field];
+              checkObjectForTripFields(parsedValue);
+              
+              // Also check nested objects
+              if (!Array.isArray(parsedValue)) {
+                for (const [nestedKey, nestedValue] of Object.entries(parsedValue)) {
+                  if (nestedValue && typeof nestedValue === 'object') {
+                    checkObjectForTripFields(nestedValue);
+                  }
                 }
               }
             }
@@ -183,9 +212,23 @@ export const GET = withAuth(
         
         // Check if the field is an object that might contain trip details
         if (value && typeof value === 'object' && !Array.isArray(value)) {
-          for (const field of tripDataFieldNames) {
-            if (field in value) {
-              otherPossibleTripFields[field] = (value as any)[field];
+          checkObjectForTripFields(value);
+          
+          // Also check nested objects up to one level deep
+          for (const [nestedKey, nestedValue] of Object.entries(value)) {
+            if (nestedValue && typeof nestedValue === 'object' && !Array.isArray(nestedValue)) {
+              checkObjectForTripFields(nestedValue);
+            }
+          }
+        }
+      }
+      
+      // Check for session data fields that might be arrays containing objects with trip details
+      for (const [key, value] of Object.entries(detailedSessionData)) {
+        if (Array.isArray(value)) {
+          for (const item of value) {
+            if (item && typeof item === 'object') {
+              checkObjectForTripFields(item);
             }
           }
         }
