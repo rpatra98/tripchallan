@@ -171,7 +171,11 @@ export const GET = withAuth(
           info: {
             Title: `Session Report - ${sessionId}`,
             Author: 'CBUMS System',
-          }
+          },
+          font: 'Courier', // Use Courier font which is built-in
+          compress: true,
+          autoFirstPage: true,
+          bufferPages: true
         });
         
         const chunks: Buffer[] = [];

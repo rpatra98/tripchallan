@@ -91,7 +91,11 @@ async function handler(
         info: {
           Title: `Session Report - ${sessionId}`,
           Author: 'CBUMS System',
-        }
+        },
+        font: 'Courier', // Use Courier font which is built-in
+        compress: true,
+        autoFirstPage: true,
+        bufferPages: true
       });
     
     // Set response headers
