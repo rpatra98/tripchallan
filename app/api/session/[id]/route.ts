@@ -87,17 +87,34 @@ async function handler(
       );
     }
 
-    // Fetch activity log data for the session to get trip details
-    const activityLog = await prisma.activityLog.findFirst({
+    // Fetch all activity logs for this session to ensure we find trip details and images
+    const activityLogs = await prisma.activityLog.findMany({
       where: {
         targetResourceId: id,
         targetResourceType: 'session',
-        action: 'CREATE',
       },
       orderBy: {
         createdAt: 'desc',
       },
     });
+    
+    console.log(`[API DEBUG] Found ${activityLogs.length} activity logs for session ${id}`);
+    
+    // Try to find the activity log with trip details
+    const tripDetailsLog = activityLogs.find((log: any) => 
+      log.details && 
+      typeof log.details === 'object' && 
+      (log.details as any).tripDetails
+    );
+    
+    // Try to find the activity log with image data (could be in the same log or a different one)
+    const imagesLog = activityLogs.find((log: any) => 
+      log.details && 
+      typeof log.details === 'object' && 
+      ((log.details as any).images || (log.details as any).imageBase64Data)
+    );
+    
+    console.log(`[API DEBUG] Found trip details log: ${!!tripDetailsLog}, Found images log: ${!!imagesLog}`);
     
     // Fetch verification activity logs
     const verificationLogs = await prisma.activityLog.findMany({
@@ -128,26 +145,23 @@ async function handler(
     
     // Filter logs post-query to only include those with verification data
     const filteredVerificationLogs = verificationLogs.filter(
-      log => log.details && typeof log.details === 'object' && 'verification' in log.details
+      (log: any) => log.details && typeof log.details === 'object' && 'verification' in log.details
     );
 
-    // Extract trip details from activity log
+    // Extract trip details and other info from found logs
     let tripDetails = {};
     let images = {};
     let timestamps = {};
     let qrCodes = {};
     
-    if (activityLog?.details) {
-      const details = activityLog.details as ActivityLogDetails;
+    // Get trip details if available
+    if (tripDetailsLog?.details) {
+      const details = tripDetailsLog.details as ActivityLogDetails;
       
       // Extract trip details
       if (details.tripDetails) {
         tripDetails = details.tripDetails;
-      }
-      
-      // Extract image URLs
-      if (details.images) {
-        images = details.images;
+        console.log("[API DEBUG] Found trip details:", Object.keys(details.tripDetails));
       }
       
       // Extract timestamps
@@ -158,6 +172,56 @@ async function handler(
       // Extract QR codes
       if (details.qrCodes) {
         qrCodes = details.qrCodes;
+      }
+    }
+    
+    // Get images if available
+    if (imagesLog?.details) {
+      const details = imagesLog.details as any;
+      
+      // Extract image URLs
+      if (details.images) {
+        images = details.images;
+        console.log("[API DEBUG] Found image URLs:", Object.keys(details.images));
+      }
+      
+      // If we found activity log with base64 data, transform it to URLs
+      if (details.imageBase64Data && !Object.keys(images).length) {
+        // Convert to URLs
+        const imageUrls: Record<string, string> = {};
+        
+        if (details.imageBase64Data.gpsImeiPicture) {
+          imageUrls.gpsImeiPicture = `/api/images/${id}/gpsImei`;
+        }
+        
+        if (details.imageBase64Data.vehicleNumberPlatePicture) {
+          imageUrls.vehicleNumberPlatePicture = `/api/images/${id}/vehicleNumber`;
+        }
+        
+        if (details.imageBase64Data.driverPicture) {
+          imageUrls.driverPicture = `/api/images/${id}/driver`;
+        }
+        
+        if (details.imageBase64Data.sealingImages && details.imageBase64Data.sealingImages.length) {
+          imageUrls.sealingImages = details.imageBase64Data.sealingImages.map((_: any, i: number) => 
+            `/api/images/${id}/sealing/${i}`
+          );
+        }
+        
+        if (details.imageBase64Data.vehicleImages && details.imageBase64Data.vehicleImages.length) {
+          imageUrls.vehicleImages = details.imageBase64Data.vehicleImages.map((_: any, i: number) => 
+            `/api/images/${id}/vehicle/${i}`
+          );
+        }
+        
+        if (details.imageBase64Data.additionalImages && details.imageBase64Data.additionalImages.length) {
+          imageUrls.additionalImages = details.imageBase64Data.additionalImages.map((_: any, i: number) => 
+            `/api/images/${id}/additional/${i}`
+          );
+        }
+        
+        images = imageUrls;
+        console.log("[API DEBUG] Created image URLs from base64 data:", Object.keys(imageUrls));
       }
     }
 
@@ -208,11 +272,11 @@ async function handler(
         
         // Get the company IDs for filtering
         const companyIds = companiesCreatedByAdmin
-          .filter(company => company.companyId)
-          .map(company => company.companyId);
+          .filter((company: any) => company.companyId)
+          .map((company: any) => company.companyId);
           
         // Also include company user IDs in case they're used as companyId
-        const companyUserIds = companiesCreatedByAdmin.map(company => company.id);
+        const companyUserIds = companiesCreatedByAdmin.map((company: any) => company.id);
         
         // Combined array of IDs to check against companyId
         const allCompanyIds = [...new Set([...companyIds, ...companyUserIds])].filter(Boolean) as string[];
@@ -290,7 +354,7 @@ async function handler(
           select: { id: true }
         });
         
-        const sessionIds = dashboardSessions.map(s => s.id);
+        const sessionIds = dashboardSessions.map((s: any) => s.id);
         console.log("[API DEBUG] Company dashboard sessions:", {
           count: sessionIds.length,
           sessionIds: sessionIds.length > 0 ? sessionIds.slice(0, 5) : [],

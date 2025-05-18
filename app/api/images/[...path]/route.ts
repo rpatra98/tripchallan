@@ -53,45 +53,40 @@ export const GET = withAuth(
 
       // Try to get the image from the database
       // We need to find the activity log that contains the base64 image data
-      // First, try to find the most recent activity log
-      let activityLog = await prisma.activityLog.findFirst({
+      // Get all activity logs for this session to ensure we find all data
+      const allLogs = await prisma.activityLog.findMany({
         where: {
           targetResourceId: sessionId,
           targetResourceType: 'session',
-          action: 'CREATE',
         },
         orderBy: {
           createdAt: 'desc',
         },
       });
       
-      // If first one doesn't have image data, try to find all activity logs for this session
-      // and filter them manually to find one with imageBase64Data
-      if (!activityLog || !activityLog.details || !(activityLog.details as any).imageBase64Data) {
-        console.log(`First activity log doesn't have image data, trying to find all logs`);
+      console.log(`Found ${allLogs.length} activity logs for session ${sessionId}`);
+      
+      // First, look for logs with direct imageBase64Data
+      let activityLog = allLogs.find((log: any) => 
+        log.details && 
+        typeof log.details === 'object' && 
+        (log.details as any).imageBase64Data
+      );
+      
+      if (activityLog) {
+        console.log(`Found activity log with imageBase64Data`);
+      } else {
+        console.log(`No logs with imageBase64Data found, searching for other logs that might contain images`);
         
-        const allLogs = await prisma.activityLog.findMany({
-          where: {
-            targetResourceId: sessionId,
-            targetResourceType: 'session',
-          },
-          orderBy: {
-            createdAt: 'desc',
-          },
-        });
-        
-        console.log(`Found ${allLogs.length} activity logs for session ${sessionId}`);
-        
-        // Find the first log that has imageBase64Data
+        // If no logs have imageBase64Data, try any log with details (might have image paths)
         activityLog = allLogs.find((log: any) => 
           log.details && 
-          typeof log.details === 'object' && 
-          (log.details as any).imageBase64Data
-        ) || activityLog;
+          typeof log.details === 'object'
+        );
       }
 
       if (activityLog && activityLog.details) {
-        console.log(`Found activity log for session ${sessionId}`);
+        console.log(`Processing activity log for session ${sessionId}`);
         const details = activityLog.details as any;
         
         // Check if this activity log contains imageBase64Data
@@ -146,7 +141,86 @@ export const GET = withAuth(
             console.log(`No image data found for ${imageType}${index !== null ? ` at index ${index}` : ''}`);
           }
         } else {
-          console.log(`Activity log does not contain imageBase64Data`);
+          // Try to find image info in activity log details, even if not in imageBase64Data format
+          console.log(`Activity log doesn't have imageBase64Data, but it might have image info`);
+          
+          // If this is a log that has direct image paths (from the first activity log)
+          if (details.images) {
+            console.log(`Activity log has image paths, but we need base64 data for direct serving`);
+          }
+          
+          // Search all logs (including this one) for any field that might match the requested image
+          const allImageFields = Object.keys(details);
+          console.log(`Searching through fields: ${allImageFields.join(', ')}`);
+          
+          // Look for an object field that might contain our image data
+          for (const field of allImageFields) {
+            const value = details[field];
+            
+            // Skip if not an object or if we've already checked it
+            if (!value || typeof value !== 'object' || field === 'imageBase64Data') continue;
+            
+            console.log(`Checking field "${field}" for image data`);
+            
+            // Check if this field has our image type
+            if (imageType === 'gpsImei' && value.gpsImeiPicture) {
+              console.log(`Found gpsImeiPicture in ${field}`);
+              if (value.gpsImeiPicture.data) {
+                const buffer = Buffer.from(value.gpsImeiPicture.data, 'base64');
+                return new NextResponse(buffer, {
+                  headers: {
+                    'Content-Type': value.gpsImeiPicture.contentType || 'image/jpeg',
+                    'Cache-Control': 'public, max-age=86400',
+                  },
+                });
+              }
+            }
+            
+            // Similar checks for other image types
+            if (imageType === 'vehicleNumber' && value.vehicleNumberPlatePicture) {
+              console.log(`Found vehicleNumberPlatePicture in ${field}`);
+              if (value.vehicleNumberPlatePicture.data) {
+                const buffer = Buffer.from(value.vehicleNumberPlatePicture.data, 'base64');
+                return new NextResponse(buffer, {
+                  headers: {
+                    'Content-Type': value.vehicleNumberPlatePicture.contentType || 'image/jpeg',
+                    'Cache-Control': 'public, max-age=86400',
+                  },
+                });
+              }
+            }
+            
+            // Check for driver picture
+            if (imageType === 'driver' && value.driverPicture) {
+              console.log(`Found driverPicture in ${field}`);
+              if (value.driverPicture.data) {
+                const buffer = Buffer.from(value.driverPicture.data, 'base64');
+                return new NextResponse(buffer, {
+                  headers: {
+                    'Content-Type': value.driverPicture.contentType || 'image/jpeg',
+                    'Cache-Control': 'public, max-age=86400',
+                  },
+                });
+              }
+            }
+            
+            // Check for array types
+            if (imageType === 'sealing' && value.sealingImages && index !== null) {
+              console.log(`Found sealingImages in ${field}`);
+              const sealingImage = value.sealingImages[parseInt(index)];
+              if (sealingImage && sealingImage.data) {
+                const buffer = Buffer.from(sealingImage.data, 'base64');
+                return new NextResponse(buffer, {
+                  headers: {
+                    'Content-Type': sealingImage.contentType || 'image/jpeg',
+                    'Cache-Control': 'public, max-age=86400',
+                  },
+                });
+              }
+            }
+          }
+          
+          console.log(`No suitable image data found in any field`);
         }
       }
 
