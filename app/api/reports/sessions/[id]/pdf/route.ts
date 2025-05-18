@@ -164,6 +164,49 @@ export const GET = withAuth(
       }
       
       try {
+        // Fetch more detailed session data directly from the database
+        const detailedSessionData = await prisma.session.findUnique({
+          where: { id: sessionId },
+          include: {
+            createdBy: true,
+            company: true,
+            seal: {
+              include: {
+                verifiedBy: true,
+              },
+            },
+            comments: {
+              include: {
+                user: true,
+              },
+              orderBy: {
+                createdAt: "desc",
+              },
+              take: 10,
+            },
+            // Include any other relationships needed for complete data
+          },
+        });
+
+        if (!detailedSessionData) {
+          return NextResponse.json(
+            { error: "Detailed session data not found" },
+            { status: 404 }
+          );
+        }
+
+        // Get direct session data (for fields that might not be in activityLog)
+        const directTripDetails = detailedSessionData.tripDetails || {};
+        
+        // Merge both sources of trip details
+        let completeDetails = { ...directTripDetails };
+        if (tripDetails && Object.keys(tripDetails).length > 0) {
+          completeDetails = { ...completeDetails, ...tripDetails };
+        }
+        
+        // Get all images
+        const images = detailedSessionData.images || {};
+        
         // Create a PDF document using jsPDF
         const doc = new jsPDF();
         
@@ -199,7 +242,7 @@ export const GET = withAuth(
         yPos += lineHeight * 2;
         
         // Trip Details
-        if (Object.keys(tripDetails).length > 0) {
+        if (Object.keys(completeDetails).length > 0) {
           // Check if we need a new page
           if (yPos > 250) {
             doc.addPage();
@@ -211,26 +254,117 @@ export const GET = withAuth(
           yPos += lineHeight;
           doc.setFontSize(10);
           
-          for (const [key, value] of Object.entries(tripDetails)) {
-            try {
-              // Format key from camelCase to Title Case with spaces
-              const formattedKey = key.replace(/([A-Z])/g, ' $1')
-                .replace(/^./, str => str.toUpperCase());
-              
-              // Check if we need a new page
-              if (yPos > 270) {
-                doc.addPage();
-                yPos = 10;
+          // Define comprehensive list of known fields with proper labels
+          const fieldLabels: Record<string, string> = {
+            transporterName: "Transporter Name",
+            materialName: "Material Name",
+            vehicleNumber: "Vehicle Number",
+            gpsImeiNumber: "GPS IMEI Number",
+            driverName: "Driver Name",
+            driverContactNumber: "Driver Contact Number",
+            loaderName: "Loader Name",
+            loaderMobileNumber: "Loader Mobile Number",
+            challanRoyaltyNumber: "Challan/Royalty Number",
+            doNumber: "DO Number",
+            tpNumber: "TP Number",
+            qualityOfMaterials: "Quality of Materials",
+            freight: "Freight",
+            grossWeight: "Gross Weight (kg)",
+            tareWeight: "Tare Weight (kg)",
+            netMaterialWeight: "Net Material Weight (kg)",
+            loadingSite: "Loading Site",
+            receiverPartyName: "Receiver Party Name"
+          };
+          
+          // First add fields from our known list
+          for (const [key, label] of Object.entries(fieldLabels)) {
+            if (key in completeDetails) {
+              try {
+                // Check if we need a new page
+                if (yPos > 270) {
+                  doc.addPage();
+                  yPos = 10;
+                }
+                
+                const value = completeDetails[key as keyof typeof completeDetails];
+                doc.text(`${label}: ${safeText(value as string | number | boolean | null | undefined)}`, leftMargin, yPos);
+                yPos += lineHeight;
+              } catch {
+                console.error(`Error processing trip detail ${key}`);
+                continue;
               }
-              
-              doc.text(`${formattedKey}: ${safeText(value as string | number | boolean | null | undefined)}`, leftMargin, yPos);
-              yPos += lineHeight;
-            } catch {
-              console.error(`Error processing trip detail ${key}`);
-              // Skip this field if there's an error
-              continue;
             }
           }
+          
+          // Then add any other fields that might exist
+          for (const [key, value] of Object.entries(completeDetails)) {
+            if (!(key in fieldLabels)) {
+              try {
+                // Check if we need a new page
+                if (yPos > 270) {
+                  doc.addPage();
+                  yPos = 10;
+                }
+                
+                // Format key from camelCase to Title Case with spaces
+                const formattedKey = key.replace(/([A-Z])/g, ' $1')
+                  .replace(/^./, str => str.toUpperCase());
+                
+                doc.text(`${formattedKey}: ${safeText(value as string | number | boolean | null | undefined)}`, leftMargin, yPos);
+                yPos += lineHeight;
+              } catch {
+                console.error(`Error processing trip detail ${key}`);
+                continue;
+              }
+            }
+          }
+          yPos += lineHeight;
+        }
+        
+        // Image Listings (we can't embed images directly but we can list them)
+        if (images && Object.keys(images).length > 0) {
+          // Check if we need a new page
+          if (yPos > 250) {
+            doc.addPage();
+            yPos = 10;
+          }
+          
+          doc.setFontSize(14);
+          doc.text('Uploaded Images Information', leftMargin, yPos);
+          yPos += lineHeight;
+          doc.setFontSize(10);
+          
+          // Image categories and counts
+          if (images.driverPicture) {
+            doc.text(`Driver Picture: Available`, leftMargin, yPos);
+            yPos += lineHeight;
+          }
+          
+          if (images.vehicleNumberPlatePicture) {
+            doc.text(`Vehicle Number Plate Picture: Available`, leftMargin, yPos);
+            yPos += lineHeight;
+          }
+          
+          if (images.gpsImeiPicture) {
+            doc.text(`GPS/IMEI Picture: Available`, leftMargin, yPos);
+            yPos += lineHeight;
+          }
+          
+          if (images.sealingImages && images.sealingImages.length > 0) {
+            doc.text(`Sealing Images: ${images.sealingImages.length} available`, leftMargin, yPos);
+            yPos += lineHeight;
+          }
+          
+          if (images.vehicleImages && images.vehicleImages.length > 0) {
+            doc.text(`Vehicle Images: ${images.vehicleImages.length} available`, leftMargin, yPos);
+            yPos += lineHeight;
+          }
+          
+          if (images.additionalImages && images.additionalImages.length > 0) {
+            doc.text(`Additional Images: ${images.additionalImages.length} available`, leftMargin, yPos);
+            yPos += lineHeight;
+          }
+          
           yPos += lineHeight;
         }
         

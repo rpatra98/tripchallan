@@ -89,6 +89,44 @@ export const GET = withAuth(
         );
       }
       
+      // Fetch more detailed session data
+      console.log(`[EXCEL REPORT] Fetching detailed session data`);
+      const detailedSessionData = await prisma.session.findUnique({
+        where: { id: sessionId },
+        include: {
+          createdBy: true,
+          company: true,
+          seal: {
+            include: {
+              verifiedBy: true,
+            },
+          },
+          comments: {
+            include: {
+              user: true,
+            },
+            orderBy: {
+              createdAt: "desc",
+            },
+            take: 10,
+          },
+          // Include any other relationships needed for complete data
+        },
+      });
+      
+      if (!detailedSessionData) {
+        return NextResponse.json(
+          { error: "Detailed session data not found" },
+          { status: 404 }
+        );
+      }
+      
+      // Get direct session data (for fields that might not be in activityLog)
+      const directTripDetails = detailedSessionData.tripDetails || {};
+      
+      // Get all images
+      const images = detailedSessionData.images || {};
+      
       // COMPANY user check - can only download their own sessions
       if (userRole === UserRole.COMPANY && userId !== sessionData.companyId) {
         return NextResponse.json(
@@ -179,8 +217,16 @@ export const GET = withAuth(
         receiverPartyName: "SAMPLE RECEIVER"
       };
       
-      // Use the real trip details if found, otherwise use sample data
-      const finalTripDetails = tripDetails || SAMPLE_TRIP_DETAILS;
+      // Use the real trip details from both sources, use sample only if nothing available
+      let combinedTripDetails = { ...directTripDetails };
+      if (tripDetails && Object.keys(tripDetails).length > 0) {
+        combinedTripDetails = { ...combinedTripDetails, ...tripDetails };
+      }
+      
+      // Only use sample data if no real data is available
+      const finalTripDetails = Object.keys(combinedTripDetails).length > 0 
+        ? combinedTripDetails 
+        : SAMPLE_TRIP_DETAILS;
       
       // Create trip details sheet
       const tripSheet = workbook.addWorksheet('Trip Details');
@@ -200,7 +246,7 @@ export const GET = withAuth(
       // Add data source info
       tripSheet.mergeCells('A2:C2');
       const sourceCell = tripSheet.getCell('A2');
-      sourceCell.value = `Data Source: ${tripDetails ? 'Database' : 'SAMPLE (Due to missing data)'}`;
+      sourceCell.value = `Data Source: ${Object.keys(combinedTripDetails).length > 0 ? 'Database' : 'SAMPLE (Due to missing data)'}`;
       sourceCell.font = { italic: true };
       
       // Add column headers in row 3
@@ -254,14 +300,119 @@ export const GET = withAuth(
         tripSheet.addRow({
           field: field.label,
           value: displayValue,
-          source: tripDetails ? 'Database' : 'Sample'
+          source: Object.keys(combinedTripDetails).length > 0 ? 'Database' : 'Sample'
+        });
+        
+        currentRow++;
+      }
+      
+      // Add any additional fields not in our standard list
+      for (const [key, value] of Object.entries(finalTripDetails)) {
+        // Skip fields we've already added
+        if (tripFields.some(field => field.key === key)) {
+          continue;
+        }
+        
+        // Format key from camelCase to Title Case with spaces
+        const formattedKey = key.replace(/([A-Z])/g, ' $1')
+          .replace(/^./, str => str.toUpperCase());
+        
+        const displayValue = value !== undefined && value !== null 
+          ? String(value)
+          : 'N/A';
+        
+        tripSheet.addRow({
+          field: formattedKey,
+          value: displayValue,
+          source: Object.keys(combinedTripDetails).length > 0 ? 'Database' : 'Sample'
         });
         
         currentRow++;
       }
       
       // =========================================================
-      // 3. ADD VERIFICATION DATA IF AVAILABLE
+      // 3. CREATE IMAGE INFORMATION SHEET
+      // =========================================================
+      
+      if (images && Object.keys(images).length > 0) {
+        console.log(`[EXCEL REPORT] Creating image information sheet`);
+        
+        const imageSheet = workbook.addWorksheet('Images Information');
+        
+        imageSheet.columns = [
+          { header: 'Image Type', key: 'type', width: 30 },
+          { header: 'Status', key: 'status', width: 20 },
+          { header: 'Count', key: 'count', width: 15 },
+          { header: 'Notes', key: 'notes', width: 40 }
+        ];
+        
+        // Style header row
+        const imageHeader = imageSheet.getRow(1);
+        imageHeader.font = { bold: true };
+        imageHeader.fill = {
+          type: 'pattern',
+          pattern: 'solid',
+          fgColor: { argb: 'FFD3D3D3' }
+        };
+        
+        // Add image information
+        if (images.driverPicture) {
+          imageSheet.addRow({
+            type: 'Driver Picture',
+            status: 'Available',
+            count: 1,
+            notes: 'Uploaded during session creation'
+          });
+        }
+        
+        if (images.vehicleNumberPlatePicture) {
+          imageSheet.addRow({
+            type: 'Vehicle Number Plate Picture',
+            status: 'Available',
+            count: 1,
+            notes: 'Uploaded during session creation'
+          });
+        }
+        
+        if (images.gpsImeiPicture) {
+          imageSheet.addRow({
+            type: 'GPS/IMEI Picture',
+            status: 'Available',
+            count: 1,
+            notes: 'Uploaded during session creation'
+          });
+        }
+        
+        if (images.sealingImages && images.sealingImages.length > 0) {
+          imageSheet.addRow({
+            type: 'Sealing Images',
+            status: 'Available',
+            count: images.sealingImages.length,
+            notes: 'Images related to seal application'
+          });
+        }
+        
+        if (images.vehicleImages && images.vehicleImages.length > 0) {
+          imageSheet.addRow({
+            type: 'Vehicle Images',
+            status: 'Available',
+            count: images.vehicleImages.length,
+            notes: 'Images of the vehicle from various angles'
+          });
+        }
+        
+        if (images.additionalImages && images.additionalImages.length > 0) {
+          imageSheet.addRow({
+            type: 'Additional Images',
+            status: 'Available',
+            count: images.additionalImages.length,
+            notes: 'Supplementary images uploaded by operator'
+          });
+        }
+      }
+      
+      // =========================================================
+      // 4. ADD VERIFICATION DATA IF AVAILABLE
       // =========================================================
       
       // Check for verification data
@@ -349,57 +500,6 @@ export const GET = withAuth(
         }
       } catch (error) {
         console.error(`[EXCEL REPORT] Error adding verification data:`, error);
-      }
-      
-      // =========================================================
-      // 4. ADD COMMENTS IF AVAILABLE
-      // =========================================================
-      
-      try {
-        // Get comments for this session
-        const comments = await prisma.comment.findMany({
-          where: { sessionId },
-          include: {
-            user: {
-              select: { name: true, role: true }
-            }
-          },
-          orderBy: { createdAt: 'desc' }
-        });
-        
-        if (comments.length > 0) {
-          console.log(`[EXCEL REPORT] Adding ${comments.length} comments`);
-          
-          const commentsSheet = workbook.addWorksheet('Comments');
-          
-          commentsSheet.columns = [
-            { header: 'Date', key: 'date', width: 20 },
-            { header: 'User', key: 'user', width: 25 },
-            { header: 'Role', key: 'role', width: 15 },
-            { header: 'Comment', key: 'comment', width: 50 }
-          ];
-          
-          // Style header row
-          const commentsHeader = commentsSheet.getRow(1);
-          commentsHeader.font = { bold: true };
-          commentsHeader.fill = {
-            type: 'pattern',
-            pattern: 'solid',
-            fgColor: { argb: 'FFD3D3D3' }
-          };
-          
-          // Add each comment
-          comments.forEach(comment => {
-            commentsSheet.addRow({
-              date: new Date(comment.createdAt).toLocaleString(),
-              user: comment.user.name,
-              role: comment.user.role,
-              comment: comment.message
-            });
-          });
-        }
-      } catch (error) {
-        console.error(`[EXCEL REPORT] Error adding comments:`, error);
       }
       
       // =========================================================
