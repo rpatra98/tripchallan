@@ -51,12 +51,12 @@ async function fileToBase64(file: File): Promise<string> {
   try {
     console.log(`Converting file to base64: ${file.name}, size: ${file.size} bytes, type: ${file.type}`);
     
-    // Implement size check - 5MB limit
-    const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
-    if (file.size > MAX_FILE_SIZE) {
-      console.error(`File too large: ${file.name}, size: ${file.size} bytes`);
-      throw new Error(`File too large: ${file.name}. Maximum size is 5MB.`);
-    }
+    // // Implement size check - 5MB limit
+    // const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
+    // if (file.size > MAX_FILE_SIZE) {
+    //   console.error(`File too large: ${file.name}, size: ${file.size} bytes`);
+    //   throw new Error(`File too large: ${file.name}. Maximum size is 5MB.`);
+    // }
     
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
@@ -501,24 +501,24 @@ export const POST = withAuth(
       
       console.log(`Found ${sealingImagesCount} sealing images, ${vehicleImagesCount} vehicle images, and ${additionalImagesCount} additional images`);
       
-      // Set a limit for total number of images to prevent overloading the database
-      const MAX_TOTAL_IMAGES = 20;
-      const totalImages = (gpsImeiPicture ? 1 : 0) + 
-                         (vehicleNumberPlatePicture ? 1 : 0) + 
-                         (driverPicture ? 1 : 0) + 
-                         sealingImagesCount + 
-                         vehicleImagesCount + 
-                         additionalImagesCount;
+      // // Set a limit for total number of images to prevent overloading the database
+      // const MAX_TOTAL_IMAGES = 20;
+      // const totalImages = (gpsImeiPicture ? 1 : 0) + 
+      //                    (vehicleNumberPlatePicture ? 1 : 0) + 
+      //                    (driverPicture ? 1 : 0) + 
+      //                    sealingImagesCount + 
+      //                    vehicleImagesCount + 
+      //                    additionalImagesCount;
                          
-      console.log(`Total number of images: ${totalImages}`);
+      // console.log(`Total number of images: ${totalImages}`);
       
-      if (totalImages > MAX_TOTAL_IMAGES) {
-        console.error(`Too many images: ${totalImages} exceeds limit of ${MAX_TOTAL_IMAGES}`);
-        return NextResponse.json(
-          { error: `Too many images. Maximum allowed is ${MAX_TOTAL_IMAGES}, but received ${totalImages}.` },
-          { status: 413 }
-        );
-      }
+      // if (totalImages > MAX_TOTAL_IMAGES) {
+      //   console.error(`Too many images: ${totalImages} exceeds limit of ${MAX_TOTAL_IMAGES}`);
+      //   return NextResponse.json(
+      //     { error: `Too many images. Maximum allowed is ${MAX_TOTAL_IMAGES}, but received ${totalImages}.` },
+      //     { status: 413 }
+      //   );
+      // }
       
       // Get employee data to determine company association
       const employee = await prisma.user.findUnique({
@@ -793,12 +793,12 @@ export const POST = withAuth(
             const imageDataSize = JSON.stringify(imageBase64Data).length;
             console.log(`Size of base64 image data: ${imageDataSize} bytes (${(imageDataSize / (1024 * 1024)).toFixed(2)}MB)`);
             
-            // Image data may be too large - Prisma has limits for JSON fields
-            const MAX_JSON_SIZE = 20 * 1024 * 1024; // 20MB limit to match our client-side total limit
-            if (imageDataSize > MAX_JSON_SIZE) {
-              console.error(`Base64 image data too large: ${imageDataSize} bytes exceeds limit of ${MAX_JSON_SIZE} bytes`);
-              throw new Error(`Base64 image data too large (${(imageDataSize / (1024 * 1024)).toFixed(2)}MB). Please use smaller or fewer images. Try reducing resolution or quality.`);
-            }
+            // // Image data may be too large - Prisma has limits for JSON fields
+            // const MAX_JSON_SIZE = 20 * 1024 * 1024; // 20MB limit to match our client-side total limit
+            // if (imageDataSize > MAX_JSON_SIZE) {
+            //   console.error(`Base64 image data too large: ${imageDataSize} bytes exceeds limit of ${MAX_JSON_SIZE} bytes`);
+            //   throw new Error(`Base64 image data too large (${(imageDataSize / (1024 * 1024)).toFixed(2)}MB). Please use smaller or fewer images. Try reducing resolution or quality.`);
+            // }
             
             // Store base64 image data in a separate activity log entry
             await tx.activityLog.create({

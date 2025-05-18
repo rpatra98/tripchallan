@@ -39,7 +39,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
-        // Validate file type    const validTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];    if (!validTypes.includes(file.type)) {      return NextResponse.json(        { error: 'Invalid file type. Only jpeg, png, gif, and webp are allowed.' },        { status: 400 }      );    }    // Validate file size (5MB limit)    const maxSize = 5 * 1024 * 1024; // 5MB    if (file.size > maxSize) {      return NextResponse.json(        { error: 'File too large. Maximum size is 5MB.' },        { status: 400 }      );    }
+    // Validate file type
+    const validTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+    if (!validTypes.includes(file.type)) {
+      return NextResponse.json(
+        { error: 'Invalid file type. Only jpeg, png, gif, and webp are allowed.' },
+        { status: 400 }
+      );
+    }
 
     // Generate unique filename
     const uniqueId = uuidv4();
