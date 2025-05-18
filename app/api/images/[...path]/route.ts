@@ -57,7 +57,11 @@ export const GET = withAuth(
         where: {
           targetResourceId: sessionId,
           targetResourceType: 'session',
-          action: 'STORE_IMAGES',
+          action: 'CREATE', // Changed from 'STORE_IMAGES' to a valid ActivityAction enum value
+          details: {
+            path: ['imageBase64Data'],
+            not: null
+          }
         },
         orderBy: {
           createdAt: 'desc',

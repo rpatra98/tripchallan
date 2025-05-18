@@ -804,7 +804,7 @@ export const POST = withAuth(
             await tx.activityLog.create({
               data: {
                 userId: userId as string,
-                action: "STORE_IMAGES",
+                action: "CREATE", // Changed from "STORE_IMAGES" to a valid ActivityAction enum value
                 targetResourceId: newSession.id,
                 targetResourceType: "session",
                 details: {
