@@ -315,22 +315,22 @@ export const GET = withAuth(
         // Create PDF document that matches the details page UI
         const doc = new jsPDF();
         
-        // Add a title that matches the dashboard styling
-        doc.setFillColor(41, 98, 255); // CBUMS blue
+        // Add a title that matches the dashboard styling - CBUMS navbar blue
+        doc.setFillColor(25, 118, 210); // CBUMS primary blue 
         doc.rect(0, 0, doc.internal.pageSize.getWidth(), 20, 'F');
         doc.setTextColor(255, 255, 255);
         doc.setFontSize(14);
         doc.setFont('helvetica', 'bold');
         doc.text("CBUMS - Session Details", doc.internal.pageSize.getWidth() / 2, 12, { align: 'center' });
         
-        // Add session ID
+        // Add session ID with exact styling from the details page
         doc.setFillColor(245, 245, 245);
         doc.rect(0, 20, doc.internal.pageSize.getWidth(), 16, 'F');
         doc.setTextColor(80, 80, 80);
         doc.setFontSize(11);
         doc.text(`Session ID: ${sessionData.id}`, 10, 30);
         
-        // Prepare status badge similar to UI
+        // Prepare status badge similar to UI - exact color mapping
         let statusColor;
         switch (sessionData.status) {
           case 'COMPLETED':
@@ -342,65 +342,143 @@ export const GET = withAuth(
           case 'PENDING':
             statusColor = [243, 156, 18]; // Yellow/Orange
             break;
+          case 'REJECTED':
+            statusColor = [231, 76, 60]; // Red
+            break;
           default:
             statusColor = [149, 165, 166]; // Gray
         }
         
-        // Add status badge
+        // Add status badge with rounded corners just like the UI
         const statusText = sessionData.status.replace(/_/g, ' ');
         doc.setFillColor(statusColor[0], statusColor[1], statusColor[2]);
-        doc.roundedRect(doc.internal.pageSize.getWidth() - 80, 25, 70, 10, 2, 2, 'F');
+        doc.roundedRect(doc.internal.pageSize.getWidth() - 80, 23, 70, 10, 3, 3, 'F');
         doc.setTextColor(255, 255, 255);
         doc.setFontSize(9);
-        doc.text(statusText, doc.internal.pageSize.getWidth() - 45, 31, { align: 'center' });
+        doc.text(statusText, doc.internal.pageSize.getWidth() - 45, 29, { align: 'center' });
         
-        // Main content Y position tracker
-        let yPos = 50;
+        // Main content Y position tracker - matches spacing in details page
+        let yPos = 46;
         const leftMargin = 10;
         const lineHeight = 10;
-        const sectionSpacing = 15;
+        const sectionSpacing = 10;
         
-        // Basic Info Section
-        doc.setFillColor(249, 249, 249);
+        // ===================================================
+        // SECTION 1: SESSION DETAILS - matches order on details page
+        // ===================================================
+        doc.setFillColor(237, 243, 248); // Light blue header background
         doc.rect(0, yPos, doc.internal.pageSize.getWidth(), 16, 'F');
-        doc.setTextColor(60, 60, 60);
+        doc.setTextColor(44, 62, 80); // Dark blue text
         doc.setFontSize(12);
         doc.setFont('helvetica', 'bold');
-        doc.text("Basic Information", leftMargin, yPos + 10);
+        doc.text("Session Details", leftMargin, yPos + 11);
         yPos += 22;
         
-        // Create a grid layout for basic info
-        doc.setFont('helvetica', 'normal');
-        doc.setFontSize(10);
-        doc.setTextColor(0, 0, 0);
+        // Create a bordered table with white background - exactly like UI
+        // We'll use autoTable but customize it to look like the UI tables
+        (doc as any).autoTable({
+          startY: yPos,
+          head: [], // No header
+          body: [
+            [{ content: 'Created At', styles: { fontStyle: 'bold' } }, formatDate(sessionData.createdAt)],
+            [{ content: 'Source', styles: { fontStyle: 'bold' } }, sessionData.source || 'N/A'],
+            [{ content: 'Destination', styles: { fontStyle: 'bold' } }, sessionData.destination || 'N/A'],
+            [{ content: 'Company', styles: { fontStyle: 'bold' } }, sessionData.company.name || 'N/A'],
+            [{ content: 'Created By', styles: { fontStyle: 'bold' } }, sessionData.createdBy.name || 'N/A'],
+            [{ content: 'Role', styles: { fontStyle: 'bold' } }, sessionData.createdBy.role || 'N/A']
+          ],
+          theme: 'grid', // Add borders
+          styles: {
+            fontSize: 10,
+            cellPadding: 5,
+          },
+          columnStyles: {
+            0: { cellWidth: 80, fillColor: [249, 249, 249] }, 
+            1: { cellWidth: 'auto', fillColor: [255, 255, 255] },
+          },
+          margin: { left: leftMargin, right: leftMargin },
+        });
         
-        // Two-column layout
-        const addInfoRow = (leftLabel: string, leftValue: string, rightLabel: string, rightValue: string) => {
+        // Update yPos after the table
+        yPos = (doc as any).lastAutoTable.finalY + sectionSpacing;
+        
+        // ===================================================
+        // SECTION 2: IMAGES SECTION - follows the order in the details page
+        // ===================================================
+        if (images && Object.keys(images).length > 0) {
+          doc.setFillColor(237, 243, 248); // Light blue header background
+          doc.rect(0, yPos, doc.internal.pageSize.getWidth(), 16, 'F');
+          doc.setTextColor(44, 62, 80); // Dark blue text
+          doc.setFontSize(12);
           doc.setFont('helvetica', 'bold');
-          doc.text(leftLabel + ":", leftMargin, yPos);
-          doc.text(rightLabel + ":", leftMargin + 100, yPos);
+          doc.text("Images", leftMargin, yPos + 11);
+          yPos += 22;
           
-          doc.setFont('helvetica', 'normal');
-          doc.text(leftValue, leftMargin + 50, yPos);
-          doc.text(rightValue, leftMargin + 150, yPos);
+          // Create a table of available images
+          const imageData: string[][] = [];
           
-          yPos += lineHeight;
-        };
+          if (images.driverPicture) {
+            imageData.push(['Driver Picture', 'Available']);
+          }
+          
+          if (images.vehicleNumberPlatePicture) {
+            imageData.push(['Vehicle Number Plate Picture', 'Available']);
+          }
+          
+          if (images.gpsImeiPicture) {
+            imageData.push(['GPS/IMEI Picture', 'Available']);
+          }
+          
+          if (images.sealingImages && images.sealingImages.length > 0) {
+            imageData.push(['Sealing Images', `${images.sealingImages.length} available`]);
+          }
+          
+          if (images.vehicleImages && images.vehicleImages.length > 0) {
+            imageData.push(['Vehicle Images', `${images.vehicleImages.length} available`]);
+          }
+          
+          if (images.additionalImages && images.additionalImages.length > 0) {
+            imageData.push(['Additional Images', `${images.additionalImages.length} available`]);
+          }
+          
+          if (imageData.length > 0) {
+            (doc as any).autoTable({
+              startY: yPos,
+              head: [],
+              body: imageData.map(row => [
+                { content: row[0], styles: { fontStyle: 'bold' } },
+                row[1]
+              ]),
+              theme: 'grid',
+              styles: {
+                fontSize: 10,
+                cellPadding: 5,
+              },
+              columnStyles: {
+                0: { cellWidth: 120, fillColor: [249, 249, 249] },
+                1: { cellWidth: 'auto', fillColor: [255, 255, 255] },
+              },
+              margin: { left: leftMargin, right: leftMargin },
+            });
+            
+            yPos = (doc as any).lastAutoTable.finalY + sectionSpacing;
+          } else {
+            doc.setFontSize(10);
+            doc.setFont('helvetica', 'normal');
+            doc.text("No images available", leftMargin, yPos);
+            yPos += lineHeight + sectionSpacing;
+          }
+        }
         
-        // Add basic info with a grid layout similar to the UI
-        addInfoRow("Created At", formatDate(sessionData.createdAt), "Company", sessionData.company.name || 'N/A');
-        addInfoRow("Source", sessionData.source || 'N/A', "Destination", sessionData.destination || 'N/A');
-        addInfoRow("Created By", sessionData.createdBy.name || 'N/A', "Role", sessionData.createdBy.role || 'N/A');
-        
-        yPos += sectionSpacing;
-        
-        // Trip Details Section
-        doc.setFillColor(249, 249, 249);
+        // ===================================================
+        // SECTION 3: TRIP DETAILS - third section as per the UI
+        // ===================================================
+        doc.setFillColor(237, 243, 248); // Light blue header background
         doc.rect(0, yPos, doc.internal.pageSize.getWidth(), 16, 'F');
-        doc.setTextColor(60, 60, 60);
+        doc.setTextColor(44, 62, 80); // Dark blue text 
         doc.setFontSize(12);
         doc.setFont('helvetica', 'bold');
-        doc.text("Trip Details", leftMargin, yPos + 10);
+        doc.text("Trip Details", leftMargin, yPos + 11);
         yPos += 22;
         
         // Prepare trip details for autotable
@@ -449,148 +527,137 @@ export const GET = withAuth(
           }
         }
         
-        // Auto-table for trip details that matches the UI table style
+        // Auto-table for trip details that exactly matches the Session Details UI table style
         (doc as any).autoTable({
           startY: yPos,
-          head: [['Field', 'Value']],
-          body: tripDetailsData,
-          headStyles: {
-            fillColor: [220, 220, 220],
-            textColor: [60, 60, 60],
+          head: [], // No header to match UI
+          body: tripDetailsData.map(row => [
+            { content: row[0], styles: { fontStyle: 'bold' } },
+            row[1]
+          ]),
+          theme: 'grid',
+          styles: {
             fontSize: 10,
-            fontStyle: 'bold',
+            cellPadding: 5,
           },
-          bodyStyles: {
-            fontSize: 9,
-          },
-          alternateRowStyles: {
-            fillColor: [245, 245, 245],
-          },
-          tableWidth: 'auto',
-          margin: { left: leftMargin },
           columnStyles: {
-            0: { fontStyle: 'bold', cellWidth: 80 },
-            1: { cellWidth: 'auto' },
+            0: { cellWidth: 120, fillColor: [249, 249, 249] },
+            1: { cellWidth: 'auto', fillColor: [255, 255, 255] },
           },
+          margin: { left: leftMargin, right: leftMargin },
         });
         
         // Update yPos after the table
         yPos = (doc as any).lastAutoTable.finalY + sectionSpacing;
         
-        // Images Section - similar to dashboard UI
-        if (images && Object.keys(images).length > 0) {
-          doc.setFillColor(249, 249, 249);
-          doc.rect(0, yPos, doc.internal.pageSize.getWidth(), 16, 'F');
-          doc.setTextColor(60, 60, 60);
-          doc.setFontSize(12);
-          doc.setFont('helvetica', 'bold');
-          doc.text("Images", leftMargin, yPos + 10);
-          yPos += 22;
-          
-          doc.setFont('helvetica', 'normal');
-          doc.setFontSize(10);
-          
-          // Create a table of available images
-          const imageData: string[][] = [];
-          
-          if (images.driverPicture) {
-            imageData.push(['Driver Picture', 'Available']);
-          }
-          
-          if (images.vehicleNumberPlatePicture) {
-            imageData.push(['Vehicle Number Plate Picture', 'Available']);
-          }
-          
-          if (images.gpsImeiPicture) {
-            imageData.push(['GPS/IMEI Picture', 'Available']);
-          }
-          
-          if (images.sealingImages && images.sealingImages.length > 0) {
-            imageData.push(['Sealing Images', `${images.sealingImages.length} available`]);
-          }
-          
-          if (images.vehicleImages && images.vehicleImages.length > 0) {
-            imageData.push(['Vehicle Images', `${images.vehicleImages.length} available`]);
-          }
-          
-          if (images.additionalImages && images.additionalImages.length > 0) {
-            imageData.push(['Additional Images', `${images.additionalImages.length} available`]);
-          }
-          
-          if (imageData.length > 0) {
-            (doc as any).autoTable({
-              startY: yPos,
-              head: [['Image Type', 'Status']],
-              body: imageData,
-              headStyles: {
-                fillColor: [220, 220, 220],
-                textColor: [60, 60, 60],
-                fontSize: 10,
-                fontStyle: 'bold',
-              },
-              bodyStyles: {
-                fontSize: 9,
-              },
-              alternateRowStyles: {
-                fillColor: [245, 245, 245],
-              },
-              margin: { left: leftMargin },
-              columnStyles: {
-                0: { fontStyle: 'bold' },
-              },
-            });
-            
-            yPos = (doc as any).lastAutoTable.finalY + sectionSpacing;
-          } else {
-            doc.text("No images available", leftMargin, yPos);
-            yPos += lineHeight + sectionSpacing;
-          }
-        }
-        
-        // Seal Information section
+        // ===================================================
+        // SECTION 4: SEAL INFORMATION - if available
+        // ===================================================
         if (sessionData.seal) {
-          doc.setFillColor(249, 249, 249);
+          doc.setFillColor(237, 243, 248); // Light blue header background
           doc.rect(0, yPos, doc.internal.pageSize.getWidth(), 16, 'F');
-          doc.setTextColor(60, 60, 60);
+          doc.setTextColor(44, 62, 80); // Dark blue text
           doc.setFontSize(12);
           doc.setFont('helvetica', 'bold');
-          doc.text("Seal Information", leftMargin, yPos + 10);
+          doc.text("Seal Information", leftMargin, yPos + 11);
           yPos += 22;
-          
-          doc.setFont('helvetica', 'normal');
-          doc.setFontSize(10);
           
           // Add seal information
           const sealData = [
-            ['Barcode', sessionData.seal.barcode || 'N/A'],
-            ['Status', sessionData.seal.verified ? 'Verified' : 'Not Verified']
+            [{ content: 'Barcode', styles: { fontStyle: 'bold' } }, sessionData.seal.barcode || 'N/A'],
+            [{ content: 'Status', styles: { fontStyle: 'bold' } }, sessionData.seal.verified ? 'Verified' : 'Not Verified']
           ];
           
           if (sessionData.seal.verified && sessionData.seal.verifiedBy) {
-            sealData.push(['Verified By', sessionData.seal.verifiedBy.name || 'N/A']);
+            sealData.push([
+              { content: 'Verified By', styles: { fontStyle: 'bold' } }, 
+              sessionData.seal.verifiedBy.name || 'N/A'
+            ]);
             
             if (sessionData.seal.scannedAt) {
-              sealData.push(['Verified At', formatDate(sessionData.seal.scannedAt)]);
+              sealData.push([
+                { content: 'Verified At', styles: { fontStyle: 'bold' } }, 
+                formatDate(sessionData.seal.scannedAt)
+              ]);
             }
           }
           
           (doc as any).autoTable({
             startY: yPos,
+            head: [],
             body: sealData,
-            bodyStyles: {
-              fontSize: 9,
+            theme: 'grid',
+            styles: {
+              fontSize: 10,
+              cellPadding: 5,
             },
-            alternateRowStyles: {
-              fillColor: [245, 245, 245],
-            },
-            margin: { left: leftMargin },
             columnStyles: {
-              0: { fontStyle: 'bold', cellWidth: 80 },
-              1: { cellWidth: 'auto' },
+              0: { cellWidth: 80, fillColor: [249, 249, 249] },
+              1: { cellWidth: 'auto', fillColor: [255, 255, 255] },
             },
+            margin: { left: leftMargin, right: leftMargin },
           });
           
           yPos = (doc as any).lastAutoTable.finalY + sectionSpacing;
+        }
+        
+        // ===================================================
+        // SECTION 5: COMMENTS SECTION - if available
+        // ===================================================
+        if (sessionData.comments && sessionData.comments.length > 0) {
+          doc.setFillColor(237, 243, 248); // Light blue header background
+          doc.rect(0, yPos, doc.internal.pageSize.getWidth(), 16, 'F');
+          doc.setTextColor(44, 62, 80); // Dark blue text
+          doc.setFontSize(12);
+          doc.setFont('helvetica', 'bold');
+          doc.text("Comments", leftMargin, yPos + 11);
+          yPos += 22;
+          
+          // Create an array to hold comment data
+          const commentData: any[] = [];
+          
+          for (let i = 0; i < Math.min(sessionData.comments.length, 5); i++) {
+            try {
+              const comment = sessionData.comments[i];
+              const userName = comment.user?.name || 'Unknown';
+              const commentDate = formatDate(comment.createdAt);
+              const commentText = comment.message || '(No text)';
+              
+              // Add each comment as a row in our table
+              commentData.push([
+                { content: `${userName} (${commentDate})`, styles: { fontStyle: 'bold' } },
+                commentText
+              ]);
+            } catch {
+              console.error(`Error processing comment ${i}`);
+              continue;
+            }
+          }
+          
+          if (commentData.length > 0) {
+            (doc as any).autoTable({
+              startY: yPos,
+              head: [],
+              body: commentData,
+              theme: 'grid',
+              styles: {
+                fontSize: 10,
+                cellPadding: 5,
+              },
+              columnStyles: {
+                0: { cellWidth: 120, fillColor: [249, 249, 249] },
+                1: { cellWidth: 'auto', fillColor: [255, 255, 255] },
+              },
+              margin: { left: leftMargin, right: leftMargin },
+            });
+            
+            yPos = (doc as any).lastAutoTable.finalY + sectionSpacing;
+          } else {
+            doc.setFontSize(10);
+            doc.setFont('helvetica', 'normal');
+            doc.text("No comments available", leftMargin, yPos);
+            yPos += lineHeight + sectionSpacing;
+          }
         }
         
         // Add footer
