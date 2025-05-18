@@ -689,11 +689,11 @@ export default function CreateSessionPage() {
         } catch (jsonError) {
           // If we can't parse JSON, use the status text
           if (response.status === 500) {
-            throw new Error("Server error. The images might be too large or there was a problem processing them.", 
-              { cause: "Try reducing the number of images, their size, or resolution. Maximum total upload should be under 20MB." });
+            throw new Error("Server error: Could not process the request.", 
+              { cause: "An unexpected error occurred on the server. Please check server logs for details or try again later." });
           } else {
             throw new Error(`Server error: ${response.status} ${response.statusText}.`, 
-              { cause: "Try using smaller images or fewer images." });
+              { cause: "An unexpected server error occurred." });
           }
         }
       }
