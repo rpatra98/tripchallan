@@ -36,20 +36,93 @@ export const GET = withAuth(
       const imageType = pathArray[1];
       const index = pathArray.length > 2 ? pathArray[2] : null;
 
+      console.log(`Retrieving image for session ${sessionId}, type ${imageType}${index !== null ? `, index ${index}` : ''}`);
+
       // Get the session to verify it exists
       const session = await prisma.session.findUnique({
         where: { id: sessionId },
       });
 
       if (!session) {
+        console.error(`Session not found: ${sessionId}`);
         return NextResponse.json(
           { error: "Session not found" },
           { status: 404 }
         );
       }
 
-      // In production, always serve the placeholder image
-      // because Vercel has a read-only filesystem
+      // Try to get the image from the database
+      // We need to find the activity log that contains the base64 image data
+      const activityLog = await prisma.activityLog.findFirst({
+        where: {
+          targetResourceId: sessionId,
+          targetResourceType: 'session',
+          action: 'STORE_IMAGES',
+        },
+        orderBy: {
+          createdAt: 'desc',
+        },
+      });
+
+      if (activityLog && activityLog.details) {
+        console.log(`Found activity log with image data for session ${sessionId}`);
+        const details = activityLog.details as any;
+        
+        if (details.imageBase64Data) {
+          let imageData = null;
+          let contentType = 'image/jpeg';
+
+          // Extract the correct image data based on the type and index
+          if (imageType === 'gpsImei' && details.imageBase64Data.gpsImeiPicture) {
+            imageData = details.imageBase64Data.gpsImeiPicture.data;
+            contentType = details.imageBase64Data.gpsImeiPicture.contentType || contentType;
+          } else if (imageType === 'vehicleNumber' && details.imageBase64Data.vehicleNumberPlatePicture) {
+            imageData = details.imageBase64Data.vehicleNumberPlatePicture.data;
+            contentType = details.imageBase64Data.vehicleNumberPlatePicture.contentType || contentType;
+          } else if (imageType === 'driver' && details.imageBase64Data.driverPicture) {
+            imageData = details.imageBase64Data.driverPicture.data;
+            contentType = details.imageBase64Data.driverPicture.contentType || contentType;
+          } else if (imageType === 'sealing' && details.imageBase64Data.sealingImages && index !== null) {
+            const sealingImage = details.imageBase64Data.sealingImages[parseInt(index)];
+            if (sealingImage) {
+              imageData = sealingImage.data;
+              contentType = sealingImage.contentType || contentType;
+            }
+          } else if (imageType === 'vehicle' && details.imageBase64Data.vehicleImages && index !== null) {
+            const vehicleImage = details.imageBase64Data.vehicleImages[parseInt(index)];
+            if (vehicleImage) {
+              imageData = vehicleImage.data;
+              contentType = vehicleImage.contentType || contentType;
+            }
+          } else if (imageType === 'additional' && details.imageBase64Data.additionalImages && index !== null) {
+            const additionalImage = details.imageBase64Data.additionalImages[parseInt(index)];
+            if (additionalImage) {
+              imageData = additionalImage.data;
+              contentType = additionalImage.contentType || contentType;
+            }
+          }
+
+          if (imageData) {
+            console.log(`Serving image data for ${imageType}${index !== null ? ` at index ${index}` : ''}`);
+            // Convert base64 to buffer
+            const buffer = Buffer.from(imageData, 'base64');
+            
+            // Return the image
+            return new NextResponse(buffer, {
+              headers: {
+                'Content-Type': contentType,
+                'Cache-Control': 'public, max-age=86400', // Cache for 24 hours
+              },
+            });
+          } else {
+            console.log(`No image data found for ${imageType}${index !== null ? ` at index ${index}` : ''}`);
+          }
+        }
+      }
+
+      console.log(`No activity log or image data found, serving placeholder for session ${sessionId}`);
+      
+      // If no image data was found, serve a placeholder
       const placeholderImgPath = path.join(process.cwd(), 'public', 'file.svg');
       
       try {

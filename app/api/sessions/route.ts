@@ -794,7 +794,7 @@ export const POST = withAuth(
             console.log(`Size of base64 image data: ${imageDataSize} bytes (${(imageDataSize / (1024 * 1024)).toFixed(2)}MB)`);
             
             // Image data may be too large - Prisma has limits for JSON fields
-            const MAX_JSON_SIZE = 10 * 1024 * 1024; // 10MB is a reasonable limit for Prisma JSON fields
+            const MAX_JSON_SIZE = 20 * 1024 * 1024; // 20MB limit to match our client-side total limit
             if (imageDataSize > MAX_JSON_SIZE) {
               console.error(`Base64 image data too large: ${imageDataSize} bytes exceeds limit of ${MAX_JSON_SIZE} bytes`);
               throw new Error(`Base64 image data too large (${(imageDataSize / (1024 * 1024)).toFixed(2)}MB). Please use smaller or fewer images. Try reducing resolution or quality.`);
@@ -846,7 +846,7 @@ export const POST = withAuth(
           // Check for specific error patterns to provide better guidance
           if (errorMessage.includes("base64") && errorMessage.includes("large")) {
             statusCode = 413; // Payload Too Large
-            errorMessage = `${error.message} Try using fewer images or smaller images (max 2MB per image, total 10MB).`;
+            errorMessage = `${error.message} Try using fewer images or smaller images (max 5MB per image, total 20MB).`;
           } else if (errorMessage.includes("too large")) {
             statusCode = 413;
           } else if (errorMessage.includes("JSON")) {
