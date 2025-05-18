@@ -294,34 +294,52 @@ export const GET = withAuth(
       // Build text report sections
       const sections: string[] = [];
       
-      // Title
-      sections.push("============================================");
-      sections.push("              SESSION REPORT               ");
-      sections.push("============================================");
+      // Title with better formatting
+      sections.push("=================================================================");
+      sections.push("                         SESSION REPORT                          ");
+      sections.push("=================================================================");
+      sections.push("            CBUMS - Consignment & Barcode Utilization System     ");
+      sections.push("=================================================================");
       sections.push("");
       
+      // Format helper for section headers
+      const formatSectionHeader = (title: string) => {
+        const line = "=".repeat(title.length + 4);
+        return [
+          line,
+          `| ${title} |`,
+          line
+        ].join('\n');
+      };
+      
+      // Format helper for key-value pairs
+      const formatKeyValue = (key: string, value: any) => {
+        const displayValue = value !== null && value !== undefined ? value : 'N/A';
+        // Pad the key to a fixed width for alignment
+        const paddedKey = key.padEnd(30, ' ');
+        return `${paddedKey}: ${displayValue}`;
+      };
+      
       // Session Information
-      sections.push("SESSION INFORMATION");
-      sections.push("-------------------");
-      sections.push(`Session ID: ${sessionData.id}`);
-      sections.push(`Status: ${sessionData.status}`);
-      sections.push(`Created At: ${formatDate(sessionData.createdAt)}`);
-      sections.push(`Source: ${sessionData.source || 'N/A'}`);
-      sections.push(`Destination: ${sessionData.destination || 'N/A'}`);
-      sections.push(`Company: ${sessionData.company?.name || 'N/A'}`);
-      sections.push(`Created By: ${sessionData.createdBy?.name || 'N/A'} (${sessionData.createdBy?.email || 'N/A'})`);
+      sections.push(formatSectionHeader("SESSION INFORMATION"));
+      sections.push(formatKeyValue("Session ID", sessionData.id));
+      sections.push(formatKeyValue("Status", sessionData.status));
+      sections.push(formatKeyValue("Created At", formatDate(sessionData.createdAt)));
+      sections.push(formatKeyValue("Source", sessionData.source || 'N/A'));
+      sections.push(formatKeyValue("Destination", sessionData.destination || 'N/A'));
+      sections.push(formatKeyValue("Company", sessionData.company?.name || 'N/A'));
+      sections.push(formatKeyValue("Created By", `${sessionData.createdBy?.name || 'N/A'} (${sessionData.createdBy?.email || 'N/A'})`));
       sections.push("");
       
       // Seal Information
-      sections.push("SEAL INFORMATION");
-      sections.push("----------------");
+      sections.push(formatSectionHeader("SEAL INFORMATION"));
       if (sessionData.seal) {
-        sections.push(`Barcode: ${sessionData.seal.barcode || 'N/A'}`);
-        sections.push(`Status: ${sessionData.seal.verified ? 'Verified' : 'Not Verified'}`);
+        sections.push(formatKeyValue("Barcode", sessionData.seal.barcode || 'N/A'));
+        sections.push(formatKeyValue("Status", sessionData.seal.verified ? 'Verified' : 'Not Verified'));
         if (sessionData.seal.verified && sessionData.seal.verifiedBy) {
-          sections.push(`Verified By: ${sessionData.seal.verifiedBy.name || 'N/A'}`);
+          sections.push(formatKeyValue("Verified By", sessionData.seal.verifiedBy.name || 'N/A'));
           if (sessionData.seal.scannedAt) {
-            sections.push(`Verified At: ${formatDate(sessionData.seal.scannedAt)}`);
+            sections.push(formatKeyValue("Verified At", formatDate(sessionData.seal.scannedAt)));
           }
         }
       } else {
@@ -330,8 +348,7 @@ export const GET = withAuth(
       sections.push("");
       
       // Trip Details
-      sections.push("TRIP DETAILS");
-      sections.push("------------");
+      sections.push(formatSectionHeader("TRIP DETAILS"));
       if (Object.keys(completeDetails).length > 0) {
         // Define comprehensive list of trip detail fields with labels
         const fieldLabels: Record<string, string> = {
@@ -359,7 +376,7 @@ export const GET = withAuth(
         for (const [key, label] of Object.entries(fieldLabels)) {
           if (key in completeDetails) {
             const value = completeDetails[key as keyof typeof completeDetails];
-            sections.push(`${label}: ${value !== null && value !== undefined ? value : 'N/A'}`);
+            sections.push(formatKeyValue(label, value));
           }
         }
         
@@ -370,7 +387,7 @@ export const GET = withAuth(
             const formattedKey = key.replace(/([A-Z])/g, ' $1')
               .replace(/^./, str => str.toUpperCase());
             
-            sections.push(`${formattedKey}: ${value !== null && value !== undefined ? value : 'N/A'}`);
+            sections.push(formatKeyValue(formattedKey, value));
           }
         }
       } else {
@@ -379,32 +396,31 @@ export const GET = withAuth(
       sections.push("");
       
       // Images Information
-      sections.push("IMAGES INFORMATION");
-      sections.push("------------------");
+      sections.push(formatSectionHeader("IMAGES INFORMATION"));
       
       if (images && Object.keys(images).length > 0) {
         if (images.driverPicture) {
-          sections.push("Driver Picture: Available");
+          sections.push(formatKeyValue("Driver Picture", "Available"));
         }
         
         if (images.vehicleNumberPlatePicture) {
-          sections.push("Vehicle Number Plate Picture: Available");
+          sections.push(formatKeyValue("Vehicle Number Plate Picture", "Available"));
         }
         
         if (images.gpsImeiPicture) {
-          sections.push("GPS/IMEI Picture: Available");
+          sections.push(formatKeyValue("GPS/IMEI Picture", "Available"));
         }
         
         if (images.sealingImages && images.sealingImages.length > 0) {
-          sections.push(`Sealing Images: ${images.sealingImages.length} available`);
+          sections.push(formatKeyValue("Sealing Images", `${images.sealingImages.length} available`));
         }
         
         if (images.vehicleImages && images.vehicleImages.length > 0) {
-          sections.push(`Vehicle Images: ${images.vehicleImages.length} available`);
+          sections.push(formatKeyValue("Vehicle Images", `${images.vehicleImages.length} available`));
         }
         
         if (images.additionalImages && images.additionalImages.length > 0) {
-          sections.push(`Additional Images: ${images.additionalImages.length} available`);
+          sections.push(formatKeyValue("Additional Images", `${images.additionalImages.length} available`));
         }
       } else {
         sections.push("No images available");
@@ -412,8 +428,7 @@ export const GET = withAuth(
       sections.push("");
       
       // Verification Results
-      sections.push("VERIFICATION RESULTS");
-      sections.push("--------------------");
+      sections.push(formatSectionHeader("VERIFICATION RESULTS"));
       const verificationDetails = verificationLogs.find((log: any) => 
         log.details && typeof log.details === 'object' && 'verification' in log.details
       );
@@ -422,7 +437,7 @@ export const GET = withAuth(
         const details = verificationDetails.details as unknown as { verification: VerificationDetails };
         const verification = details.verification;
         
-        sections.push(`Overall Status: ${verification.allMatch ? 'All fields match' : 'Some fields do not match'}`);
+        sections.push(formatKeyValue("Overall Status", verification.allMatch ? 'All fields match' : 'Some fields do not match'));
         sections.push("");
         
         for (const [field, data] of Object.entries(verification.fieldVerifications)) {
@@ -430,11 +445,11 @@ export const GET = withAuth(
             .replace(/^./, str => str.toUpperCase());
           
           sections.push(`${formattedField}:`);
-          sections.push(`  Operator Value: ${data.operatorValue}`);
-          sections.push(`  Guard Value: ${data.guardValue}`);
-          sections.push(`  Match: ${data.operatorValue === data.guardValue ? 'Yes' : 'No'}`);
+          sections.push(formatKeyValue("  Operator Value", data.operatorValue));
+          sections.push(formatKeyValue("  Guard Value", data.guardValue));
+          sections.push(formatKeyValue("  Match", data.operatorValue === data.guardValue ? 'Yes' : 'No'));
           if (data.comment) {
-            sections.push(`  Comment: ${data.comment}`);
+            sections.push(formatKeyValue("  Comment", data.comment));
           }
           sections.push("");
         }
@@ -444,8 +459,7 @@ export const GET = withAuth(
       sections.push("");
       
       // Comments
-      sections.push("COMMENTS");
-      sections.push("--------");
+      sections.push(formatSectionHeader("COMMENTS"));
       if (sessionData.comments && sessionData.comments.length > 0) {
         for (const comment of sessionData.comments) {
           const userName = comment.user?.name || 'Unknown';
@@ -459,6 +473,11 @@ export const GET = withAuth(
       } else {
         sections.push("No comments available");
       }
+      
+      // Add a separator at the end
+      sections.push("=================================================================");
+      sections.push("                         END OF REPORT                          ");
+      sections.push("=================================================================");
       
       // Join all sections with newlines
       const reportText = sections.join('\n');

@@ -319,44 +319,72 @@ export const GET = withAuth(
         const leftMargin = 10;
         const pageWidth = doc.internal.pageSize.getWidth();
         
-        // Add Title
-        doc.setFontSize(16);
+        // Add Title with better styling
+        doc.setFontSize(20);
+        doc.setTextColor(41, 98, 255); // Blue color for title
         doc.text('Session Report', pageWidth / 2, yPos, { align: 'center' });
         yPos += lineHeight * 2;
         
+        // Add company branding
+        doc.setFontSize(12);
+        doc.setTextColor(80, 80, 80); // Dark gray
+        doc.text('CBUMS - Consignment & Barcode Utilization Management System', pageWidth / 2, yPos, { align: 'center' });
+        yPos += lineHeight * 2;
+        
         // Session Basic Info
-        doc.setFontSize(14);
+        doc.setFontSize(16);
+        doc.setTextColor(50, 50, 50); // Dark gray for section headers
         doc.text('Session Information', leftMargin, yPos);
         yPos += lineHeight;
-        doc.setFontSize(10);
         
-        doc.text(`Session ID: ${safeText(sessionData.id)}`, leftMargin, yPos);
+        // Add a horizontal line below section header
+        doc.setDrawColor(200, 200, 200);
+        doc.line(leftMargin, yPos, pageWidth - leftMargin, yPos);
         yPos += lineHeight;
-        doc.text(`Status: ${safeText(sessionData.status)}`, leftMargin, yPos);
+        
+        doc.setFontSize(10);
+        doc.setTextColor(0, 0, 0); // Black for content
+        
+        // Format key-value pairs with better visual distinction
+        const addKeyValuePair = (key: string, value: string) => {
+          doc.setFont('helvetica', 'bold');
+          doc.text(`${key}: `, leftMargin, yPos);
+          const keyWidth = doc.getTextWidth(`${key}: `);
+          doc.setFont('helvetica', 'normal');
+          doc.text(`${value}`, leftMargin + keyWidth, yPos);
+          yPos += lineHeight;
+        };
+        
+        addKeyValuePair('Session ID', safeText(sessionData.id));
+        addKeyValuePair('Status', safeText(sessionData.status));
+        addKeyValuePair('Created At', formatDate(sessionData.createdAt));
+        addKeyValuePair('Source', safeText(sessionData.source) || 'N/A');
+        addKeyValuePair('Destination', safeText(sessionData.destination) || 'N/A');
+        addKeyValuePair('Company', safeText(sessionData.company.name) || 'N/A');
+        addKeyValuePair('Created By', `${safeText(sessionData.createdBy.name) || 'N/A'} (${safeText(sessionData.createdBy.email) || 'N/A'})`);
         yPos += lineHeight;
-        doc.text(`Created At: ${formatDate(sessionData.createdAt)}`, leftMargin, yPos);
-        yPos += lineHeight;
-        doc.text(`Source: ${safeText(sessionData.source) || 'N/A'}`, leftMargin, yPos);
-        yPos += lineHeight;
-        doc.text(`Destination: ${safeText(sessionData.destination) || 'N/A'}`, leftMargin, yPos);
-        yPos += lineHeight;
-        doc.text(`Company: ${safeText(sessionData.company.name) || 'N/A'}`, leftMargin, yPos);
-        yPos += lineHeight;
-        doc.text(`Created By: ${safeText(sessionData.createdBy.name) || 'N/A'} (${safeText(sessionData.createdBy.email) || 'N/A'})`, leftMargin, yPos);
-        yPos += lineHeight * 2;
         
         // Trip Details
         if (Object.keys(completeDetails).length > 0) {
           // Check if we need a new page
-          if (yPos > 250) {
+          if (yPos > 220) {
             doc.addPage();
             yPos = 10;
           }
           
-          doc.setFontSize(14);
+          // Trip details header with styling
+          doc.setFontSize(16);
+          doc.setTextColor(50, 50, 50);
           doc.text('Trip Details', leftMargin, yPos);
           yPos += lineHeight;
+          
+          // Add a horizontal line below section header
+          doc.setDrawColor(200, 200, 200);
+          doc.line(leftMargin, yPos, pageWidth - leftMargin, yPos);
+          yPos += lineHeight;
+          
           doc.setFontSize(10);
+          doc.setTextColor(0, 0, 0);
           
           // Define comprehensive list of known fields with proper labels
           const fieldLabels: Record<string, string> = {
@@ -391,8 +419,7 @@ export const GET = withAuth(
                 }
                 
                 const value = completeDetails[key as keyof typeof completeDetails];
-                doc.text(`${label}: ${safeText(value as string | number | boolean | null | undefined)}`, leftMargin, yPos);
-                yPos += lineHeight;
+                addKeyValuePair(label, safeText(value as string | number | boolean | null | undefined));
               } catch {
                 console.error(`Error processing trip detail ${key}`);
                 continue;
@@ -414,8 +441,7 @@ export const GET = withAuth(
                 const formattedKey = key.replace(/([A-Z])/g, ' $1')
                   .replace(/^./, str => str.toUpperCase());
                 
-                doc.text(`${formattedKey}: ${safeText(value as string | number | boolean | null | undefined)}`, leftMargin, yPos);
-                yPos += lineHeight;
+                addKeyValuePair(formattedKey, safeText(value as string | number | boolean | null | undefined));
               } catch {
                 console.error(`Error processing trip detail ${key}`);
                 continue;
@@ -425,48 +451,50 @@ export const GET = withAuth(
           yPos += lineHeight;
         }
         
-        // Image Listings (we can't embed images directly but we can list them)
+        // Image Listings with better organization
         if (images && Object.keys(images).length > 0) {
           // Check if we need a new page
-          if (yPos > 250) {
+          if (yPos > 220) {
             doc.addPage();
             yPos = 10;
           }
           
-          doc.setFontSize(14);
+          doc.setFontSize(16);
+          doc.setTextColor(50, 50, 50);
           doc.text('Uploaded Images Information', leftMargin, yPos);
           yPos += lineHeight;
-          doc.setFontSize(10);
           
-          // Image categories and counts
+          // Add a horizontal line below section header
+          doc.setDrawColor(200, 200, 200);
+          doc.line(leftMargin, yPos, pageWidth - leftMargin, yPos);
+          yPos += lineHeight;
+          
+          doc.setFontSize(10);
+          doc.setTextColor(0, 0, 0);
+          
+          // Image categories and counts with better styling
           if (images.driverPicture) {
-            doc.text(`Driver Picture: Available`, leftMargin, yPos);
-            yPos += lineHeight;
+            addKeyValuePair('Driver Picture', 'Available');
           }
           
           if (images.vehicleNumberPlatePicture) {
-            doc.text(`Vehicle Number Plate Picture: Available`, leftMargin, yPos);
-            yPos += lineHeight;
+            addKeyValuePair('Vehicle Number Plate Picture', 'Available');
           }
           
           if (images.gpsImeiPicture) {
-            doc.text(`GPS/IMEI Picture: Available`, leftMargin, yPos);
-            yPos += lineHeight;
+            addKeyValuePair('GPS/IMEI Picture', 'Available');
           }
           
           if (images.sealingImages && images.sealingImages.length > 0) {
-            doc.text(`Sealing Images: ${images.sealingImages.length} available`, leftMargin, yPos);
-            yPos += lineHeight;
+            addKeyValuePair('Sealing Images', `${images.sealingImages.length} available`);
           }
           
           if (images.vehicleImages && images.vehicleImages.length > 0) {
-            doc.text(`Vehicle Images: ${images.vehicleImages.length} available`, leftMargin, yPos);
-            yPos += lineHeight;
+            addKeyValuePair('Vehicle Images', `${images.vehicleImages.length} available`);
           }
           
           if (images.additionalImages && images.additionalImages.length > 0) {
-            doc.text(`Additional Images: ${images.additionalImages.length} available`, leftMargin, yPos);
-            yPos += lineHeight;
+            addKeyValuePair('Additional Images', `${images.additionalImages.length} available`);
           }
           
           yPos += lineHeight;

@@ -252,27 +252,81 @@ export const GET = withAuth(
         { header: 'Value', key: 'value', width: 50 }
       ];
       
-      // Style header row
-      basicSheet.getRow(1).font = { bold: true };
+      // Style header row with CBUMS branding color
+      basicSheet.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' } };
       basicSheet.getRow(1).fill = {
         type: 'pattern',
         pattern: 'solid',
-        fgColor: { argb: 'FFD3D3D3' }
+        fgColor: { argb: 'FF2962FF' } // CBUMS blue
       };
       
-      // Add basic session data
-      basicSheet.addRow({ property: 'Session ID', value: sessionData.id });
-      basicSheet.addRow({ property: 'Status', value: sessionData.status });
-      basicSheet.addRow({ property: 'Created At', value: new Date(sessionData.createdAt).toLocaleString() });
-      basicSheet.addRow({ property: 'Source', value: sessionData.source });
-      basicSheet.addRow({ property: 'Destination', value: sessionData.destination });
-      basicSheet.addRow({ property: 'Company', value: sessionData.company.name });
-      basicSheet.addRow({ property: 'Created By', value: `${sessionData.createdBy.name} (${sessionData.createdBy.email})` });
+      // Add title and branding
+      basicSheet.mergeCells('A1:B1');
+      basicSheet.getCell('A1').value = 'SESSION REPORT';
+      basicSheet.getCell('A1').alignment = { horizontal: 'center' };
+      
+      // Add report generation info
+      basicSheet.mergeCells('A2:B2');
+      basicSheet.getCell('A2').value = 'CBUMS - Consignment & Barcode Utilization Management System';
+      basicSheet.getCell('A2').alignment = { horizontal: 'center' };
+      basicSheet.getCell('A2').font = { bold: true, italic: true };
+      
+      // Add section header
+      let rowIndex = 3;
+      basicSheet.mergeCells(`A${rowIndex}:B${rowIndex}`);
+      basicSheet.getCell(`A${rowIndex}`).value = 'SESSION INFORMATION';
+      basicSheet.getCell(`A${rowIndex}`).font = { bold: true, size: 14 };
+      basicSheet.getCell(`A${rowIndex}`).fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FFE6E6E6' }
+      };
+      rowIndex++;
+      
+      // Add basic session data with alternating row colors
+      const addBasicInfoRow = (property: string, value: any) => {
+        const row = basicSheet.addRow({ property, value: value !== undefined && value !== null ? value : 'N/A' });
+        
+        // Add subtle alternating row colors
+        if (rowIndex % 2 === 0) {
+          row.fill = {
+            type: 'pattern',
+            pattern: 'solid',
+            fgColor: { argb: 'FFF9F9F9' }
+          };
+        }
+        
+        // Make property column bold
+        row.getCell(1).font = { bold: true };
+        
+        rowIndex++;
+        return row;
+      };
+      
+      addBasicInfoRow('Session ID', sessionData.id);
+      addBasicInfoRow('Status', sessionData.status);
+      addBasicInfoRow('Created At', new Date(sessionData.createdAt).toLocaleString());
+      addBasicInfoRow('Source', sessionData.source);
+      addBasicInfoRow('Destination', sessionData.destination);
+      addBasicInfoRow('Company', sessionData.company.name);
+      addBasicInfoRow('Created By', `${sessionData.createdBy.name} (${sessionData.createdBy.email})`);
       
       // Add seal info if available
       if (sessionData.seal) {
-        basicSheet.addRow({ property: 'Seal Barcode', value: sessionData.seal.barcode });
-        basicSheet.addRow({ property: 'Seal Status', value: sessionData.seal.verified ? 'Verified' : 'Not Verified' });
+        // Add section header
+        rowIndex++;
+        basicSheet.mergeCells(`A${rowIndex}:B${rowIndex}`);
+        basicSheet.getCell(`A${rowIndex}`).value = 'SEAL INFORMATION';
+        basicSheet.getCell(`A${rowIndex}`).font = { bold: true, size: 14 };
+        basicSheet.getCell(`A${rowIndex}`).fill = {
+          type: 'pattern',
+          pattern: 'solid',
+          fgColor: { argb: 'FFE6E6E6' }
+        };
+        rowIndex++;
+        
+        addBasicInfoRow('Seal Barcode', sessionData.seal.barcode);
+        addBasicInfoRow('Seal Status', sessionData.seal.verified ? 'Verified' : 'Not Verified');
       }
       
       // =========================================================
@@ -344,18 +398,18 @@ export const GET = withAuth(
         ? combinedTripDetails 
         : SAMPLE_TRIP_DETAILS;
       
-      // Create trip details sheet
+      // Create trip details sheet with improved styling
       const tripSheet = workbook.addWorksheet('Trip Details');
       
       // Add a very prominent header
       tripSheet.mergeCells('A1:C1');
       const headerCell = tripSheet.getCell('A1');
       headerCell.value = 'TRIP DETAILS';
-      headerCell.font = { size: 16, bold: true, color: { argb: 'FF0000FF' } };
+      headerCell.font = { size: 16, bold: true, color: { argb: 'FFFFFFFF' } };
       headerCell.fill = {
         type: 'pattern',
         pattern: 'solid',
-        fgColor: { argb: 'FFFFD700' }
+        fgColor: { argb: 'FF2962FF' } // CBUMS blue
       };
       headerCell.alignment = { horizontal: 'center' };
       
@@ -374,13 +428,12 @@ export const GET = withAuth(
       
       // Style the column header row
       const headerRow = tripSheet.getRow(3);
-      headerRow.font = { bold: true };
+      headerRow.font = { bold: true, color: { argb: 'FFFFFFFF' } };
       headerRow.fill = {
         type: 'pattern',
         pattern: 'solid',
-        fgColor: { argb: 'FF4F81BD' }
+        fgColor: { argb: 'FF2962FF' } // CBUMS blue
       };
-      headerRow.font.color = { argb: 'FFFFFFFF' };
       
       // Define the standard trip detail fields
       const tripFields = [
@@ -406,7 +459,7 @@ export const GET = withAuth(
       
       // Add each trip detail field to the sheet
       console.log(`[EXCEL REPORT] Adding trip details fields to Excel`);
-      let currentRow = 4;
+      let tripRowIndex = 4;
       for (const field of tripFields) {
         const value = finalTripDetails[field.key as keyof TripDetails];
         const displayValue = value !== undefined && value !== null 
@@ -419,7 +472,7 @@ export const GET = withAuth(
           source: Object.keys(combinedTripDetails).length > 0 ? 'Database' : 'Sample'
         });
         
-        currentRow++;
+        tripRowIndex++;
       }
       
       // Add any additional fields not in our standard list
@@ -443,7 +496,7 @@ export const GET = withAuth(
           source: Object.keys(combinedTripDetails).length > 0 ? 'Database' : 'Sample'
         });
         
-        currentRow++;
+        tripRowIndex++;
       }
       
       // =========================================================
