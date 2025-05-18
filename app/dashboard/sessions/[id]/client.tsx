@@ -175,6 +175,58 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
     [isGuard, session]
   );
 
+  // Report download handlers
+  const handleDownloadReport = async (format: string) => {
+    if (!sessionId) return;
+    
+    try {
+      setReportLoading(format);
+      let endpoint = "";
+      
+      switch (format) {
+        case "pdf":
+          endpoint = `/api/reports/sessions/${sessionId}/pdf`;
+          break;
+        case "excel":
+          endpoint = `/api/reports/sessions/${sessionId}/excel`;
+          break;
+        case "text":
+          endpoint = `/api/reports/sessions/${sessionId}/pdf/simple`;
+          break;
+        default:
+          throw new Error("Unsupported report format");
+      }
+      
+      // Get the report as a blob
+      const response = await fetch(endpoint);
+      
+      if (!response.ok) {
+        const errorData = await response.text();
+        throw new Error(errorData || `Failed to download ${format} report`);
+      }
+      
+      // Convert response to blob
+      const blob = await response.blob();
+      
+      // Create a link element to trigger the download
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `session-${sessionId}.${format === "excel" ? "xlsx" : format === "pdf" ? "pdf" : "txt"}`;
+      document.body.appendChild(link);
+      link.click();
+      
+      // Clean up
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(link);
+    } catch (err) {
+      console.error(`Error downloading ${format} report:`, err);
+      alert(`Failed to download ${format} report: ${err instanceof Error ? err.message : "Unknown error"}`);
+    } finally {
+      setReportLoading(null);
+    }
+  };
+
   // Define fetchSessionDetails function
   const fetchSessionDetails = useCallback(async () => {
     if (!sessionId) {
@@ -834,6 +886,45 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
                   </Typography>
                 </Box>
               )}
+            </Box>
+          </Box>
+        )}
+
+        {/* Report Download Section - Only shown to authorized users */}
+        {canAccessReports && (
+          <Box mb={3}>
+            <Typography variant="h6" gutterBottom>
+              Reports
+            </Typography>
+            <Divider sx={{ mb: 2 }} />
+            <Box sx={{ display: "flex", gap: 2, flexWrap: "wrap" }}>
+              <Button
+                variant="outlined"
+                startIcon={<PictureAsPdf />}
+                onClick={() => handleDownloadReport("pdf")}
+                disabled={reportLoading !== null}
+                size="small"
+              >
+                {reportLoading === "pdf" ? "Downloading..." : "Download PDF"}
+              </Button>
+              <Button
+                variant="outlined"
+                startIcon={<TableChart />}
+                onClick={() => handleDownloadReport("excel")}
+                disabled={reportLoading !== null}
+                size="small"
+              >
+                {reportLoading === "excel" ? "Downloading..." : "Download Excel"}
+              </Button>
+              <Button
+                variant="outlined"
+                startIcon={<Description />}
+                onClick={() => handleDownloadReport("text")}
+                disabled={reportLoading !== null}
+                size="small"
+              >
+                {reportLoading === "text" ? "Downloading..." : "Download Text"}
+              </Button>
             </Box>
           </Box>
         )}
