@@ -53,26 +53,50 @@ export const GET = withAuth(
 
       // Try to get the image from the database
       // We need to find the activity log that contains the base64 image data
-      const activityLog = await prisma.activityLog.findFirst({
+      // First, try to find the most recent activity log
+      let activityLog = await prisma.activityLog.findFirst({
         where: {
           targetResourceId: sessionId,
           targetResourceType: 'session',
-          action: 'CREATE', // Changed from 'STORE_IMAGES' to a valid ActivityAction enum value
-          details: {
-            path: ['imageBase64Data'],
-            not: null
-          }
+          action: 'CREATE',
         },
         orderBy: {
           createdAt: 'desc',
         },
       });
+      
+      // If first one doesn't have image data, try to find all activity logs for this session
+      // and filter them manually to find one with imageBase64Data
+      if (!activityLog || !activityLog.details || !(activityLog.details as any).imageBase64Data) {
+        console.log(`First activity log doesn't have image data, trying to find all logs`);
+        
+        const allLogs = await prisma.activityLog.findMany({
+          where: {
+            targetResourceId: sessionId,
+            targetResourceType: 'session',
+          },
+          orderBy: {
+            createdAt: 'desc',
+          },
+        });
+        
+        console.log(`Found ${allLogs.length} activity logs for session ${sessionId}`);
+        
+        // Find the first log that has imageBase64Data
+        activityLog = allLogs.find((log: any) => 
+          log.details && 
+          typeof log.details === 'object' && 
+          (log.details as any).imageBase64Data
+        ) || activityLog;
+      }
 
       if (activityLog && activityLog.details) {
-        console.log(`Found activity log with image data for session ${sessionId}`);
+        console.log(`Found activity log for session ${sessionId}`);
         const details = activityLog.details as any;
         
+        // Check if this activity log contains imageBase64Data
         if (details.imageBase64Data) {
+          console.log(`Activity log contains imageBase64Data`);
           let imageData = null;
           let contentType = 'image/jpeg';
 
@@ -121,6 +145,8 @@ export const GET = withAuth(
           } else {
             console.log(`No image data found for ${imageType}${index !== null ? ` at index ${index}` : ''}`);
           }
+        } else {
+          console.log(`Activity log does not contain imageBase64Data`);
         }
       }
 
