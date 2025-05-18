@@ -51,11 +51,11 @@ async function fileToBase64(file: File): Promise<string> {
   try {
     console.log(`Converting file to base64: ${file.name}, size: ${file.size} bytes, type: ${file.type}`);
     
-    // Implement size check - 2MB limit
-    const MAX_FILE_SIZE = 2 * 1024 * 1024; // 2MB
+    // Implement size check - 5MB limit
+    const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
     if (file.size > MAX_FILE_SIZE) {
       console.error(`File too large: ${file.name}, size: ${file.size} bytes`);
-      throw new Error(`File too large: ${file.name}. Maximum size is 2MB.`);
+      throw new Error(`File too large: ${file.name}. Maximum size is 5MB.`);
     }
     
     const arrayBuffer = await file.arrayBuffer();
@@ -502,7 +502,7 @@ export const POST = withAuth(
       console.log(`Found ${sealingImagesCount} sealing images, ${vehicleImagesCount} vehicle images, and ${additionalImagesCount} additional images`);
       
       // Set a limit for total number of images to prevent overloading the database
-      const MAX_TOTAL_IMAGES = 15;
+      const MAX_TOTAL_IMAGES = 20;
       const totalImages = (gpsImeiPicture ? 1 : 0) + 
                          (vehicleNumberPlatePicture ? 1 : 0) + 
                          (driverPicture ? 1 : 0) + 
