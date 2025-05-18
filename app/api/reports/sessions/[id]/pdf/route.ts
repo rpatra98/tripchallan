@@ -5,6 +5,7 @@ import { withAuth } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { UserRole } from "@/prisma/enums";
 import { jsPDF } from 'jspdf';
+import 'jspdf-autotable';
 
 interface TripDetails {
   transporterName?: string;
@@ -311,285 +312,299 @@ export const GET = withAuth(
         // Get all images
         const images = detailedSessionData.images || {};
         
-        // Create a PDF document using jsPDF
+        // Create PDF document that matches the details page UI
         const doc = new jsPDF();
         
-        let yPos = 10;
-        const lineHeight = 7;
+        // Add a title that matches the dashboard styling
+        doc.setFillColor(41, 98, 255); // CBUMS blue
+        doc.rect(0, 0, doc.internal.pageSize.getWidth(), 20, 'F');
+        doc.setTextColor(255, 255, 255);
+        doc.setFontSize(14);
+        doc.setFont('helvetica', 'bold');
+        doc.text("CBUMS - Session Details", doc.internal.pageSize.getWidth() / 2, 12, { align: 'center' });
+        
+        // Add session ID
+        doc.setFillColor(245, 245, 245);
+        doc.rect(0, 20, doc.internal.pageSize.getWidth(), 16, 'F');
+        doc.setTextColor(80, 80, 80);
+        doc.setFontSize(11);
+        doc.text(`Session ID: ${sessionData.id}`, 10, 30);
+        
+        // Prepare status badge similar to UI
+        let statusColor;
+        switch (sessionData.status) {
+          case 'COMPLETED':
+            statusColor = [46, 204, 113]; // Green
+            break;
+          case 'IN_PROGRESS':
+            statusColor = [52, 152, 219]; // Blue
+            break;
+          case 'PENDING':
+            statusColor = [243, 156, 18]; // Yellow/Orange
+            break;
+          default:
+            statusColor = [149, 165, 166]; // Gray
+        }
+        
+        // Add status badge
+        const statusText = sessionData.status.replace(/_/g, ' ');
+        doc.setFillColor(statusColor[0], statusColor[1], statusColor[2]);
+        doc.roundedRect(doc.internal.pageSize.getWidth() - 80, 25, 70, 10, 2, 2, 'F');
+        doc.setTextColor(255, 255, 255);
+        doc.setFontSize(9);
+        doc.text(statusText, doc.internal.pageSize.getWidth() - 45, 31, { align: 'center' });
+        
+        // Main content Y position tracker
+        let yPos = 50;
         const leftMargin = 10;
-        const pageWidth = doc.internal.pageSize.getWidth();
+        const lineHeight = 10;
+        const sectionSpacing = 15;
         
-        // Add Title with better styling
-        doc.setFontSize(20);
-        doc.setTextColor(41, 98, 255); // Blue color for title
-        doc.text('Session Report', pageWidth / 2, yPos, { align: 'center' });
-        yPos += lineHeight * 2;
-        
-        // Add company branding
+        // Basic Info Section
+        doc.setFillColor(249, 249, 249);
+        doc.rect(0, yPos, doc.internal.pageSize.getWidth(), 16, 'F');
+        doc.setTextColor(60, 60, 60);
         doc.setFontSize(12);
-        doc.setTextColor(80, 80, 80); // Dark gray
-        doc.text('CBUMS - Consignment & Barcode Utilization Management System', pageWidth / 2, yPos, { align: 'center' });
-        yPos += lineHeight * 2;
+        doc.setFont('helvetica', 'bold');
+        doc.text("Basic Information", leftMargin, yPos + 10);
+        yPos += 22;
         
-        // Session Basic Info
-        doc.setFontSize(16);
-        doc.setTextColor(50, 50, 50); // Dark gray for section headers
-        doc.text('Session Information', leftMargin, yPos);
-        yPos += lineHeight;
-        
-        // Add a horizontal line below section header
-        doc.setDrawColor(200, 200, 200);
-        doc.line(leftMargin, yPos, pageWidth - leftMargin, yPos);
-        yPos += lineHeight;
-        
+        // Create a grid layout for basic info
+        doc.setFont('helvetica', 'normal');
         doc.setFontSize(10);
-        doc.setTextColor(0, 0, 0); // Black for content
+        doc.setTextColor(0, 0, 0);
         
-        // Format key-value pairs with better visual distinction
-        const addKeyValuePair = (key: string, value: string) => {
+        // Two-column layout
+        const addInfoRow = (leftLabel: string, leftValue: string, rightLabel: string, rightValue: string) => {
           doc.setFont('helvetica', 'bold');
-          doc.text(`${key}: `, leftMargin, yPos);
-          const keyWidth = doc.getTextWidth(`${key}: `);
+          doc.text(leftLabel + ":", leftMargin, yPos);
+          doc.text(rightLabel + ":", leftMargin + 100, yPos);
+          
           doc.setFont('helvetica', 'normal');
-          doc.text(`${value}`, leftMargin + keyWidth, yPos);
+          doc.text(leftValue, leftMargin + 50, yPos);
+          doc.text(rightValue, leftMargin + 150, yPos);
+          
           yPos += lineHeight;
         };
         
-        addKeyValuePair('Session ID', safeText(sessionData.id));
-        addKeyValuePair('Status', safeText(sessionData.status));
-        addKeyValuePair('Created At', formatDate(sessionData.createdAt));
-        addKeyValuePair('Source', safeText(sessionData.source) || 'N/A');
-        addKeyValuePair('Destination', safeText(sessionData.destination) || 'N/A');
-        addKeyValuePair('Company', safeText(sessionData.company.name) || 'N/A');
-        addKeyValuePair('Created By', `${safeText(sessionData.createdBy.name) || 'N/A'} (${safeText(sessionData.createdBy.email) || 'N/A'})`);
-        yPos += lineHeight;
+        // Add basic info with a grid layout similar to the UI
+        addInfoRow("Created At", formatDate(sessionData.createdAt), "Company", sessionData.company.name || 'N/A');
+        addInfoRow("Source", sessionData.source || 'N/A', "Destination", sessionData.destination || 'N/A');
+        addInfoRow("Created By", sessionData.createdBy.name || 'N/A', "Role", sessionData.createdBy.role || 'N/A');
         
-        // Trip Details
-        if (Object.keys(completeDetails).length > 0) {
-          // Check if we need a new page
-          if (yPos > 220) {
-            doc.addPage();
-            yPos = 10;
+        yPos += sectionSpacing;
+        
+        // Trip Details Section
+        doc.setFillColor(249, 249, 249);
+        doc.rect(0, yPos, doc.internal.pageSize.getWidth(), 16, 'F');
+        doc.setTextColor(60, 60, 60);
+        doc.setFontSize(12);
+        doc.setFont('helvetica', 'bold');
+        doc.text("Trip Details", leftMargin, yPos + 10);
+        yPos += 22;
+        
+        // Prepare trip details for autotable
+        const tripDetailsData: (string | number | null)[][] = [];
+        
+        // Define field order and grouping to match UI
+        const fieldMappings = [
+          { key: 'transporterName', label: 'Transporter Name' },
+          { key: 'materialName', label: 'Material Name' },
+          { key: 'vehicleNumber', label: 'Vehicle Number' },
+          { key: 'gpsImeiNumber', label: 'GPS IMEI Number' },
+          { key: 'driverName', label: 'Driver Name' },
+          { key: 'driverContactNumber', label: 'Driver Contact Number' },
+          { key: 'loaderName', label: 'Loader Name' },
+          { key: 'loaderMobileNumber', label: 'Loader Mobile Number' },
+          { key: 'challanRoyaltyNumber', label: 'Challan/Royalty Number' },
+          { key: 'doNumber', label: 'DO Number' },
+          { key: 'tpNumber', label: 'TP Number' },
+          { key: 'qualityOfMaterials', label: 'Quality of Materials' },
+          { key: 'freight', label: 'Freight' },
+          { key: 'grossWeight', label: 'Gross Weight (kg)' },
+          { key: 'tareWeight', label: 'Tare Weight (kg)' },
+          { key: 'netMaterialWeight', label: 'Net Material Weight (kg)' },
+          { key: 'loadingSite', label: 'Loading Site' },
+          { key: 'receiverPartyName', label: 'Receiver Party Name' }
+        ];
+        
+        // Add known fields first in a specific order
+        for (const field of fieldMappings) {
+          if (field.key in completeDetails) {
+            const value = completeDetails[field.key as keyof typeof completeDetails];
+            const displayValue = value !== undefined && value !== null ? String(value) : 'N/A';
+            tripDetailsData.push([field.label, displayValue]);
           }
-          
-          // Trip details header with styling
-          doc.setFontSize(16);
-          doc.setTextColor(50, 50, 50);
-          doc.text('Trip Details', leftMargin, yPos);
-          yPos += lineHeight;
-          
-          // Add a horizontal line below section header
-          doc.setDrawColor(200, 200, 200);
-          doc.line(leftMargin, yPos, pageWidth - leftMargin, yPos);
-          yPos += lineHeight;
-          
-          doc.setFontSize(10);
-          doc.setTextColor(0, 0, 0);
-          
-          // Define comprehensive list of known fields with proper labels
-          const fieldLabels: Record<string, string> = {
-            transporterName: "Transporter Name",
-            materialName: "Material Name",
-            vehicleNumber: "Vehicle Number",
-            gpsImeiNumber: "GPS IMEI Number",
-            driverName: "Driver Name",
-            driverContactNumber: "Driver Contact Number",
-            loaderName: "Loader Name",
-            loaderMobileNumber: "Loader Mobile Number",
-            challanRoyaltyNumber: "Challan/Royalty Number",
-            doNumber: "DO Number",
-            tpNumber: "TP Number",
-            qualityOfMaterials: "Quality of Materials",
-            freight: "Freight",
-            grossWeight: "Gross Weight (kg)",
-            tareWeight: "Tare Weight (kg)",
-            netMaterialWeight: "Net Material Weight (kg)",
-            loadingSite: "Loading Site",
-            receiverPartyName: "Receiver Party Name"
-          };
-          
-          // First add fields from our known list
-          for (const [key, label] of Object.entries(fieldLabels)) {
-            if (key in completeDetails) {
-              try {
-                // Check if we need a new page
-                if (yPos > 270) {
-                  doc.addPage();
-                  yPos = 10;
-                }
-                
-                const value = completeDetails[key as keyof typeof completeDetails];
-                addKeyValuePair(label, safeText(value as string | number | boolean | null | undefined));
-              } catch {
-                console.error(`Error processing trip detail ${key}`);
-                continue;
-              }
-            }
-          }
-          
-          // Then add any other fields that might exist
-          for (const [key, value] of Object.entries(completeDetails)) {
-            if (!(key in fieldLabels)) {
-              try {
-                // Check if we need a new page
-                if (yPos > 270) {
-                  doc.addPage();
-                  yPos = 10;
-                }
-                
-                // Format key from camelCase to Title Case with spaces
-                const formattedKey = key.replace(/([A-Z])/g, ' $1')
-                  .replace(/^./, str => str.toUpperCase());
-                
-                addKeyValuePair(formattedKey, safeText(value as string | number | boolean | null | undefined));
-              } catch {
-                console.error(`Error processing trip detail ${key}`);
-                continue;
-              }
-            }
-          }
-          yPos += lineHeight;
         }
         
-        // Image Listings with better organization
-        if (images && Object.keys(images).length > 0) {
-          // Check if we need a new page
-          if (yPos > 220) {
-            doc.addPage();
-            yPos = 10;
+        // Add any other fields that weren't in our mapping
+        for (const [key, value] of Object.entries(completeDetails)) {
+          if (!fieldMappings.some(field => field.key === key)) {
+            // Format key from camelCase to Title Case with spaces
+            const formattedKey = key.replace(/([A-Z])/g, ' $1')
+              .replace(/^./, str => str.toUpperCase());
+            
+            const displayValue = value !== undefined && value !== null ? String(value) : 'N/A';
+            tripDetailsData.push([formattedKey, displayValue]);
           }
+        }
+        
+        // Auto-table for trip details that matches the UI table style
+        (doc as any).autoTable({
+          startY: yPos,
+          head: [['Field', 'Value']],
+          body: tripDetailsData,
+          headStyles: {
+            fillColor: [220, 220, 220],
+            textColor: [60, 60, 60],
+            fontSize: 10,
+            fontStyle: 'bold',
+          },
+          bodyStyles: {
+            fontSize: 9,
+          },
+          alternateRowStyles: {
+            fillColor: [245, 245, 245],
+          },
+          tableWidth: 'auto',
+          margin: { left: leftMargin },
+          columnStyles: {
+            0: { fontStyle: 'bold', cellWidth: 80 },
+            1: { cellWidth: 'auto' },
+          },
+        });
+        
+        // Update yPos after the table
+        yPos = (doc as any).lastAutoTable.finalY + sectionSpacing;
+        
+        // Images Section - similar to dashboard UI
+        if (images && Object.keys(images).length > 0) {
+          doc.setFillColor(249, 249, 249);
+          doc.rect(0, yPos, doc.internal.pageSize.getWidth(), 16, 'F');
+          doc.setTextColor(60, 60, 60);
+          doc.setFontSize(12);
+          doc.setFont('helvetica', 'bold');
+          doc.text("Images", leftMargin, yPos + 10);
+          yPos += 22;
           
-          doc.setFontSize(16);
-          doc.setTextColor(50, 50, 50);
-          doc.text('Uploaded Images Information', leftMargin, yPos);
-          yPos += lineHeight;
-          
-          // Add a horizontal line below section header
-          doc.setDrawColor(200, 200, 200);
-          doc.line(leftMargin, yPos, pageWidth - leftMargin, yPos);
-          yPos += lineHeight;
-          
+          doc.setFont('helvetica', 'normal');
           doc.setFontSize(10);
-          doc.setTextColor(0, 0, 0);
           
-          // Image categories and counts with better styling
+          // Create a table of available images
+          const imageData: string[][] = [];
+          
           if (images.driverPicture) {
-            addKeyValuePair('Driver Picture', 'Available');
+            imageData.push(['Driver Picture', 'Available']);
           }
           
           if (images.vehicleNumberPlatePicture) {
-            addKeyValuePair('Vehicle Number Plate Picture', 'Available');
+            imageData.push(['Vehicle Number Plate Picture', 'Available']);
           }
           
           if (images.gpsImeiPicture) {
-            addKeyValuePair('GPS/IMEI Picture', 'Available');
+            imageData.push(['GPS/IMEI Picture', 'Available']);
           }
           
           if (images.sealingImages && images.sealingImages.length > 0) {
-            addKeyValuePair('Sealing Images', `${images.sealingImages.length} available`);
+            imageData.push(['Sealing Images', `${images.sealingImages.length} available`]);
           }
           
           if (images.vehicleImages && images.vehicleImages.length > 0) {
-            addKeyValuePair('Vehicle Images', `${images.vehicleImages.length} available`);
+            imageData.push(['Vehicle Images', `${images.vehicleImages.length} available`]);
           }
           
           if (images.additionalImages && images.additionalImages.length > 0) {
-            addKeyValuePair('Additional Images', `${images.additionalImages.length} available`);
+            imageData.push(['Additional Images', `${images.additionalImages.length} available`]);
           }
           
-          yPos += lineHeight;
+          if (imageData.length > 0) {
+            (doc as any).autoTable({
+              startY: yPos,
+              head: [['Image Type', 'Status']],
+              body: imageData,
+              headStyles: {
+                fillColor: [220, 220, 220],
+                textColor: [60, 60, 60],
+                fontSize: 10,
+                fontStyle: 'bold',
+              },
+              bodyStyles: {
+                fontSize: 9,
+              },
+              alternateRowStyles: {
+                fillColor: [245, 245, 245],
+              },
+              margin: { left: leftMargin },
+              columnStyles: {
+                0: { fontStyle: 'bold' },
+              },
+            });
+            
+            yPos = (doc as any).lastAutoTable.finalY + sectionSpacing;
+          } else {
+            doc.text("No images available", leftMargin, yPos);
+            yPos += lineHeight + sectionSpacing;
+          }
         }
         
-        // Seal Information
+        // Seal Information section
         if (sessionData.seal) {
-          // Check if we need a new page
-          if (yPos > 250) {
-            doc.addPage();
-            yPos = 10;
-          }
+          doc.setFillColor(249, 249, 249);
+          doc.rect(0, yPos, doc.internal.pageSize.getWidth(), 16, 'F');
+          doc.setTextColor(60, 60, 60);
+          doc.setFontSize(12);
+          doc.setFont('helvetica', 'bold');
+          doc.text("Seal Information", leftMargin, yPos + 10);
+          yPos += 22;
           
-          doc.setFontSize(14);
-          doc.text('Seal Information', leftMargin, yPos);
-          yPos += lineHeight;
+          doc.setFont('helvetica', 'normal');
           doc.setFontSize(10);
           
-          doc.text(`Barcode: ${safeText(sessionData.seal.barcode) || 'N/A'}`, leftMargin, yPos);
-          yPos += lineHeight;
-          doc.text(`Status: ${sessionData.seal.verified ? 'Verified' : 'Not Verified'}`, leftMargin, yPos);
-          yPos += lineHeight;
+          // Add seal information
+          const sealData = [
+            ['Barcode', sessionData.seal.barcode || 'N/A'],
+            ['Status', sessionData.seal.verified ? 'Verified' : 'Not Verified']
+          ];
           
           if (sessionData.seal.verified && sessionData.seal.verifiedBy) {
-            doc.text(`Verified By: ${safeText(sessionData.seal.verifiedBy.name) || 'N/A'}`, leftMargin, yPos);
-            yPos += lineHeight;
+            sealData.push(['Verified By', sessionData.seal.verifiedBy.name || 'N/A']);
             
             if (sessionData.seal.scannedAt) {
-              doc.text(`Verified At: ${formatDate(sessionData.seal.scannedAt)}`, leftMargin, yPos);
-              yPos += lineHeight;
+              sealData.push(['Verified At', formatDate(sessionData.seal.scannedAt)]);
             }
           }
-          yPos += lineHeight;
-        }
-        
-        // Comments section if available
-        if (sessionData.comments && sessionData.comments.length > 0) {
-          // Check if we need a new page
-          if (yPos > 250) {
-            doc.addPage();
-            yPos = 10;
-          }
           
-          doc.setFontSize(14);
-          doc.text('Comments', leftMargin, yPos);
-          yPos += lineHeight;
-          doc.setFontSize(10);
+          (doc as any).autoTable({
+            startY: yPos,
+            body: sealData,
+            bodyStyles: {
+              fontSize: 9,
+            },
+            alternateRowStyles: {
+              fillColor: [245, 245, 245],
+            },
+            margin: { left: leftMargin },
+            columnStyles: {
+              0: { fontStyle: 'bold', cellWidth: 80 },
+              1: { cellWidth: 'auto' },
+            },
+          });
           
-          for (let i = 0; i < Math.min(sessionData.comments.length, 5); i++) {
-            try {
-              const comment = sessionData.comments[i];
-              const userName = comment.user?.name || 'Unknown';
-              const commentDate = formatDate(comment.createdAt);
-              const commentText = comment.message || '(No text)';
-              
-              // Check if we need a new page
-              if (yPos > 270) {
-                doc.addPage();
-                yPos = 10;
-              }
-              
-              doc.text(`${userName} on ${commentDate}:`, leftMargin, yPos);
-              yPos += lineHeight;
-              doc.text(commentText, leftMargin + 5, yPos);
-              yPos += lineHeight * 1.5;
-            } catch {
-              console.error(`Error processing comment ${i}`);
-              continue;
-            }
-          }
+          yPos = (doc as any).lastAutoTable.finalY + sectionSpacing;
         }
         
-        // Debug Information section
-        if (yPos > 250) {
-          doc.addPage();
-          yPos = 10;
-        }
-        
-        doc.setFontSize(14);
-        doc.text('Debug Information', leftMargin, yPos);
-        yPos += lineHeight;
-        doc.setFontSize(10);
-        
-        // List raw top-level keys in the session object
-        doc.text(`Session Data Keys: ${Object.keys(detailedSessionData).join(', ')}`, leftMargin, yPos);
-        yPos += lineHeight * 1.5;
-        
-        // List how many keys were found in the merged trip details
-        doc.text(`Trip Details Fields Found: ${Object.keys(completeDetails).length}`, leftMargin, yPos);
-        yPos += lineHeight;
-        
-        // List some of the keys if there are any
-        if (Object.keys(completeDetails).length > 0) {
-          doc.text(`Sample Trip Fields: ${Object.keys(completeDetails).slice(0, 5).join(', ')}...`, leftMargin, yPos);
-          yPos += lineHeight;
+        // Add footer
+        const pageCount = (doc as any).internal.getNumberOfPages();
+        for (let i = 1; i <= pageCount; i++) {
+          doc.setPage(i);
+          doc.setFontSize(8);
+          doc.setTextColor(150, 150, 150);
+          doc.text(
+            `Page ${i} of ${pageCount} - Generated on ${new Date().toLocaleString()}`,
+            doc.internal.pageSize.getWidth() / 2,
+            doc.internal.pageSize.getHeight() - 10,
+            { align: 'center' }
+          );
         }
         
         // Get the PDF as a buffer
