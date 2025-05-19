@@ -5,6 +5,7 @@ import { withAuth } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { UserRole } from "@/prisma/enums";
 import { jsPDF } from 'jspdf';
+import puppeteer from 'puppeteer';
 
 // Helper function to format dates
 const formatDate = (dateString: string | Date) => {
@@ -94,57 +95,193 @@ export const GET = withAuth(
         );
       }
 
+      // Launch puppeteer
+      const browser = await puppeteer.launch({
+        headless: true,
+        args: ['--no-sandbox', '--disable-setuid-sandbox']
+      });
+      const page = await browser.newPage();
+
+      // Set viewport size
+      await page.setViewport({ width: 1200, height: 800 });
+
+      // Create HTML content for the session details card
+      const htmlContent = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <style>
+            body { font-family: Arial, sans-serif; margin: 0; padding: 20px; }
+            .card { 
+              background: white;
+              border-radius: 8px;
+              box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+              padding: 20px;
+              margin-bottom: 20px;
+            }
+            .header {
+              background: #1976d2;
+              color: white;
+              padding: 15px;
+              border-radius: 8px 8px 0 0;
+              margin: -20px -20px 20px -20px;
+            }
+            .section {
+              margin-bottom: 20px;
+            }
+            .section-title {
+              font-size: 16px;
+              font-weight: bold;
+              color: #1976d2;
+              margin-bottom: 10px;
+            }
+            .row {
+              display: flex;
+              margin-bottom: 8px;
+            }
+            .label {
+              width: 200px;
+              font-weight: bold;
+              color: #666;
+            }
+            .value {
+              flex: 1;
+            }
+            .status {
+              display: inline-block;
+              padding: 4px 8px;
+              border-radius: 4px;
+              color: white;
+              font-size: 12px;
+              font-weight: bold;
+            }
+            .status-COMPLETED { background: #2ecc71; }
+            .status-IN_PROGRESS { background: #3498db; }
+            .status-PENDING { background: #f39c12; }
+            .status-REJECTED { background: #e74c3c; }
+          </style>
+        </head>
+        <body>
+          <div class="card">
+            <div class="header">
+              <h2>Session Details</h2>
+              <div class="status status-${sessionData.status}">${sessionData.status.replace(/_/g, ' ')}</div>
+            </div>
+            
+            <div class="section">
+              <div class="section-title">Basic Information</div>
+              <div class="row">
+                <div class="label">Session ID:</div>
+                <div class="value">${sessionData.id}</div>
+              </div>
+              <div class="row">
+                <div class="label">Created At:</div>
+                <div class="value">${formatDate(sessionData.createdAt)}</div>
+              </div>
+              <div class="row">
+                <div class="label">Source:</div>
+                <div class="value">${sessionData.source || 'N/A'}</div>
+              </div>
+              <div class="row">
+                <div class="label">Destination:</div>
+                <div class="value">${sessionData.destination || 'N/A'}</div>
+              </div>
+            </div>
+
+            <div class="section">
+              <div class="section-title">Company Information</div>
+              <div class="row">
+                <div class="label">Company Name:</div>
+                <div class="value">${sessionData.company.name || 'N/A'}</div>
+              </div>
+              <div class="row">
+                <div class="label">Created By:</div>
+                <div class="value">${sessionData.createdBy.name || 'N/A'}</div>
+              </div>
+              <div class="row">
+                <div class="label">Role:</div>
+                <div class="value">${sessionData.createdBy.role || 'N/A'}</div>
+              </div>
+            </div>
+
+            ${sessionData.tripDetails ? `
+            <div class="section">
+              <div class="section-title">Trip Details</div>
+              ${Object.entries(sessionData.tripDetails).map(([key, value]) => `
+                <div class="row">
+                  <div class="label">${key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())}:</div>
+                  <div class="value">${value || 'N/A'}</div>
+                </div>
+              `).join('')}
+            </div>
+            ` : ''}
+
+            ${sessionData.seal ? `
+            <div class="section">
+              <div class="section-title">Seal Information</div>
+              <div class="row">
+                <div class="label">Barcode:</div>
+                <div class="value">${sessionData.seal.barcode || 'N/A'}</div>
+              </div>
+              <div class="row">
+                <div class="label">Status:</div>
+                <div class="value">${sessionData.seal.verified ? 'Verified' : 'Not Verified'}</div>
+              </div>
+              ${sessionData.seal.verified && sessionData.seal.verifiedBy ? `
+                <div class="row">
+                  <div class="label">Verified By:</div>
+                  <div class="value">${sessionData.seal.verifiedBy.name || 'N/A'}</div>
+                </div>
+                ${sessionData.seal.scannedAt ? `
+                  <div class="row">
+                    <div class="label">Verified At:</div>
+                    <div class="value">${formatDate(sessionData.seal.scannedAt)}</div>
+                  </div>
+                ` : ''}
+              ` : ''}
+            </div>
+            ` : ''}
+
+            ${sessionData.comments?.length ? `
+            <div class="section">
+              <div class="section-title">Comments</div>
+              ${sessionData.comments.map((comment: { user?: { name?: string }, createdAt: Date, message?: string }) => `
+                <div class="row">
+                  <div class="label">${comment.user?.name || 'Unknown'} (${formatDate(comment.createdAt)}):</div>
+                  <div class="value">${comment.message || '(No text)'}</div>
+                </div>
+              `).join('')}
+            </div>
+            ` : ''}
+          </div>
+        </body>
+        </html>
+      `;
+
+      // Set the HTML content
+      await page.setContent(htmlContent);
+
+      // Wait for the content to be rendered
+      await page.waitForSelector('.card');
+
+      // Take a screenshot of the card
+      const screenshot = await page.screenshot({
+        type: 'png',
+        fullPage: true
+      });
+
+      // Close the browser
+      await browser.close();
+
       // Create PDF document
-      const doc = new jsPDF();
+      const doc = new jsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: 'a4'
+      });
 
-      // Add title
-      doc.text("CBUMS - Session Details", 20, 20);
-      doc.text(`Session ID: ${sessionData.id}`, 20, 30);
-      doc.text(`Status: ${sessionData.status}`, 20, 40);
-
-      // Session Details
-      doc.text("Session Details:", 20, 60);
-      doc.text(`Created At: ${formatDate(sessionData.createdAt)}`, 20, 70);
-      doc.text(`Source: ${sessionData.source || 'N/A'}`, 20, 80);
-      doc.text(`Destination: ${sessionData.destination || 'N/A'}`, 20, 90);
-      doc.text(`Company: ${sessionData.company.name || 'N/A'}`, 20, 100);
-      doc.text(`Created By: ${sessionData.createdBy.name || 'N/A'}`, 20, 110);
-      doc.text(`Role: ${sessionData.createdBy.role || 'N/A'}`, 20, 120);
-
-      // Trip Details
-      if (sessionData.tripDetails) {
-        doc.text("Trip Details:", 20, 140);
-        let yPos = 150;
-        Object.entries(sessionData.tripDetails).forEach(([key, value]) => {
-          const label = key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase());
-          doc.text(`${label}: ${value || 'N/A'}`, 20, yPos);
-          yPos += 10;
-        });
-      }
-
-      // Seal Information
-      if (sessionData.seal) {
-        doc.text("Seal Information:", 20, 200);
-        doc.text(`Barcode: ${sessionData.seal.barcode || 'N/A'}`, 20, 210);
-        doc.text(`Status: ${sessionData.seal.verified ? 'Verified' : 'Not Verified'}`, 20, 220);
-        if (sessionData.seal.verified && sessionData.seal.verifiedBy) {
-          doc.text(`Verified By: ${sessionData.seal.verifiedBy.name || 'N/A'}`, 20, 230);
-          if (sessionData.seal.scannedAt) {
-            doc.text(`Verified At: ${formatDate(sessionData.seal.scannedAt)}`, 20, 240);
-          }
-        }
-      }
-
-      // Comments
-      if (sessionData.comments?.length) {
-        doc.text("Comments:", 20, 260);
-        let yPos = 270;
-        sessionData.comments.forEach((comment: { user?: { name?: string }, createdAt: Date, message?: string }) => {
-          doc.text(`${comment.user?.name || 'Unknown'} (${formatDate(comment.createdAt)}):`, 20, yPos);
-          doc.text(comment.message || '(No text)', 30, yPos + 5);
-          yPos += 15;
-        });
-      }
+      // Add the screenshot to the PDF
+      doc.addImage(screenshot, 'PNG', 0, 0, 210, 297); // A4 size in mm
 
       // Generate PDF buffer
       const pdfBuffer = Buffer.from(doc.output('arraybuffer'));
