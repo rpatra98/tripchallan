@@ -313,9 +313,18 @@ export const GET = withAuth(
         const images = detailedSessionData.images || {};
         
         // Create PDF document that matches the details page UI
-        const doc = new jsPDF();
+        const doc = new jsPDF({
+          orientation: 'portrait',
+          unit: 'mm',
+          format: 'a4'
+        });
+        
         // Add autotable to the jsPDF instance
         (doc as any).autoTable = autoTable;
+        
+        // Set initial font settings
+        doc.setFont('helvetica');
+        doc.setFontSize(10);
         
         // Add a title that matches the dashboard styling - CBUMS navbar blue
         doc.setFillColor(25, 118, 210); // CBUMS primary blue 
