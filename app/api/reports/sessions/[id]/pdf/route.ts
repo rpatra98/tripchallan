@@ -5,7 +5,17 @@ import { withAuth } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { UserRole } from "@/prisma/enums";
 import { jsPDF } from 'jspdf';
-import puppeteer from 'puppeteer';
+import 'jspdf-autotable';
+
+// Extend jsPDF type to include autoTable
+declare module 'jspdf' {
+  interface jsPDF {
+    autoTable: (options: any) => jsPDF;
+    lastAutoTable: {
+      finalY: number;
+    };
+  }
+}
 
 // Helper function to format dates
 const formatDate = (dateString: string | Date) => {
@@ -95,184 +105,6 @@ export const GET = withAuth(
         );
       }
 
-      // Launch puppeteer
-      const browser = await puppeteer.launch({
-        headless: true,
-        args: ['--no-sandbox', '--disable-setuid-sandbox']
-      });
-      const page = await browser.newPage();
-
-      // Set viewport size
-      await page.setViewport({ width: 1200, height: 800 });
-
-      // Create HTML content for the session details card
-      const htmlContent = `
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <style>
-            body { font-family: Arial, sans-serif; margin: 0; padding: 20px; }
-            .card { 
-              background: white;
-              border-radius: 8px;
-              box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-              padding: 20px;
-              margin-bottom: 20px;
-            }
-            .header {
-              background: #1976d2;
-              color: white;
-              padding: 15px;
-              border-radius: 8px 8px 0 0;
-              margin: -20px -20px 20px -20px;
-            }
-            .section {
-              margin-bottom: 20px;
-            }
-            .section-title {
-              font-size: 16px;
-              font-weight: bold;
-              color: #1976d2;
-              margin-bottom: 10px;
-            }
-            .row {
-              display: flex;
-              margin-bottom: 8px;
-            }
-            .label {
-              width: 200px;
-              font-weight: bold;
-              color: #666;
-            }
-            .value {
-              flex: 1;
-            }
-            .status {
-              display: inline-block;
-              padding: 4px 8px;
-              border-radius: 4px;
-              color: white;
-              font-size: 12px;
-              font-weight: bold;
-            }
-            .status-COMPLETED { background: #2ecc71; }
-            .status-IN_PROGRESS { background: #3498db; }
-            .status-PENDING { background: #f39c12; }
-            .status-REJECTED { background: #e74c3c; }
-          </style>
-        </head>
-        <body>
-          <div class="card">
-            <div class="header">
-              <h2>Session Details</h2>
-              <div class="status status-${sessionData.status}">${sessionData.status.replace(/_/g, ' ')}</div>
-            </div>
-            
-            <div class="section">
-              <div class="section-title">Basic Information</div>
-              <div class="row">
-                <div class="label">Session ID:</div>
-                <div class="value">${sessionData.id}</div>
-              </div>
-              <div class="row">
-                <div class="label">Created At:</div>
-                <div class="value">${formatDate(sessionData.createdAt)}</div>
-              </div>
-              <div class="row">
-                <div class="label">Source:</div>
-                <div class="value">${sessionData.source || 'N/A'}</div>
-              </div>
-              <div class="row">
-                <div class="label">Destination:</div>
-                <div class="value">${sessionData.destination || 'N/A'}</div>
-              </div>
-            </div>
-
-            <div class="section">
-              <div class="section-title">Company Information</div>
-              <div class="row">
-                <div class="label">Company Name:</div>
-                <div class="value">${sessionData.company.name || 'N/A'}</div>
-              </div>
-              <div class="row">
-                <div class="label">Created By:</div>
-                <div class="value">${sessionData.createdBy.name || 'N/A'}</div>
-              </div>
-              <div class="row">
-                <div class="label">Role:</div>
-                <div class="value">${sessionData.createdBy.role || 'N/A'}</div>
-              </div>
-            </div>
-
-            ${sessionData.tripDetails ? `
-            <div class="section">
-              <div class="section-title">Trip Details</div>
-              ${Object.entries(sessionData.tripDetails).map(([key, value]) => `
-                <div class="row">
-                  <div class="label">${key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())}:</div>
-                  <div class="value">${value || 'N/A'}</div>
-                </div>
-              `).join('')}
-            </div>
-            ` : ''}
-
-            ${sessionData.seal ? `
-            <div class="section">
-              <div class="section-title">Seal Information</div>
-              <div class="row">
-                <div class="label">Barcode:</div>
-                <div class="value">${sessionData.seal.barcode || 'N/A'}</div>
-              </div>
-              <div class="row">
-                <div class="label">Status:</div>
-                <div class="value">${sessionData.seal.verified ? 'Verified' : 'Not Verified'}</div>
-              </div>
-              ${sessionData.seal.verified && sessionData.seal.verifiedBy ? `
-                <div class="row">
-                  <div class="label">Verified By:</div>
-                  <div class="value">${sessionData.seal.verifiedBy.name || 'N/A'}</div>
-                </div>
-                ${sessionData.seal.scannedAt ? `
-                  <div class="row">
-                    <div class="label">Verified At:</div>
-                    <div class="value">${formatDate(sessionData.seal.scannedAt)}</div>
-                  </div>
-                ` : ''}
-              ` : ''}
-            </div>
-            ` : ''}
-
-            ${sessionData.comments?.length ? `
-            <div class="section">
-              <div class="section-title">Comments</div>
-              ${sessionData.comments.map((comment: { user?: { name?: string }, createdAt: Date, message?: string }) => `
-                <div class="row">
-                  <div class="label">${comment.user?.name || 'Unknown'} (${formatDate(comment.createdAt)}):</div>
-                  <div class="value">${comment.message || '(No text)'}</div>
-                </div>
-              `).join('')}
-            </div>
-            ` : ''}
-          </div>
-        </body>
-        </html>
-      `;
-
-      // Set the HTML content
-      await page.setContent(htmlContent);
-
-      // Wait for the content to be rendered
-      await page.waitForSelector('.card');
-
-      // Take a screenshot of the card
-      const screenshot = await page.screenshot({
-        type: 'png',
-        fullPage: true
-      });
-
-      // Close the browser
-      await browser.close();
-
       // Create PDF document
       const doc = new jsPDF({
         orientation: 'portrait',
@@ -280,8 +112,162 @@ export const GET = withAuth(
         format: 'a4'
       });
 
-      // Add the screenshot to the PDF
-      doc.addImage(screenshot, 'PNG', 0, 0, 210, 297); // A4 size in mm
+      // Set initial font
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(16);
+
+      // Add title
+      doc.text('Session Details', 20, 20);
+      doc.setFontSize(12);
+      doc.text(`Session ID: ${sessionData.id}`, 20, 30);
+      doc.text(`Status: ${sessionData.status.replace(/_/g, ' ')}`, 20, 40);
+
+      // Basic Information
+      doc.setFontSize(14);
+      doc.text('Basic Information', 20, 55);
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'normal');
+
+      const basicInfo = [
+        ['Created At', formatDate(sessionData.createdAt)],
+        ['Source', sessionData.source || 'N/A'],
+        ['Destination', sessionData.destination || 'N/A'],
+      ];
+
+      doc.autoTable({
+        startY: 60,
+        head: [],
+        body: basicInfo,
+        theme: 'grid',
+        styles: { fontSize: 10 },
+        columnStyles: {
+          0: { cellWidth: 40, fontStyle: 'bold' },
+          1: { cellWidth: 130 }
+        }
+      });
+
+      // Company Information
+      doc.setFontSize(14);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Company Information', 20, doc.lastAutoTable.finalY + 10);
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'normal');
+
+      const companyInfo = [
+        ['Company Name', sessionData.company.name || 'N/A'],
+        ['Created By', sessionData.createdBy.name || 'N/A'],
+        ['Role', sessionData.createdBy.role || 'N/A'],
+      ];
+
+      doc.autoTable({
+        startY: doc.lastAutoTable.finalY + 15,
+        head: [],
+        body: companyInfo,
+        theme: 'grid',
+        styles: { fontSize: 10 },
+        columnStyles: {
+          0: { cellWidth: 40, fontStyle: 'bold' },
+          1: { cellWidth: 130 }
+        }
+      });
+
+      // Trip Details
+      if (sessionData.tripDetails) {
+        doc.setFontSize(14);
+        doc.setFont('helvetica', 'bold');
+        doc.text('Trip Details', 20, doc.lastAutoTable.finalY + 10);
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'normal');
+
+        const tripDetails = Object.entries(sessionData.tripDetails).map(([key, value]) => [
+          key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase()),
+          value || 'N/A'
+        ]);
+
+        doc.autoTable({
+          startY: doc.lastAutoTable.finalY + 15,
+          head: [],
+          body: tripDetails,
+          theme: 'grid',
+          styles: { fontSize: 10 },
+          columnStyles: {
+            0: { cellWidth: 40, fontStyle: 'bold' },
+            1: { cellWidth: 130 }
+          }
+        });
+      }
+
+      // Seal Information
+      if (sessionData.seal) {
+        doc.setFontSize(14);
+        doc.setFont('helvetica', 'bold');
+        doc.text('Seal Information', 20, doc.lastAutoTable.finalY + 10);
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'normal');
+
+        const sealInfo = [
+          ['Barcode', sessionData.seal.barcode || 'N/A'],
+          ['Status', sessionData.seal.verified ? 'Verified' : 'Not Verified'],
+        ];
+
+        if (sessionData.seal.verified && sessionData.seal.verifiedBy) {
+          sealInfo.push(['Verified By', sessionData.seal.verifiedBy.name || 'N/A']);
+          if (sessionData.seal.scannedAt) {
+            sealInfo.push(['Verified At', formatDate(sessionData.seal.scannedAt)]);
+          }
+        }
+
+        doc.autoTable({
+          startY: doc.lastAutoTable.finalY + 15,
+          head: [],
+          body: sealInfo,
+          theme: 'grid',
+          styles: { fontSize: 10 },
+          columnStyles: {
+            0: { cellWidth: 40, fontStyle: 'bold' },
+            1: { cellWidth: 130 }
+          }
+        });
+      }
+
+      // Comments
+      if (sessionData.comments?.length) {
+        doc.setFontSize(14);
+        doc.setFont('helvetica', 'bold');
+        doc.text('Comments', 20, doc.lastAutoTable.finalY + 10);
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'normal');
+
+        const comments = sessionData.comments.map((comment: { user?: { name?: string }, createdAt: Date, message?: string }) => [
+          `${comment.user?.name || 'Unknown'} (${formatDate(comment.createdAt)})`,
+          comment.message || '(No text)'
+        ]);
+
+        doc.autoTable({
+          startY: doc.lastAutoTable.finalY + 15,
+          head: [],
+          body: comments,
+          theme: 'grid',
+          styles: { fontSize: 10 },
+          columnStyles: {
+            0: { cellWidth: 40, fontStyle: 'bold' },
+            1: { cellWidth: 130 }
+          }
+        });
+      }
+
+      // Add footer
+      const pageCount = doc.getNumberOfPages();
+      for (let i = 1; i <= pageCount; i++) {
+        doc.setPage(i);
+        doc.setFontSize(8);
+        doc.text(
+          `Page ${i} of ${pageCount} | Generated on ${new Date().toLocaleString()}`,
+          doc.internal.pageSize.width / 2,
+          doc.internal.pageSize.height - 10,
+          { align: 'center' }
+        );
+      }
 
       // Generate PDF buffer
       const pdfBuffer = Buffer.from(doc.output('arraybuffer'));
