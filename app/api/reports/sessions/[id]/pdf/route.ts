@@ -71,6 +71,7 @@ export const GET = withAuth(
               },
             },
           },
+          tripDetails: true,
           comments: {
             include: {
               user: {
@@ -156,22 +157,22 @@ export const GET = withAuth(
       doc.setFont('helvetica', 'normal');
 
       const tripDetails = [
-        ['Freight', sessionData.tripDetails?.freight || 'N/A'],
-        ['Do Number', sessionData.tripDetails?.doNumber || 'N/A'],
-        ['Tp Number', sessionData.tripDetails?.tpNumber || 'N/A'],
-        ['Driver Name', sessionData.tripDetails?.driverName || 'N/A'],
-        ['Loader Name', sessionData.tripDetails?.loaderName || 'N/A'],
-        ['Tare Weight', sessionData.tripDetails?.tareWeight || 'N/A'],
-        ['Gross Weight', sessionData.tripDetails?.grossWeight || 'N/A'],
-        ['Material Name', sessionData.tripDetails?.materialName || 'N/A'],
-        ['Gps Imei Number', sessionData.tripDetails?.gpsImeiNumber || 'N/A'],
-        ['Vehicle Number', sessionData.tripDetails?.vehicleNumber || 'N/A'],
-        ['Transporter Name', sessionData.tripDetails?.transporterName || 'N/A'],
-        ['Receiver Party Name', sessionData.tripDetails?.receiverPartyName || 'N/A'],
-        ['Loader Mobile Number', sessionData.tripDetails?.loaderMobileNumber || 'N/A'],
-        ['Quality Of Materials', sessionData.tripDetails?.qualityOfMaterials || 'N/A'],
-        ['Driver Contact Number', sessionData.tripDetails?.driverContactNumber || 'N/A'],
-        ['Challan Royalty Number', sessionData.tripDetails?.challanRoyaltyNumber || 'N/A'],
+        ['Freight', sessionData.tripDetails?.freight?.toString() || 'N/A'],
+        ['Do Number', sessionData.tripDetails?.doNumber?.toString() || 'N/A'],
+        ['Tp Number', sessionData.tripDetails?.tpNumber?.toString() || 'N/A'],
+        ['Driver Name', sessionData.tripDetails?.driverName?.toString() || 'N/A'],
+        ['Loader Name', sessionData.tripDetails?.loaderName?.toString() || 'N/A'],
+        ['Tare Weight', sessionData.tripDetails?.tareWeight?.toString() || 'N/A'],
+        ['Gross Weight', sessionData.tripDetails?.grossWeight?.toString() || 'N/A'],
+        ['Material Name', sessionData.tripDetails?.materialName?.toString() || 'N/A'],
+        ['Gps Imei Number', sessionData.tripDetails?.gpsImeiNumber?.toString() || 'N/A'],
+        ['Vehicle Number', sessionData.tripDetails?.vehicleNumber?.toString() || 'N/A'],
+        ['Transporter Name', sessionData.tripDetails?.transporterName?.toString() || 'N/A'],
+        ['Receiver Party Name', sessionData.tripDetails?.receiverPartyName?.toString() || 'N/A'],
+        ['Loader Mobile Number', sessionData.tripDetails?.loaderMobileNumber?.toString() || 'N/A'],
+        ['Quality Of Materials', sessionData.tripDetails?.qualityOfMaterials?.toString() || 'N/A'],
+        ['Driver Contact Number', sessionData.tripDetails?.driverContactNumber?.toString() || 'N/A'],
+        ['Challan Royalty Number', sessionData.tripDetails?.challanRoyaltyNumber?.toString() || 'N/A'],
       ];
 
       autoTable(doc, {
