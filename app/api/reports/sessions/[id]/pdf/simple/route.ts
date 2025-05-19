@@ -117,7 +117,7 @@ export const GET = withAuth(
       
       // For debugging - dump entire session data to see what's available
       // We'll limit to first level to avoid logging too much data
-      const sessionDataLimitedLog = {};
+      const sessionDataLimitedLog: Record<string, any> = {};
       for (const [key, value] of Object.entries(sessionData)) {
         if (typeof value !== 'object' || value === null) {
           sessionDataLimitedLog[key] = value;
