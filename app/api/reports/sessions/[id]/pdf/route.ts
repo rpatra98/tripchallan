@@ -71,7 +71,6 @@ export const GET = withAuth(
               },
             },
           },
-          tripDetails: true,
           comments: {
             include: {
               user: {
@@ -123,6 +122,9 @@ export const GET = withAuth(
       doc.text(`Session ID: ${sessionData.id}`, 20, 30);
       doc.text(`Status: ${sessionData.status.replace(/_/g, ' ')}`, 20, 40);
 
+      // Parse tripDetails from JSON
+      const tripDetails = sessionData.tripDetails as Record<string, any> || {};
+
       // Basic Information
       doc.setFontSize(14);
       doc.setFont('helvetica', 'bold');
@@ -156,29 +158,29 @@ export const GET = withAuth(
       doc.setFontSize(10);
       doc.setFont('helvetica', 'normal');
 
-      const tripDetails = [
-        ['Freight', sessionData.tripDetails?.freight?.toString() || 'N/A'],
-        ['Do Number', sessionData.tripDetails?.doNumber?.toString() || 'N/A'],
-        ['Tp Number', sessionData.tripDetails?.tpNumber?.toString() || 'N/A'],
-        ['Driver Name', sessionData.tripDetails?.driverName?.toString() || 'N/A'],
-        ['Loader Name', sessionData.tripDetails?.loaderName?.toString() || 'N/A'],
-        ['Tare Weight', sessionData.tripDetails?.tareWeight?.toString() || 'N/A'],
-        ['Gross Weight', sessionData.tripDetails?.grossWeight?.toString() || 'N/A'],
-        ['Material Name', sessionData.tripDetails?.materialName?.toString() || 'N/A'],
-        ['Gps Imei Number', sessionData.tripDetails?.gpsImeiNumber?.toString() || 'N/A'],
-        ['Vehicle Number', sessionData.tripDetails?.vehicleNumber?.toString() || 'N/A'],
-        ['Transporter Name', sessionData.tripDetails?.transporterName?.toString() || 'N/A'],
-        ['Receiver Party Name', sessionData.tripDetails?.receiverPartyName?.toString() || 'N/A'],
-        ['Loader Mobile Number', sessionData.tripDetails?.loaderMobileNumber?.toString() || 'N/A'],
-        ['Quality Of Materials', sessionData.tripDetails?.qualityOfMaterials?.toString() || 'N/A'],
-        ['Driver Contact Number', sessionData.tripDetails?.driverContactNumber?.toString() || 'N/A'],
-        ['Challan Royalty Number', sessionData.tripDetails?.challanRoyaltyNumber?.toString() || 'N/A'],
+      const tripDetailsRows = [
+        ['Freight', tripDetails.freight?.toString() || 'N/A'],
+        ['Do Number', tripDetails.doNumber?.toString() || 'N/A'],
+        ['Tp Number', tripDetails.tpNumber?.toString() || 'N/A'],
+        ['Driver Name', tripDetails.driverName?.toString() || 'N/A'],
+        ['Loader Name', tripDetails.loaderName?.toString() || 'N/A'],
+        ['Tare Weight', tripDetails.tareWeight?.toString() || 'N/A'],
+        ['Gross Weight', tripDetails.grossWeight?.toString() || 'N/A'],
+        ['Material Name', tripDetails.materialName?.toString() || 'N/A'],
+        ['Gps Imei Number', tripDetails.gpsImeiNumber?.toString() || 'N/A'],
+        ['Vehicle Number', tripDetails.vehicleNumber?.toString() || 'N/A'],
+        ['Transporter Name', tripDetails.transporterName?.toString() || 'N/A'],
+        ['Receiver Party Name', tripDetails.receiverPartyName?.toString() || 'N/A'],
+        ['Loader Mobile Number', tripDetails.loaderMobileNumber?.toString() || 'N/A'],
+        ['Quality Of Materials', tripDetails.qualityOfMaterials?.toString() || 'N/A'],
+        ['Driver Contact Number', tripDetails.driverContactNumber?.toString() || 'N/A'],
+        ['Challan Royalty Number', tripDetails.challanRoyaltyNumber?.toString() || 'N/A'],
       ];
 
       autoTable(doc, {
         startY: (doc as any).lastAutoTable.finalY + 15,
         head: [],
-        body: tripDetails,
+        body: tripDetailsRows,
         theme: 'grid',
         styles: { fontSize: 10 },
         columnStyles: {
