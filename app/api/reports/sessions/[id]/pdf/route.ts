@@ -5,7 +5,7 @@ import { withAuth } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { UserRole } from "@/prisma/enums";
 import { jsPDF } from 'jspdf';
-import 'jspdf-autotable';
+import autoTable from 'jspdf-autotable';
 
 interface TripDetails {
   transporterName?: string;
@@ -314,6 +314,8 @@ export const GET = withAuth(
         
         // Create PDF document that matches the details page UI
         const doc = new jsPDF();
+        // Add autotable to the jsPDF instance
+        (doc as any).autoTable = autoTable;
         
         // Add a title that matches the dashboard styling - CBUMS navbar blue
         doc.setFillColor(25, 118, 210); // CBUMS primary blue 
