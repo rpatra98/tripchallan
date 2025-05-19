@@ -5,7 +5,7 @@ import { withAuth } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { UserRole } from "@/prisma/enums";
 import { jsPDF } from 'jspdf';
-import 'jspdf-autotable';
+import autoTable from 'jspdf-autotable';
 
 // Extend jsPDF type to include autoTable
 declare module 'jspdf' {
@@ -134,7 +134,7 @@ export const GET = withAuth(
         ['Destination', sessionData.destination || 'N/A'],
       ];
 
-      doc.autoTable({
+      autoTable(doc, {
         startY: 60,
         head: [],
         body: basicInfo,
@@ -149,7 +149,7 @@ export const GET = withAuth(
       // Company Information
       doc.setFontSize(14);
       doc.setFont('helvetica', 'bold');
-      doc.text('Company Information', 20, doc.lastAutoTable.finalY + 10);
+      doc.text('Company Information', 20, (doc as any).lastAutoTable.finalY + 10);
       doc.setFontSize(10);
       doc.setFont('helvetica', 'normal');
 
@@ -159,8 +159,8 @@ export const GET = withAuth(
         ['Role', sessionData.createdBy.role || 'N/A'],
       ];
 
-      doc.autoTable({
-        startY: doc.lastAutoTable.finalY + 15,
+      autoTable(doc, {
+        startY: (doc as any).lastAutoTable.finalY + 15,
         head: [],
         body: companyInfo,
         theme: 'grid',
@@ -175,7 +175,7 @@ export const GET = withAuth(
       if (sessionData.tripDetails) {
         doc.setFontSize(14);
         doc.setFont('helvetica', 'bold');
-        doc.text('Trip Details', 20, doc.lastAutoTable.finalY + 10);
+        doc.text('Trip Details', 20, (doc as any).lastAutoTable.finalY + 10);
         doc.setFontSize(10);
         doc.setFont('helvetica', 'normal');
 
@@ -184,8 +184,8 @@ export const GET = withAuth(
           value || 'N/A'
         ]);
 
-        doc.autoTable({
-          startY: doc.lastAutoTable.finalY + 15,
+        autoTable(doc, {
+          startY: (doc as any).lastAutoTable.finalY + 15,
           head: [],
           body: tripDetails,
           theme: 'grid',
@@ -201,7 +201,7 @@ export const GET = withAuth(
       if (sessionData.seal) {
         doc.setFontSize(14);
         doc.setFont('helvetica', 'bold');
-        doc.text('Seal Information', 20, doc.lastAutoTable.finalY + 10);
+        doc.text('Seal Information', 20, (doc as any).lastAutoTable.finalY + 10);
         doc.setFontSize(10);
         doc.setFont('helvetica', 'normal');
 
@@ -217,8 +217,8 @@ export const GET = withAuth(
           }
         }
 
-        doc.autoTable({
-          startY: doc.lastAutoTable.finalY + 15,
+        autoTable(doc, {
+          startY: (doc as any).lastAutoTable.finalY + 15,
           head: [],
           body: sealInfo,
           theme: 'grid',
@@ -234,7 +234,7 @@ export const GET = withAuth(
       if (sessionData.comments?.length) {
         doc.setFontSize(14);
         doc.setFont('helvetica', 'bold');
-        doc.text('Comments', 20, doc.lastAutoTable.finalY + 10);
+        doc.text('Comments', 20, (doc as any).lastAutoTable.finalY + 10);
         doc.setFontSize(10);
         doc.setFont('helvetica', 'normal');
 
@@ -243,8 +243,8 @@ export const GET = withAuth(
           comment.message || '(No text)'
         ]);
 
-        doc.autoTable({
-          startY: doc.lastAutoTable.finalY + 15,
+        autoTable(doc, {
+          startY: (doc as any).lastAutoTable.finalY + 15,
           head: [],
           body: comments,
           theme: 'grid',
