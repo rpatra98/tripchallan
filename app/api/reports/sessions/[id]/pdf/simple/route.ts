@@ -4,6 +4,18 @@ import { authOptions } from "@/lib/auth-options";
 import { withAuth } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { UserRole } from "@/prisma/enums";
+import { jsPDF } from 'jspdf';
+import autoTable from 'jspdf-autotable';
+
+// Extend jsPDF type to include autoTable
+declare module 'jspdf' {
+  interface jsPDF {
+    autoTable: (options: any) => jsPDF;
+    lastAutoTable: {
+      finalY: number;
+    };
+  }
+}
 
 interface TripDetails {
   transporterName?: string;
@@ -482,13 +494,141 @@ export const GET = withAuth(
       // Join all sections with newlines
       const reportText = sections.join('\n');
       
-      // Return the text report
-      return new NextResponse(reportText, {
-        headers: {
-          'Content-Type': 'text/plain',
-          'Content-Disposition': `attachment; filename="session-${sessionId}.txt"`,
-        },
+      // Create PDF document instead of returning text
+      const doc = new jsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: 'a4'
       });
+
+      // Set initial font
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(16);
+
+      // Add title
+      doc.text('Session Details', 20, 20);
+      doc.setFontSize(12);
+      doc.text(`Session ID: ${sessionData.id}`, 20, 30);
+      doc.text(`Status: ${sessionData.status.replace(/_/g, ' ')}`, 20, 40);
+
+      let yPos = 50;
+
+      // Session Information
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(14);
+      doc.text('Basic Information', 20, yPos);
+      doc.setFontSize(10);
+      
+      const basicInfo = [
+        ['Source', sessionData.source || 'N/A'],
+        ['Destination', sessionData.destination || 'N/A'],
+        ['Created', formatDate(sessionData.createdAt)],
+        ['Company', sessionData.company.name || 'N/A'],
+      ];
+
+      autoTable(doc, {
+        startY: yPos + 5,
+        head: [],
+        body: basicInfo,
+        theme: 'grid',
+        styles: { fontSize: 10 },
+        columnStyles: {
+          0: { cellWidth: 40, fontStyle: 'bold' },
+          1: { cellWidth: 130 }
+        }
+      });
+
+      // Trip Details
+      yPos = doc.lastAutoTable.finalY + 10;
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(14);
+      doc.text('Trip Details', 20, yPos);
+      doc.setFontSize(10);
+
+      // Format trip details as rows for the table
+      const tripDetailsRows = Object.entries(completeDetails).map(([key, value]) => {
+        // Format key from camelCase to Title Case with spaces
+        const formattedKey = key.replace(/([A-Z])/g, ' $1')
+          .replace(/^./, str => str.toUpperCase());
+        return [formattedKey, value !== null && value !== undefined ? String(value) : 'N/A'];
+      });
+
+      if (tripDetailsRows.length > 0) {
+        autoTable(doc, {
+          startY: yPos + 5,
+          head: [],
+          body: tripDetailsRows,
+          theme: 'grid',
+          styles: { fontSize: 10 },
+          columnStyles: {
+            0: { cellWidth: 60, fontStyle: 'bold' },
+            1: { cellWidth: 110 }
+          }
+        });
+      } else {
+        yPos += 5;
+        doc.setFont('helvetica', 'normal');
+        doc.text('No trip details available', 20, yPos);
+      }
+
+      // Seal Information
+      yPos = doc.lastAutoTable.finalY + 10;
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(14);
+      doc.text('Seal Information', 20, yPos);
+      doc.setFontSize(10);
+
+      const sealInfo = [
+        ['Barcode', sessionData.seal?.barcode || 'N/A'],
+        ['Status', sessionData.seal?.verified ? 'Verified' : 'Unverified'],
+      ];
+
+      if (sessionData.seal?.verified && sessionData.seal?.verifiedBy) {
+        sealInfo.push(['Verified By', sessionData.seal.verifiedBy.name || 'N/A']);
+      }
+
+      if (sessionData.seal?.verified && sessionData.seal?.scannedAt) {
+        sealInfo.push(['Verified At', formatDate(sessionData.seal.scannedAt)]);
+      }
+
+      autoTable(doc, {
+        startY: yPos + 5,
+        head: [],
+        body: sealInfo,
+        theme: 'grid',
+        styles: { fontSize: 10 },
+        columnStyles: {
+          0: { cellWidth: 40, fontStyle: 'bold' },
+          1: { cellWidth: 130 }
+        }
+      });
+
+      // Add footer
+      const pageCount = doc.getNumberOfPages();
+      for (let i = 1; i <= pageCount; i++) {
+        doc.setPage(i);
+        doc.setFontSize(8);
+        doc.text(
+          `Page ${i} of ${pageCount} | Generated on ${new Date().toLocaleString()}`,
+          doc.internal.pageSize.width / 2,
+          doc.internal.pageSize.height - 10,
+          { align: 'center' }
+        );
+      }
+
+      // Generate PDF buffer
+      const pdfBuffer = Buffer.from(doc.output('arraybuffer'));
+
+      // Return the PDF file
+      const response = new NextResponse(pdfBuffer);
+      response.headers.set('Content-Type', 'application/pdf');
+      response.headers.set('Content-Disposition', `attachment; filename="session-${sessionId}.pdf"`);
+      response.headers.set('Content-Length', pdfBuffer.length.toString());
+      response.headers.set('Cache-Control', 'no-cache, no-store, must-revalidate');
+      response.headers.set('Pragma', 'no-cache');
+      response.headers.set('Expires', '0');
+
+      return response;
       
     } catch (error: unknown) {
       console.error("Error generating text report:", error);
