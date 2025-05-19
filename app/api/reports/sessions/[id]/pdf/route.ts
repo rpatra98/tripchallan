@@ -5,29 +5,6 @@ import { withAuth } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { UserRole } from "@/prisma/enums";
 import { jsPDF } from 'jspdf';
-import autoTable from 'jspdf-autotable';
-
-interface TripDetails {
-  transporterName?: string;
-  materialName?: string;
-  vehicleNumber?: string;
-  gpsImeiNumber?: string;
-  driverName?: string;
-  driverContactNumber?: string;
-  loaderName?: string;
-  loaderMobileNumber?: string;
-  challanRoyaltyNumber?: string;
-  doNumber?: string;
-  tpNumber?: string;
-  qualityOfMaterials?: string;
-  freight?: number;
-  grossWeight?: number;
-  tareWeight?: number;
-  netMaterialWeight?: number;
-  loadingSite?: string;
-  receiverPartyName?: string;
-  [key: string]: unknown;
-}
 
 // Helper function to format dates
 const formatDate = (dateString: string | Date) => {
@@ -37,12 +14,6 @@ const formatDate = (dateString: string | Date) => {
   } catch {
     return 'Invalid date';
   }
-};
-
-// Helper function to safely handle text
-const safeText = (text: string | number | boolean | null | undefined): string => {
-  if (text === null || text === undefined) return 'N/A';
-  return String(text).replace(/[^\x20-\x7E]/g, ''); // Only keep printable ASCII
 };
 
 // Generate PDF report for session
@@ -58,7 +29,7 @@ export const GET = withAuth(
       const userId = session?.user.id;
       const sessionId = context.params.id;
 
-      // Fetch session data with all necessary relations
+      // Fetch session data
       const sessionData = await prisma.session.findUnique({
         where: { id: sessionId },
         include: {
@@ -68,7 +39,6 @@ export const GET = withAuth(
               name: true,
               email: true,
               role: true,
-              subrole: true,
             },
           },
           company: {
@@ -86,7 +56,6 @@ export const GET = withAuth(
                   name: true,
                   email: true,
                   role: true,
-                  subrole: true,
                 },
               },
             },
@@ -104,7 +73,7 @@ export const GET = withAuth(
             orderBy: {
               createdAt: "desc",
             },
-            take: 10,
+            take: 5,
           },
         },
       });
@@ -125,204 +94,56 @@ export const GET = withAuth(
         );
       }
 
-      // Create PDF document with minimal options
+      // Create PDF document
       const doc = new jsPDF();
 
-      // Initialize document properties
-      doc.setProperties({
-        title: 'CBUMS Session Report',
-        subject: 'Session Details',
-        author: 'CBUMS System',
-        creator: 'CBUMS'
-      });
+      // Add title
+      doc.text("CBUMS - Session Details", 20, 20);
+      doc.text(`Session ID: ${sessionData.id}`, 20, 30);
+      doc.text(`Status: ${sessionData.status}`, 20, 40);
 
-      // Set default font and size - do this before any text operations
-      doc.setFont('helvetica');
-      doc.setFontSize(10);
+      // Session Details
+      doc.text("Session Details:", 20, 60);
+      doc.text(`Created At: ${formatDate(sessionData.createdAt)}`, 20, 70);
+      doc.text(`Source: ${sessionData.source || 'N/A'}`, 20, 80);
+      doc.text(`Destination: ${sessionData.destination || 'N/A'}`, 20, 90);
+      doc.text(`Company: ${sessionData.company.name || 'N/A'}`, 20, 100);
+      doc.text(`Created By: ${sessionData.createdBy.name || 'N/A'}`, 20, 110);
+      doc.text(`Role: ${sessionData.createdBy.role || 'N/A'}`, 20, 120);
 
-      // Add autotable plugin
-      (doc as any).autoTable = autoTable;
-
-      // Constants for layout
-      const pageWidth = doc.internal.pageSize.getWidth();
-      const pageHeight = doc.internal.pageSize.getHeight();
-      const margin = 10;
-      let yPos = 10;
-
-      // Add header
-      doc.setFillColor(25, 118, 210);
-      doc.rect(0, 0, pageWidth, 20, 'F');
-      doc.setTextColor(255, 255, 255);
-      doc.setFontSize(14);
-      doc.setFont('helvetica', 'bold');
-      doc.text("CBUMS - Session Details", pageWidth / 2, 12, { align: 'center' });
-
-      // Reset font for normal text
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(10);
-
-      // Add session ID
-      doc.setFillColor(245, 245, 245);
-      doc.rect(0, 20, pageWidth, 16, 'F');
-      doc.setTextColor(80, 80, 80);
-      doc.setFontSize(11);
-      doc.text(`Session ID: ${sessionData.id}`, margin, 30);
-
-      // Add status badge
-      const statusColors = {
-        COMPLETED: [46, 204, 113],
-        IN_PROGRESS: [52, 152, 219],
-        PENDING: [243, 156, 18],
-        REJECTED: [231, 76, 60]
-      };
-
-      const statusColor = statusColors[sessionData.status as keyof typeof statusColors] || [149, 165, 166];
-      const statusText = sessionData.status.replace(/_/g, ' ');
-
-      doc.setFillColor(statusColor[0], statusColor[1], statusColor[2]);
-      doc.roundedRect(pageWidth - 80, 23, 70, 10, 3, 3, 'F');
-      doc.setTextColor(255, 255, 255);
-      doc.setFontSize(9);
-      doc.text(statusText, pageWidth - 45, 29, { align: 'center' });
-
-      yPos = 46;
-
-      // Function to add section header
-      const addSectionHeader = (title: string) => {
-        doc.setFillColor(237, 243, 248);
-        doc.rect(0, yPos, pageWidth, 16, 'F');
-        doc.setTextColor(44, 62, 80);
-        doc.setFontSize(12);
-        doc.setFont('helvetica', 'bold');
-        doc.text(title, margin, yPos + 11);
-        yPos += 22;
-        // Reset font for normal text
-        doc.setFont('helvetica', 'normal');
-        doc.setFontSize(10);
-      };
-
-      // Function to add table
-      const addTable = (data: any[][], columnStyles?: any) => {
-        (doc as any).autoTable({
-          startY: yPos,
-          head: [],
-          body: data,
-          theme: 'grid',
-          styles: {
-            fontSize: 10,
-            cellPadding: 5,
-          },
-          columnStyles: columnStyles || {
-            0: { cellWidth: 120, fillColor: [249, 249, 249] },
-            1: { cellWidth: 'auto', fillColor: [255, 255, 255] },
-          },
-          margin: { left: margin, right: margin },
+      // Trip Details
+      if (sessionData.tripDetails) {
+        doc.text("Trip Details:", 20, 140);
+        let yPos = 150;
+        Object.entries(sessionData.tripDetails).forEach(([key, value]) => {
+          const label = key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase());
+          doc.text(`${label}: ${value || 'N/A'}`, 20, yPos);
+          yPos += 10;
         });
-        yPos = (doc as any).lastAutoTable.finalY + 10;
-      };
-
-      // Session Details Section
-      addSectionHeader("Session Details");
-      addTable([
-        [{ content: 'Created At', styles: { fontStyle: 'bold' } }, formatDate(sessionData.createdAt)],
-        [{ content: 'Source', styles: { fontStyle: 'bold' } }, sessionData.source || 'N/A'],
-        [{ content: 'Destination', styles: { fontStyle: 'bold' } }, sessionData.destination || 'N/A'],
-        [{ content: 'Company', styles: { fontStyle: 'bold' } }, sessionData.company.name || 'N/A'],
-        [{ content: 'Created By', styles: { fontStyle: 'bold' } }, sessionData.createdBy.name || 'N/A'],
-        [{ content: 'Role', styles: { fontStyle: 'bold' } }, sessionData.createdBy.role || 'N/A']
-      ]);
-
-      // Images Section
-      if (sessionData.images && Object.keys(sessionData.images).length > 0) {
-        addSectionHeader("Images");
-        const imageData = [];
-        
-        if (sessionData.images.driverPicture) {
-          imageData.push(['Driver Picture', 'Available']);
-        }
-        if (sessionData.images.vehicleNumberPlatePicture) {
-          imageData.push(['Vehicle Number Plate Picture', 'Available']);
-        }
-        if (sessionData.images.gpsImeiPicture) {
-          imageData.push(['GPS/IMEI Picture', 'Available']);
-        }
-        if (sessionData.images.sealingImages?.length) {
-          imageData.push(['Sealing Images', `${sessionData.images.sealingImages.length} available`]);
-        }
-        if (sessionData.images.vehicleImages?.length) {
-          imageData.push(['Vehicle Images', `${sessionData.images.vehicleImages.length} available`]);
-        }
-        if (sessionData.images.additionalImages?.length) {
-          imageData.push(['Additional Images', `${sessionData.images.additionalImages.length} available`]);
-        }
-
-        if (imageData.length > 0) {
-          addTable(imageData.map(row => [
-            { content: row[0], styles: { fontStyle: 'bold' } },
-            row[1]
-          ]));
-        } else {
-          doc.setFontSize(10);
-          doc.setFont('helvetica', 'normal');
-          doc.text("No images available", margin, yPos);
-          yPos += 20;
-        }
       }
 
-      // Trip Details Section
-      addSectionHeader("Trip Details");
-      const tripDetails = sessionData.tripDetails as TripDetails || {};
-      const tripData = Object.entries(tripDetails).map(([key, value]) => [
-        { content: key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase()), styles: { fontStyle: 'bold' } },
-        safeText(value as string | number | boolean | null | undefined)
-      ]);
-      addTable(tripData);
-
-      // Seal Information Section
+      // Seal Information
       if (sessionData.seal) {
-        addSectionHeader("Seal Information");
-        const sealData = [
-          [{ content: 'Barcode', styles: { fontStyle: 'bold' } }, sessionData.seal.barcode || 'N/A'],
-          [{ content: 'Status', styles: { fontStyle: 'bold' } }, sessionData.seal.verified ? 'Verified' : 'Not Verified']
-        ];
-
+        doc.text("Seal Information:", 20, 200);
+        doc.text(`Barcode: ${sessionData.seal.barcode || 'N/A'}`, 20, 210);
+        doc.text(`Status: ${sessionData.seal.verified ? 'Verified' : 'Not Verified'}`, 20, 220);
         if (sessionData.seal.verified && sessionData.seal.verifiedBy) {
-          sealData.push([
-            { content: 'Verified By', styles: { fontStyle: 'bold' } },
-            sessionData.seal.verifiedBy.name || 'N/A'
-          ]);
+          doc.text(`Verified By: ${sessionData.seal.verifiedBy.name || 'N/A'}`, 20, 230);
           if (sessionData.seal.scannedAt) {
-            sealData.push([
-              { content: 'Verified At', styles: { fontStyle: 'bold' } },
-              formatDate(sessionData.seal.scannedAt)
-            ]);
+            doc.text(`Verified At: ${formatDate(sessionData.seal.scannedAt)}`, 20, 240);
           }
         }
-        addTable(sealData);
       }
 
-      // Comments Section
+      // Comments
       if (sessionData.comments?.length) {
-        addSectionHeader("Comments");
-        const commentData = sessionData.comments.slice(0, 5).map((comment: { user?: { name?: string }, createdAt: Date, message?: string }) => [
-          { content: `${comment.user?.name || 'Unknown'} (${formatDate(comment.createdAt)})`, styles: { fontStyle: 'bold' } },
-          comment.message || '(No text)'
-        ]);
-        addTable(commentData);
-      }
-
-      // Add footer
-      const pageCount = (doc as any).internal.getNumberOfPages();
-      for (let i = 1; i <= pageCount; i++) {
-        doc.setPage(i);
-        doc.setFontSize(8);
-        doc.setTextColor(150, 150, 150);
-        doc.text(
-          `Page ${i} of ${pageCount} - Generated on ${new Date().toLocaleString()}`,
-          pageWidth / 2,
-          pageHeight - 10,
-          { align: 'center' }
-        );
+        doc.text("Comments:", 20, 260);
+        let yPos = 270;
+        sessionData.comments.forEach((comment: { user?: { name?: string }, createdAt: Date, message?: string }) => {
+          doc.text(`${comment.user?.name || 'Unknown'} (${formatDate(comment.createdAt)}):`, 20, yPos);
+          doc.text(comment.message || '(No text)', 30, yPos + 5);
+          yPos += 15;
+        });
       }
 
       // Generate PDF buffer
