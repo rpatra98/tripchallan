@@ -189,7 +189,7 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
       
       switch (format) {
         case "pdf":
-          endpoint = `/api/reports/sessions/${sessionId}/pdf`;
+          endpoint = `/api/reports/sessions/${sessionId}/pdf/simple`;
           break;
         case "excel":
           endpoint = `/api/reports/sessions/${sessionId}/excel`;
