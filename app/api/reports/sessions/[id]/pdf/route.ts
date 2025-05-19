@@ -105,6 +105,8 @@ export const GET = withAuth(
         },
       });
 
+      console.log('Activity Log:', activityLog);
+
       // Extract trip details from activity log
       interface TripDetails {
         freight?: number;
@@ -130,6 +132,7 @@ export const GET = withAuth(
         const details = activityLog.details as { tripDetails?: TripDetails };
         if (details.tripDetails) {
           tripDetails = details.tripDetails;
+          console.log('Trip Details:', tripDetails);
         }
       }
 
