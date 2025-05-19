@@ -93,6 +93,46 @@ export const GET = withAuth(
         return NextResponse.json({ error: "Session not found" }, { status: 404 });
       }
 
+      // Fetch activity log for trip details
+      const activityLog = await prisma.activityLog.findFirst({
+        where: {
+          targetResourceId: sessionId,
+          targetResourceType: 'session',
+          action: 'CREATE',
+        },
+        orderBy: {
+          createdAt: 'desc',
+        },
+      });
+
+      // Extract trip details from activity log
+      interface TripDetails {
+        freight?: number;
+        doNumber?: string;
+        tpNumber?: string;
+        driverName?: string;
+        loaderName?: string;
+        tareWeight?: number;
+        grossWeight?: number;
+        materialName?: string;
+        gpsImeiNumber?: string;
+        vehicleNumber?: string;
+        transporterName?: string;
+        receiverPartyName?: string;
+        loaderMobileNumber?: string;
+        qualityOfMaterials?: string;
+        driverContactNumber?: string;
+        challanRoyaltyNumber?: string;
+      }
+
+      let tripDetails: TripDetails = {};
+      if (activityLog?.details) {
+        const details = activityLog.details as { tripDetails?: TripDetails };
+        if (details.tripDetails) {
+          tripDetails = details.tripDetails;
+        }
+      }
+
       // Check authorization
       if (![UserRole.SUPERADMIN, UserRole.ADMIN, UserRole.COMPANY].includes(userRole as UserRole)) {
         return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
@@ -121,9 +161,6 @@ export const GET = withAuth(
       doc.setFontSize(12);
       doc.text(`Session ID: ${sessionData.id}`, 20, 30);
       doc.text(`Status: ${sessionData.status.replace(/_/g, ' ')}`, 20, 40);
-
-      // Parse tripDetails from JSON
-      const tripDetails = sessionData.tripDetails as Record<string, any> || {};
 
       // Basic Information
       doc.setFontSize(14);
