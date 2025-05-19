@@ -125,14 +125,8 @@ export const GET = withAuth(
         );
       }
 
-      // Create PDF document
-      const doc = new jsPDF({
-        orientation: 'portrait',
-        unit: 'mm',
-        format: 'a4',
-        putOnlyUsedFonts: true,
-        compress: true
-      });
+      // Create PDF document with minimal options
+      const doc = new jsPDF();
 
       // Initialize document properties
       doc.setProperties({
@@ -142,8 +136,8 @@ export const GET = withAuth(
         creator: 'CBUMS'
       });
 
-      // Set default font and size
-      doc.setFont('helvetica', 'normal');
+      // Set default font and size - do this before any text operations
+      doc.setFont('helvetica');
       doc.setFontSize(10);
 
       // Add autotable plugin
@@ -162,6 +156,10 @@ export const GET = withAuth(
       doc.setFontSize(14);
       doc.setFont('helvetica', 'bold');
       doc.text("CBUMS - Session Details", pageWidth / 2, 12, { align: 'center' });
+
+      // Reset font for normal text
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(10);
 
       // Add session ID
       doc.setFillColor(245, 245, 245);
@@ -198,6 +196,9 @@ export const GET = withAuth(
         doc.setFont('helvetica', 'bold');
         doc.text(title, margin, yPos + 11);
         yPos += 22;
+        // Reset font for normal text
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(10);
       };
 
       // Function to add table
