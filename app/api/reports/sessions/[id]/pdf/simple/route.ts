@@ -114,47 +114,26 @@ export const GET = withAuth(
       // Get direct session data (for fields that might not be in activityLog)
       const directTripDetails = sessionData.tripDetails || {};
       
+      // Enhanced debug logging
+      console.log("Direct Trip Details from sessionData.tripDetails:", 
+        directTripDetails ? JSON.stringify(directTripDetails) : "None");
+      
       // Try other potential places where trip data might be stored
       let otherPossibleTripFields: Record<string, any> = {};
       
-      // Look for trip data in direct session fields (they may be at root level)
-      const tripDataFieldNames = [
-        // Standard fields
-        'transporterName', 'materialName', 'vehicleNumber', 'gpsImeiNumber', 'driverName',
-        'driverContactNumber', 'loaderName', 'loaderMobileNumber', 'challanRoyaltyNumber',
-        'doNumber', 'tpNumber', 'qualityOfMaterials', 'freight', 'grossWeight',
-        'tareWeight', 'netMaterialWeight', 'loadingSite', 'receiverPartyName',
-        
-        // Additional possible field names (with different casing or naming conventions)
-        'transporter_name', 'material_name', 'vehicle_number', 'gps_imei', 'driver_name',
-        'driver_contact', 'loader_name', 'loader_mobile', 'challan_number', 'royalty_number',
-        'do_number', 'tp_number', 'quality', 'material_quality', 'material_weight',
-        'gross_weight', 'tare_weight', 'net_weight', 'loading_site', 'receiver_name',
-        'receiverName', 'receiverContact', 'receiver_contact', 'materialType', 'material_type',
-        'vehicleType', 'vehicle_type', 'consignmentNumber', 'consignment_number',
-        'customerName', 'customer_name', 'customerContact', 'customer_contact',
-        'billingDetails', 'billing_details', 'paymentDetails', 'payment_details',
-        
-        // Additional expanded field names
-        'consignor', 'consignee', 'originLocation', 'destinationLocation', 'origin_location', 
-        'destination_location', 'pickupDate', 'deliveryDate', 'pickup_date', 'delivery_date', 
-        'invoiceNumber', 'invoice_number', 'weightUnit', 'weight_unit', 'vehicleCapacity', 
-        'vehicle_capacity', 'transitTime', 'transit_time', 'routeDetails', 'route_details',
-        'permitNumber', 'permit_number', 'fuelType', 'fuel_type', 'driverLicense', 'driver_license',
-        'insuranceDetails', 'insurance_details', 'maintenanceDetails', 'maintenance_details',
-        'trackingNumber', 'tracking_number', 'paymentStatus', 'payment_status'
-      ];
-      
-      // Check if any trip fields exist directly in the session object
-      for (const field of tripDataFieldNames) {
-        if (field in sessionData && sessionData[field as keyof typeof sessionData] !== undefined) {
-          otherPossibleTripFields[field] = sessionData[field as keyof typeof sessionData];
+      // First check for direct fields in the session (top level)
+      for (const fieldName of ['vehicleNumber', 'driverName', 'freight', 'transporterName', 
+                              'driverContactNumber', 'materialName', 'gpsImeiNumber']) {
+        if (sessionData[fieldName as keyof typeof sessionData] !== undefined && 
+            sessionData[fieldName as keyof typeof sessionData] !== null) {
+          otherPossibleTripFields[fieldName] = sessionData[fieldName as keyof typeof sessionData];
         }
       }
       
       // Check for JSON data in the session object
       const checkObjectForTripFields = (obj: any) => {
-        for (const field of tripDataFieldNames) {
+        for (const field of ['vehicleNumber', 'driverName', 'freight', 'transporterName', 
+                            'driverContactNumber', 'materialName', 'gpsImeiNumber']) {
           if (field in obj) {
             otherPossibleTripFields[field] = obj[field];
           }
@@ -210,6 +189,8 @@ export const GET = withAuth(
       
       // Get all images data
       const images = sessionData.images || {};
+      console.log("Images data available:", Object.keys(images).length > 0 ? "Yes" : "No", 
+                  Object.keys(images));
       
       // Check authorization - only SUPERADMIN, ADMIN and COMPANY can download reports
       if (
@@ -262,8 +243,20 @@ export const GET = withAuth(
         completeDetails = { ...completeDetails, ...tripDetails };
       }
       
+      // If we still have no trip details, add fallback data from session
+      if (Object.keys(completeDetails).length === 0) {
+        // Check for common fields directly in session
+        for (const field of ['vehicleNumber', 'driverName', 'freight', 'transporterName', 
+                           'driverContactNumber', 'materialName', 'gpsImeiNumber']) {
+          if (sessionData[field as keyof typeof sessionData]) {
+            completeDetails[field] = sessionData[field as keyof typeof sessionData];
+          }
+        }
+      }
+      
       // Add debug log 
       console.log(`[PDF REPORT] Combined ${Object.keys(completeDetails).length} trip detail fields from all sources`);
+      console.log("Complete trip details:", JSON.stringify(completeDetails, null, 2));
       
       // Fetch verification activity logs
       const verificationLogs = await prisma.activityLog.findMany({
@@ -413,38 +406,91 @@ export const GET = withAuth(
           }
         }
       } else {
-        yPos += lineHeight;
-        doc.text('No trip details available', margin, yPos);
-        yPos += lineHeight;
+        // Direct fallback to sessionData fields if completeDetails is empty
+        const fallbackFields = [
+          { key: 'vehicleNumber', label: 'Vehicle Number' },
+          { key: 'driverName', label: 'Driver Name' },
+          { key: 'driverContactNumber', label: 'Driver Contact Number' },
+          { key: 'freight', label: 'Freight' },
+          { key: 'transporterName', label: 'Transporter Name' },
+          { key: 'materialName', label: 'Material Name' },
+          { key: 'gpsImeiNumber', label: 'GPS IMEI Number' }
+        ];
+        
+        let hasFallbackData = false;
+        
+        for (const { key, label } of fallbackFields) {
+          if (sessionData[key as keyof typeof sessionData] !== undefined && 
+              sessionData[key as keyof typeof sessionData] !== null) {
+            addField(label, sessionData[key as keyof typeof sessionData]);
+            hasFallbackData = true;
+          }
+        }
+        
+        if (!hasFallbackData) {
+          yPos += lineHeight;
+          doc.text('No trip details available', margin, yPos);
+          yPos += lineHeight;
+        }
       }
 
       // IMAGES INFORMATION
       addSectionHeading('IMAGES INFORMATION');
-      if (images && Object.keys(images).length > 0) {
-        if (images.driverPicture) {
-          addField('Driver Picture', 'Available');
-        }
+      
+      const checkImages = sessionData.images || {};
+      
+      // Ensure we have a fallback for potential legacy image data formats
+      const allImageSections = [
+        { key: 'driverPicture', label: 'Driver Picture' },
+        { key: 'vehicleNumberPlatePicture', label: 'Vehicle Number Plate Picture' },
+        { key: 'gpsImeiPicture', label: 'GPS/IMEI Picture' },
+        { key: 'sealingImages', label: 'Sealing Images', isArray: true },
+        { key: 'vehicleImages', label: 'Vehicle Images', isArray: true },
+        { key: 'additionalImages', label: 'Additional Images', isArray: true }
+      ];
+      
+      let hasImages = false;
+      
+      for (const { key, label, isArray } of allImageSections) {
+        const imageData = checkImages[key as keyof typeof checkImages];
         
-        if (images.vehicleNumberPlatePicture) {
-          addField('Vehicle Number Plate Picture', 'Available');
+        if (imageData) {
+          if (isArray && Array.isArray(imageData) && imageData.length > 0) {
+            addField(label, `${imageData.length} available`);
+            hasImages = true;
+          } else if (!isArray && typeof imageData === 'string') {
+            addField(label, 'Available');
+            hasImages = true;
+          }
         }
+      }
+      
+      // Check for direct image fields in sessionData as fallback
+      if (!hasImages) {
+        const directImageKeys = Object.keys(sessionData).filter(key => 
+          typeof key === 'string' && 
+          (key.toLowerCase().includes('image') || 
+           key.toLowerCase().includes('picture') || 
+           key.toLowerCase().includes('photo'))
+        );
         
-        if (images.gpsImeiPicture) {
-          addField('GPS/IMEI Picture', 'Available');
+        for (const key of directImageKeys) {
+          const value = sessionData[key as keyof typeof sessionData];
+          if (value) {
+            const formattedKey = key.replace(/([A-Z])/g, ' $1')
+              .replace(/^./, str => str.toUpperCase());
+            
+            if (Array.isArray(value)) {
+              addField(formattedKey, `${value.length} available`);
+            } else {
+              addField(formattedKey, 'Available');
+            }
+            hasImages = true;
+          }
         }
-        
-        if (images.sealingImages && images.sealingImages.length > 0) {
-          addField('Sealing Images', `${images.sealingImages.length} available`);
-        }
-        
-        if (images.vehicleImages && images.vehicleImages.length > 0) {
-          addField('Vehicle Images', `${images.vehicleImages.length} available`);
-        }
-        
-        if (images.additionalImages && images.additionalImages.length > 0) {
-          addField('Additional Images', `${images.additionalImages.length} available`);
-        }
-      } else {
+      }
+      
+      if (!hasImages) {
         yPos += lineHeight;
         doc.text('No images available', margin, yPos);
         yPos += lineHeight;
