@@ -316,15 +316,25 @@ export const GET = withAuth(
         const doc = new jsPDF({
           orientation: 'portrait',
           unit: 'mm',
-          format: 'a4'
+          format: 'a4',
+          putOnlyUsedFonts: true,
+          compress: true
         });
+
+        // Initialize fonts and settings
+        doc.setProperties({
+          title: 'CBUMS Session Report',
+          subject: 'Session Details',
+          author: 'CBUMS System',
+          creator: 'CBUMS'
+        });
+
+        // Set default font and size
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(10);
         
         // Add autotable to the jsPDF instance
         (doc as any).autoTable = autoTable;
-        
-        // Set initial font settings
-        doc.setFont('helvetica');
-        doc.setFontSize(10);
         
         // Add a title that matches the dashboard styling - CBUMS navbar blue
         doc.setFillColor(25, 118, 210); // CBUMS primary blue 
