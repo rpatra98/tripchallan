@@ -105,7 +105,10 @@ export const GET = withAuth(
         },
       });
 
-      console.log('Activity Log:', JSON.stringify(activityLog, null, 2));
+      console.log('Activity Log Found:', activityLog ? 'Yes' : 'No');
+      if (activityLog) {
+        console.log('Activity Log Details Type:', typeof activityLog.details);
+      }
 
       // Extract trip details from activity log
       interface TripDetails {
@@ -127,25 +130,64 @@ export const GET = withAuth(
         challanRoyaltyNumber?: string;
       }
 
-      let tripDetails: TripDetails = {};
+      // Start with sessionData fields for fallback
+      let tripDetails: TripDetails = {
+        freight: sessionData.freight as number | undefined,
+        vehicleNumber: sessionData.vehicleNumber,
+        driverName: sessionData.driverName,
+        driverContactNumber: sessionData.driverContactNumber,
+        transporterName: sessionData.transporterName,
+      };
       
       if (activityLog?.details) {
-      let detailsData: any;
-      if (typeof activityLog.details === 'string') {
-        try {
-          detailsData = JSON.parse(activityLog.details);
-        } catch (e) {
-          console.error("Failed to parse activityLog.details", e);
+        console.log('Raw Activity Log Details:', 
+          typeof activityLog.details === 'string' 
+            ? activityLog.details 
+            : JSON.stringify(activityLog.details, null, 2)
+        );
+
+        let detailsData: any;
+        if (typeof activityLog.details === 'string') {
+          try {
+            detailsData = JSON.parse(activityLog.details);
+            console.log('Parsed Details Data Structure:', Object.keys(detailsData));
+          } catch (e) {
+            console.error("Failed to parse activityLog.details", e);
+          }
+        } else {
+          detailsData = activityLog.details;
+          console.log('Details Data Structure:', Object.keys(detailsData));
         }
-      } else {
-        detailsData = activityLog.details;
-      }
 
-      if (detailsData?.tripDetails) {
-        tripDetails = detailsData.tripDetails;
-      }
+        // Try to extract trip details directly from detailsData or from tripDetails field
+        if (detailsData?.tripDetails) {
+          console.log('Found tripDetails in activity log');
+          tripDetails = { ...tripDetails, ...detailsData.tripDetails };
+        } else if (detailsData?.data?.tripDetails) {
+          console.log('Found data.tripDetails in activity log');
+          tripDetails = { ...tripDetails, ...detailsData.data.tripDetails };
+        } else if (detailsData?.data) {
+          // If tripDetails are directly in the data object
+          const possibleTripData = detailsData.data;
+          console.log('Examining data object for trip details');
+          
+          // Extract relevant fields if they exist
+          const fieldsToCopy = [
+            'freight', 'doNumber', 'tpNumber', 'driverName', 'loaderName', 
+            'tareWeight', 'grossWeight', 'materialName', 'gpsImeiNumber', 
+            'vehicleNumber', 'transporterName', 'receiverPartyName', 
+            'loaderMobileNumber', 'qualityOfMaterials', 'driverContactNumber', 
+            'challanRoyaltyNumber'
+          ];
+          
+          fieldsToCopy.forEach(field => {
+            if (possibleTripData[field] !== undefined) {
+              (tripDetails as any)[field] = possibleTripData[field];
+            }
+          });
+        }
 
-      console.log('Parsed Trip Details:', JSON.stringify(tripDetails, null, 2));
+        console.log('Final Trip Details:', JSON.stringify(tripDetails, null, 2));
       }
 
       // Check authorization
