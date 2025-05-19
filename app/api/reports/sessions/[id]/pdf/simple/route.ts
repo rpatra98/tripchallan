@@ -5,17 +5,6 @@ import { withAuth } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { UserRole } from "@/prisma/enums";
 import { jsPDF } from 'jspdf';
-import autoTable from 'jspdf-autotable';
-
-// Extend jsPDF type to include autoTable
-declare module 'jspdf' {
-  interface jsPDF {
-    autoTable: (options: any) => jsPDF;
-    lastAutoTable: {
-      finalY: number;
-    };
-  }
-}
 
 interface TripDetails {
   transporterName?: string;
@@ -48,7 +37,7 @@ interface VerificationDetails {
   }>;
 }
 
-// Generate a simple text-based report for session
+// Generate a simple PDF report for session
 export const GET = withAuth(
   async (req: NextRequest, context?: { params: Record<string, string> }) => {
     try {
@@ -274,7 +263,7 @@ export const GET = withAuth(
       }
       
       // Add debug log 
-      console.log(`[TEXT REPORT] Combined ${Object.keys(completeDetails).length} trip detail fields from all sources`);
+      console.log(`[PDF REPORT] Combined ${Object.keys(completeDetails).length} trip detail fields from all sources`);
       
       // Fetch verification activity logs
       const verificationLogs = await prisma.activityLog.findMany({
@@ -303,64 +292,85 @@ export const GET = withAuth(
         }
       });
       
-      // Build text report sections
-      const sections: string[] = [];
-      
-      // Title with better formatting
-      sections.push("=================================================================");
-      sections.push("                         SESSION REPORT                          ");
-      sections.push("=================================================================");
-      sections.push("            CBUMS - Consignment & Barcode Utilization System     ");
-      sections.push("=================================================================");
-      sections.push("");
-      
-      // Format helper for section headers
-      const formatSectionHeader = (title: string) => {
-        const line = "=".repeat(title.length + 4);
-        return [
-          line,
-          `| ${title} |`,
-          line
-        ].join('\n');
+      // Create PDF document with simpler settings
+      const doc = new jsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: 'a4'
+      });
+
+      // Basic fonts and settings
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(12);
+
+      // Add title
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(16);
+      doc.text('SESSION REPORT', doc.internal.pageSize.width / 2, 20, { align: 'center' });
+      doc.setFontSize(14);
+      doc.text(`ID: ${sessionData.id}`, doc.internal.pageSize.width / 2, 30, { align: 'center' });
+      doc.setFontSize(12);
+
+      // Set margin
+      const margin = 20;
+      let yPos = 40;
+      const lineHeight = 7;
+
+      // Helper to add a section heading
+      const addSectionHeading = (text: string) => {
+        doc.setFont('helvetica', 'bold');
+        yPos += lineHeight * 1.5;
+        doc.text(text, margin, yPos);
+        doc.line(margin, yPos + 2, doc.internal.pageSize.width - margin, yPos + 2);
+        yPos += lineHeight;
+        doc.setFont('helvetica', 'normal');
       };
-      
-      // Format helper for key-value pairs
-      const formatKeyValue = (key: string, value: any) => {
-        const displayValue = value !== null && value !== undefined ? value : 'N/A';
-        // Pad the key to a fixed width for alignment
-        const paddedKey = key.padEnd(30, ' ');
-        return `${paddedKey}: ${displayValue}`;
+
+      // Helper to add a field with label
+      const addField = (label: string, value: any) => {
+        const displayValue = value !== null && value !== undefined ? String(value) : 'N/A';
+        
+        // Check if we need a new page
+        if (yPos > doc.internal.pageSize.height - 20) {
+          doc.addPage();
+          yPos = 20;
+        }
+        
+        doc.setFont('helvetica', 'bold');
+        doc.text(`${label}: `, margin, yPos);
+        doc.setFont('helvetica', 'normal');
+        doc.text(displayValue, margin + 60, yPos);
+        yPos += lineHeight;
       };
-      
-      // Session Information
-      sections.push(formatSectionHeader("SESSION INFORMATION"));
-      sections.push(formatKeyValue("Session ID", sessionData.id));
-      sections.push(formatKeyValue("Status", sessionData.status));
-      sections.push(formatKeyValue("Created At", formatDate(sessionData.createdAt)));
-      sections.push(formatKeyValue("Source", sessionData.source || 'N/A'));
-      sections.push(formatKeyValue("Destination", sessionData.destination || 'N/A'));
-      sections.push(formatKeyValue("Company", sessionData.company?.name || 'N/A'));
-      sections.push(formatKeyValue("Created By", `${sessionData.createdBy?.name || 'N/A'} (${sessionData.createdBy?.email || 'N/A'})`));
-      sections.push("");
-      
-      // Seal Information
-      sections.push(formatSectionHeader("SEAL INFORMATION"));
+
+      // BASIC SESSION INFORMATION
+      addSectionHeading('SESSION INFORMATION');
+      addField('Status', sessionData.status);
+      addField('Created At', formatDate(sessionData.createdAt));
+      addField('Source', sessionData.source || 'N/A');
+      addField('Destination', sessionData.destination || 'N/A');
+      addField('Company', sessionData.company?.name || 'N/A');
+      addField('Created By', `${sessionData.createdBy?.name || 'N/A'} (${sessionData.createdBy?.email || 'N/A'})`);
+
+      // SEAL INFORMATION
+      addSectionHeading('SEAL INFORMATION');
       if (sessionData.seal) {
-        sections.push(formatKeyValue("Barcode", sessionData.seal.barcode || 'N/A'));
-        sections.push(formatKeyValue("Status", sessionData.seal.verified ? 'Verified' : 'Not Verified'));
+        addField('Barcode', sessionData.seal.barcode || 'N/A');
+        addField('Status', sessionData.seal.verified ? 'Verified' : 'Not Verified');
         if (sessionData.seal.verified && sessionData.seal.verifiedBy) {
-          sections.push(formatKeyValue("Verified By", sessionData.seal.verifiedBy.name || 'N/A'));
+          addField('Verified By', sessionData.seal.verifiedBy.name || 'N/A');
           if (sessionData.seal.scannedAt) {
-            sections.push(formatKeyValue("Verified At", formatDate(sessionData.seal.scannedAt)));
+            addField('Verified At', formatDate(sessionData.seal.scannedAt));
           }
         }
       } else {
-        sections.push("No seal information available");
+        yPos += lineHeight;
+        doc.text('No seal information available', margin, yPos);
+        yPos += lineHeight;
       }
-      sections.push("");
-      
-      // Trip Details
-      sections.push(formatSectionHeader("TRIP DETAILS"));
+
+      // TRIP DETAILS - show ALL available details
+      addSectionHeading('TRIP DETAILS');
       if (Object.keys(completeDetails).length > 0) {
         // Define comprehensive list of trip detail fields with labels
         const fieldLabels: Record<string, string> = {
@@ -384,11 +394,11 @@ export const GET = withAuth(
           receiverPartyName: "Receiver Party Name"
         };
         
-        // First add fields from our known list
+        // First add fields from our known list to keep consistent ordering
         for (const [key, label] of Object.entries(fieldLabels)) {
           if (key in completeDetails) {
             const value = completeDetails[key as keyof typeof completeDetails];
-            sections.push(formatKeyValue(label, value));
+            addField(label, value);
           }
         }
         
@@ -399,215 +409,82 @@ export const GET = withAuth(
             const formattedKey = key.replace(/([A-Z])/g, ' $1')
               .replace(/^./, str => str.toUpperCase());
             
-            sections.push(formatKeyValue(formattedKey, value));
+            addField(formattedKey, value);
           }
         }
       } else {
-        sections.push("No trip details available");
+        yPos += lineHeight;
+        doc.text('No trip details available', margin, yPos);
+        yPos += lineHeight;
       }
-      sections.push("");
-      
-      // Images Information
-      sections.push(formatSectionHeader("IMAGES INFORMATION"));
-      
+
+      // IMAGES INFORMATION
+      addSectionHeading('IMAGES INFORMATION');
       if (images && Object.keys(images).length > 0) {
         if (images.driverPicture) {
-          sections.push(formatKeyValue("Driver Picture", "Available"));
+          addField('Driver Picture', 'Available');
         }
         
         if (images.vehicleNumberPlatePicture) {
-          sections.push(formatKeyValue("Vehicle Number Plate Picture", "Available"));
+          addField('Vehicle Number Plate Picture', 'Available');
         }
         
         if (images.gpsImeiPicture) {
-          sections.push(formatKeyValue("GPS/IMEI Picture", "Available"));
+          addField('GPS/IMEI Picture', 'Available');
         }
         
         if (images.sealingImages && images.sealingImages.length > 0) {
-          sections.push(formatKeyValue("Sealing Images", `${images.sealingImages.length} available`));
+          addField('Sealing Images', `${images.sealingImages.length} available`);
         }
         
         if (images.vehicleImages && images.vehicleImages.length > 0) {
-          sections.push(formatKeyValue("Vehicle Images", `${images.vehicleImages.length} available`));
+          addField('Vehicle Images', `${images.vehicleImages.length} available`);
         }
         
         if (images.additionalImages && images.additionalImages.length > 0) {
-          sections.push(formatKeyValue("Additional Images", `${images.additionalImages.length} available`));
+          addField('Additional Images', `${images.additionalImages.length} available`);
         }
       } else {
-        sections.push("No images available");
+        yPos += lineHeight;
+        doc.text('No images available', margin, yPos);
+        yPos += lineHeight;
       }
-      sections.push("");
-      
-      // Verification Results
-      sections.push(formatSectionHeader("VERIFICATION RESULTS"));
-      const verificationDetails = verificationLogs.find((log: any) => 
+
+      // VERIFICATION RESULTS
+      addSectionHeading('VERIFICATION RESULTS');
+      const verificationInfo = verificationLogs.find((log: any) => 
         log.details && typeof log.details === 'object' && 'verification' in log.details
       );
       
-      if (verificationDetails?.details) {
-        const details = verificationDetails.details as unknown as { verification: VerificationDetails };
+      if (verificationInfo?.details) {
+        const details = verificationInfo.details as unknown as { verification: VerificationDetails };
         const verification = details.verification;
         
-        sections.push(formatKeyValue("Overall Status", verification.allMatch ? 'All fields match' : 'Some fields do not match'));
-        sections.push("");
+        addField('Overall Status', verification.allMatch ? 'All fields match' : 'Some fields do not match');
         
         for (const [field, data] of Object.entries(verification.fieldVerifications)) {
           const formattedField = field.replace(/([A-Z])/g, ' $1')
             .replace(/^./, str => str.toUpperCase());
           
-          sections.push(`${formattedField}:`);
-          sections.push(formatKeyValue("  Operator Value", data.operatorValue));
-          sections.push(formatKeyValue("  Guard Value", data.guardValue));
-          sections.push(formatKeyValue("  Match", data.operatorValue === data.guardValue ? 'Yes' : 'No'));
+          yPos += lineHeight * 0.5;
+          addField(`${formattedField} - Operator`, data.operatorValue);
+          addField(`${formattedField} - Guard`, data.guardValue);
+          addField(`${formattedField} - Match`, data.operatorValue === data.guardValue ? 'Yes' : 'No');
           if (data.comment) {
-            sections.push(formatKeyValue("  Comment", data.comment));
+            addField(`${formattedField} - Comment`, data.comment);
           }
-          sections.push("");
         }
       } else {
-        sections.push("No verification data available");
-      }
-      sections.push("");
-      
-      // Comments
-      sections.push(formatSectionHeader("COMMENTS"));
-      if (sessionData.comments && sessionData.comments.length > 0) {
-        for (const comment of sessionData.comments) {
-          const userName = comment.user?.name || 'Unknown';
-          const commentDate = formatDate(comment.createdAt);
-          const commentText = comment.message || '(No text)';
-          
-          sections.push(`${userName} on ${commentDate}:`);
-          sections.push(`  ${commentText}`);
-          sections.push("");
-        }
-      } else {
-        sections.push("No comments available");
-      }
-      
-      // Add a separator at the end
-      sections.push("=================================================================");
-      sections.push("                         END OF REPORT                          ");
-      sections.push("=================================================================");
-      
-      // Join all sections with newlines
-      const reportText = sections.join('\n');
-      
-      // Create PDF document instead of returning text
-      const doc = new jsPDF({
-        orientation: 'portrait',
-        unit: 'mm',
-        format: 'a4'
-      });
-
-      // Set initial font
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(16);
-
-      // Add title
-      doc.text('Session Details', 20, 20);
-      doc.setFontSize(12);
-      doc.text(`Session ID: ${sessionData.id}`, 20, 30);
-      doc.text(`Status: ${sessionData.status.replace(/_/g, ' ')}`, 20, 40);
-
-      let yPos = 50;
-
-      // Session Information
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(14);
-      doc.text('Basic Information', 20, yPos);
-      doc.setFontSize(10);
-      
-      const basicInfo = [
-        ['Source', sessionData.source || 'N/A'],
-        ['Destination', sessionData.destination || 'N/A'],
-        ['Created', formatDate(sessionData.createdAt)],
-        ['Company', sessionData.company.name || 'N/A'],
-      ];
-
-      autoTable(doc, {
-        startY: yPos + 5,
-        head: [],
-        body: basicInfo,
-        theme: 'grid',
-        styles: { fontSize: 10 },
-        columnStyles: {
-          0: { cellWidth: 40, fontStyle: 'bold' },
-          1: { cellWidth: 130 }
-        }
-      });
-
-      // Trip Details
-      yPos = doc.lastAutoTable.finalY + 10;
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(14);
-      doc.text('Trip Details', 20, yPos);
-      doc.setFontSize(10);
-
-      // Format trip details as rows for the table
-      const tripDetailsRows = Object.entries(completeDetails).map(([key, value]) => {
-        // Format key from camelCase to Title Case with spaces
-        const formattedKey = key.replace(/([A-Z])/g, ' $1')
-          .replace(/^./, str => str.toUpperCase());
-        return [formattedKey, value !== null && value !== undefined ? String(value) : 'N/A'];
-      });
-
-      if (tripDetailsRows.length > 0) {
-        autoTable(doc, {
-          startY: yPos + 5,
-          head: [],
-          body: tripDetailsRows,
-          theme: 'grid',
-          styles: { fontSize: 10 },
-          columnStyles: {
-            0: { cellWidth: 60, fontStyle: 'bold' },
-            1: { cellWidth: 110 }
-          }
-        });
-      } else {
-        yPos += 5;
-        doc.setFont('helvetica', 'normal');
-        doc.text('No trip details available', 20, yPos);
+        yPos += lineHeight;
+        doc.text('No verification data available', margin, yPos);
+        yPos += lineHeight;
       }
 
-      // Seal Information
-      yPos = doc.lastAutoTable.finalY + 10;
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(14);
-      doc.text('Seal Information', 20, yPos);
-      doc.setFontSize(10);
-
-      const sealInfo = [
-        ['Barcode', sessionData.seal?.barcode || 'N/A'],
-        ['Status', sessionData.seal?.verified ? 'Verified' : 'Unverified'],
-      ];
-
-      if (sessionData.seal?.verified && sessionData.seal?.verifiedBy) {
-        sealInfo.push(['Verified By', sessionData.seal.verifiedBy.name || 'N/A']);
-      }
-
-      if (sessionData.seal?.verified && sessionData.seal?.scannedAt) {
-        sealInfo.push(['Verified At', formatDate(sessionData.seal.scannedAt)]);
-      }
-
-      autoTable(doc, {
-        startY: yPos + 5,
-        head: [],
-        body: sealInfo,
-        theme: 'grid',
-        styles: { fontSize: 10 },
-        columnStyles: {
-          0: { cellWidth: 40, fontStyle: 'bold' },
-          1: { cellWidth: 130 }
-        }
-      });
-
-      // Add footer
+      // Add footer with page numbers
       const pageCount = doc.getNumberOfPages();
       for (let i = 1; i <= pageCount; i++) {
         doc.setPage(i);
-        doc.setFontSize(8);
+        doc.setFontSize(10);
         doc.text(
           `Page ${i} of ${pageCount} | Generated on ${new Date().toLocaleString()}`,
           doc.internal.pageSize.width / 2,
@@ -631,9 +508,9 @@ export const GET = withAuth(
       return response;
       
     } catch (error: unknown) {
-      console.error("Error generating text report:", error);
+      console.error("Error generating PDF report:", error);
       return NextResponse.json(
-        { error: "Failed to generate text report", details: error instanceof Error ? error.message : String(error) },
+        { error: "Failed to generate PDF report", details: error instanceof Error ? error.message : String(error) },
         { status: 500 }
       );
     }
