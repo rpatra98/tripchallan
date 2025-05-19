@@ -211,23 +211,24 @@ export const GET = withAuth(
       doc.setFont('helvetica', 'normal');
 
       const tripDetailsRows = [
-        ['Freight', tripDetails.freight?.toString() || 'N/A'],
-        ['Do Number', tripDetails.doNumber?.toString() || 'N/A'],
-        ['Tp Number', tripDetails.tpNumber?.toString() || 'N/A'],
-        ['Driver Name', tripDetails.driverName?.toString() || 'N/A'],
-        ['Loader Name', tripDetails.loaderName?.toString() || 'N/A'],
-        ['Tare Weight', tripDetails.tareWeight?.toString() || 'N/A'],
-        ['Gross Weight', tripDetails.grossWeight?.toString() || 'N/A'],
-        ['Material Name', tripDetails.materialName?.toString() || 'N/A'],
-        ['Gps Imei Number', tripDetails.gpsImeiNumber?.toString() || 'N/A'],
-        ['Vehicle Number', tripDetails.vehicleNumber?.toString() || 'N/A'],
-        ['Transporter Name', tripDetails.transporterName?.toString() || 'N/A'],
-        ['Receiver Party Name', tripDetails.receiverPartyName?.toString() || 'N/A'],
-        ['Loader Mobile Number', tripDetails.loaderMobileNumber?.toString() || 'N/A'],
-        ['Quality Of Materials', tripDetails.qualityOfMaterials?.toString() || 'N/A'],
-        ['Driver Contact Number', tripDetails.driverContactNumber?.toString() || 'N/A'],
-        ['Challan Royalty Number', tripDetails.challanRoyaltyNumber?.toString() || 'N/A'],
+        ['Freight', tripDetails.freight != null ? String(tripDetails.freight) : 'N/A'],
+        ['Do Number', tripDetails.doNumber ?? 'N/A'],
+        ['Tp Number', tripDetails.tpNumber ?? 'N/A'],
+        ['Driver Name', tripDetails.driverName ?? 'N/A'],
+        ['Loader Name', tripDetails.loaderName ?? 'N/A'],
+        ['Tare Weight', tripDetails.tareWeight != null ? String(tripDetails.tareWeight) : 'N/A'],
+        ['Gross Weight', tripDetails.grossWeight != null ? String(tripDetails.grossWeight) : 'N/A'],
+        ['Material Name', tripDetails.materialName ?? 'N/A'],
+        ['Gps Imei Number', tripDetails.gpsImeiNumber ?? 'N/A'],
+        ['Vehicle Number', tripDetails.vehicleNumber ?? 'N/A'],
+        ['Transporter Name', tripDetails.transporterName ?? 'N/A'],
+        ['Receiver Party Name', tripDetails.receiverPartyName ?? 'N/A'],
+        ['Loader Mobile Number', tripDetails.loaderMobileNumber ?? 'N/A'],
+        ['Quality Of Materials', tripDetails.qualityOfMaterials ?? 'N/A'],
+        ['Driver Contact Number', tripDetails.driverContactNumber ?? 'N/A'],
+        ['Challan Royalty Number', tripDetails.challanRoyaltyNumber ?? 'N/A'],
       ];
+      
 
       autoTable(doc, {
         startY: (doc as any).lastAutoTable.finalY + 15,
