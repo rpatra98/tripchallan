@@ -132,6 +132,8 @@ export const GET = withAuth(
         ['Created At', formatDate(sessionData.createdAt)],
         ['Source', sessionData.source || 'N/A'],
         ['Destination', sessionData.destination || 'N/A'],
+        ['Status', sessionData.status.replace(/_/g, ' ')],
+        ['Session ID', sessionData.id],
       ];
 
       autoTable(doc, {
@@ -155,7 +157,9 @@ export const GET = withAuth(
 
       const companyInfo = [
         ['Company Name', sessionData.company.name || 'N/A'],
+        ['Company Email', sessionData.company.email || 'N/A'],
         ['Created By', sessionData.createdBy.name || 'N/A'],
+        ['Creator Email', sessionData.createdBy.email || 'N/A'],
         ['Role', sessionData.createdBy.role || 'N/A'],
       ];
 
@@ -179,10 +183,28 @@ export const GET = withAuth(
         doc.setFontSize(10);
         doc.setFont('helvetica', 'normal');
 
-        const tripDetails = Object.entries(sessionData.tripDetails).map(([key, value]) => [
-          key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase()),
-          value || 'N/A'
-        ]);
+        const tripDetails = Object.entries(sessionData.tripDetails).map(([key, value]) => {
+          // Format the key for better readability
+          const formattedKey = key
+            .replace(/([A-Z])/g, ' $1') // Add space before capital letters
+            .replace(/^./, str => str.toUpperCase()) // Capitalize first letter
+            .replace(/_/g, ' ') // Replace underscores with spaces
+            .trim();
+
+          // Format the value based on its type
+          let formattedValue: string;
+          if (value === null || value === undefined) {
+            formattedValue = 'N/A';
+          } else if (typeof value === 'boolean') {
+            formattedValue = value ? 'Yes' : 'No';
+          } else if (typeof value === 'object') {
+            formattedValue = JSON.stringify(value);
+          } else {
+            formattedValue = String(value);
+          }
+
+          return [formattedKey, formattedValue] as [string, string];
+        });
 
         autoTable(doc, {
           startY: (doc as any).lastAutoTable.finalY + 15,
@@ -208,10 +230,16 @@ export const GET = withAuth(
         const sealInfo = [
           ['Barcode', sessionData.seal.barcode || 'N/A'],
           ['Status', sessionData.seal.verified ? 'Verified' : 'Not Verified'],
+          ['Created At', formatDate(sessionData.seal.createdAt)],
+          ['Updated At', formatDate(sessionData.seal.updatedAt)],
         ];
 
         if (sessionData.seal.verified && sessionData.seal.verifiedBy) {
-          sealInfo.push(['Verified By', sessionData.seal.verifiedBy.name || 'N/A']);
+          sealInfo.push(
+            ['Verified By', sessionData.seal.verifiedBy.name || 'N/A'],
+            ['Verifier Email', sessionData.seal.verifiedBy.email || 'N/A'],
+            ['Verifier Role', sessionData.seal.verifiedBy.role || 'N/A']
+          );
           if (sessionData.seal.scannedAt) {
             sealInfo.push(['Verified At', formatDate(sessionData.seal.scannedAt)]);
           }
@@ -238,9 +266,9 @@ export const GET = withAuth(
         doc.setFontSize(10);
         doc.setFont('helvetica', 'normal');
 
-        const comments = sessionData.comments.map((comment: { user?: { name?: string }, createdAt: Date, message?: string }) => [
-          `${comment.user?.name || 'Unknown'} (${formatDate(comment.createdAt)})`,
-          comment.message || '(No text)'
+        const comments = sessionData.comments.map((comment: { user?: { name?: string, role?: string }, createdAt: Date, message?: string }) => [
+          `${comment.user?.name || 'Unknown'} (${comment.user?.role || 'Unknown'})`,
+          `${formatDate(comment.createdAt)}\n${comment.message || '(No text)'}`
         ]);
 
         autoTable(doc, {
