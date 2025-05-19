@@ -128,12 +128,24 @@ export const GET = withAuth(
       }
 
       let tripDetails: TripDetails = {};
+      
       if (activityLog?.details) {
-        const details = activityLog.details as { tripDetails?: TripDetails };
-        if (details.tripDetails) {
-          tripDetails = details.tripDetails;
-          console.log('Trip Details:', JSON.stringify(tripDetails, null, 2));
+      let detailsData: any;
+      if (typeof activityLog.details === 'string') {
+        try {
+          detailsData = JSON.parse(activityLog.details);
+        } catch (e) {
+          console.error("Failed to parse activityLog.details", e);
         }
+      } else {
+        detailsData = activityLog.details;
+      }
+
+      if (detailsData?.tripDetails) {
+        tripDetails = detailsData.tripDetails;
+      }
+
+      console.log('Parsed Trip Details:', JSON.stringify(tripDetails, null, 2));
       }
 
       // Check authorization
