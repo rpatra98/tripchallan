@@ -111,6 +111,24 @@ export const GET = withAuth(
         );
       }
       
+      // Log entire session data to understand its structure
+      console.log("Full Session Data Structure:", 
+                 Object.keys(sessionData).join(', '));
+      
+      // For debugging - dump entire session data to see what's available
+      // We'll limit to first level to avoid logging too much data
+      const sessionDataLimitedLog = {};
+      for (const [key, value] of Object.entries(sessionData)) {
+        if (typeof value !== 'object' || value === null) {
+          sessionDataLimitedLog[key] = value;
+        } else if (Array.isArray(value)) {
+          sessionDataLimitedLog[key] = `Array with ${value.length} items`;
+        } else {
+          sessionDataLimitedLog[key] = `Object with keys: ${Object.keys(value).join(', ')}`;
+        }
+      }
+      console.log("Session Data Overview:", JSON.stringify(sessionDataLimitedLog, null, 2));
+      
       // Get direct session data (for fields that might not be in activityLog)
       const directTripDetails = sessionData.tripDetails || {};
       
@@ -364,133 +382,139 @@ export const GET = withAuth(
 
       // TRIP DETAILS - show ALL available details
       addSectionHeading('TRIP DETAILS');
-      if (Object.keys(completeDetails).length > 0) {
-        // Define comprehensive list of trip detail fields with labels
-        const fieldLabels: Record<string, string> = {
-          transporterName: "Transporter Name",
-          materialName: "Material Name",
-          vehicleNumber: "Vehicle Number",
-          gpsImeiNumber: "GPS IMEI Number",
-          driverName: "Driver Name",
-          driverContactNumber: "Driver Contact Number",
-          loaderName: "Loader Name",
-          loaderMobileNumber: "Loader Mobile Number",
-          challanRoyaltyNumber: "Challan/Royalty Number",
-          doNumber: "DO Number",
-          tpNumber: "TP Number",
-          qualityOfMaterials: "Quality of Materials",
-          freight: "Freight",
-          grossWeight: "Gross Weight (kg)",
-          tareWeight: "Tare Weight (kg)",
-          netMaterialWeight: "Net Material Weight (kg)",
-          loadingSite: "Loading Site",
-          receiverPartyName: "Receiver Party Name"
-        };
-        
-        // First add fields from our known list to keep consistent ordering
-        for (const [key, label] of Object.entries(fieldLabels)) {
-          if (key in completeDetails) {
-            const value = completeDetails[key as keyof typeof completeDetails];
-            addField(label, value);
-          }
-        }
-        
-        // Then add any other fields that might exist
-        for (const [key, value] of Object.entries(completeDetails)) {
-          if (!(key in fieldLabels)) {
-            // Format key from camelCase to Title Case with spaces
-            const formattedKey = key.replace(/([A-Z])/g, ' $1')
-              .replace(/^./, str => str.toUpperCase());
-            
-            addField(formattedKey, value);
-          }
-        }
-      } else {
-        // Direct fallback to sessionData fields if completeDetails is empty
-        const fallbackFields = [
-          { key: 'vehicleNumber', label: 'Vehicle Number' },
-          { key: 'driverName', label: 'Driver Name' },
-          { key: 'driverContactNumber', label: 'Driver Contact Number' },
-          { key: 'freight', label: 'Freight' },
-          { key: 'transporterName', label: 'Transporter Name' },
-          { key: 'materialName', label: 'Material Name' },
-          { key: 'gpsImeiNumber', label: 'GPS IMEI Number' }
-        ];
-        
-        let hasFallbackData = false;
-        
-        for (const { key, label } of fallbackFields) {
-          if (sessionData[key as keyof typeof sessionData] !== undefined && 
-              sessionData[key as keyof typeof sessionData] !== null) {
-            addField(label, sessionData[key as keyof typeof sessionData]);
-            hasFallbackData = true;
-          }
-        }
-        
-        if (!hasFallbackData) {
-          yPos += lineHeight;
-          doc.text('No trip details available', margin, yPos);
-          yPos += lineHeight;
-        }
-      }
-
-      // IMAGES INFORMATION
-      addSectionHeading('IMAGES INFORMATION');
       
-      const checkImages = sessionData.images || {};
-      
-      // Ensure we have a fallback for potential legacy image data formats
-      const allImageSections = [
-        { key: 'driverPicture', label: 'Driver Picture' },
-        { key: 'vehicleNumberPlatePicture', label: 'Vehicle Number Plate Picture' },
-        { key: 'gpsImeiPicture', label: 'GPS/IMEI Picture' },
-        { key: 'sealingImages', label: 'Sealing Images', isArray: true },
-        { key: 'vehicleImages', label: 'Vehicle Images', isArray: true },
-        { key: 'additionalImages', label: 'Additional Images', isArray: true }
+      // Try multiple sources for trip details, in order of likelihood
+      const tripSources = [
+        // Try directTripDetails first
+        {name: "tripDetails field", data: sessionData.tripDetails},
+        // Try directly looking at top-level fields in the session
+        {name: "direct session fields", data: (() => {
+          const direct: Record<string, any> = {};
+          const commonFields = ['vehicleNumber', 'driverName', 'driverContactNumber', 'freight', 
+                              'transporterName', 'materialName', 'gpsImeiNumber', 'challanRoyaltyNumber',
+                              'doNumber', 'tpNumber', 'grossWeight', 'tareWeight', 'loadingSite'];
+          for (const field of commonFields) {
+            if (field in sessionData) {
+              direct[field] = sessionData[field as keyof typeof sessionData];
+            }
+          }
+          return Object.keys(direct).length > 0 ? direct : null;
+        })()},
+        // Try looking in activityLog if it exists
+        {name: "activity log", data: (() => {
+          if (activityLog?.details) {
+            if (typeof activityLog.details === 'string') {
+              try {
+                const parsed = JSON.parse(activityLog.details);
+                return parsed.tripDetails || parsed.data?.tripDetails || null;
+              } catch {
+                return null;
+              }
+            } else {
+              return activityLog.details.tripDetails || activityLog.details.data?.tripDetails || null;
+            }
+          }
+          return null;
+        })()},
+        // Last resort - show everything that might be trip-related
+        {name: "all possible fields", data: completeDetails}
       ];
       
-      let hasImages = false;
-      
-      for (const { key, label, isArray } of allImageSections) {
-        const imageData = checkImages[key as keyof typeof checkImages];
-        
-        if (imageData) {
-          if (isArray && Array.isArray(imageData) && imageData.length > 0) {
-            addField(label, `${imageData.length} available`);
-            hasImages = true;
-          } else if (!isArray && typeof imageData === 'string') {
-            addField(label, 'Available');
-            hasImages = true;
+      // Try each source until we find one with data
+      let tripDataDisplayed = false;
+      for (const source of tripSources) {
+        if (source.data && Object.keys(source.data).length > 0) {
+          console.log(`Using trip details from ${source.name}`);
+          
+          // Display all the key-value pairs from this source
+          for (const [key, value] of Object.entries(source.data)) {
+            if (value !== undefined) {
+              // Format key from camelCase to Title Case with spaces
+              const formattedKey = key.replace(/([A-Z])/g, ' $1')
+                .replace(/^./, str => str.toUpperCase());
+              
+              addField(formattedKey, value);
+              tripDataDisplayed = true;
+            }
           }
+          
+          // Once we've displayed data from a source, we're done
+          break;
         }
       }
       
-      // Check for direct image fields in sessionData as fallback
-      if (!hasImages) {
-        const directImageKeys = Object.keys(sessionData).filter(key => 
-          typeof key === 'string' && 
-          (key.toLowerCase().includes('image') || 
-           key.toLowerCase().includes('picture') || 
-           key.toLowerCase().includes('photo'))
+      // If no data was displayed from any source, show the fallback message
+      if (!tripDataDisplayed) {
+        console.log("No trip details found in any source");
+        yPos += lineHeight;
+        doc.text('No trip details available', margin, yPos);
+        yPos += lineHeight;
+      }
+
+      // IMAGES INFORMATION - simplified to directly display whatever is in the images object
+      addSectionHeading('IMAGES INFORMATION');
+      
+      // Check directly if the images field exists and has content
+      const imageData = sessionData.images as Record<string, any> | undefined;
+      let imageInfoDisplayed = false;
+      
+      if (imageData && typeof imageData === 'object') {
+        console.log("Images data found:", Object.keys(imageData));
+        
+        // Handle each possible image field
+        const imageFields = [
+          {key: 'driverPicture', label: 'Driver Picture'},
+          {key: 'vehicleNumberPlatePicture', label: 'Vehicle Number Plate Picture'},
+          {key: 'gpsImeiPicture', label: 'GPS IMEI Picture'}
+        ];
+        
+        // Process single image fields
+        for (const {key, label} of imageFields) {
+          if (imageData[key]) {
+            addField(label, 'Available');
+            imageInfoDisplayed = true;
+          }
+        }
+        
+        // Process array image fields
+        const arrayImageFields = [
+          {key: 'sealingImages', label: 'Sealing Images'},
+          {key: 'vehicleImages', label: 'Vehicle Images'},
+          {key: 'additionalImages', label: 'Additional Images'}
+        ];
+        
+        for (const {key, label} of arrayImageFields) {
+          if (Array.isArray(imageData[key]) && imageData[key].length > 0) {
+            addField(label, `${imageData[key].length} available`);
+            imageInfoDisplayed = true;
+          }
+        }
+        
+        // Add any other keys in the images object that we didn't explicitly check
+        const otherKeys = Object.keys(imageData).filter(key => 
+          !imageFields.some(f => f.key === key) && 
+          !arrayImageFields.some(f => f.key === key)
         );
         
-        for (const key of directImageKeys) {
-          const value = sessionData[key as keyof typeof sessionData];
-          if (value) {
+        for (const key of otherKeys) {
+          if (imageData[key]) {
             const formattedKey = key.replace(/([A-Z])/g, ' $1')
               .replace(/^./, str => str.toUpperCase());
             
-            if (Array.isArray(value)) {
-              addField(formattedKey, `${value.length} available`);
+            if (Array.isArray(imageData[key])) {
+              addField(formattedKey, `${imageData[key].length} available`);
             } else {
               addField(formattedKey, 'Available');
             }
-            hasImages = true;
+            imageInfoDisplayed = true;
           }
         }
+      } else {
+        console.log("No images data found in sessionData");
       }
       
-      if (!hasImages) {
+      // If we couldn't find any image data, show a fallback message
+      if (!imageInfoDisplayed) {
         yPos += lineHeight;
         doc.text('No images available', margin, yPos);
         yPos += lineHeight;
