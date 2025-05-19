@@ -199,8 +199,8 @@ export const GET = withAuth(
       doc.setFont('helvetica', 'normal');
 
       const tripDetailsRows = [
-        ['Freight', sessionData.freight?.toString() || 'N/A'],
-        ['Do Number', sessionData.doNumber?.toString() || 'N/A'],
+        ['Freight', tripDetails.freight?.toString() || 'N/A'],
+        ['Do Number', tripDetails.doNumber?.toString() || 'N/A'],
         ['Tp Number', tripDetails.tpNumber?.toString() || 'N/A'],
         ['Driver Name', tripDetails.driverName?.toString() || 'N/A'],
         ['Loader Name', tripDetails.loaderName?.toString() || 'N/A'],
