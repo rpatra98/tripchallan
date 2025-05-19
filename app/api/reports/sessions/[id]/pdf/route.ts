@@ -124,16 +124,16 @@ export const GET = withAuth(
 
       // Basic Information
       doc.setFontSize(14);
+      doc.setFont('helvetica', 'bold');
       doc.text('Basic Information', 20, 55);
       doc.setFontSize(10);
       doc.setFont('helvetica', 'normal');
 
       const basicInfo = [
-        ['Created At', formatDate(sessionData.createdAt)],
         ['Source', sessionData.source || 'N/A'],
         ['Destination', sessionData.destination || 'N/A'],
-        ['Status', sessionData.status.replace(/_/g, ' ')],
-        ['Session ID', sessionData.id],
+        ['Created', formatDate(sessionData.createdAt)],
+        ['Company', sessionData.company.name || 'N/A'],
       ];
 
       autoTable(doc, {
@@ -148,25 +148,60 @@ export const GET = withAuth(
         }
       });
 
-      // Company Information
+      // Trip Details
       doc.setFontSize(14);
       doc.setFont('helvetica', 'bold');
-      doc.text('Company Information', 20, (doc as any).lastAutoTable.finalY + 10);
+      doc.text('Trip Details', 20, (doc as any).lastAutoTable.finalY + 10);
       doc.setFontSize(10);
       doc.setFont('helvetica', 'normal');
 
-      const companyInfo = [
-        ['Company Name', sessionData.company.name || 'N/A'],
-        ['Company Email', sessionData.company.email || 'N/A'],
-        ['Created By', sessionData.createdBy.name || 'N/A'],
-        ['Creator Email', sessionData.createdBy.email || 'N/A'],
-        ['Role', sessionData.createdBy.role || 'N/A'],
+      const tripDetails = [
+        ['Freight', sessionData.tripDetails?.freight || 'N/A'],
+        ['Do Number', sessionData.tripDetails?.doNumber || 'N/A'],
+        ['Tp Number', sessionData.tripDetails?.tpNumber || 'N/A'],
+        ['Driver Name', sessionData.tripDetails?.driverName || 'N/A'],
+        ['Loader Name', sessionData.tripDetails?.loaderName || 'N/A'],
+        ['Tare Weight', sessionData.tripDetails?.tareWeight || 'N/A'],
+        ['Gross Weight', sessionData.tripDetails?.grossWeight || 'N/A'],
+        ['Material Name', sessionData.tripDetails?.materialName || 'N/A'],
+        ['Gps Imei Number', sessionData.tripDetails?.gpsImeiNumber || 'N/A'],
+        ['Vehicle Number', sessionData.tripDetails?.vehicleNumber || 'N/A'],
+        ['Transporter Name', sessionData.tripDetails?.transporterName || 'N/A'],
+        ['Receiver Party Name', sessionData.tripDetails?.receiverPartyName || 'N/A'],
+        ['Loader Mobile Number', sessionData.tripDetails?.loaderMobileNumber || 'N/A'],
+        ['Quality Of Materials', sessionData.tripDetails?.qualityOfMaterials || 'N/A'],
+        ['Driver Contact Number', sessionData.tripDetails?.driverContactNumber || 'N/A'],
+        ['Challan Royalty Number', sessionData.tripDetails?.challanRoyaltyNumber || 'N/A'],
       ];
 
       autoTable(doc, {
         startY: (doc as any).lastAutoTable.finalY + 15,
         head: [],
-        body: companyInfo,
+        body: tripDetails,
+        theme: 'grid',
+        styles: { fontSize: 10 },
+        columnStyles: {
+          0: { cellWidth: 60, fontStyle: 'bold' },
+          1: { cellWidth: 110 }
+        }
+      });
+
+      // Seal Information
+      doc.setFontSize(14);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Seal Information', 20, (doc as any).lastAutoTable.finalY + 10);
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'normal');
+
+      const sealInfo = [
+        ['Barcode', sessionData.seal?.barcode || 'N/A'],
+        ['Status', sessionData.seal?.verified ? 'Verified' : 'Unverified'],
+      ];
+
+      autoTable(doc, {
+        startY: (doc as any).lastAutoTable.finalY + 15,
+        head: [],
+        body: sealInfo,
         theme: 'grid',
         styles: { fontSize: 10 },
         columnStyles: {
@@ -174,115 +209,6 @@ export const GET = withAuth(
           1: { cellWidth: 130 }
         }
       });
-
-      // Trip Details
-      if (sessionData.tripDetails) {
-        doc.setFontSize(14);
-        doc.setFont('helvetica', 'bold');
-        doc.text('Trip Details', 20, (doc as any).lastAutoTable.finalY + 10);
-        doc.setFontSize(10);
-        doc.setFont('helvetica', 'normal');
-
-        const tripDetails = Object.entries(sessionData.tripDetails).map(([key, value]) => {
-          // Format the key for better readability
-          const formattedKey = key
-            .replace(/([A-Z])/g, ' $1') // Add space before capital letters
-            .replace(/^./, str => str.toUpperCase()) // Capitalize first letter
-            .replace(/_/g, ' ') // Replace underscores with spaces
-            .trim();
-
-          // Format the value based on its type
-          let formattedValue: string;
-          if (value === null || value === undefined) {
-            formattedValue = 'N/A';
-          } else if (typeof value === 'boolean') {
-            formattedValue = value ? 'Yes' : 'No';
-          } else if (typeof value === 'object') {
-            formattedValue = JSON.stringify(value);
-          } else {
-            formattedValue = String(value);
-          }
-
-          return [formattedKey, formattedValue] as [string, string];
-        });
-
-        autoTable(doc, {
-          startY: (doc as any).lastAutoTable.finalY + 15,
-          head: [],
-          body: tripDetails,
-          theme: 'grid',
-          styles: { fontSize: 10 },
-          columnStyles: {
-            0: { cellWidth: 40, fontStyle: 'bold' },
-            1: { cellWidth: 130 }
-          }
-        });
-      }
-
-      // Seal Information
-      if (sessionData.seal) {
-        doc.setFontSize(14);
-        doc.setFont('helvetica', 'bold');
-        doc.text('Seal Information', 20, (doc as any).lastAutoTable.finalY + 10);
-        doc.setFontSize(10);
-        doc.setFont('helvetica', 'normal');
-
-        const sealInfo = [
-          ['Barcode', sessionData.seal.barcode || 'N/A'],
-          ['Status', sessionData.seal.verified ? 'Verified' : 'Not Verified'],
-          ['Created At', formatDate(sessionData.seal.createdAt)],
-          ['Updated At', formatDate(sessionData.seal.updatedAt)],
-        ];
-
-        if (sessionData.seal.verified && sessionData.seal.verifiedBy) {
-          sealInfo.push(
-            ['Verified By', sessionData.seal.verifiedBy.name || 'N/A'],
-            ['Verifier Email', sessionData.seal.verifiedBy.email || 'N/A'],
-            ['Verifier Role', sessionData.seal.verifiedBy.role || 'N/A']
-          );
-          if (sessionData.seal.scannedAt) {
-            sealInfo.push(['Verified At', formatDate(sessionData.seal.scannedAt)]);
-          }
-        }
-
-        autoTable(doc, {
-          startY: (doc as any).lastAutoTable.finalY + 15,
-          head: [],
-          body: sealInfo,
-          theme: 'grid',
-          styles: { fontSize: 10 },
-          columnStyles: {
-            0: { cellWidth: 40, fontStyle: 'bold' },
-            1: { cellWidth: 130 }
-          }
-        });
-      }
-
-      // Comments
-      if (sessionData.comments?.length) {
-        doc.setFontSize(14);
-        doc.setFont('helvetica', 'bold');
-        doc.text('Comments', 20, (doc as any).lastAutoTable.finalY + 10);
-        doc.setFontSize(10);
-        doc.setFont('helvetica', 'normal');
-
-        const comments = sessionData.comments.map((comment: { user?: { name?: string, role?: string }, createdAt: Date, message?: string }) => [
-          `${comment.user?.name || 'Unknown'} (${comment.user?.role || 'Unknown'})`,
-          `${formatDate(comment.createdAt)}\n${comment.message || '(No text)'}`
-        ]);
-
-        autoTable(doc, {
-          startY: (doc as any).lastAutoTable.finalY + 15,
-          head: [],
-          body: comments,
-          theme: 'grid',
-          styles: { fontSize: 10 },
-          columnStyles: {
-            0: { cellWidth: 40, fontStyle: 'bold' },
-            1: { cellWidth: 130 }
-          }
-        });
-      }
 
       // Add footer
       const pageCount = doc.getNumberOfPages();
