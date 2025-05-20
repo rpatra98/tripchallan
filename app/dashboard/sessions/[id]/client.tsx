@@ -23,7 +23,16 @@ import {
   LinearProgress,
   List,
   ListItem,
-  ListItemText
+  ListItemText,
+  TableContainer,
+  Table,
+  TableHead,
+  TableBody,
+  TableRow,
+  TableCell,
+  TextField,
+  IconButton,
+  Grid as MuiGrid
 } from "@mui/material";
 import { 
   LocationOn, 
@@ -38,7 +47,10 @@ import {
   TableChart,
   Description,
   Edit,
-  BusinessCenter
+  BusinessCenter,
+  RadioButtonUnchecked,
+  Comment,
+  ArrowForward
 } from "@mui/icons-material";
 import Link from "next/link";
 import { SessionStatus, EmployeeSubrole } from "@/prisma/enums";
@@ -123,6 +135,9 @@ type SessionType = {
     };
   }[];
 };
+
+// For Material-UI Grid component
+const Grid = MuiGrid;
 
 export default function SessionDetailClient({ sessionId }: { sessionId: string }) {
   const { data: authSession, status: authStatus } = useSession();
@@ -442,28 +457,36 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
       .replace(/^./, str => str.toUpperCase());
   };
   
+  // Calculate verification statistics
   const getVerificationStats = () => {
-    const fieldStats = Object.entries(verificationFields).reduce(
-      (acc, [field, data]) => {
-        if (data.isVerified) {
-          acc.verified++;
-          if (data.operatorValue === data.guardValue) {
-            acc.matched++;
-          } else {
-            acc.mismatched++;
-          }
-        }
-        return acc;
-      },
-      { verified: 0, matched: 0, mismatched: 0, total: Object.keys(verificationFields).length }
-    );
-    
+    // Field verification stats
+    const fieldStats = {
+      verified: Object.values(verificationFields).filter(field => field.isVerified).length,
+      matched: Object.values(verificationFields).filter(field => 
+        field.isVerified && field.operatorValue === field.guardValue
+      ).length,
+      mismatched: Object.values(verificationFields).filter(field => 
+        field.isVerified && field.operatorValue !== field.guardValue
+      ).length,
+      total: Object.keys(verificationFields).length
+    };
+
+    // Image verification stats
     const imageStats = {
-      verified: Object.values(imageVerificationStatus).filter(v => v).length,
+      verified: Object.values(imageVerificationStatus).filter(status => status).length,
       total: Object.keys(imageVerificationStatus).length
     };
-    
-    return { fieldStats, imageStats };
+
+    // Combined stats for summary display
+    const total = fieldStats.total + imageStats.total;
+    const verified = fieldStats.verified + imageStats.verified;
+
+    return {
+      fieldStats,
+      imageStats,
+      total,
+      verified
+    };
   };
   
   // Modified version of handleVerifySeal to include validation of GUARD entered seal
@@ -564,25 +587,398 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
 
   // Verification Form Step 1: Trip Details Verification
   const renderTripDetailsVerification = () => {
-    // Contents of renderTripDetailsVerification function
+    if (!session || !session.tripDetails) {
+      return (
+        <Box sx={{ py: 3, textAlign: 'center' }}>
+          <Typography variant="body1" color="text.secondary">
+            No trip details available for verification.
+          </Typography>
+        </Box>
+      );
+    }
+
     return (
-      <div>Trip Details Verification Form</div>
+      <Box>
+        <Typography variant="h6" gutterBottom>
+          Trip Details Verification
+        </Typography>
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+          Please verify each trip detail by checking the actual values against what the operator entered.
+        </Typography>
+
+        <TableContainer component={Paper} variant="outlined" sx={{ mb: 4 }}>
+          <Table>
+            <TableHead>
+              <TableRow sx={{ backgroundColor: 'background.paper' }}>
+                <TableCell width="30%"><strong>Field</strong></TableCell>
+                <TableCell width="30%"><strong>Operator Value</strong></TableCell>
+                <TableCell width="30%"><strong>Your Verification</strong></TableCell>
+                <TableCell width="10%"><strong>Status</strong></TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {Object.entries(verificationFields).map(([field, data]) => (
+                <TableRow key={field} sx={{ '&:last-child td, &:last-child th': { border: 0 } }}>
+                  <TableCell component="th" scope="row">
+                    {getFieldLabel(field)}
+                  </TableCell>
+                  <TableCell>{String(data.operatorValue || 'N/A')}</TableCell>
+                  <TableCell>
+                    <TextField 
+                      size="small"
+                      fullWidth
+                      variant="outlined"
+                      value={data.guardValue || ''}
+                      onChange={(e) => handleInputChange(field, e.target.value)}
+                      placeholder="Enter verified value"
+                    />
+                    {data.comment && (
+                      <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
+                        Comment: {data.comment}
+                      </Typography>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    <Box display="flex" flexDirection="column" alignItems="center">
+                      <IconButton 
+                        color={data.isVerified ? "success" : "default"}
+                        onClick={() => verifyField(field)}
+                        size="small"
+                      >
+                        {data.isVerified ? (
+                          <CheckCircle fontSize="small" />
+                        ) : (
+                          <RadioButtonUnchecked fontSize="small" />
+                        )}
+                      </IconButton>
+                      <IconButton 
+                        size="small" 
+                        onClick={() => {
+                          const comment = prompt("Add a comment about this field:", data.comment || "");
+                          if (comment !== null) {
+                            handleCommentChange(field, comment);
+                          }
+                        }}
+                        sx={{ mt: 0.5 }}
+                      >
+                        <Comment fontSize="small" />
+                      </IconButton>
+                    </Box>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </TableContainer>
+
+        <Box display="flex" justifyContent="space-between" sx={{ mt: 4 }}>
+          <Button
+            variant="outlined"
+            color="primary"
+            onClick={verifyAllFields}
+          >
+            Verify All Fields
+          </Button>
+          <Button
+            variant="contained"
+            color="primary"
+            onClick={() => setVerificationStep(1)}
+            endIcon={<ArrowForward />}
+          >
+            Next: Image Verification
+          </Button>
+        </Box>
+      </Box>
     );
   };
 
   // Verification Form Step 2: Image Verification
   const renderImageVerification = () => {
-    // Contents of renderImageVerification function
+    if (!session || !session.images) {
+      return (
+        <Box sx={{ py: 3, textAlign: 'center' }}>
+          <Typography variant="body1" color="text.secondary">
+            No images available for verification.
+          </Typography>
+        </Box>
+      );
+    }
+
+    // Check if any images exist
+    const hasImages = Object.keys(session.images).some(key => {
+      const value = session.images && session.images[key as keyof typeof session.images];
+      return !!value;
+    });
+
+    if (!hasImages) {
+      return (
+        <Box sx={{ py: 3, textAlign: 'center' }}>
+          <Typography variant="body1" color="text.secondary">
+            No images available for verification.
+          </Typography>
+        </Box>
+      );
+    }
+
     return (
-      <div>Image Verification Form</div>
+      <Box>
+        <Typography variant="h6" gutterBottom>
+          Image Verification
+        </Typography>
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+          Please verify each image by checking it against the physical items.
+        </Typography>
+
+        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
+          {session.images.driverPicture && (
+            <Box sx={{ flex: '1 0 45%', minWidth: '300px' }}>
+              <Paper variant="outlined" sx={{ p: 2, height: '100%' }}>
+                <Typography variant="subtitle1" gutterBottom>Driver Photo</Typography>
+                <Box sx={{ mb: 2 }}>
+                  <img 
+                    src={session.images.driverPicture} 
+                    alt="Driver" 
+                    style={{ width: '100%', maxHeight: '200px', objectFit: 'cover', borderRadius: '4px' }} 
+                  />
+                </Box>
+                <Box display="flex" justifyContent="space-between" alignItems="center">
+                  <Typography variant="body2">
+                    Verified: {imageVerificationStatus.driverPicture ? 'Yes' : 'No'}
+                  </Typography>
+                  <Button 
+                    variant={imageVerificationStatus.driverPicture ? "contained" : "outlined"}
+                    color={imageVerificationStatus.driverPicture ? "success" : "primary"}
+                    size="small"
+                    onClick={() => verifyImage('driverPicture')}
+                    startIcon={imageVerificationStatus.driverPicture ? <CheckCircle /> : <RadioButtonUnchecked />}
+                  >
+                    {imageVerificationStatus.driverPicture ? "Verified" : "Verify"}
+                  </Button>
+                </Box>
+              </Paper>
+            </Box>
+          )}
+
+          {session.images.vehicleNumberPlatePicture && (
+            <Box sx={{ flex: '1 0 45%', minWidth: '300px' }}>
+              <Paper variant="outlined" sx={{ p: 2, height: '100%' }}>
+                <Typography variant="subtitle1" gutterBottom>Vehicle Number Plate</Typography>
+                <Box sx={{ mb: 2 }}>
+                  <img 
+                    src={session.images.vehicleNumberPlatePicture} 
+                    alt="Vehicle Number Plate" 
+                    style={{ width: '100%', maxHeight: '200px', objectFit: 'cover', borderRadius: '4px' }} 
+                  />
+                </Box>
+                <Box display="flex" justifyContent="space-between" alignItems="center">
+                  <Typography variant="body2">
+                    Verified: {imageVerificationStatus.vehicleNumberPlatePicture ? 'Yes' : 'No'}
+                  </Typography>
+                  <Button 
+                    variant={imageVerificationStatus.vehicleNumberPlatePicture ? "contained" : "outlined"}
+                    color={imageVerificationStatus.vehicleNumberPlatePicture ? "success" : "primary"}
+                    size="small"
+                    onClick={() => verifyImage('vehicleNumberPlatePicture')}
+                    startIcon={imageVerificationStatus.vehicleNumberPlatePicture ? <CheckCircle /> : <RadioButtonUnchecked />}
+                  >
+                    {imageVerificationStatus.vehicleNumberPlatePicture ? "Verified" : "Verify"}
+                  </Button>
+                </Box>
+              </Paper>
+            </Box>
+          )}
+
+          {session.images.gpsImeiPicture && (
+            <Box sx={{ flex: '1 0 45%', minWidth: '300px' }}>
+              <Paper variant="outlined" sx={{ p: 2, height: '100%' }}>
+                <Typography variant="subtitle1" gutterBottom>GPS/IMEI</Typography>
+                <Box sx={{ mb: 2 }}>
+                  <img 
+                    src={session.images.gpsImeiPicture} 
+                    alt="GPS IMEI" 
+                    style={{ width: '100%', maxHeight: '200px', objectFit: 'cover', borderRadius: '4px' }} 
+                  />
+                </Box>
+                <Box display="flex" justifyContent="space-between" alignItems="center">
+                  <Typography variant="body2">
+                    Verified: {imageVerificationStatus.gpsImeiPicture ? 'Yes' : 'No'}
+                  </Typography>
+                  <Button 
+                    variant={imageVerificationStatus.gpsImeiPicture ? "contained" : "outlined"}
+                    color={imageVerificationStatus.gpsImeiPicture ? "success" : "primary"}
+                    size="small"
+                    onClick={() => verifyImage('gpsImeiPicture')}
+                    startIcon={imageVerificationStatus.gpsImeiPicture ? <CheckCircle /> : <RadioButtonUnchecked />}
+                  >
+                    {imageVerificationStatus.gpsImeiPicture ? "Verified" : "Verify"}
+                  </Button>
+                </Box>
+              </Paper>
+            </Box>
+          )}
+
+          {/* Sealing Images */}
+          {session.images.sealingImages && session.images.sealingImages.length > 0 && (
+            <Box sx={{ width: '100%' }}>
+              <Paper variant="outlined" sx={{ p: 2 }}>
+                <Typography variant="subtitle1" gutterBottom>Sealing Images</Typography>
+                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
+                  {session.images.sealingImages.map((image, index) => (
+                    <Box key={`sealing-${index}`} sx={{ flex: '1 0 30%', minWidth: '200px' }}>
+                      <img 
+                        src={image} 
+                        alt={`Sealing ${index + 1}`} 
+                        style={{ width: '100%', maxHeight: '150px', objectFit: 'cover', borderRadius: '4px' }} 
+                      />
+                    </Box>
+                  ))}
+                </Box>
+                <Box display="flex" justifyContent="flex-end" sx={{ mt: 2 }}>
+                  <Button 
+                    variant={imageVerificationStatus.sealingImages ? "contained" : "outlined"}
+                    color={imageVerificationStatus.sealingImages ? "success" : "primary"}
+                    size="small"
+                    onClick={() => verifyImage('sealingImages')}
+                    startIcon={imageVerificationStatus.sealingImages ? <CheckCircle /> : <RadioButtonUnchecked />}
+                  >
+                    {imageVerificationStatus.sealingImages ? "Verified" : "Verify All Sealing Images"}
+                  </Button>
+                </Box>
+              </Paper>
+            </Box>
+          )}
+
+          {/* Navigation Buttons */}
+          <Box sx={{ width: '100%', mt: 3 }}>
+            <Box display="flex" justifyContent="space-between">
+              <Button
+                variant="outlined"
+                color="primary"
+                onClick={() => setVerificationStep(0)}
+                startIcon={<ArrowBack />}
+              >
+                Back to Trip Details
+              </Button>
+              <Button
+                variant="contained"
+                color="primary"
+                onClick={() => setVerificationStep(2)}
+                endIcon={<ArrowForward />}
+              >
+                Next: Seal Verification
+              </Button>
+            </Box>
+          </Box>
+        </Box>
+      </Box>
     );
   };
 
   // Verification Form Step 3: Seal Verification
   const renderSealVerification = () => {
-    // Contents of renderSealVerification function
+    if (!session || !session.seal) {
+      return (
+        <Box sx={{ py: 3, textAlign: 'center' }}>
+          <Typography variant="body1" color="text.secondary">
+            No seal information available for verification.
+          </Typography>
+        </Box>
+      );
+    }
+
+    // Get verification stats for display
+    const stats = getVerificationStats();
+
     return (
-      <div>Seal Verification Form</div>
+      <Box>
+        <Typography variant="h6" gutterBottom>
+          Seal Verification
+        </Typography>
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+          Please verify the physical seal and complete the verification process.
+        </Typography>
+
+        <Paper variant="outlined" sx={{ p: 3, mb: 4 }}>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+            <Box sx={{ mb: 2 }}>
+              <Typography variant="subtitle1" gutterBottom>
+                Seal Information
+              </Typography>
+              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
+                <Box sx={{ flex: '1 0 45%', minWidth: '250px' }}>
+                  <Typography variant="body1">
+                    <strong>Barcode:</strong> {session.seal.barcode}
+                  </Typography>
+                </Box>
+                <Box sx={{ flex: '1 0 45%', minWidth: '250px' }}>
+                  <Typography variant="body1">
+                    <strong>Status:</strong>{" "}
+                    <Box component="span" sx={{ display: "inline-flex", alignItems: "center" }}>
+                      Unverified <Warning color="warning" sx={{ ml: 0.5 }} />
+                    </Box>
+                  </Typography>
+                </Box>
+              </Box>
+            </Box>
+
+            <Divider />
+
+            <Box sx={{ mt: 2 }}>
+              <Typography variant="subtitle1" gutterBottom>
+                Verification Summary
+              </Typography>
+              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 3, mb: 3 }}>
+                <Box sx={{ flex: '1 0 30%', minWidth: '200px' }}>
+                  <Paper sx={{ p: 2, bgcolor: 'primary.light', color: 'primary.contrastText' }}>
+                    <Typography variant="h4" align="center">{stats.total}</Typography>
+                    <Typography variant="body2" align="center">Total Fields</Typography>
+                  </Paper>
+                </Box>
+                <Box sx={{ flex: '1 0 30%', minWidth: '200px' }}>
+                  <Paper sx={{ p: 2, bgcolor: 'success.light', color: 'success.contrastText' }}>
+                    <Typography variant="h4" align="center">{stats.verified}</Typography>
+                    <Typography variant="body2" align="center">Verified Fields</Typography>
+                  </Paper>
+                </Box>
+                <Box sx={{ flex: '1 0 30%', minWidth: '200px' }}>
+                  <Paper sx={{ p: 2, bgcolor: 'warning.light', color: 'warning.contrastText' }}>
+                    <Typography variant="h4" align="center">{stats.total - stats.verified}</Typography>
+                    <Typography variant="body2" align="center">Pending Fields</Typography>
+                  </Paper>
+                </Box>
+              </Box>
+
+              <Alert severity={stats.verified === stats.total ? "success" : "warning"} sx={{ mb: 3 }}>
+                <AlertTitle>{stats.verified === stats.total ? "Ready to Complete" : "Verification Incomplete"}</AlertTitle>
+                {stats.verified === stats.total 
+                  ? "All fields have been verified. You can now complete the verification process."
+                  : `${stats.total - stats.verified} field(s) still need verification. Please go back and complete all verifications.`
+                }
+              </Alert>
+            </Box>
+          </Box>
+        </Paper>
+
+        <Box display="flex" justifyContent="space-between">
+          <Button
+            variant="outlined"
+            color="primary"
+            onClick={() => setVerificationStep(1)}
+            startIcon={<ArrowBack />}
+          >
+            Back to Images
+          </Button>
+          <Button
+            variant="contained"
+            color="success"
+            onClick={openConfirmDialog}
+            endIcon={<CheckCircle />}
+            disabled={stats.verified < stats.total}
+          >
+            Complete Verification
+          </Button>
+        </Box>
+      </Box>
     );
   };
 
