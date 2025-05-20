@@ -133,6 +133,53 @@ export const GET = withAuth(
         rawTripDetails: detailedSessionData.tripDetails
       }));
       
+      // Enhanced check for trip data in session.data field
+      let dataFieldTripDetails: Record<string, any> = {};
+      try {
+        // The session.data field might contain trip details but in a different structure
+        if (detailedSessionData.data) {
+          console.log(`[EXCEL REPORT] Session has data field, checking for trip details`);
+          
+          let dataField = detailedSessionData.data;
+          if (typeof dataField === 'string') {
+            try {
+              dataField = JSON.parse(dataField);
+              console.log(`[EXCEL REPORT] Successfully parsed session.data as JSON`);
+            } catch (e) {
+              console.log(`[EXCEL REPORT] Failed to parse session.data as JSON: ${e}`);
+            }
+          }
+          
+          if (dataField && typeof dataField === 'object') {
+            // Check for trip details object
+            if (dataField.tripDetails && typeof dataField.tripDetails === 'object') {
+              console.log(`[EXCEL REPORT] Found tripDetails in session.data.tripDetails`);
+              dataFieldTripDetails = dataField.tripDetails;
+            }
+            // Check for trip-like fields directly in the data object
+            else {
+              const tripFieldKeys = Object.keys(dataField).filter(key => 
+                tripDataFieldNames.includes(key) || 
+                key.includes('driver') || 
+                key.includes('vehicle') || 
+                key.includes('material') ||
+                key.includes('weight') ||
+                key.includes('transporter')
+              );
+              
+              if (tripFieldKeys.length > 0) {
+                console.log(`[EXCEL REPORT] Found ${tripFieldKeys.length} trip-like fields in session.data`);
+                for (const key of tripFieldKeys) {
+                  dataFieldTripDetails[key] = dataField[key];
+                }
+              }
+            }
+          }
+        }
+      } catch (error) {
+        console.error(`[EXCEL REPORT] Error extracting from session.data:`, error);
+      }
+      
       // Try other potential places where trip data might be stored
       let otherPossibleTripFields: Record<string, any> = {};
       
@@ -399,22 +446,102 @@ export const GET = withAuth(
       // Try to get trip details from activity log
       let tripDetails = null;
       try {
-        const activityLog = await prisma.activityLog.findFirst({
+        console.log(`[EXCEL REPORT] Looking for trip details in activity logs`);
+        
+        const activityLogs = await prisma.activityLog.findMany({
           where: {
             targetResourceId: sessionId,
             targetResourceType: 'session',
-            action: 'CREATE',
           },
           orderBy: {
             createdAt: 'desc',
           },
         });
         
-        if (activityLog?.details) {
-          const details = activityLog.details as ActivityLogDetails;
-          if (details.tripDetails) {
-            tripDetails = details.tripDetails;
-            console.log(`[EXCEL REPORT] Found trip details in activity log`);
+        console.log(`[EXCEL REPORT] Found ${activityLogs.length} activity logs to search for trip details`);
+        
+        // Search through all logs for trip details
+        for (const log of activityLogs) {
+          if (!log.details) continue;
+          
+          try {
+            let details = log.details;
+            // Parse details if it's a string
+            if (typeof details === 'string') {
+              try { details = JSON.parse(details); } 
+              catch (e) { 
+                console.log(`[EXCEL REPORT] Failed to parse activity log details: ${e}`);
+                continue; 
+              }
+            }
+            
+            // Check various locations where trip details might be stored
+            if (details.tripDetails && typeof details.tripDetails === 'object') {
+              console.log(`[EXCEL REPORT] Found tripDetails in activity log (direct)`);
+              tripDetails = details.tripDetails;
+              break;
+            } else if (details.data?.tripDetails && typeof details.data.tripDetails === 'object') {
+              console.log(`[EXCEL REPORT] Found tripDetails in activity log (data object)`);
+              tripDetails = details.data.tripDetails;
+              break;
+            } else if (details.details?.tripDetails && typeof details.details.tripDetails === 'object') {
+              console.log(`[EXCEL REPORT] Found tripDetails in activity log (nested details)`);
+              tripDetails = details.details.tripDetails;
+              break;
+            }
+          } catch (parseError) {
+            console.error(`[EXCEL REPORT] Error processing activity log:`, parseError);
+          }
+        }
+        
+        // Last resort: scan all logs for any fields matching trip details pattern
+        if (!tripDetails) {
+          console.log(`[EXCEL REPORT] No trip details structure found, scanning all logs for field matches`);
+          
+          const tripFieldsMap: Record<string, any> = {};
+          
+          for (const log of activityLogs) {
+            if (!log.details) continue;
+            
+            try {
+              let details = log.details;
+              if (typeof details === 'string') {
+                try { details = JSON.parse(details); } 
+                catch (e) { continue; }
+              }
+              
+              // Function to scan an object for trip fields
+              const scanForTripFields = (obj: any, path: string = '') => {
+                if (!obj || typeof obj !== 'object') return;
+                
+                for (const [key, value] of Object.entries(obj)) {
+                  const fullPath = path ? `${path}.${key}` : key;
+                  
+                  // Check if this is a trip field
+                  if (tripDataFieldNames.includes(key) && value !== undefined && value !== null) {
+                    console.log(`[EXCEL REPORT] Found trip field ${key} = ${value} at path ${fullPath}`);
+                    tripFieldsMap[key] = value;
+                  }
+                  
+                  // Recursively scan nested objects, but not arrays (to avoid excessive recursion)
+                  if (value && typeof value === 'object' && !Array.isArray(value)) {
+                    scanForTripFields(value, fullPath);
+                  }
+                }
+              };
+              
+              // Scan the entire details object
+              scanForTripFields(details);
+              
+            } catch (error) {
+              console.error(`[EXCEL REPORT] Error scanning activity log:`, error);
+            }
+          }
+          
+          // If we found fields, create a trip details object
+          if (Object.keys(tripFieldsMap).length > 0) {
+            console.log(`[EXCEL REPORT] Created trip details from ${Object.keys(tripFieldsMap).length} scattered fields`);
+            tripDetails = tripFieldsMap;
           }
         }
       } catch (error: unknown) {
@@ -444,7 +571,7 @@ export const GET = withAuth(
       };
       
       // Use the real trip details from both sources, use sample only if nothing available
-      let combinedTripDetails = { ...directTripDetails, ...otherPossibleTripFields };
+      let combinedTripDetails = { ...directTripDetails, ...dataFieldTripDetails, ...otherPossibleTripFields };
       if (tripDetails && Object.keys(tripDetails).length > 0) {
         combinedTripDetails = { ...combinedTripDetails, ...tripDetails };
       }
@@ -522,25 +649,88 @@ export const GET = withAuth(
       // Add each trip detail field to the sheet
       console.log(`[EXCEL REPORT] Adding trip details fields to Excel`);
       let tripRowIndex = 4;
-      for (const field of tripFields) {
-        const value = finalTripDetails[field.key as keyof TripDetails];
-        const displayValue = value !== undefined && value !== null 
-          ? String(value)
-          : 'N/A';
+      
+      // Debug log the available trip fields
+      console.log(`[EXCEL REPORT] finalTripDetails keys: ${Object.keys(finalTripDetails).join(', ')}`);
+      
+      // Function to safely stringify any value type
+      const safeStringify = (value: any): string => {
+        if (value === undefined || value === null) return 'N/A';
+        if (typeof value === 'object') {
+          try {
+            return JSON.stringify(value);
+          } catch (e) {
+            return String(value);
+          }
+        }
+        return String(value);
+      };
+      
+      // Helper to add a row with proper styling
+      const addTripDetailRow = (fieldLabel: string, value: any, source: string) => {
+        // Skip undefined/null values
+        if (value === undefined || value === null) return false;
         
-        tripSheet.addRow({
-          field: field.label,
+        const displayValue = safeStringify(value);
+        
+        const row = tripSheet.addRow({
+          field: fieldLabel,
           value: displayValue,
-          source: Object.keys(combinedTripDetails).length > 0 ? 'Database' : 'Sample'
+          source: source
         });
         
+        // Add subtle alternating row colors
+        if (tripRowIndex % 2 === 0) {
+          row.fill = {
+            type: 'pattern',
+            pattern: 'solid',
+            fgColor: { argb: 'FFF9F9F9' }
+          };
+        }
+        
+        // Make the field column bold
+        row.getCell(1).font = { bold: true };
+        
         tripRowIndex++;
+        return true;
+      };
+      
+      // First try to add the standard fields
+      for (const field of tripFields) {
+        // Use a more flexible lookup approach - try different field casing variants
+        let value = finalTripDetails[field.key];
+        
+        // Try alternate field name formats if the main one isn't found
+        if (value === undefined) {
+          // Try snake_case version
+          const snakeCase = field.key.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`);
+          value = finalTripDetails[snakeCase];
+          
+          // Try lowercase version
+          if (value === undefined) {
+            value = finalTripDetails[field.key.toLowerCase()];
+          }
+        }
+        
+        const source = Object.keys(combinedTripDetails).length > 0 ? 'Database' : 'Sample';
+        if (value !== undefined) {
+          console.log(`[EXCEL REPORT] Adding field ${field.label} with value ${safeStringify(value)}`);
+          addTripDetailRow(field.label, value, source);
+        } else {
+          console.log(`[EXCEL REPORT] Field ${field.key} not found in data`);
+          // Add the field anyway with N/A to ensure all standard fields are displayed
+          addTripDetailRow(field.label, 'N/A', source);
+        }
       }
       
-      // Add any additional fields not in our standard list
+      // Now add any extra fields that weren't in the standard list
+      console.log(`[EXCEL REPORT] Looking for additional non-standard trip fields`);
       for (const [key, value] of Object.entries(finalTripDetails)) {
-        // Skip fields we've already added
-        if (tripFields.some(field => field.key === key)) {
+        // Skip fields we've already added (case insensitive check)
+        if (tripFields.some(field => 
+          field.key.toLowerCase() === key.toLowerCase() || 
+          field.key.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`) === key
+        )) {
           continue;
         }
         
@@ -548,17 +738,9 @@ export const GET = withAuth(
         const formattedKey = key.replace(/([A-Z])/g, ' $1')
           .replace(/^./, str => str.toUpperCase());
         
-        const displayValue = value !== undefined && value !== null 
-          ? String(value)
-          : 'N/A';
-        
-        tripSheet.addRow({
-          field: formattedKey,
-          value: displayValue,
-          source: Object.keys(combinedTripDetails).length > 0 ? 'Database' : 'Sample'
-        });
-        
-        tripRowIndex++;
+        const source = Object.keys(combinedTripDetails).length > 0 ? 'Database' : 'Sample';
+        console.log(`[EXCEL REPORT] Adding additional field ${formattedKey} with value ${safeStringify(value)}`);
+        addTripDetailRow(formattedKey, value, source);
       }
       
       // =========================================================
