@@ -234,8 +234,70 @@ export const GET = withAuth(
         }
       }
       
-      // Get all images
-      const images = detailedSessionData.images || {};
+      // Get image information
+      let images = sessionData.images || {};
+      console.log(`[EXCEL REPORT] Found ${Object.keys(images).length} image keys in session data`);
+      
+      // Fallback 1: Check activity logs for image URLs
+      if (Object.keys(images).length === 0) {
+        console.log(`[EXCEL REPORT] Checking activity logs for image URLs`);
+        
+        const activityLogs = await prisma.activityLog.findMany({
+          where: {
+            targetResourceId: sessionId,
+            targetResourceType: 'session',
+          },
+          orderBy: {
+            createdAt: 'desc',
+          },
+        });
+        
+        // Look for image URLs in activity logs
+        for (const log of activityLogs) {
+          if (!log.details) continue;
+          
+          let details = log.details as any;
+          if (typeof details === 'string') {
+            try { details = JSON.parse(details); } catch (e) { continue; }
+          }
+          
+          if (details.images && Object.keys(details.images).length > 0) {
+            images = details.images;
+            console.log(`[EXCEL REPORT] Found ${Object.keys(images).length} image references in activity log`);
+            break;
+          } else if (details.tripDetails?.images && Object.keys(details.tripDetails.images).length > 0) {
+            images = details.tripDetails.images;
+            console.log(`[EXCEL REPORT] Found ${Object.keys(images).length} image references in trip details`);
+            break;
+          }
+        }
+      }
+      
+      // Fallback 2: Generate direct API URLs
+      if (Object.keys(images).length === 0) {
+        console.log(`[EXCEL REPORT] Generating fallback API image URLs`);
+        const domain = 'https://tripchallan.vercel.app';
+        
+        // Generate direct URLs using the domain
+        images = {
+          driverPicture: `${domain}/api/images/${sessionId}/driver`,
+          vehicleNumberPlatePicture: `${domain}/api/images/${sessionId}/vehicleNumber`,
+          gpsImeiPicture: `${domain}/api/images/${sessionId}/gpsImei`,
+          sealingImages: [],
+          vehicleImages: [],
+          additionalImages: []
+        };
+        
+        // Add multiple potential indices for array-based images
+        // These might not all exist, but they'll be helpful references in the Excel report
+        for (let i = 0; i < 5; i++) {
+          (images.sealingImages as string[]).push(`${domain}/api/images/${sessionId}/sealing/${i}`);
+          (images.vehicleImages as string[]).push(`${domain}/api/images/${sessionId}/vehicle/${i}`);
+          (images.additionalImages as string[]).push(`${domain}/api/images/${sessionId}/additional/${i}`);
+        }
+        
+        console.log(`[EXCEL REPORT] Generated fallback image URLs for session ${sessionId}`);
+      }
       
       // COMPANY user check - can only download their own sessions
       if (userRole === UserRole.COMPANY && userId !== sessionData.companyId) {
@@ -510,9 +572,10 @@ export const GET = withAuth(
         
         imageSheet.columns = [
           { header: 'Image Type', key: 'type', width: 30 },
-          { header: 'Status', key: 'status', width: 20 },
-          { header: 'Count', key: 'count', width: 15 },
-          { header: 'Notes', key: 'notes', width: 40 }
+          { header: 'Status', key: 'status', width: 15 },
+          { header: 'Count', key: 'count', width: 10 },
+          { header: 'Direct URL', key: 'url', width: 80 },
+          { header: 'Notes', key: 'notes', width: 30 }
         ];
         
         // Style header row
@@ -524,60 +587,154 @@ export const GET = withAuth(
           fgColor: { argb: 'FFD3D3D3' }
         };
         
-        // Add image information
+        // Helper function to format URLs for the domain
+        const formatImageUrl = (url: string) => {
+          if (url.startsWith('http')) return url;
+          const domain = 'https://tripchallan.vercel.app';
+          return url.startsWith('/') ? `${domain}${url}` : `${domain}/${url}`;
+        };
+        
+        // Add image information for single images
         if (images.driverPicture) {
+          const url = formatImageUrl(images.driverPicture);
           imageSheet.addRow({
             type: 'Driver Picture',
             status: 'Available',
             count: 1,
-            notes: 'Uploaded during session creation'
+            url: url,
+            notes: 'Driver identification photo'
           });
         }
         
         if (images.vehicleNumberPlatePicture) {
+          const url = formatImageUrl(images.vehicleNumberPlatePicture);
           imageSheet.addRow({
             type: 'Vehicle Number Plate Picture',
             status: 'Available',
             count: 1,
-            notes: 'Uploaded during session creation'
+            url: url,
+            notes: 'Vehicle registration plate'
           });
         }
         
         if (images.gpsImeiPicture) {
+          const url = formatImageUrl(images.gpsImeiPicture);
           imageSheet.addRow({
             type: 'GPS/IMEI Picture',
             status: 'Available',
             count: 1,
-            notes: 'Uploaded during session creation'
+            url: url,
+            notes: 'GPS/IMEI identification'
           });
         }
         
-        if (images.sealingImages && images.sealingImages.length > 0) {
+        // Add array-based images with individual URLs
+        const addArrayImages = (images: string[], type: string, notes: string) => {
+          if (!images || images.length === 0) return;
+          
+          // Add a summary row first
           imageSheet.addRow({
-            type: 'Sealing Images',
+            type: `${type} (Summary)`,
             status: 'Available',
-            count: images.sealingImages.length,
-            notes: 'Images related to seal application'
+            count: images.length,
+            url: 'See individual entries below',
+            notes: notes
+          }).font = { bold: true };
+          
+          // Add individual image entries
+          images.forEach((imageUrl, index) => {
+            const url = formatImageUrl(imageUrl);
+            imageSheet.addRow({
+              type: `${type} ${index + 1}`,
+              status: 'Available',
+              count: 1,
+              url: url,
+              notes: `${type} image #${index + 1}`
+            });
           });
+          
+          // Add a blank row for separation
+          imageSheet.addRow({});
+        };
+        
+        // Add all array-based images
+        if (images.sealingImages && images.sealingImages.length > 0) {
+          addArrayImages(images.sealingImages, 'Sealing Image', 'Images related to seal application');
         }
         
         if (images.vehicleImages && images.vehicleImages.length > 0) {
-          imageSheet.addRow({
-            type: 'Vehicle Images',
-            status: 'Available',
-            count: images.vehicleImages.length,
-            notes: 'Images of the vehicle from various angles'
-          });
+          addArrayImages(images.vehicleImages, 'Vehicle Image', 'Images of the vehicle from various angles');
         }
         
         if (images.additionalImages && images.additionalImages.length > 0) {
+          addArrayImages(images.additionalImages, 'Additional Image', 'Supplementary images uploaded by operator');
+        }
+        
+        // Add direct API URLs for reference
+        const domain = 'https://tripchallan.vercel.app';
+        imageSheet.addRow({});
+        imageSheet.addRow({
+          type: 'DIRECT API REFERENCE',
+          status: '',
+          count: '',
+          url: '',
+          notes: ''
+        }).font = { bold: true, color: { argb: 'FF0000FF' } };
+        
+        // Add standard image type URLs
+        const directApiImages = [
+          { type: 'Driver Picture (API)', url: `${domain}/api/images/${sessionId}/driver` },
+          { type: 'Vehicle Number Plate (API)', url: `${domain}/api/images/${sessionId}/vehicleNumber` },
+          { type: 'GPS/IMEI Picture (API)', url: `${domain}/api/images/${sessionId}/gpsImei` }
+        ];
+        
+        directApiImages.forEach(item => {
           imageSheet.addRow({
-            type: 'Additional Images',
-            status: 'Available',
-            count: images.additionalImages.length,
-            notes: 'Supplementary images uploaded by operator'
+            type: item.type,
+            status: 'Reference',
+            count: '',
+            url: item.url,
+            notes: 'Direct API URL'
+          });
+        });
+        
+        // Add array-based image references
+        for (let i = 0; i < 5; i++) {
+          imageSheet.addRow({
+            type: `Sealing Image ${i+1} (API)`,
+            status: 'Reference',
+            count: '',
+            url: `${domain}/api/images/${sessionId}/sealing/${i}`,
+            notes: 'Direct API URL'
           });
         }
+        
+        for (let i = 0; i < 5; i++) {
+          imageSheet.addRow({
+            type: `Vehicle Image ${i+1} (API)`,
+            status: 'Reference',
+            count: '',
+            url: `${domain}/api/images/${sessionId}/vehicle/${i}`,
+            notes: 'Direct API URL'
+          });
+        }
+        
+        // Format the URL column to be clickable hyperlinks
+        imageSheet.eachRow((row, rowNumber) => {
+          if (rowNumber > 1) { // Skip header row
+            const cell = row.getCell('url');
+            if (cell.value && typeof cell.value === 'string' && cell.value.startsWith('http')) {
+              cell.value = {
+                text: cell.value,
+                hyperlink: cell.value
+              };
+              cell.font = {
+                color: { argb: 'FF0000FF' },
+                underline: true
+              };
+            }
+          }
+        });
       }
       
       // =========================================================

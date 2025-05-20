@@ -371,71 +371,36 @@ export const GET = withAuth(
       // Final fallback: Generate direct API URLs based on session ID
       if (Object.keys(imageInfo).length === 0) {
         console.log("Using fallback to generate direct API image URLs");
-        const domain = process.env.VERCEL_URL ? 
-            `https://${process.env.VERCEL_URL}` : 
-            (process.env.NEXT_PUBLIC_API_URL || 'https://tripchallan.vercel.app');
+        const domain = 'https://tripchallan.vercel.app';
             
-        // Helper to probe for array-based image types with multiple indices
-        const probeForMultipleImages = async (baseUrl: string, maxIndex: number = 5): Promise<string[]> => {
-          const validUrls: string[] = [];
-          
-          // Try fetching up to maxIndex images to see which ones exist
-          for (let i = 0; i < maxIndex; i++) {
-            const url = `${baseUrl}/${i}`;
-            try {
-              const response = await fetch(url, { method: 'HEAD' });
-              if (response.ok) {
-                console.log(`Found valid image at index ${i}: ${url}`);
-                validUrls.push(url);
-              } else {
-                console.log(`No image found at index ${i}: ${url}`);
-                // Stop after the first missing image for efficiency
-                break;
-              }
-            } catch (error) {
-              console.error(`Error checking image at ${url}:`, error);
-              break;
-            }
-          }
-          
-          // If none found, return at least the first URL as a possibility
-          if (validUrls.length === 0 && maxIndex > 0) {
-            validUrls.push(`${baseUrl}/0`);
-          }
-          
-          return validUrls;
-        };
-        
-        // Basic single images
+        // Initial setup with direct paths to ensure all basic images are included
         imageInfo = {
           driverPicture: `${domain}/api/images/${sessionId}/driver`,
           vehicleNumberPlatePicture: `${domain}/api/images/${sessionId}/vehicleNumber`,
           gpsImeiPicture: `${domain}/api/images/${sessionId}/gpsImei`,
+          // Initialize arrays that will be populated with valid URLs
           sealingImages: [],
           vehicleImages: [],
           additionalImages: []
         };
         
-        // Probe for multiple images of each array type
-        try {
-          const sealingUrls = await probeForMultipleImages(`${domain}/api/images/${sessionId}/sealing`);
-          const vehicleUrls = await probeForMultipleImages(`${domain}/api/images/${sessionId}/vehicle`);
-          const additionalUrls = await probeForMultipleImages(`${domain}/api/images/${sessionId}/additional`);
-          
-          // Update the imageInfo with the found URLs
-          imageInfo.sealingImages = sealingUrls;
-          imageInfo.vehicleImages = vehicleUrls;
-          imageInfo.additionalImages = additionalUrls;
-          
-          console.log(`Found ${sealingUrls.length} sealing images, ${vehicleUrls.length} vehicle images, ${additionalUrls.length} additional images`);
-        } catch (error) {
-          console.error("Error probing for multiple images:", error);
-          // Fallback to assuming at least the first index exists
-          imageInfo.sealingImages = [`${domain}/api/images/${sessionId}/sealing/0`];
-          imageInfo.vehicleImages = [`${domain}/api/images/${sessionId}/vehicle/0`];
+        // Directly populate the arrays with indices 0-3 for multiple images
+        // This approach avoids async operations and ensures we attempt all possible image indices
+        for (let i = 0; i < 5; i++) {
+          imageInfo.sealingImages.push(`${domain}/api/images/${sessionId}/sealing/${i}`);
+          imageInfo.vehicleImages.push(`${domain}/api/images/${sessionId}/vehicle/${i}`);
+          imageInfo.additionalImages.push(`${domain}/api/images/${sessionId}/additional/${i}`);
         }
         
         console.log(`Generated fallback image URLs with pattern: ${domain}/api/images/${sessionId}/*`);
+        console.log(`Attempting to fetch a total of ${
+          1 + // driverPicture
+          1 + // vehicleNumberPlatePicture
+          1 + // gpsImeiPicture
+          imageInfo.sealingImages.length + 
+          imageInfo.vehicleImages.length + 
+          imageInfo.additionalImages.length
+        } images`);
       }
       
       // ======== PDF GENERATION SECTION ========
@@ -467,12 +432,6 @@ export const GET = withAuth(
             return null;
           }
           
-          // Make sure URL is absolute with correct host
-          const baseUrl = process.env.NEXT_PUBLIC_API_URL || 
-                          (req.headers.get('host') ? 
-                          `${req.headers.get('x-forwarded-proto') || 'http'}://${req.headers.get('host')}` : 
-                          'http://localhost:3000');
-          
           let fullUrl;
           
           // Handle different URL formats
@@ -483,45 +442,46 @@ export const GET = withAuth(
             // Domain-specific URL - don't modify
             fullUrl = imageUrl;
           } else if (imageUrl.startsWith('/api/images/')) {
-            // API endpoint path
-            fullUrl = `${baseUrl}${imageUrl}`;
+            // API endpoint path - use the production URL directly for reliability
+            fullUrl = `https://tripchallan.vercel.app${imageUrl}`;
           } else if (imageUrl.startsWith('/')) {
-            // Other relative path
-            fullUrl = `${baseUrl}${imageUrl}`;
+            // Other relative path - use the production URL directly for reliability
+            fullUrl = `https://tripchallan.vercel.app${imageUrl}`;
           } else {
-            // Assume it's a relative path
-            fullUrl = `${baseUrl}/${imageUrl}`;
+            // Assume it's a relative path - use the production URL directly for reliability
+            fullUrl = `https://tripchallan.vercel.app/${imageUrl}`;
           }
           
           console.log(`Fetching image from: ${fullUrl}`);
           
-          // Fetch the image with credentials to handle authentication properly
+          // Fetch the image
+          // Note: not using credentials to avoid CORS issues with the production site
           const response = await fetch(fullUrl, {
-            credentials: 'include',
+            cache: 'no-store',
             headers: {
-              // Pass through auth cookies/headers if present
-              ...(req.headers.get('cookie') ? { 'cookie': req.headers.get('cookie') || '' } : {}),
-              ...(req.headers.get('authorization') ? { 'authorization': req.headers.get('authorization') || '' } : {})
+              'Accept': 'image/*, */*'
             }
           });
           
           if (!response.ok) {
             console.error(`Failed to fetch image (${response.status}): ${fullUrl}`);
             
-            // If we couldn't fetch from the current domain, try the fallback domain
-            if (!fullUrl.includes('tripchallan.vercel.app') && (!fullUrl.startsWith('http') || fullUrl.includes(baseUrl))) {
-              const fallbackUrl = imageUrl.startsWith('/') 
-                ? `https://tripchallan.vercel.app${imageUrl}`
-                : `https://tripchallan.vercel.app/${imageUrl}`;
+            // If we couldn't fetch from the current domain, try the direct API format
+            if (!fullUrl.includes('/api/images/')) {
+              const directApiUrl = `https://tripchallan.vercel.app/api/images/${sessionId}/${imageUrl.includes('driver') ? 'driver' : 
+                imageUrl.includes('vehicle') ? 'vehicle/0' : 
+                imageUrl.includes('plate') ? 'vehicleNumber' : 
+                imageUrl.includes('gps') ? 'gpsImei' : 
+                imageUrl.includes('sealing') ? 'sealing/0' : 'additional/0'}`;
               
-              console.log(`Attempting fallback URL: ${fallbackUrl}`);
+              console.log(`Attempting direct API format: ${directApiUrl}`);
               
               try {
-                const fallbackResponse = await fetch(fallbackUrl);
-                if (fallbackResponse.ok) {
-                  const blob = await fallbackResponse.blob();
+                const directResponse = await fetch(directApiUrl);
+                if (directResponse.ok) {
+                  const blob = await directResponse.blob();
                   if (blob.size > 0) {
-                    console.log(`Successfully retrieved from fallback: ${fallbackUrl} (${blob.size} bytes)`);
+                    console.log(`Successfully retrieved from direct API: ${directApiUrl} (${blob.size} bytes)`);
                     return new Promise((resolve) => {
                       const reader = new FileReader();
                       reader.onloadend = () => resolve(reader.result as string);
@@ -529,10 +489,10 @@ export const GET = withAuth(
                     });
                   }
                 } else {
-                  console.error(`Fallback also failed (${fallbackResponse.status}): ${fallbackUrl}`);
+                  console.error(`Direct API also failed (${directResponse.status}): ${directApiUrl}`);
                 }
-              } catch (fallbackError) {
-                console.error(`Error with fallback URL: ${fallbackError}`);
+              } catch (directError) {
+                console.error(`Error with direct API URL: ${directError}`);
               }
             }
             
@@ -754,8 +714,8 @@ export const GET = withAuth(
         if (!orderedFields.includes(field) && allTripFields[field] !== undefined) {
           // Format field name for display
           const formattedField = field.replace(/([A-Z])/g, ' $1')
-            .replace(/^./, str => str.toUpperCase());
-          
+              .replace(/^./, str => str.toUpperCase());
+            
           addField(formattedField, allTripFields[field]);
           tripDataDisplayed = true;
         }
@@ -897,14 +857,14 @@ export const GET = withAuth(
         
         if (verificationDetails.fieldVerifications) {
           for (const [field, data] of Object.entries(verificationDetails.fieldVerifications)) {
-            const formattedField = field.replace(/([A-Z])/g, ' $1')
-              .replace(/^./, str => str.toUpperCase());
-            
+          const formattedField = field.replace(/([A-Z])/g, ' $1')
+            .replace(/^./, str => str.toUpperCase());
+          
             yPos += lineHeight * 0.5;
             addField(`${formattedField} - Operator`, data.operatorValue);
             addField(`${formattedField} - Guard`, data.guardValue);
             addField(`${formattedField} - Match`, data.operatorValue === data.guardValue ? 'Yes' : 'No');
-            if (data.comment) {
+          if (data.comment) {
               addField(`${formattedField} - Comment`, data.comment);
             }
           }
