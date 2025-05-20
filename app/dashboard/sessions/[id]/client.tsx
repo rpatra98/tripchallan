@@ -71,6 +71,13 @@ type SealType = {
     name: string;
     email: string;
   } | null;
+  verificationData?: {
+    fieldVerifications?: Record<string, any>;
+    guardImages?: Record<string, any>;
+    sealBarcode?: string | null;
+    allMatch?: boolean;
+    verificationTimestamp?: string;
+  };
 };
 
 type SessionType = {
@@ -351,51 +358,100 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
     }
   }, [authStatus, authSession, sessionId, fetchSessionDetails]);
 
+  // Helper function to extract and set verification results
+  const extractAndSetVerificationResults = useCallback((fieldVerifications: Record<string, any>) => {
+    console.log("Extracting verification results from data:", Object.keys(fieldVerifications).length, "fields");
+    
+    // Extract matched, mismatched and unverified fields
+    const matches: string[] = [];
+    const mismatches: string[] = [];
+    const unverified: string[] = [];
+    
+    Object.entries(fieldVerifications).forEach(([field, data]: [string, any]) => {
+      console.log(`Field ${field}:`, data);
+      
+      // Handle different verification data structures
+      const isVerified = data.isVerified ?? false;
+      const matchesField = typeof data.matches === 'boolean' 
+        ? data.matches 
+        : (String(data.operatorValue || '').toLowerCase() === String(data.guardValue || '').toLowerCase());
+      
+      if (isVerified) {
+        if (matchesField) {
+          matches.push(field);
+        } else {
+          mismatches.push(field);
+        }
+      } else {
+        unverified.push(field);
+      }
+    });
+    
+    console.log("Verification summary:", {
+      matches: matches.length,
+      mismatches: mismatches.length,
+      unverified: unverified.length
+    });
+    
+    // Set verification results for displaying
+    setVerificationResults({
+      matches,
+      mismatches,
+      unverified,
+      allFields: fieldVerifications,
+      timestamp: session?.seal?.scannedAt || new Date().toISOString()
+    });
+  }, [session]);
+
   // Extract verification results from session data for completed trips
   useEffect(() => {
     // Only process for completed sessions with seal verification data
     if (session?.status === SessionStatus.COMPLETED && 
-        session?.seal?.verified && 
-        session?.activityLogs?.length) {
+        session?.seal?.verified) {
       
-      // Find the verification activity log
-      const verificationLog = session.activityLogs.find(log => 
-        log.action === "SEAL_VERIFIED" && 
-        log.details?.verification?.fieldVerifications
-      );
+      console.log("Processing completed session for verification data:", session.id);
       
-      if (verificationLog?.details?.verification?.fieldVerifications) {
-        const fieldVerifications = verificationLog.details.verification.fieldVerifications;
+      // Try to extract from activity logs first
+      if (session.activityLogs?.length) {
+        console.log("Activity logs found:", session.activityLogs.length);
         
-        // Extract matched, mismatched and unverified fields
-        const matches: string[] = [];
-        const mismatches: string[] = [];
-        const unverified: string[] = [];
+        // Look for verification logs with multiple possible action types
+        const verificationActions = ["SEAL_VERIFIED", "VERIFY_SEAL", "SEAL_VERIFICATION"];
         
-        Object.entries(fieldVerifications).forEach(([field, data]: [string, any]) => {
-          if (data.isVerified) {
-            if (data.matches) {
-              matches.push(field);
-            } else {
-              mismatches.push(field);
-            }
-          } else {
-            unverified.push(field);
+        const verificationLog = session.activityLogs.find(log => 
+          verificationActions.includes(log.action) && 
+          log.details?.verification?.fieldVerifications
+        );
+        
+        if (verificationLog) {
+          console.log("Verification log found:", verificationLog.action);
+          
+          if (verificationLog.details?.verification?.fieldVerifications) {
+            console.log("Field verifications found in log");
+            extractAndSetVerificationResults(verificationLog.details.verification.fieldVerifications);
+            return; // Exit early since we found and processed the data
           }
-        });
-        
-        // Set verification results for displaying
-        setVerificationResults({
-          matches,
-          mismatches,
-          unverified,
-          allFields: fieldVerifications,
-          timestamp: session.seal.scannedAt || new Date().toISOString()
-        });
+        } else {
+          // Check if any logs have verification data in any format
+          console.log("Checking all logs for verification data");
+          for (const log of session.activityLogs) {
+            console.log("Log action:", log.action, "has details:", !!log.details);
+            if (log.details) {
+              console.log("Log details keys:", Object.keys(log.details));
+            }
+          }
+        }
+      }
+      
+      // If we couldn't extract from logs, try other sources
+      // Check if verification data is directly in the session object
+      if (session.seal?.verificationData?.fieldVerifications) {
+        console.log("Found verification data directly in session.seal.verificationData");
+        extractAndSetVerificationResults(session.seal.verificationData.fieldVerifications);
       }
     }
-  }, [session]);
-
+  }, [session, extractAndSetVerificationResults]);
+  
   // Check if user has edit permission
   useEffect(() => {
     // Only OPERATOR users with canModify permission can edit
