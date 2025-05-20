@@ -50,7 +50,9 @@ import {
   BusinessCenter,
   RadioButtonUnchecked,
   Comment,
-  ArrowForward
+  ArrowForward,
+  Delete,
+  CloudUpload
 } from "@mui/icons-material";
 import Link from "next/link";
 import { SessionStatus, EmployeeSubrole } from "@/prisma/enums";
@@ -166,6 +168,37 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
   const [sealInput, setSealInput] = useState("");
   const [sealError, setSealError] = useState("");
   const [imageVerificationStatus, setImageVerificationStatus] = useState<{[key: string]: boolean}>({});
+  
+  // Add new state for guard's uploaded images
+  const [guardImages, setGuardImages] = useState<{
+    driverPicture?: File | null;
+    vehicleNumberPlatePicture?: File | null;
+    gpsImeiPicture?: File | null;
+    sealingImages?: File[];
+    vehicleImages?: File[];
+    additionalImages?: File[];
+  }>({
+    driverPicture: null,
+    vehicleNumberPlatePicture: null,
+    gpsImeiPicture: null,
+    sealingImages: [],
+    vehicleImages: [],
+    additionalImages: []
+  });
+
+  // Add state for image previews
+  const [imagePreviews, setImagePreviews] = useState<{
+    driverPicture?: string;
+    vehicleNumberPlatePicture?: string;
+    gpsImeiPicture?: string;
+    sealingImages?: string[];
+    vehicleImages?: string[];
+    additionalImages?: string[];
+  }>({
+    sealingImages: [],
+    vehicleImages: [],
+    additionalImages: []
+  });
   
   // Check if user is a guard
   const isGuard = useMemo(() => 
@@ -524,13 +557,20 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
       return;
     }
     
-    // Check if all images have been verified
-    const unverifiedImages = Object.keys(imageVerificationStatus).filter(key => 
-      !imageVerificationStatus[key]
+    // Check if required images have been uploaded
+    const requiredImageTypes = ['driverPicture', 'vehicleNumberPlatePicture', 'gpsImeiPicture'];
+    const missingImages = requiredImageTypes.filter(type => 
+      !guardImages[type as keyof typeof guardImages]
     );
-    
-    if (unverifiedImages.length > 0) {
-      setError("Please verify all images before completing the verification process");
+
+    if (missingImages.length > 0) {
+      setError(`Please upload all required images: ${missingImages.map(type => getFieldLabel(type)).join(', ')}`);
+      return;
+    }
+
+    // Verify sealing images are uploaded
+    if (!guardImages.sealingImages?.length) {
+      setError("Please upload at least one sealing image");
       return;
     }
     
@@ -539,13 +579,73 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
     setSealError("");
     
     try {
+      // Upload images first
+      const uploadedImageUrls: {[key: string]: any} = {};
+      
+      // Helper function to upload single image
+      const uploadImage = async (file: File, type: string): Promise<string> => {
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('type', type);
+        
+        const response = await fetch(`/api/upload`, {
+          method: 'POST',
+          body: formData
+        });
+        
+        if (!response.ok) {
+          throw new Error(`Failed to upload ${type} image`);
+        }
+        
+        const data = await response.json();
+        return data.url;
+      };
+      
+      // Upload single images
+      if (guardImages.driverPicture) {
+        uploadedImageUrls.driverPicture = await uploadImage(guardImages.driverPicture, 'driver');
+      }
+      
+      if (guardImages.vehicleNumberPlatePicture) {
+        uploadedImageUrls.vehicleNumberPlatePicture = await uploadImage(guardImages.vehicleNumberPlatePicture, 'numberPlate');
+      }
+      
+      if (guardImages.gpsImeiPicture) {
+        uploadedImageUrls.gpsImeiPicture = await uploadImage(guardImages.gpsImeiPicture, 'gpsImei');
+      }
+      
+      // Upload multiple images
+      if (guardImages.sealingImages?.length) {
+        uploadedImageUrls.sealingImages = await Promise.all(
+          guardImages.sealingImages.map((file, index) => 
+            uploadImage(file, `sealing-${index}`)
+          )
+        );
+      }
+      
+      if (guardImages.vehicleImages?.length) {
+        uploadedImageUrls.vehicleImages = await Promise.all(
+          guardImages.vehicleImages.map((file, index) => 
+            uploadImage(file, `vehicle-${index}`)
+          )
+        );
+      }
+      
+      if (guardImages.additionalImages?.length) {
+        uploadedImageUrls.additionalImages = await Promise.all(
+          guardImages.additionalImages.map((file, index) => 
+            uploadImage(file, `additional-${index}`)
+          )
+        );
+      }
+      
       // Calculate verification results for each field
       const fieldVerificationResults = Object.entries(verificationFields).reduce(
         (results, [field, data]) => {
           results[field] = {
             operatorValue: data.operatorValue,
             guardValue: data.guardValue,
-            matches: data.operatorValue === data.guardValue,
+            matches: String(data.operatorValue).toLowerCase() === String(data.guardValue).toLowerCase(),
             comment: data.comment
           };
           return results;
@@ -562,7 +662,7 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
           sealId: session.seal.id,
           verificationData: {
             fieldVerifications: fieldVerificationResults,
-            imageVerifications: imageVerificationStatus,
+            guardImages: uploadedImageUrls,
             allMatch: Object.values(fieldVerificationResults).every(v => v.matches)
           }
         }),
@@ -592,6 +692,117 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
   
   const closeConfirmDialog = () => {
     setConfirmDialogOpen(false);
+  };
+
+  // Handle file uploads
+  const handleImageUpload = (imageType: string, file: File | FileList | null) => {
+    if (!file) return;
+
+    // Handle single file uploads
+    if (file instanceof File) {
+      setGuardImages(prev => ({
+        ...prev,
+        [imageType]: file
+      }));
+      
+      // Create preview URL
+      const previewUrl = URL.createObjectURL(file);
+      setImagePreviews(prev => ({
+        ...prev,
+        [imageType]: previewUrl
+      }));
+      
+      // Mark as "verified" for progress tracking
+      setImageVerificationStatus(prev => ({
+        ...prev,
+        [imageType]: true
+      }));
+      
+    } 
+    // Handle multiple file uploads
+    else if (file instanceof FileList) {
+      const fileArray = Array.from(file);
+      
+      setGuardImages(prev => ({
+        ...prev,
+        [imageType]: [...(prev[imageType as keyof typeof prev] as File[] || []), ...fileArray]
+      }));
+      
+      // Create preview URLs
+      const previewUrls = fileArray.map(f => URL.createObjectURL(f));
+      setImagePreviews(prev => ({
+        ...prev,
+        [imageType]: [...(prev[imageType as keyof typeof prev] as string[] || []), ...previewUrls]
+      }));
+      
+      // Mark as "verified" for progress tracking
+      setImageVerificationStatus(prev => ({
+        ...prev,
+        [imageType]: true
+      }));
+    }
+  };
+
+  // Remove uploaded image
+  const removeUploadedImage = (imageType: string, index?: number) => {
+    // For single images
+    if (index === undefined) {
+      setGuardImages(prev => ({
+        ...prev,
+        [imageType]: null
+      }));
+      
+      // Revoke preview URL to prevent memory leaks
+      if (imagePreviews[imageType as keyof typeof imagePreviews]) {
+        URL.revokeObjectURL(imagePreviews[imageType as keyof typeof imagePreviews] as string);
+      }
+      
+      setImagePreviews(prev => ({
+        ...prev,
+        [imageType]: undefined
+      }));
+      
+      // Update verification status
+      setImageVerificationStatus(prev => ({
+        ...prev,
+        [imageType]: false
+      }));
+    } 
+    // For multiple images
+    else if (typeof index === 'number') {
+      const currentFiles = guardImages[imageType as keyof typeof guardImages] as File[] || [];
+      const currentPreviews = imagePreviews[imageType as keyof typeof imagePreviews] as string[] || [];
+      
+      // Revoke preview URL
+      if (currentPreviews[index]) {
+        URL.revokeObjectURL(currentPreviews[index]);
+      }
+      
+      // Remove file and preview
+      const newFiles = [...currentFiles];
+      newFiles.splice(index, 1);
+      
+      const newPreviews = [...currentPreviews];
+      newPreviews.splice(index, 1);
+      
+      setGuardImages(prev => ({
+        ...prev,
+        [imageType]: newFiles
+      }));
+      
+      setImagePreviews(prev => ({
+        ...prev,
+        [imageType]: newPreviews
+      }));
+      
+      // Update verification status if all images are removed
+      if (newFiles.length === 0) {
+        setImageVerificationStatus(prev => ({
+          ...prev,
+          [imageType]: false
+        }));
+      }
+    }
   };
 
   // Verification Form Step 1: Trip Details Verification
@@ -699,161 +910,311 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
     );
   };
 
-  // Verification Form Step 2: Image Verification
+  // Verification Form Step 2: Image Upload (formerly Image Verification)
   const renderImageVerification = () => {
-    if (!session || !session.images) {
-      return (
-        <Box sx={{ py: 3, textAlign: 'center' }}>
-          <Typography variant="body1" color="text.secondary">
-            No images available for verification.
-          </Typography>
-        </Box>
-      );
-    }
-
-    // Check if any images exist
-    const hasImages = Object.keys(session.images).some(key => {
-      const value = session.images && session.images[key as keyof typeof session.images];
-      return !!value;
-    });
-
-    if (!hasImages) {
-      return (
-        <Box sx={{ py: 3, textAlign: 'center' }}>
-          <Typography variant="body1" color="text.secondary">
-            No images available for verification.
-          </Typography>
-        </Box>
-      );
-    }
-
     return (
       <Box>
         <Typography variant="h6" gutterBottom>
-          Image Verification
+          Image Upload
         </Typography>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-          Please verify each image by checking it against the physical items.
+          Please upload your images taken at the destination. These images will be compared with the ones taken by the operator at source.
         </Typography>
 
         <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
-          {session.images.driverPicture && (
-            <Box sx={{ flex: '1 0 45%', minWidth: '300px' }}>
-              <Paper variant="outlined" sx={{ p: 2, height: '100%' }}>
-                <Typography variant="subtitle1" gutterBottom>Driver Photo</Typography>
-                <Box sx={{ mb: 2 }}>
+          {/* Driver Photo Upload */}
+          <Box sx={{ flex: '1 0 45%', minWidth: '300px' }}>
+            <Paper variant="outlined" sx={{ p: 2, height: '100%' }}>
+              <Typography variant="subtitle1" gutterBottom>Driver Photo</Typography>
+              
+              {imagePreviews.driverPicture ? (
+                // Preview with delete option
+                <Box sx={{ position: 'relative', mb: 2 }}>
                   <img 
-                    src={session.images.driverPicture} 
-                    alt="Driver" 
+                    src={imagePreviews.driverPicture} 
+                    alt="Driver Preview" 
                     style={{ width: '100%', maxHeight: '200px', objectFit: 'cover', borderRadius: '4px' }} 
                   />
-                </Box>
-                <Box display="flex" justifyContent="space-between" alignItems="center">
-                  <Typography variant="body2">
-                    Verified: {imageVerificationStatus.driverPicture ? 'Yes' : 'No'}
-                  </Typography>
-                  <Button 
-                    variant={imageVerificationStatus.driverPicture ? "contained" : "outlined"}
-                    color={imageVerificationStatus.driverPicture ? "success" : "primary"}
+                  <IconButton 
+                    onClick={() => removeUploadedImage('driverPicture')}
+                    sx={{ 
+                      position: 'absolute', 
+                      top: 5, 
+                      right: 5, 
+                      bgcolor: 'rgba(0,0,0,0.5)', 
+                      color: 'white',
+                      '&:hover': { bgcolor: 'rgba(0,0,0,0.7)' }
+                    }}
                     size="small"
-                    onClick={() => verifyImage('driverPicture')}
-                    startIcon={imageVerificationStatus.driverPicture ? <CheckCircle /> : <RadioButtonUnchecked />}
                   >
-                    {imageVerificationStatus.driverPicture ? "Verified" : "Verify"}
-                  </Button>
+                    <Delete fontSize="small" />
+                  </IconButton>
                 </Box>
-              </Paper>
-            </Box>
-          )}
+              ) : (
+                // Upload interface
+                <Box
+                  sx={{
+                    border: '2px dashed',
+                    borderColor: 'divider',
+                    p: 2,
+                    mb: 2,
+                    borderRadius: 1,
+                    textAlign: 'center',
+                    bgcolor: 'background.paper'
+                  }}
+                >
+                  <input
+                    type="file"
+                    id="driverPicture-upload"
+                    accept="image/*"
+                    style={{ display: 'none' }}
+                    onChange={(e) => handleImageUpload('driverPicture', e.target.files?.[0] || null)}
+                  />
+                  <label htmlFor="driverPicture-upload">
+                    <Button
+                      variant="outlined"
+                      component="span"
+                      startIcon={<CloudUpload />}
+                      sx={{ mb: 1 }}
+                    >
+                      Upload Driver Photo
+                    </Button>
+                  </label>
+                  <Typography variant="caption" display="block" color="text.secondary">
+                    Take a clear photo of the driver
+                  </Typography>
+                </Box>
+              )}
+              
+              <Box display="flex" justifyContent="space-between" alignItems="center">
+                <Typography variant="body2">
+                  {guardImages.driverPicture ? 'Photo Uploaded' : 'No Photo Uploaded'}
+                </Typography>
+              </Box>
+            </Paper>
+          </Box>
 
-          {session.images.vehicleNumberPlatePicture && (
-            <Box sx={{ flex: '1 0 45%', minWidth: '300px' }}>
-              <Paper variant="outlined" sx={{ p: 2, height: '100%' }}>
-                <Typography variant="subtitle1" gutterBottom>Vehicle Number Plate</Typography>
-                <Box sx={{ mb: 2 }}>
+          {/* Vehicle Number Plate Upload */}
+          <Box sx={{ flex: '1 0 45%', minWidth: '300px' }}>
+            <Paper variant="outlined" sx={{ p: 2, height: '100%' }}>
+              <Typography variant="subtitle1" gutterBottom>Vehicle Number Plate</Typography>
+              
+              {imagePreviews.vehicleNumberPlatePicture ? (
+                // Preview with delete option
+                <Box sx={{ position: 'relative', mb: 2 }}>
                   <img 
-                    src={session.images.vehicleNumberPlatePicture} 
-                    alt="Vehicle Number Plate" 
+                    src={imagePreviews.vehicleNumberPlatePicture} 
+                    alt="Number Plate Preview" 
                     style={{ width: '100%', maxHeight: '200px', objectFit: 'cover', borderRadius: '4px' }} 
                   />
-                </Box>
-                <Box display="flex" justifyContent="space-between" alignItems="center">
-                  <Typography variant="body2">
-                    Verified: {imageVerificationStatus.vehicleNumberPlatePicture ? 'Yes' : 'No'}
-                  </Typography>
-                  <Button 
-                    variant={imageVerificationStatus.vehicleNumberPlatePicture ? "contained" : "outlined"}
-                    color={imageVerificationStatus.vehicleNumberPlatePicture ? "success" : "primary"}
+                  <IconButton 
+                    onClick={() => removeUploadedImage('vehicleNumberPlatePicture')}
+                    sx={{ 
+                      position: 'absolute', 
+                      top: 5, 
+                      right: 5, 
+                      bgcolor: 'rgba(0,0,0,0.5)', 
+                      color: 'white',
+                      '&:hover': { bgcolor: 'rgba(0,0,0,0.7)' }
+                    }}
                     size="small"
-                    onClick={() => verifyImage('vehicleNumberPlatePicture')}
-                    startIcon={imageVerificationStatus.vehicleNumberPlatePicture ? <CheckCircle /> : <RadioButtonUnchecked />}
                   >
-                    {imageVerificationStatus.vehicleNumberPlatePicture ? "Verified" : "Verify"}
-                  </Button>
+                    <Delete fontSize="small" />
+                  </IconButton>
                 </Box>
-              </Paper>
-            </Box>
-          )}
+              ) : (
+                // Upload interface
+                <Box
+                  sx={{
+                    border: '2px dashed',
+                    borderColor: 'divider',
+                    p: 2,
+                    mb: 2,
+                    borderRadius: 1,
+                    textAlign: 'center',
+                    bgcolor: 'background.paper'
+                  }}
+                >
+                  <input
+                    type="file"
+                    id="numberPlate-upload"
+                    accept="image/*"
+                    style={{ display: 'none' }}
+                    onChange={(e) => handleImageUpload('vehicleNumberPlatePicture', e.target.files?.[0] || null)}
+                  />
+                  <label htmlFor="numberPlate-upload">
+                    <Button
+                      variant="outlined"
+                      component="span"
+                      startIcon={<CloudUpload />}
+                      sx={{ mb: 1 }}
+                    >
+                      Upload Number Plate
+                    </Button>
+                  </label>
+                  <Typography variant="caption" display="block" color="text.secondary">
+                    Take a clear photo of the vehicle's number plate
+                  </Typography>
+                </Box>
+              )}
+              
+              <Box display="flex" justifyContent="space-between" alignItems="center">
+                <Typography variant="body2">
+                  {guardImages.vehicleNumberPlatePicture ? 'Photo Uploaded' : 'No Photo Uploaded'}
+                </Typography>
+              </Box>
+            </Paper>
+          </Box>
 
-          {session.images.gpsImeiPicture && (
-            <Box sx={{ flex: '1 0 45%', minWidth: '300px' }}>
-              <Paper variant="outlined" sx={{ p: 2, height: '100%' }}>
-                <Typography variant="subtitle1" gutterBottom>GPS/IMEI</Typography>
-                <Box sx={{ mb: 2 }}>
+          {/* GPS/IMEI Upload */}
+          <Box sx={{ flex: '1 0 45%', minWidth: '300px' }}>
+            <Paper variant="outlined" sx={{ p: 2, height: '100%' }}>
+              <Typography variant="subtitle1" gutterBottom>GPS/IMEI</Typography>
+              
+              {imagePreviews.gpsImeiPicture ? (
+                // Preview with delete option
+                <Box sx={{ position: 'relative', mb: 2 }}>
                   <img 
-                    src={session.images.gpsImeiPicture} 
-                    alt="GPS IMEI" 
+                    src={imagePreviews.gpsImeiPicture} 
+                    alt="GPS/IMEI Preview" 
                     style={{ width: '100%', maxHeight: '200px', objectFit: 'cover', borderRadius: '4px' }} 
                   />
-                </Box>
-                <Box display="flex" justifyContent="space-between" alignItems="center">
-                  <Typography variant="body2">
-                    Verified: {imageVerificationStatus.gpsImeiPicture ? 'Yes' : 'No'}
-                  </Typography>
-                  <Button 
-                    variant={imageVerificationStatus.gpsImeiPicture ? "contained" : "outlined"}
-                    color={imageVerificationStatus.gpsImeiPicture ? "success" : "primary"}
+                  <IconButton 
+                    onClick={() => removeUploadedImage('gpsImeiPicture')}
+                    sx={{ 
+                      position: 'absolute', 
+                      top: 5, 
+                      right: 5, 
+                      bgcolor: 'rgba(0,0,0,0.5)', 
+                      color: 'white',
+                      '&:hover': { bgcolor: 'rgba(0,0,0,0.7)' }
+                    }}
                     size="small"
-                    onClick={() => verifyImage('gpsImeiPicture')}
-                    startIcon={imageVerificationStatus.gpsImeiPicture ? <CheckCircle /> : <RadioButtonUnchecked />}
                   >
-                    {imageVerificationStatus.gpsImeiPicture ? "Verified" : "Verify"}
-                  </Button>
+                    <Delete fontSize="small" />
+                  </IconButton>
                 </Box>
-              </Paper>
-            </Box>
-          )}
+              ) : (
+                // Upload interface
+                <Box
+                  sx={{
+                    border: '2px dashed',
+                    borderColor: 'divider',
+                    p: 2,
+                    mb: 2,
+                    borderRadius: 1,
+                    textAlign: 'center',
+                    bgcolor: 'background.paper'
+                  }}
+                >
+                  <input
+                    type="file"
+                    id="gpsImei-upload"
+                    accept="image/*"
+                    style={{ display: 'none' }}
+                    onChange={(e) => handleImageUpload('gpsImeiPicture', e.target.files?.[0] || null)}
+                  />
+                  <label htmlFor="gpsImei-upload">
+                    <Button
+                      variant="outlined"
+                      component="span"
+                      startIcon={<CloudUpload />}
+                      sx={{ mb: 1 }}
+                    >
+                      Upload GPS/IMEI Photo
+                    </Button>
+                  </label>
+                  <Typography variant="caption" display="block" color="text.secondary">
+                    Take a clear photo of the GPS/IMEI number
+                  </Typography>
+                </Box>
+              )}
+              
+              <Box display="flex" justifyContent="space-between" alignItems="center">
+                <Typography variant="body2">
+                  {guardImages.gpsImeiPicture ? 'Photo Uploaded' : 'No Photo Uploaded'}
+                </Typography>
+              </Box>
+            </Paper>
+          </Box>
 
-          {/* Sealing Images */}
-          {session.images.sealingImages && session.images.sealingImages.length > 0 && (
-            <Box sx={{ width: '100%' }}>
-              <Paper variant="outlined" sx={{ p: 2 }}>
-                <Typography variant="subtitle1" gutterBottom>Sealing Images</Typography>
-                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
-                  {session.images.sealingImages.map((image, index) => (
-                    <Box key={`sealing-${index}`} sx={{ flex: '1 0 30%', minWidth: '200px' }}>
+          {/* Sealing Images Upload */}
+          <Box sx={{ width: '100%' }}>
+            <Paper variant="outlined" sx={{ p: 2 }}>
+              <Typography variant="subtitle1" gutterBottom>Sealing Images</Typography>
+              
+              {/* Preview uploaded images */}
+              {imagePreviews.sealingImages && imagePreviews.sealingImages.length > 0 && (
+                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, mb: 2 }}>
+                  {imagePreviews.sealingImages.map((preview, index) => (
+                    <Box key={`sealing-preview-${index}`} sx={{ position: 'relative', flex: '1 0 30%', minWidth: '200px' }}>
                       <img 
-                        src={image} 
-                        alt={`Sealing ${index + 1}`} 
+                        src={preview} 
+                        alt={`Sealing Preview ${index + 1}`} 
                         style={{ width: '100%', maxHeight: '150px', objectFit: 'cover', borderRadius: '4px' }} 
                       />
+                      <IconButton 
+                        onClick={() => removeUploadedImage('sealingImages', index)}
+                        sx={{ 
+                          position: 'absolute', 
+                          top: 5, 
+                          right: 5, 
+                          bgcolor: 'rgba(0,0,0,0.5)', 
+                          color: 'white',
+                          '&:hover': { bgcolor: 'rgba(0,0,0,0.7)' }
+                        }}
+                        size="small"
+                      >
+                        <Delete fontSize="small" />
+                      </IconButton>
                     </Box>
                   ))}
                 </Box>
-                <Box display="flex" justifyContent="flex-end" sx={{ mt: 2 }}>
-                  <Button 
-                    variant={imageVerificationStatus.sealingImages ? "contained" : "outlined"}
-                    color={imageVerificationStatus.sealingImages ? "success" : "primary"}
-                    size="small"
-                    onClick={() => verifyImage('sealingImages')}
-                    startIcon={imageVerificationStatus.sealingImages ? <CheckCircle /> : <RadioButtonUnchecked />}
+              )}
+              
+              {/* Upload interface */}
+              <Box
+                sx={{
+                  border: '2px dashed',
+                  borderColor: 'divider',
+                  p: 2,
+                  borderRadius: 1,
+                  textAlign: 'center',
+                  bgcolor: 'background.paper'
+                }}
+              >
+                <input
+                  type="file"
+                  id="sealing-upload"
+                  accept="image/*"
+                  multiple
+                  style={{ display: 'none' }}
+                  onChange={(e) => handleImageUpload('sealingImages', e.target.files || null)}
+                />
+                <label htmlFor="sealing-upload">
+                  <Button
+                    variant="outlined"
+                    component="span"
+                    startIcon={<CloudUpload />}
+                    sx={{ mb: 1 }}
                   >
-                    {imageVerificationStatus.sealingImages ? "Verified" : "Verify All Sealing Images"}
+                    Upload Sealing Images
                   </Button>
-                </Box>
-              </Paper>
-            </Box>
-          )}
+                </label>
+                <Typography variant="caption" display="block" color="text.secondary">
+                  Take clear photos of all seals applied to the vehicle
+                </Typography>
+              </Box>
+              
+              <Box display="flex" justifyContent="space-between" alignItems="center" mt={2}>
+                <Typography variant="body2">
+                  {imagePreviews.sealingImages && imagePreviews.sealingImages.length > 0 ? 
+                    `${imagePreviews.sealingImages.length} image(s) uploaded` : 
+                    'No images uploaded'}
+                </Typography>
+              </Box>
+            </Paper>
+          </Box>
 
           {/* Navigation Buttons */}
           <Box sx={{ width: '100%', mt: 3 }}>
@@ -896,13 +1257,24 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
     // Get verification stats for display
     const stats = getVerificationStats();
 
+    // Check if required uploads are completed
+    const requiredImageTypes = ['driverPicture', 'vehicleNumberPlatePicture', 'gpsImeiPicture', 'sealingImages'];
+    const uploadedImages = requiredImageTypes.filter(type => {
+      if (type === 'sealingImages') {
+        return guardImages.sealingImages && guardImages.sealingImages.length > 0;
+      }
+      return !!guardImages[type as keyof typeof guardImages];
+    });
+    
+    const imagesComplete = uploadedImages.length === requiredImageTypes.length;
+
     return (
       <Box>
         <Typography variant="h6" gutterBottom>
           Seal Verification
         </Typography>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-          Please verify the physical seal and complete the verification process.
+          Please verify the physical seal and complete the verification process with your uploaded images.
         </Typography>
 
         <Paper variant="outlined" sx={{ p: 3, mb: 4 }}>
@@ -937,31 +1309,67 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
               <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 3, mb: 3 }}>
                 <Box sx={{ flex: '1 0 30%', minWidth: '200px' }}>
                   <Paper sx={{ p: 2, bgcolor: 'primary.light', color: 'primary.contrastText' }}>
-                    <Typography variant="h4" align="center">{stats.total}</Typography>
-                    <Typography variant="body2" align="center">Total Fields</Typography>
+                    <Typography variant="h4" align="center">{Object.keys(verificationFields).length}</Typography>
+                    <Typography variant="body2" align="center">Trip Fields</Typography>
                   </Paper>
                 </Box>
                 <Box sx={{ flex: '1 0 30%', minWidth: '200px' }}>
                   <Paper sx={{ p: 2, bgcolor: 'success.light', color: 'success.contrastText' }}>
-                    <Typography variant="h4" align="center">{stats.verified}</Typography>
+                    <Typography variant="h4" align="center">{stats.fieldStats.verified}</Typography>
                     <Typography variant="body2" align="center">Verified Fields</Typography>
                   </Paper>
                 </Box>
                 <Box sx={{ flex: '1 0 30%', minWidth: '200px' }}>
                   <Paper sx={{ p: 2, bgcolor: 'warning.light', color: 'warning.contrastText' }}>
-                    <Typography variant="h4" align="center">{stats.total - stats.verified}</Typography>
-                    <Typography variant="body2" align="center">Pending Fields</Typography>
+                    <Typography variant="h4" align="center">{uploadedImages.length}/{requiredImageTypes.length}</Typography>
+                    <Typography variant="body2" align="center">Image Categories Uploaded</Typography>
                   </Paper>
                 </Box>
               </Box>
 
-              <Alert severity={stats.verified === stats.total ? "success" : "warning"} sx={{ mb: 3 }}>
-                <AlertTitle>{stats.verified === stats.total ? "Ready to Complete" : "Verification Incomplete"}</AlertTitle>
-                {stats.verified === stats.total 
-                  ? "All fields have been verified. You can now complete the verification process."
-                  : `${stats.total - stats.verified} field(s) still need verification. Please go back and complete all verifications.`
-                }
+              {/* Final verification requirements */}
+              <Alert severity={stats.fieldStats.verified === Object.keys(verificationFields).length && imagesComplete ? "success" : "warning"} sx={{ mb: 3 }}>
+                <AlertTitle>
+                  {stats.fieldStats.verified === Object.keys(verificationFields).length && imagesComplete ? 
+                    "Ready to Complete" : 
+                    "Verification Incomplete"}
+                </AlertTitle>
+                {stats.fieldStats.verified < Object.keys(verificationFields).length && (
+                  <Typography variant="body2" sx={{ mb: 1 }}>
+                    {Object.keys(verificationFields).length - stats.fieldStats.verified} field(s) still need verification
+                  </Typography>
+                )}
+                {!imagesComplete && (
+                  <Typography variant="body2">
+                    Missing images: {requiredImageTypes.filter(type => !uploadedImages.includes(type)).map(getFieldLabel).join(', ')}
+                  </Typography>
+                )}
+                {stats.fieldStats.verified === Object.keys(verificationFields).length && imagesComplete && (
+                  <Typography variant="body2">
+                    All fields verified and required images uploaded. You can now complete the verification process.
+                  </Typography>
+                )}
               </Alert>
+
+              {/* Seal entry field */}
+              <Box sx={{ mb: 3 }}>
+                <Typography variant="subtitle1" gutterBottom>
+                  Enter Seal Barcode
+                </Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                  To complete the verification, please enter the seal barcode from the physical seal:
+                </Typography>
+                <TextField
+                  fullWidth
+                  label="Seal Barcode"
+                  variant="outlined"
+                  value={sealInput}
+                  onChange={(e) => setSealInput(e.target.value)}
+                  error={!!sealError}
+                  helperText={sealError}
+                  sx={{ mb: 2 }}
+                />
+              </Box>
             </Box>
           </Box>
         </Paper>
@@ -980,7 +1388,7 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
             color="success"
             onClick={openConfirmDialog}
             endIcon={<CheckCircle />}
-            disabled={stats.verified < stats.total}
+            disabled={stats.fieldStats.verified < Object.keys(verificationFields).length || !imagesComplete || !sealInput}
           >
             Complete Verification
           </Button>
