@@ -383,67 +383,128 @@ export const GET = withAuth(
       // TRIP DETAILS - show ALL available details
       addSectionHeading('TRIP DETAILS');
       
-      // Try multiple sources for trip details, in order of likelihood
-      const tripSources = [
-        // Try directTripDetails first
-        {name: "tripDetails field", data: sessionData.tripDetails},
-        // Try directly looking at top-level fields in the session
-        {name: "direct session fields", data: (() => {
-          const direct: Record<string, any> = {};
-          const commonFields = ['vehicleNumber', 'driverName', 'driverContactNumber', 'freight', 
-                              'transporterName', 'materialName', 'gpsImeiNumber', 'challanRoyaltyNumber',
-                              'doNumber', 'tpNumber', 'grossWeight', 'tareWeight', 'loadingSite'];
-          for (const field of commonFields) {
-            if (field in sessionData) {
-              direct[field] = sessionData[field as keyof typeof sessionData];
-            }
-          }
-          return Object.keys(direct).length > 0 ? direct : null;
-        })()},
-        // Try looking in activityLog if it exists
-        {name: "activity log", data: (() => {
-          if (activityLog?.details) {
-            if (typeof activityLog.details === 'string') {
-              try {
-                const parsed = JSON.parse(activityLog.details);
-                return parsed.tripDetails || parsed.data?.tripDetails || null;
-              } catch {
-                return null;
-              }
-            } else {
-              return activityLog.details.tripDetails || activityLog.details.data?.tripDetails || null;
-            }
-          }
-          return null;
-        })()},
-        // Last resort - show everything that might be trip-related
-        {name: "all possible fields", data: completeDetails}
+      // Combine all trip details from all possible sources into one object
+      let allTripFields: Record<string, any> = {};
+      
+      // 1. First try sessionData.tripDetails if it exists
+      if (sessionData.tripDetails && typeof sessionData.tripDetails === 'object') {
+        console.log("Found tripDetails object with keys:", Object.keys(sessionData.tripDetails));
+        allTripFields = {...allTripFields, ...sessionData.tripDetails};
+      }
+      
+      // 2. Look for direct fields on sessionData
+      const directTripFieldNames = [
+        'vehicleNumber', 'driverName', 'driverContactNumber', 'freight', 
+        'transporterName', 'materialName', 'gpsImeiNumber', 'challanRoyaltyNumber',
+        'doNumber', 'tpNumber', 'grossWeight', 'tareWeight', 'loadingSite',
+        'receiverPartyName', 'loaderName', 'loaderMobileNumber', 'qualityOfMaterials',
+        'netMaterialWeight'
       ];
       
-      // Try each source until we find one with data
-      let tripDataDisplayed = false;
-      for (const source of tripSources) {
-        if (source.data && Object.keys(source.data).length > 0) {
-          console.log(`Using trip details from ${source.name}`);
-          
-          // Display all the key-value pairs from this source
-          for (const [key, value] of Object.entries(source.data)) {
-            if (value !== undefined) {
-              // Format key from camelCase to Title Case with spaces
-              const formattedKey = key.replace(/([A-Z])/g, ' $1')
-                .replace(/^./, str => str.toUpperCase());
-              
-              addField(formattedKey, value);
-              tripDataDisplayed = true;
-            }
-          }
-          
-          // Once we've displayed data from a source, we're done
-          break;
+      for (const field of directTripFieldNames) {
+        if (sessionData[field as keyof typeof sessionData] !== undefined && 
+            sessionData[field as keyof typeof sessionData] !== null) {
+          allTripFields[field] = sessionData[field as keyof typeof sessionData];
         }
       }
       
-      // If no data was displayed from any source, show the fallback message
+      // 3. Try to extract from activityLog if it exists
+      if (activityLog?.details) {
+        let detailsData: any;
+        
+        if (typeof activityLog.details === 'string') {
+          try {
+            detailsData = JSON.parse(activityLog.details);
+          } catch (e) {
+            console.error("Failed to parse activityLog.details string:", e);
+          }
+        } else {
+          detailsData = activityLog.details;
+        }
+        
+        // Check multiple possible locations in the details object
+        if (detailsData) {
+          // Direct tripDetails object
+          if (detailsData.tripDetails && typeof detailsData.tripDetails === 'object') {
+            console.log("Found tripDetails in activity log");
+            allTripFields = {...allTripFields, ...detailsData.tripDetails};
+          }
+          
+          // Nested in data.tripDetails
+          if (detailsData.data?.tripDetails && typeof detailsData.data.tripDetails === 'object') {
+            console.log("Found data.tripDetails in activity log");
+            allTripFields = {...allTripFields, ...detailsData.data.tripDetails};
+          }
+          
+          // Direct in data object
+          if (detailsData.data && typeof detailsData.data === 'object') {
+            console.log("Examining data object for trip fields");
+            for (const field of directTripFieldNames) {
+              if (detailsData.data[field] !== undefined) {
+                allTripFields[field] = detailsData.data[field];
+              }
+            }
+          }
+        }
+      }
+      
+      // 4. Add from completeDetails as a final fallback
+      allTripFields = {...allTripFields, ...completeDetails};
+      
+      // Log the final compiled trip details
+      console.log("Final compiled trip details:", Object.keys(allTripFields).length, 
+                "fields found:", Object.keys(allTripFields).join(", "));
+      
+      // Display all trip details
+      let tripDataDisplayed = false;
+      
+      if (Object.keys(allTripFields).length > 0) {
+        // Define field order for common fields
+        const orderedFields = [
+          // Vehicle information
+          'vehicleNumber', 'transporterName', 
+          // Driver information
+          'driverName', 'driverContactNumber',
+          // Material information
+          'materialName', 'qualityOfMaterials', 'grossWeight', 'tareWeight', 'netMaterialWeight',
+          // Document information
+          'challanRoyaltyNumber', 'doNumber', 'tpNumber',
+          // GPS information
+          'gpsImeiNumber',
+          // Loader information
+          'loaderName', 'loaderMobileNumber',
+          // Location information
+          'loadingSite', 'receiverPartyName',
+          // Financial information
+          'freight'
+        ];
+        
+        // First display ordered fields if they exist
+        for (const field of orderedFields) {
+          if (field in allTripFields && allTripFields[field] !== undefined) {
+            // Format field name for display
+            const formattedField = field.replace(/([A-Z])/g, ' $1')
+              .replace(/^./, str => str.toUpperCase());
+            
+            addField(formattedField, allTripFields[field]);
+            tripDataDisplayed = true;
+          }
+        }
+        
+        // Then add any remaining fields not in the ordered list
+        for (const field of Object.keys(allTripFields)) {
+          if (!orderedFields.includes(field) && allTripFields[field] !== undefined) {
+            // Format field name for display
+            const formattedField = field.replace(/([A-Z])/g, ' $1')
+              .replace(/^./, str => str.toUpperCase());
+            
+            addField(formattedField, allTripFields[field]);
+            tripDataDisplayed = true;
+          }
+        }
+      }
+      
+      // If no data was displayed, show the fallback message
       if (!tripDataDisplayed) {
         console.log("No trip details found in any source");
         yPos += lineHeight;
@@ -451,70 +512,86 @@ export const GET = withAuth(
         yPos += lineHeight;
       }
 
-      // IMAGES INFORMATION - simplified to directly display whatever is in the images object
+      // IMAGES INFORMATION - improved to handle all possible image formats and locations
       addSectionHeading('IMAGES INFORMATION');
       
-      // Check directly if the images field exists and has content
-      const imageData = sessionData.images as Record<string, any> | undefined;
-      let imageInfoDisplayed = false;
-      
-      if (imageData && typeof imageData === 'object') {
-        console.log("Images data found:", Object.keys(imageData));
-        
-        // Handle each possible image field
-        const imageFields = [
-          {key: 'driverPicture', label: 'Driver Picture'},
-          {key: 'vehicleNumberPlatePicture', label: 'Vehicle Number Plate Picture'},
-          {key: 'gpsImeiPicture', label: 'GPS IMEI Picture'}
-        ];
-        
-        // Process single image fields
-        for (const {key, label} of imageFields) {
-          if (imageData[key]) {
+      // Function to safely add an image field
+      const addImageField = (label: string, value: any) => {
+        if (value) {
+          if (Array.isArray(value)) {
+            if (value.length > 0) {
+              addField(label, `${value.length} available`);
+              return true;
+            }
+          } else if (typeof value === 'string' && value.trim() !== '') {
             addField(label, 'Available');
-            imageInfoDisplayed = true;
+            return true;
           }
         }
+        return false;
+      };
+      
+      let imageInfoDisplayed = false;
+      
+      // Try multiple image sources
+      
+      // 1. Check sessionData.images if it exists
+      if (sessionData.images && typeof sessionData.images === 'object') {
+        console.log("Found images data with keys:", Object.keys(sessionData.images));
         
-        // Process array image fields
-        const arrayImageFields = [
+        // Standard image fields
+        const standardImageFields = [
+          {key: 'driverPicture', label: 'Driver Picture'},
+          {key: 'vehicleNumberPlatePicture', label: 'Vehicle Number Plate Picture'},
+          {key: 'gpsImeiPicture', label: 'GPS IMEI Picture'},
           {key: 'sealingImages', label: 'Sealing Images'},
           {key: 'vehicleImages', label: 'Vehicle Images'},
           {key: 'additionalImages', label: 'Additional Images'}
         ];
         
-        for (const {key, label} of arrayImageFields) {
-          if (Array.isArray(imageData[key]) && imageData[key].length > 0) {
-            addField(label, `${imageData[key].length} available`);
+        // Check for standard image fields
+        for (const {key, label} of standardImageFields) {
+          if (addImageField(label, sessionData.images[key])) {
             imageInfoDisplayed = true;
           }
         }
         
-        // Add any other keys in the images object that we didn't explicitly check
-        const otherKeys = Object.keys(imageData).filter(key => 
-          !imageFields.some(f => f.key === key) && 
-          !arrayImageFields.some(f => f.key === key)
-        );
-        
-        for (const key of otherKeys) {
-          if (imageData[key]) {
+        // Check for any other image fields not in the standard list
+        for (const key of Object.keys(sessionData.images)) {
+          if (!standardImageFields.some(field => field.key === key)) {
             const formattedKey = key.replace(/([A-Z])/g, ' $1')
               .replace(/^./, str => str.toUpperCase());
             
-            if (Array.isArray(imageData[key])) {
-              addField(formattedKey, `${imageData[key].length} available`);
-            } else {
-              addField(formattedKey, 'Available');
+            if (addImageField(formattedKey, sessionData.images[key])) {
+              imageInfoDisplayed = true;
             }
+          }
+        }
+      }
+      
+      // 2. Look for image-related fields directly in sessionData
+      if (!imageInfoDisplayed) {
+        // Find fields that might contain image data
+        const possibleImageFields = Object.keys(sessionData).filter(key => 
+          typeof key === 'string' && 
+          (key.toLowerCase().includes('image') || 
+           key.toLowerCase().includes('picture') || 
+           key.toLowerCase().includes('photo'))
+        );
+        
+        for (const key of possibleImageFields) {
+          const formattedKey = key.replace(/([A-Z])/g, ' $1')
+            .replace(/^./, str => str.toUpperCase());
+          
+          if (addImageField(formattedKey, sessionData[key as keyof typeof sessionData])) {
             imageInfoDisplayed = true;
           }
         }
-      } else {
-        console.log("No images data found in sessionData");
       }
       
-      // If we couldn't find any image data, show a fallback message
+      // If no images were found, show the fallback message
       if (!imageInfoDisplayed) {
+        console.log("No images found in any source");
         yPos += lineHeight;
         doc.text('No images available', margin, yPos);
         yPos += lineHeight;
