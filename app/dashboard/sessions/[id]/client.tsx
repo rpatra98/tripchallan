@@ -1490,12 +1490,15 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
               {matches.map(field => {
                 const data = allFields[field];
                 return (
-                  <TableRow key={field} sx={{ bgcolor: 'success.lightest' }}>
-                    <TableCell component="th" scope="row">
+                  <TableRow key={field} sx={{ 
+                    bgcolor: 'rgba(46, 125, 50, 0.15)', 
+                    '&:hover': { bgcolor: 'rgba(46, 125, 50, 0.25)' }
+                  }}>
+                    <TableCell component="th" scope="row" sx={{ color: 'success.dark', fontWeight: 'medium' }}>
                       {getFieldLabel(field)}
                     </TableCell>
-                    <TableCell>{String(data.operatorValue || 'N/A')}</TableCell>
-                    <TableCell>{String(data.guardValue || 'Not provided')}</TableCell>
+                    <TableCell sx={{ color: 'success.dark' }}>{String(data.operatorValue || 'N/A')}</TableCell>
+                    <TableCell sx={{ color: 'success.dark' }}>{String(data.guardValue || 'Not provided')}</TableCell>
                     <TableCell align="center">
                       <Box display="flex" alignItems="center" justifyContent="center" sx={{ color: 'success.main' }}>
                         <CheckCircle fontSize="small" sx={{ mr: 0.5 }} />
@@ -1510,12 +1513,15 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
               {mismatches.map(field => {
                 const data = allFields[field];
                 return (
-                  <TableRow key={field} sx={{ bgcolor: 'error.lightest' }}>
-                    <TableCell component="th" scope="row">
+                  <TableRow key={field} sx={{ 
+                    bgcolor: 'rgba(211, 47, 47, 0.15)', 
+                    '&:hover': { bgcolor: 'rgba(211, 47, 47, 0.25)' }
+                  }}>
+                    <TableCell component="th" scope="row" sx={{ color: 'error.dark', fontWeight: 'medium' }}>
                       {getFieldLabel(field)}
                     </TableCell>
-                    <TableCell>{String(data.operatorValue || 'N/A')}</TableCell>
-                    <TableCell>{String(data.guardValue || 'Not provided')}</TableCell>
+                    <TableCell sx={{ color: 'error.dark' }}>{String(data.operatorValue || 'N/A')}</TableCell>
+                    <TableCell sx={{ color: 'error.dark' }}>{String(data.guardValue || 'Not provided')}</TableCell>
                     <TableCell align="center">
                       <Box display="flex" alignItems="center" justifyContent="center" sx={{ color: 'error.main' }}>
                         <Warning fontSize="small" sx={{ mr: 0.5 }} />
@@ -1530,12 +1536,15 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
               {unverified.map(field => {
                 const data = allFields[field];
                 return (
-                  <TableRow key={field} sx={{ bgcolor: 'error.lightest' }}>
-                    <TableCell component="th" scope="row">
+                  <TableRow key={field} sx={{ 
+                    bgcolor: 'rgba(211, 47, 47, 0.15)', 
+                    '&:hover': { bgcolor: 'rgba(211, 47, 47, 0.25)' }
+                  }}>
+                    <TableCell component="th" scope="row" sx={{ color: 'error.dark', fontWeight: 'medium' }}>
                       {getFieldLabel(field)}
                     </TableCell>
-                    <TableCell>{String(data.operatorValue || 'N/A')}</TableCell>
-                    <TableCell>{String(data.guardValue || 'Not provided')}</TableCell>
+                    <TableCell sx={{ color: 'error.dark' }}>{String(data.operatorValue || 'N/A')}</TableCell>
+                    <TableCell sx={{ color: 'error.dark' }}>{String(data.guardValue || 'Not provided')}</TableCell>
                     <TableCell align="center">
                       <Box display="flex" alignItems="center" justifyContent="center" sx={{ color: 'error.main' }}>
                         <Warning fontSize="small" sx={{ mr: 0.5 }} />
