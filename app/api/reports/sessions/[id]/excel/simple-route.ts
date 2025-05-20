@@ -530,4 +530,4 @@ export const GET = withAuth(
     }
   },
   [UserRole.SUPERADMIN, UserRole.ADMIN, UserRole.COMPANY]
-); 
+);

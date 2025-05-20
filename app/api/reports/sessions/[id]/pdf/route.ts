@@ -39,7 +39,7 @@ export const GET = withAuth(
       const userRole = session?.user.role;
       const userId = session?.user.id;
       const sessionId = context.params.id;
-
+      
       // Fetch session data
       const sessionData = await prisma.session.findUnique({
         where: { id: sessionId },
@@ -109,7 +109,7 @@ export const GET = withAuth(
       if (activityLog) {
         console.log('Activity Log Details Type:', typeof activityLog.details);
       }
-
+      
       // Extract trip details from activity log
       interface TripDetails {
         freight?: number;
@@ -215,16 +215,16 @@ export const GET = withAuth(
 
       // Add title
       doc.text('Session Details', 20, 20);
-      doc.setFontSize(12);
+          doc.setFontSize(12);
       doc.text(`Session ID: ${sessionData.id}`, 20, 30);
       doc.text(`Status: ${sessionData.status.replace(/_/g, ' ')}`, 20, 40);
 
       // Basic Information
       doc.setFontSize(14);
-      doc.setFont('helvetica', 'bold');
+          doc.setFont('helvetica', 'bold');
       doc.text('Basic Information', 20, 55);
-      doc.setFontSize(10);
-      doc.setFont('helvetica', 'normal');
+            doc.setFontSize(10);
+            doc.setFont('helvetica', 'normal');
 
       const basicInfo = [
         ['Source', sessionData.source || 'N/A'],
@@ -247,7 +247,7 @@ export const GET = withAuth(
 
       // Trip Details
       doc.setFontSize(14);
-      doc.setFont('helvetica', 'bold');
+          doc.setFont('helvetica', 'bold');
       doc.text('Trip Details', 20, (doc as any).lastAutoTable.finalY + 10);
       doc.setFontSize(10);
       doc.setFont('helvetica', 'normal');
@@ -274,11 +274,11 @@ export const GET = withAuth(
 
       autoTable(doc, {
         startY: (doc as any).lastAutoTable.finalY + 15,
-        head: [],
+            head: [],
         body: tripDetailsRows,
-        theme: 'grid',
+            theme: 'grid',
         styles: { fontSize: 10 },
-        columnStyles: {
+            columnStyles: {
           0: { cellWidth: 60, fontStyle: 'bold' },
           1: { cellWidth: 110 }
         }
@@ -286,7 +286,7 @@ export const GET = withAuth(
 
       // Seal Information
       doc.setFontSize(14);
-      doc.setFont('helvetica', 'bold');
+          doc.setFont('helvetica', 'bold');
       doc.text('Seal Information', 20, (doc as any).lastAutoTable.finalY + 10);
       doc.setFontSize(10);
       doc.setFont('helvetica', 'normal');
@@ -298,42 +298,42 @@ export const GET = withAuth(
 
       autoTable(doc, {
         startY: (doc as any).lastAutoTable.finalY + 15,
-        head: [],
+              head: [],
         body: sealInfo,
-        theme: 'grid',
+              theme: 'grid',
         styles: { fontSize: 10 },
-        columnStyles: {
+              columnStyles: {
           0: { cellWidth: 40, fontStyle: 'bold' },
           1: { cellWidth: 130 }
         }
       });
-
-      // Add footer
+        
+        // Add footer
       const pageCount = doc.getNumberOfPages();
-      for (let i = 1; i <= pageCount; i++) {
-        doc.setPage(i);
-        doc.setFontSize(8);
-        doc.text(
+        for (let i = 1; i <= pageCount; i++) {
+          doc.setPage(i);
+          doc.setFontSize(8);
+          doc.text(
           `Page ${i} of ${pageCount} | Generated on ${new Date().toLocaleString()}`,
           doc.internal.pageSize.width / 2,
           doc.internal.pageSize.height - 10,
-          { align: 'center' }
-        );
-      }
-
+            { align: 'center' }
+          );
+        }
+        
       // Generate PDF buffer
       const pdfBuffer = Buffer.from(doc.output('arraybuffer'));
-
+        
       // Create response
-      const response = new NextResponse(pdfBuffer);
-      response.headers.set('Content-Type', 'application/pdf');
-      response.headers.set('Content-Disposition', `attachment; filename="session-${sessionId}.pdf"`);
-      response.headers.set('Content-Length', pdfBuffer.length.toString());
-      response.headers.set('Cache-Control', 'no-cache, no-store, must-revalidate');
-      response.headers.set('Pragma', 'no-cache');
-      response.headers.set('Expires', '0');
-
-      return response;
+        const response = new NextResponse(pdfBuffer);
+        response.headers.set('Content-Type', 'application/pdf');
+        response.headers.set('Content-Disposition', `attachment; filename="session-${sessionId}.pdf"`);
+        response.headers.set('Content-Length', pdfBuffer.length.toString());
+        response.headers.set('Cache-Control', 'no-cache, no-store, must-revalidate');
+        response.headers.set('Pragma', 'no-cache');
+        response.headers.set('Expires', '0');
+        
+        return response;
 
     } catch (error: unknown) {
       console.error("Error generating PDF report:", error);
