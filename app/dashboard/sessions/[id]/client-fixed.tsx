@@ -194,9 +194,6 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
         case "excel":
           endpoint = `/api/reports/sessions/${sessionId}/excel`;
           break;
-        case "text":
-          endpoint = `/api/reports/sessions/${sessionId}/pdf/simple`;
-          break;
         default:
           throw new Error("Unsupported report format");
       }
@@ -216,7 +213,7 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
-      link.download = `session-${sessionId}.${format === "excel" ? "xlsx" : format === "pdf" ? "pdf" : "txt"}`;
+      link.download = `session-${sessionId}.${format === "excel" ? "xlsx" : "pdf"}`;
       document.body.appendChild(link);
       link.click();
       
@@ -468,16 +465,6 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
               sx={{ color: 'success.main', borderColor: 'success.main', '&:hover': { borderColor: 'success.dark' } }}
             >
               {reportLoading === "excel" ? "Downloading..." : "Download Excel"}
-            </Button>
-            <Button
-              variant="outlined"
-              startIcon={<Description />}
-              onClick={() => handleDownloadReport("text")}
-              disabled={reportLoading !== null}
-              size="small"
-              sx={{ color: 'grey.500', borderColor: 'grey.500', '&:hover': { borderColor: 'grey.700' } }}
-            >
-              {reportLoading === "text" ? "Downloading..." : "Download Text"}
             </Button>
           </Box>
         </Paper>
