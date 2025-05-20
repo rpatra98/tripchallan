@@ -200,6 +200,19 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
     additionalImages: []
   });
   
+  // Add state for verification results to display matched/mismatched fields
+  const [verificationResults, setVerificationResults] = useState<{
+    matches: string[];
+    mismatches: string[];
+    allFields: Record<string, {
+      operatorValue: any;
+      guardValue: any;
+      matches: boolean;
+      comment: string;
+      isVerified: boolean;
+    }>;
+  } | null>(null);
+  
   // Check if user is a guard
   const isGuard = useMemo(() => 
     userRole === "EMPLOYEE" && userSubrole === EmployeeSubrole.GUARD, 
@@ -531,7 +544,7 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
     };
   };
   
-  // Modified version of handleVerifySeal to include validation of GUARD entered seal
+  // Modified version of handleVerifySeal to allow completion without all fields verified
   const handleVerifySeal = async () => {
     if (!session?.seal) return;
     
@@ -547,39 +560,12 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
       return;
     }
     
-    // Verify all fields have been filled out
-    const unverifiedFields = Object.keys(verificationFields).filter(field => 
-      !verificationFields[field].isVerified
-    );
-    
-    if (unverifiedFields.length > 0) {
-      setError("Please verify all fields before completing the verification process");
-      return;
-    }
-    
-    // Check if required images have been uploaded
-    const requiredImageTypes = ['driverPicture', 'vehicleNumberPlatePicture', 'gpsImeiPicture'];
-    const missingImages = requiredImageTypes.filter(type => 
-      !guardImages[type as keyof typeof guardImages]
-    );
-
-    if (missingImages.length > 0) {
-      setError(`Please upload all required images: ${missingImages.map(type => getFieldLabel(type)).join(', ')}`);
-      return;
-    }
-
-    // Verify sealing images are uploaded
-    if (!guardImages.sealingImages?.length) {
-      setError("Please upload at least one sealing image");
-      return;
-    }
-    
     setVerifying(true);
     setError("");
     setSealError("");
     
     try {
-      // Upload images first
+      // Upload any images that were provided (now optional)
       const uploadedImageUrls: {[key: string]: any} = {};
       
       // Helper function to upload single image
@@ -601,7 +587,7 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
         return data.url;
       };
       
-      // Upload single images
+      // Upload any images that exist (all optional now)
       if (guardImages.driverPicture) {
         uploadedImageUrls.driverPicture = await uploadImage(guardImages.driverPicture, 'driver');
       }
@@ -614,7 +600,6 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
         uploadedImageUrls.gpsImeiPicture = await uploadImage(guardImages.gpsImeiPicture, 'gpsImei');
       }
       
-      // Upload multiple images
       if (guardImages.sealingImages?.length) {
         uploadedImageUrls.sealingImages = await Promise.all(
           guardImages.sealingImages.map((file, index) => 
@@ -642,12 +627,27 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
       // Calculate verification results for each field
       const fieldVerificationResults = Object.entries(verificationFields).reduce(
         (results, [field, data]) => {
-          results[field] = {
-            operatorValue: data.operatorValue,
-            guardValue: data.guardValue,
-            matches: String(data.operatorValue).toLowerCase() === String(data.guardValue).toLowerCase(),
-            comment: data.comment
-          };
+          // Consider fields with values entered, even if not explicitly verified
+          const isEffectivelyVerified = data.isVerified || !!data.guardValue;
+          
+          if (data.guardValue) {
+            results[field] = {
+              operatorValue: data.operatorValue,
+              guardValue: data.guardValue,
+              matches: String(data.operatorValue).toLowerCase() === String(data.guardValue).toLowerCase(),
+              comment: data.comment,
+              isVerified: isEffectivelyVerified
+            };
+          } else {
+            // If no guard value provided, mark as incomplete
+            results[field] = {
+              operatorValue: data.operatorValue,
+              guardValue: null,
+              matches: false,
+              comment: data.comment || "No value entered",
+              isVerified: false
+            };
+          }
           return results;
         },
         {} as Record<string, any>
@@ -663,7 +663,7 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
           verificationData: {
             fieldVerifications: fieldVerificationResults,
             guardImages: uploadedImageUrls,
-            allMatch: Object.values(fieldVerificationResults).every(v => v.matches)
+            allMatch: Object.values(fieldVerificationResults).every(v => v.matches && v.isVerified)
           }
         }),
       });
@@ -675,6 +675,23 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
       
       setVerificationSuccess(true);
       setVerificationFormOpen(false);
+      
+      // Save verification results for displaying matched/mismatched fields
+      const matches = Object.entries(fieldVerificationResults)
+        .filter(([_, data]) => data.matches && data.isVerified)
+        .map(([field, _]) => field);
+        
+      const mismatches = Object.entries(fieldVerificationResults)
+        .filter(([_, data]) => !data.matches && data.isVerified)
+        .map(([field, _]) => field);
+        
+      // Set state for displaying verification results
+      setVerificationResults({
+        matches,
+        mismatches,
+        allFields: fieldVerificationResults
+      });
+      
       // Refresh session details after verification
       fetchSessionDetails();
     } catch (err) {
@@ -889,21 +906,14 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
           </Table>
         </TableContainer>
 
-        <Box display="flex" justifyContent="space-between" sx={{ mt: 4 }}>
-          <Button
-            variant="outlined"
-            color="primary"
-            onClick={verifyAllFields}
-          >
-            Verify All Fields
-          </Button>
+        <Box display="flex" justifyContent="flex-end" sx={{ mt: 4 }}>
           <Button
             variant="contained"
             color="primary"
             onClick={() => setVerificationStep(1)}
             endIcon={<ArrowForward />}
           >
-            Next: Image Verification
+            Next: Image Upload
           </Button>
         </Box>
       </Box>
@@ -1244,11 +1254,11 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
 
   // Verification Form Step 3: Seal Verification
   const renderSealVerification = () => {
-    if (!session || !session.seal) {
+    if (!session) {
       return (
         <Box sx={{ py: 3, textAlign: 'center' }}>
           <Typography variant="body1" color="text.secondary">
-            No seal information available for verification.
+            No session information available for verification.
           </Typography>
         </Box>
       );
@@ -1268,36 +1278,39 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
     
     const imagesComplete = uploadedImages.length === requiredImageTypes.length;
 
+    // Get verified and unverified fields
+    const verifiedFields = Object.entries(verificationFields).filter(([_, data]) => data.isVerified);
+    const unverifiedFields = Object.entries(verificationFields).filter(([_, data]) => !data.isVerified);
+
     return (
       <Box>
         <Typography variant="h6" gutterBottom>
           Seal Verification
         </Typography>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-          Please verify the physical seal and complete the verification process with your uploaded images.
+          Please verify the trip details and complete the verification process.
         </Typography>
 
         <Paper variant="outlined" sx={{ p: 3, mb: 4 }}>
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-            <Box sx={{ mb: 2 }}>
+            {/* Seal entry field - moved to top */}
+            <Box sx={{ mb: 3 }}>
               <Typography variant="subtitle1" gutterBottom>
-                Seal Information
+                Enter Seal Barcode
               </Typography>
-              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
-                <Box sx={{ flex: '1 0 45%', minWidth: '250px' }}>
-                  <Typography variant="body1">
-                    <strong>Barcode:</strong> {session.seal.barcode}
-                  </Typography>
-                </Box>
-                <Box sx={{ flex: '1 0 45%', minWidth: '250px' }}>
-                  <Typography variant="body1">
-                    <strong>Status:</strong>{" "}
-                    <Box component="span" sx={{ display: "inline-flex", alignItems: "center" }}>
-                      Unverified <Warning color="warning" sx={{ ml: 0.5 }} />
-                    </Box>
-                  </Typography>
-                </Box>
-              </Box>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                To complete the verification, please enter the seal barcode from the physical seal:
+              </Typography>
+              <TextField
+                fullWidth
+                label="Seal Barcode"
+                variant="outlined"
+                value={sealInput}
+                onChange={(e) => setSealInput(e.target.value)}
+                error={!!sealError}
+                helperText={sealError}
+                sx={{ mb: 2 }}
+              />
             </Box>
 
             <Divider />
@@ -1327,49 +1340,87 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
                 </Box>
               </Box>
 
-              {/* Final verification requirements */}
-              <Alert severity={stats.fieldStats.verified === Object.keys(verificationFields).length && imagesComplete ? "success" : "warning"} sx={{ mb: 3 }}>
-                <AlertTitle>
-                  {stats.fieldStats.verified === Object.keys(verificationFields).length && imagesComplete ? 
-                    "Ready to Complete" : 
-                    "Verification Incomplete"}
-                </AlertTitle>
-                {stats.fieldStats.verified < Object.keys(verificationFields).length && (
-                  <Typography variant="body2" sx={{ mb: 1 }}>
-                    {Object.keys(verificationFields).length - stats.fieldStats.verified} field(s) still need verification
-                  </Typography>
-                )}
-                {!imagesComplete && (
-                  <Typography variant="body2">
-                    Missing images: {requiredImageTypes.filter(type => !uploadedImages.includes(type)).map(getFieldLabel).join(', ')}
-                  </Typography>
-                )}
-                {stats.fieldStats.verified === Object.keys(verificationFields).length && imagesComplete && (
-                  <Typography variant="body2">
-                    All fields verified and required images uploaded. You can now complete the verification process.
-                  </Typography>
-                )}
-              </Alert>
-
-              {/* Seal entry field */}
+              {/* Table of Verified and Unverified Fields */}
               <Box sx={{ mb: 3 }}>
                 <Typography variant="subtitle1" gutterBottom>
-                  Enter Seal Barcode
+                  Field Verification Status
                 </Typography>
-                <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                  To complete the verification, please enter the seal barcode from the physical seal:
-                </Typography>
-                <TextField
-                  fullWidth
-                  label="Seal Barcode"
-                  variant="outlined"
-                  value={sealInput}
-                  onChange={(e) => setSealInput(e.target.value)}
-                  error={!!sealError}
-                  helperText={sealError}
-                  sx={{ mb: 2 }}
-                />
+                
+                <Paper variant="outlined" sx={{ mb: 3 }}>
+                  <Typography variant="subtitle2" sx={{ p: 2, bgcolor: 'success.light', color: 'success.contrastText' }}>
+                    Verified Fields ({verifiedFields.length})
+                  </Typography>
+                  {verifiedFields.length > 0 ? (
+                    <TableContainer>
+                      <Table size="small">
+                        <TableHead>
+                          <TableRow>
+                            <TableCell>Field</TableCell>
+                            <TableCell>Your Value</TableCell>
+                          </TableRow>
+                        </TableHead>
+                        <TableBody>
+                          {verifiedFields.map(([field, data]) => (
+                            <TableRow key={field}>
+                              <TableCell>{getFieldLabel(field)}</TableCell>
+                              <TableCell>{data.guardValue || 'N/A'}</TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </TableContainer>
+                  ) : (
+                    <Box sx={{ p: 2, textAlign: 'center' }}>
+                      <Typography variant="body2" color="text.secondary">
+                        No fields have been verified yet.
+                      </Typography>
+                    </Box>
+                  )}
+                </Paper>
+
+                <Paper variant="outlined">
+                  <Typography variant="subtitle2" sx={{ p: 2, bgcolor: 'warning.light', color: 'warning.contrastText' }}>
+                    Unverified Fields ({unverifiedFields.length})
+                  </Typography>
+                  {unverifiedFields.length > 0 ? (
+                    <TableContainer>
+                      <Table size="small">
+                        <TableHead>
+                          <TableRow>
+                            <TableCell>Field</TableCell>
+                            <TableCell>Status</TableCell>
+                          </TableRow>
+                        </TableHead>
+                        <TableBody>
+                          {unverifiedFields.map(([field, data]) => (
+                            <TableRow key={field}>
+                              <TableCell>{getFieldLabel(field)}</TableCell>
+                              <TableCell>
+                                {data.guardValue ? 'Value entered but not verified' : 'No value entered'}
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </TableContainer>
+                  ) : (
+                    <Box sx={{ p: 2, textAlign: 'center' }}>
+                      <Typography variant="body2" color="text.secondary">
+                        All fields have been verified.
+                      </Typography>
+                    </Box>
+                  )}
+                </Paper>
               </Box>
+
+              {/* Information about completion requirements - modified to allow completion regardless */}
+              <Alert severity="info" sx={{ mb: 3 }}>
+                <AlertTitle>Verification Information</AlertTitle>
+                <Typography variant="body2">
+                  You can complete the verification process even if not all fields are verified or images are uploaded.
+                  After verification, fields with matching values will be shown in green, and fields with differences will be shown in red.
+                </Typography>
+              </Alert>
             </Box>
           </Box>
         </Paper>
@@ -1388,7 +1439,7 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
             color="success"
             onClick={openConfirmDialog}
             endIcon={<CheckCircle />}
-            disabled={stats.fieldStats.verified < Object.keys(verificationFields).length || !imagesComplete || !sealInput}
+            disabled={!sealInput}
           >
             Complete Verification
           </Button>
@@ -1397,10 +1448,96 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
     );
   };
 
-  // Add a new function to display verification results
+  // Add a new function to display verification results with color coding
   const renderVerificationResults = () => {
-    // Contents of renderVerificationResults function
-    return null;
+    if (!verificationResults || !session) return null;
+    
+    const { matches, mismatches, allFields } = verificationResults;
+    
+    return (
+      <Paper elevation={2} sx={{ p: 3, mb: 3 }}>
+        <Typography variant="h6" gutterBottom>
+          Verification Results
+        </Typography>
+        
+        <Alert severity="success" sx={{ mb: 3 }}>
+          <AlertTitle>Verification Complete</AlertTitle>
+          Your verification of this trip has been recorded. The seal status has been updated to verified.
+        </Alert>
+        
+        <Typography variant="subtitle1" gutterBottom>
+          Field Comparison
+        </Typography>
+        
+        <TableContainer component={Paper} variant="outlined" sx={{ mb: 3 }}>
+          <Table>
+            <TableHead>
+              <TableRow>
+                <TableCell>Field</TableCell>
+                <TableCell>Operator Value</TableCell>
+                <TableCell>Your Value</TableCell>
+                <TableCell align="center">Match</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {Object.entries(allFields).map(([field, data]) => (
+                <TableRow 
+                  key={field} 
+                  sx={{ 
+                    bgcolor: data.matches ? 'success.lightest' : (data.isVerified ? 'error.lightest' : undefined),
+                  }}
+                >
+                  <TableCell component="th" scope="row">
+                    {getFieldLabel(field)}
+                  </TableCell>
+                  <TableCell>{String(data.operatorValue || 'N/A')}</TableCell>
+                  <TableCell>{String(data.guardValue || 'Not provided')}</TableCell>
+                  <TableCell align="center">
+                    {data.isVerified ? (
+                      data.matches ? (
+                        <Box display="flex" alignItems="center" justifyContent="center" sx={{ color: 'success.main' }}>
+                          <CheckCircle fontSize="small" sx={{ mr: 0.5 }} />
+                          <Typography variant="body2" sx={{ color: 'success.main' }}>Match</Typography>
+                        </Box>
+                      ) : (
+                        <Box display="flex" alignItems="center" justifyContent="center" sx={{ color: 'error.main' }}>
+                          <Warning fontSize="small" sx={{ mr: 0.5 }} />
+                          <Typography variant="body2" sx={{ color: 'error.main' }}>Mismatch</Typography>
+                        </Box>
+                      )
+                    ) : (
+                      <Typography variant="body2" color="text.secondary">
+                        Not verified
+                      </Typography>
+                    )}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </TableContainer>
+        
+        {matches.length > 0 && (
+          <Alert severity="success" sx={{ mb: 2 }}>
+            <AlertTitle>{matches.length} Matching Field{matches.length !== 1 ? 's' : ''}</AlertTitle>
+            <Typography variant="body2">
+              The following fields matched the operator's entries:{' '}
+              <strong>{matches.map(field => getFieldLabel(field)).join(', ')}</strong>
+            </Typography>
+          </Alert>
+        )}
+        
+        {mismatches.length > 0 && (
+          <Alert severity="error" sx={{ mb: 2 }}>
+            <AlertTitle>{mismatches.length} Mismatched Field{mismatches.length !== 1 ? 's' : ''}</AlertTitle>
+            <Typography variant="body2">
+              The following fields did not match the operator's entries:{' '}
+              <strong>{mismatches.map(field => getFieldLabel(field)).join(', ')}</strong>
+            </Typography>
+          </Alert>
+        )}
+      </Paper>
+    );
   };
 
   if (authStatus === "loading" || loading) {
