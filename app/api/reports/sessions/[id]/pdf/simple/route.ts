@@ -358,31 +358,96 @@ export const GET = withAuth(
       let yPos = 20;
       const lineHeight = 7;
       
+      // Image settings
+      const imageSize = 50; // Size in mm for images
+      const imagesPerRow = 2; // Images per row
+      const imagesPerPage = 6; // Maximum images per page
+      let imageCounter = 0; // Counter for images added to the current page
+      
       // Helper function to fetch image data from API endpoint
       const fetchImageData = async (imageUrl: string): Promise<string | null> => {
         try {
           // Skip if URL is not defined
-          if (!imageUrl) return null;
+          if (!imageUrl) {
+            console.log('Skipping undefined image URL');
+            return null;
+          }
           
           // Make sure URL is absolute
           const fullUrl = imageUrl.startsWith('http') 
             ? imageUrl 
             : `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'}${imageUrl}`;
           
+          console.log(`Fetching image from: ${fullUrl}`);
+          
           // Fetch the image
           const response = await fetch(fullUrl);
-          if (!response.ok) return null;
+          if (!response.ok) {
+            console.error(`Failed to fetch image (${response.status}): ${fullUrl}`);
+            return null;
+          }
           
           // Convert to blob and then to base64
           const blob = await response.blob();
+          if (blob.size === 0) {
+            console.error(`Retrieved empty image from: ${fullUrl}`);
+            return null;
+          }
+          
+          console.log(`Successfully loaded image (${blob.size} bytes): ${fullUrl}`);
+          
           return new Promise((resolve) => {
             const reader = new FileReader();
             reader.onloadend = () => resolve(reader.result as string);
             reader.readAsDataURL(blob);
           });
         } catch (error) {
-          console.error('Error fetching image:', error);
+          console.error(`Error fetching image from ${imageUrl}:`, error);
           return null;
+        }
+      };
+      
+      // Function to directly add base64 image data to PDF
+      const addBase64ImageToPdf = (imageData: string, label: string): boolean => {
+        try {
+          if (!imageData) return false;
+          
+          // Check if we need to start a new page
+          if (imageCounter >= imagesPerPage) {
+            doc.addPage();
+            yPos = 20;
+            imageCounter = 0;
+          }
+          
+          // Calculate position
+          const column = imageCounter % imagesPerRow;
+          const xPos = margin + column * (imageSize + 20); // 20mm gap between columns
+          
+          // If starting a new row, adjust yPos
+          if (column === 0 && imageCounter > 0) {
+            yPos += 5; // Add small gap between rows
+          }
+          
+          // Add label for the image
+          doc.setFont('helvetica', 'bold');
+          doc.text(label, xPos, yPos);
+          yPos += 5;
+          
+          // Add image (50x50px size)
+          doc.addImage(imageData, 'AUTO', xPos, yPos, imageSize, imageSize);
+          
+          // Only increment yPos when row is complete
+          if (column === imagesPerRow - 1) {
+            yPos += imageSize + 10; // Image height + margin
+          }
+          
+          // Increment counter
+          imageCounter++;
+          
+          return true;
+        } catch (error) {
+          console.error(`Error adding base64 image ${label}:`, error);
+          return false;
         }
       };
       
@@ -392,20 +457,37 @@ export const GET = withAuth(
           const imageData = await fetchImageData(imageUrl);
           if (!imageData) return false;
           
-          // Check if we need a new page
-          if (yPos > doc.internal.pageSize.height - 70) {
+          // Check if we need to start a new page
+          if (imageCounter >= imagesPerPage) {
             doc.addPage();
             yPos = 20;
+            imageCounter = 0;
+          }
+          
+          // Calculate position
+          const column = imageCounter % imagesPerRow;
+          const xPos = margin + column * (imageSize + 20); // 20mm gap between columns
+          
+          // If starting a new row, adjust yPos
+          if (column === 0 && imageCounter > 0) {
+            yPos += 5; // Add small gap between rows
           }
           
           // Add label for the image
           doc.setFont('helvetica', 'bold');
-          doc.text(label, margin, yPos);
+          doc.text(label, xPos, yPos);
           yPos += 5;
           
           // Add image (50x50px size)
-          doc.addImage(imageData, 'AUTO', margin, yPos, 50, 50);
-          yPos += 55; // Space for image + margin
+          doc.addImage(imageData, 'AUTO', xPos, yPos, imageSize, imageSize);
+          
+          // Only increment yPos when row is complete
+          if (column === imagesPerRow - 1) {
+            yPos += imageSize + 10; // Image height + margin
+          }
+          
+          // Increment counter
+          imageCounter++;
           
           return true;
         } catch (error) {
@@ -538,33 +620,6 @@ export const GET = withAuth(
       
       let imageDisplayed = false;
       
-      // Function to directly add base64 image data to PDF
-      const addBase64ImageToPdf = (imageData: string, label: string): boolean => {
-        try {
-          if (!imageData) return false;
-          
-          // Check if we need a new page
-          if (yPos > doc.internal.pageSize.height - 70) {
-            doc.addPage();
-            yPos = 20;
-          }
-          
-          // Add label for the image
-          doc.setFont('helvetica', 'bold');
-          doc.text(label, margin, yPos);
-          yPos += 5;
-          
-          // Add image (50x50px size)
-          doc.addImage(imageData, 'AUTO', margin, yPos, 50, 50);
-          yPos += 55; // Space for image + margin
-          
-          return true;
-        } catch (error) {
-          console.error(`Error adding base64 image ${label}:`, error);
-          return false;
-        }
-      };
-      
       // Check for direct base64 data in any activity log
       const findBase64ImageData = (): Record<string, any> | null => {
         // Try to find in the main activityLog first
@@ -620,10 +675,16 @@ export const GET = withAuth(
         ];
         
         for (const { key, label } of arrayImages) {
-          if (Array.isArray(base64Images[key]) && base64Images[key].length > 0 && base64Images[key][0]?.data) {
-            const base64Data = `data:${base64Images[key][0].contentType || 'image/jpeg'};base64,${base64Images[key][0].data}`;
-            const added = addBase64ImageToPdf(base64Data, label);
-            if (added) imageDisplayed = true;
+          if (Array.isArray(base64Images[key]) && base64Images[key].length > 0) {
+            // Add all images from the array
+            base64Images[key].forEach((img, index) => {
+              if (img?.data) {
+                const base64Data = `data:${img.contentType || 'image/jpeg'};base64,${img.data}`;
+                const indexLabel = `${label} ${index + 1}`;
+                const added = addBase64ImageToPdf(base64Data, indexLabel);
+                if (added) imageDisplayed = true;
+              }
+            });
           }
         }
       }
@@ -644,7 +705,7 @@ export const GET = withAuth(
           }
         }
         
-        // Try to add first image from each image array
+        // Try to add ALL images from each image array
         const arrayImages = [
           { key: 'sealingImages', label: 'Sealing Image' },
           { key: 'vehicleImages', label: 'Vehicle Image' },
@@ -653,8 +714,12 @@ export const GET = withAuth(
         
         for (const { key, label } of arrayImages) {
           if (Array.isArray(imageInfo[key]) && imageInfo[key].length > 0) {
-            const added = await addImageToPdf(imageInfo[key][0], label);
-            if (added) imageDisplayed = true;
+            // Process all images in the array
+            for (let i = 0; i < imageInfo[key].length; i++) {
+              const indexLabel = `${label} ${i + 1}`;
+              const added = await addImageToPdf(imageInfo[key][i], indexLabel);
+              if (added) imageDisplayed = true;
+            }
           }
         }
       }
