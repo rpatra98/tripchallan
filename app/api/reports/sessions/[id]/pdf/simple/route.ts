@@ -294,8 +294,12 @@ export const GET = withAuth(
       // 7. Extract image information
       let imageInfo: Record<string, any> = {};
       
+      // Log raw image data from session
+      console.log(`Raw sessionData.images:`, JSON.stringify(sessionData.images || {}));
+      
       if (sessionData.images && typeof sessionData.images === 'object') {
         imageInfo = sessionData.images;
+        console.log(`Found ${Object.keys(imageInfo).length} image references in sessionData.images:`, Object.keys(imageInfo).join(', '));
       }
       
       // If no images found in sessionData, try to extract from activityLog
@@ -344,6 +348,26 @@ export const GET = withAuth(
         }
       }
       
+      // If no images found in sessionData or activityLog, try using the test PDF data
+      if (Object.keys(imageInfo).length === 0) {
+        try {
+          console.log(`Trying to load image URLs from PDF data file for session ${sessionId}`);
+          const fs = require('fs');
+          const path = require('path');
+          const dataPath = path.join(process.cwd(), `pdf-data-${sessionId}.json`);
+          
+          if (fs.existsSync(dataPath)) {
+            const pdfData = JSON.parse(fs.readFileSync(dataPath, 'utf8'));
+            if (pdfData.imageInfo && Object.keys(pdfData.imageInfo).length > 0) {
+              imageInfo = pdfData.imageInfo;
+              console.log(`Loaded ${Object.keys(imageInfo).length} image URLs from PDF data file`);
+            }
+          }
+        } catch (error) {
+          console.error("Error loading PDF data from file:", error);
+        }
+      }
+      
       // ======== PDF GENERATION SECTION ========
       
       // Create PDF document
@@ -373,15 +397,41 @@ export const GET = withAuth(
             return null;
           }
           
-          // Make sure URL is absolute
-          const fullUrl = imageUrl.startsWith('http') 
-            ? imageUrl 
-            : `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'}${imageUrl}`;
+          // Make sure URL is absolute with correct host
+          const baseUrl = process.env.NEXT_PUBLIC_API_URL || 
+                          (req.headers.get('host') ? 
+                          `${req.headers.get('x-forwarded-proto') || 'http'}://${req.headers.get('host')}` : 
+                          'http://localhost:3000');
+          
+          let fullUrl;
+          
+          // Handle different URL formats
+          if (imageUrl.startsWith('http')) {
+            // Already absolute URL
+            fullUrl = imageUrl;
+          } else if (imageUrl.startsWith('/api/images/')) {
+            // API endpoint path
+            fullUrl = `${baseUrl}${imageUrl}`;
+          } else if (imageUrl.startsWith('/')) {
+            // Other relative path
+            fullUrl = `${baseUrl}${imageUrl}`;
+          } else {
+            // Assume it's a relative path
+            fullUrl = `${baseUrl}/${imageUrl}`;
+          }
           
           console.log(`Fetching image from: ${fullUrl}`);
           
-          // Fetch the image
-          const response = await fetch(fullUrl);
+          // Fetch the image with credentials to handle authentication properly
+          const response = await fetch(fullUrl, {
+            credentials: 'include',
+            headers: {
+              // Pass through auth cookies/headers if present
+              ...(req.headers.get('cookie') ? { 'cookie': req.headers.get('cookie') || '' } : {}),
+              ...(req.headers.get('authorization') ? { 'authorization': req.headers.get('authorization') || '' } : {})
+            }
+          });
+          
           if (!response.ok) {
             console.error(`Failed to fetch image (${response.status}): ${fullUrl}`);
             return null;
@@ -691,6 +741,8 @@ export const GET = withAuth(
       
       // If no direct base64 data, try to fetch images from URLs
       if (!imageDisplayed && imageInfo && Object.keys(imageInfo).length > 0) {
+        console.log(`Attempting to add images from URLs. Available image keys:`, Object.keys(imageInfo).join(', '));
+        
         // Try to add standard single images first
         const singleImages = [
           { key: 'driverPicture', label: 'Driver Picture' },
@@ -700,7 +752,9 @@ export const GET = withAuth(
         
         for (const { key, label } of singleImages) {
           if (imageInfo[key]) {
+            console.log(`Processing ${key} URL: ${imageInfo[key]}`);
             const added = await addImageToPdf(imageInfo[key], label);
+            console.log(`${key} image ${added ? 'successfully added' : 'failed to add'}`);
             if (added) imageDisplayed = true;
           }
         }
@@ -714,10 +768,13 @@ export const GET = withAuth(
         
         for (const { key, label } of arrayImages) {
           if (Array.isArray(imageInfo[key]) && imageInfo[key].length > 0) {
+            console.log(`Processing ${key} array with ${imageInfo[key].length} images`);
             // Process all images in the array
             for (let i = 0; i < imageInfo[key].length; i++) {
               const indexLabel = `${label} ${i + 1}`;
+              console.log(`Processing ${key}[${i}] URL: ${imageInfo[key][i]}`);
               const added = await addImageToPdf(imageInfo[key][i], indexLabel);
+              console.log(`${key}[${i}] image ${added ? 'successfully added' : 'failed to add'}`);
               if (added) imageDisplayed = true;
             }
           }

@@ -1,0 +1,49 @@
+{
+  "sessionInfo": {
+    "id": "580caf73-a061-4d57-a1d2-4330b6b2c2a7",
+    "source": "sdfg sfg",
+    "destination": "sdf",
+    "status": "IN_PROGRESS",
+    "createdAt": "5/18/2025, 5:05:13 PM",
+    "company": "Surksha track",
+    "createdBy": "kashi (kashi@cbums.com)"
+  },
+  "sealInfo": {
+    "barcode": "SEAL-1747568113185",
+    "verified": "Not Verified",
+    "verifiedBy": "N/A",
+    "verifiedAt": "N/A"
+  },
+  "tripDetails": {
+    "freight": 2342,
+    "doNumber": "23423",
+    "tpNumber": "324",
+    "driverName": "zsdvzs asdf",
+    "loaderName": "sdf asdf",
+    "tareWeight": 23,
+    "grossWeight": 234,
+    "materialName": "sdf",
+    "gpsImeiNumber": "23423423",
+    "vehicleNumber": "MH02AB1234",
+    "transporterName": "Sdfcsd",
+    "netMaterialWeight": 211,
+    "receiverPartyName": "sdf",
+    "loaderMobileNumber": "4234234234",
+    "qualityOfMaterials": "234",
+    "driverContactNumber": "3242342343",
+    "challanRoyaltyNumber": "2234234234234"
+  },
+  "imageInfo": {
+    "driverPicture": "/api/images/580caf73-a061-4d57-a1d2-4330b6b2c2a7/driver",
+    "sealingImages": [
+      "/api/images/580caf73-a061-4d57-a1d2-4330b6b2c2a7/sealing/0"
+    ],
+    "vehicleImages": [
+      "/api/images/580caf73-a061-4d57-a1d2-4330b6b2c2a7/vehicle/0"
+    ],
+    "gpsImeiPicture": "/api/images/580caf73-a061-4d57-a1d2-4330b6b2c2a7/gpsImei",
+    "additionalImages": [],
+    "vehicleNumberPlatePicture": "/api/images/580caf73-a061-4d57-a1d2-4330b6b2c2a7/vehicleNumber"
+  },
+  "verificationInfo": null
+}
