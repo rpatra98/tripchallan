@@ -588,11 +588,11 @@ export const GET = withAuth(
         : SAMPLE_TRIP_DETAILS;
       
       // Create trip details sheet with improved styling
-      const tripSheet = workbook.addWorksheet('Trip Details');
+      const tripDetailsSheet = workbook.addWorksheet('Trip Details');
       
       // Add a very prominent header
-      tripSheet.mergeCells('A1:C1');
-      const headerCell = tripSheet.getCell('A1');
+      tripDetailsSheet.mergeCells('A1:C1');
+      const headerCell = tripDetailsSheet.getCell('A1');
       headerCell.value = 'TRIP DETAILS';
       headerCell.font = { size: 16, bold: true, color: { argb: 'FFFFFFFF' } };
       headerCell.fill = {
@@ -603,20 +603,20 @@ export const GET = withAuth(
       headerCell.alignment = { horizontal: 'center' };
       
       // Add data source info
-      tripSheet.mergeCells('A2:C2');
-      const sourceCell = tripSheet.getCell('A2');
+      tripDetailsSheet.mergeCells('A2:C2');
+      const sourceCell = tripDetailsSheet.getCell('A2');
       sourceCell.value = `Data Source: ${Object.keys(combinedTripDetails).length > 0 ? 'Database' : 'SAMPLE (Due to missing data)'}`;
       sourceCell.font = { italic: true };
       
       // Add column headers in row 3
-      tripSheet.columns = [
+      tripDetailsSheet.columns = [
         { header: 'Field Name', key: 'field', width: 30 },
         { header: 'Value', key: 'value', width: 40 },
         { header: 'Source', key: 'source', width: 20 }
       ];
       
       // Style the column header row
-      const headerRow = tripSheet.getRow(3);
+      const headerRow = tripDetailsSheet.getRow(3);
       headerRow.font = { bold: true, color: { argb: 'FFFFFFFF' } };
       headerRow.fill = {
         type: 'pattern',
@@ -624,34 +624,32 @@ export const GET = withAuth(
         fgColor: { argb: 'FF2962FF' } // CBUMS blue
       };
       
-      // Define the standard trip detail fields
-      const tripFields = [
-        { key: 'transporterName', label: 'Transporter Name' },
-        { key: 'materialName', label: 'Material Name' },
-        { key: 'vehicleNumber', label: 'Vehicle Number' },
-        { key: 'gpsImeiNumber', label: 'GPS IMEI Number' },
-        { key: 'driverName', label: 'Driver Name' },
-        { key: 'driverContactNumber', label: 'Driver Contact Number' },
-        { key: 'loaderName', label: 'Loader Name' },
-        { key: 'loaderMobileNumber', label: 'Loader Mobile Number' },
-        { key: 'challanRoyaltyNumber', label: 'Challan/Royalty Number' },
-        { key: 'doNumber', label: 'DO Number' },
-        { key: 'tpNumber', label: 'TP Number' },
-        { key: 'qualityOfMaterials', label: 'Quality of Materials' },
-        { key: 'freight', label: 'Freight' },
-        { key: 'grossWeight', label: 'Gross Weight (kg)' },
-        { key: 'tareWeight', label: 'Tare Weight (kg)' },
-        { key: 'netMaterialWeight', label: 'Net Material Weight (kg)' },
-        { key: 'loadingSite', label: 'Loading Site' },
-        { key: 'receiverPartyName', label: 'Receiver Party Name' }
-      ];
-      
       // Add each trip detail field to the sheet
       console.log(`[EXCEL REPORT] Adding trip details fields to Excel`);
       let tripRowIndex = 4;
       
       // Debug log the available trip fields
-      console.log(`[EXCEL REPORT] finalTripDetails keys: ${Object.keys(finalTripDetails).join(', ')}`);
+      console.log(`[EXCEL REPORT] finalTripDetails keys: ${Object.keys(finalTripDetails).join(', ')}`)
+
+      // Define ordered fields for display - matching the PDF report order
+      const orderedFields = [
+        // Vehicle information
+        'vehicleNumber', 'transporterName', 
+        // Driver information
+        'driverName', 'driverContactNumber',
+        // Material information
+        'materialName', 'qualityOfMaterials', 'grossWeight', 'tareWeight', 'netMaterialWeight',
+        // Document information
+        'challanRoyaltyNumber', 'doNumber', 'tpNumber',
+        // GPS information
+        'gpsImeiNumber',
+        // Loader information
+        'loaderName', 'loaderMobileNumber',
+        // Location information
+        'loadingSite', 'receiverPartyName',
+        // Financial information
+        'freight'
+      ];
       
       // Function to safely stringify any value type
       const safeStringify = (value: any): string => {
@@ -668,14 +666,9 @@ export const GET = withAuth(
       
       // Helper to add a row with proper styling
       const addTripDetailRow = (fieldLabel: string, value: any, source: string) => {
-        // Skip undefined/null values
-        if (value === undefined || value === null) return false;
-        
-        const displayValue = safeStringify(value);
-        
-        const row = tripSheet.addRow({
+        const row = tripDetailsSheet.addRow({
           field: fieldLabel,
-          value: displayValue,
+          value: safeStringify(value),
           source: source
         });
         
@@ -692,55 +685,34 @@ export const GET = withAuth(
         row.getCell(1).font = { bold: true };
         
         tripRowIndex++;
-        return true;
+        return row;
       };
       
-      // First try to add the standard fields
-      for (const field of tripFields) {
-        // Use a more flexible lookup approach - try different field casing variants
-        let value = finalTripDetails[field.key];
-        
-        // Try alternate field name formats if the main one isn't found
-        if (value === undefined) {
-          // Try snake_case version
-          const snakeCase = field.key.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`);
-          value = finalTripDetails[snakeCase];
+      // First display ordered fields
+      for (const field of orderedFields) {
+        if (field in finalTripDetails && finalTripDetails[field] !== undefined) {
+          // Format field name for display
+          const formattedField = field.replace(/([A-Z])/g, ' $1')
+            .replace(/^./, str => str.toUpperCase());
           
-          // Try lowercase version
-          if (value === undefined) {
-            value = finalTripDetails[field.key.toLowerCase()];
-          }
-        }
-        
-        const source = Object.keys(combinedTripDetails).length > 0 ? 'Database' : 'Sample';
-        if (value !== undefined) {
-          console.log(`[EXCEL REPORT] Adding field ${field.label} with value ${safeStringify(value)}`);
-          addTripDetailRow(field.label, value, source);
-        } else {
-          console.log(`[EXCEL REPORT] Field ${field.key} not found in data`);
-          // Add the field anyway with N/A to ensure all standard fields are displayed
-          addTripDetailRow(field.label, 'N/A', source);
+          addTripDetailRow(formattedField, finalTripDetails[field], 'Trip Details');
         }
       }
       
-      // Now add any extra fields that weren't in the standard list
-      console.log(`[EXCEL REPORT] Looking for additional non-standard trip fields`);
-      for (const [key, value] of Object.entries(finalTripDetails)) {
-        // Skip fields we've already added (case insensitive check)
-        if (tripFields.some(field => 
-          field.key.toLowerCase() === key.toLowerCase() || 
-          field.key.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`) === key
-        )) {
-          continue;
+      // Then display any other fields not in the ordered list
+      for (const field of Object.keys(finalTripDetails)) {
+        if (!orderedFields.includes(field) && finalTripDetails[field] !== undefined) {
+          // Format field name for display
+          const formattedField = field.replace(/([A-Z])/g, ' $1')
+              .replace(/^./, str => str.toUpperCase());
+            
+          addTripDetailRow(formattedField, finalTripDetails[field], 'Trip Details');
         }
-        
-        // Format key from camelCase to Title Case with spaces
-        const formattedKey = key.replace(/([A-Z])/g, ' $1')
-          .replace(/^./, str => str.toUpperCase());
-        
-        const source = Object.keys(combinedTripDetails).length > 0 ? 'Database' : 'Sample';
-        console.log(`[EXCEL REPORT] Adding additional field ${formattedKey} with value ${safeStringify(value)}`);
-        addTripDetailRow(formattedKey, value, source);
+      }
+      
+      // If no trip details were added
+      if (tripRowIndex === 4) {
+        tripDetailsSheet.addRow(['No trip details available', '', '']);
       }
       
       // =========================================================
@@ -752,171 +724,138 @@ export const GET = withAuth(
         
         const imageSheet = workbook.addWorksheet('Images Information');
         
+        // Add a very prominent header
+        imageSheet.mergeCells('A1:E1');
+        const headerCell = imageSheet.getCell('A1');
+        headerCell.value = 'IMAGES INFORMATION';
+        headerCell.font = { size: 16, bold: true, color: { argb: 'FFFFFFFF' } };
+        headerCell.fill = {
+          type: 'pattern',
+          pattern: 'solid',
+          fgColor: { argb: 'FF2962FF' } // CBUMS blue
+        };
+        headerCell.alignment = { horizontal: 'center' };
+        
         imageSheet.columns = [
-          { header: 'Image Type', key: 'type', width: 30 },
+          { header: 'Image Type', key: 'type', width: 25 },
+          { header: 'Description', key: 'description', width: 30 },
           { header: 'Status', key: 'status', width: 15 },
           { header: 'Count', key: 'count', width: 10 },
-          { header: 'Direct URL', key: 'url', width: 80 },
-          { header: 'Notes', key: 'notes', width: 30 }
+          { header: 'Direct URL', key: 'url', width: 80 }
         ];
         
         // Style header row
-        const imageHeader = imageSheet.getRow(1);
-        imageHeader.font = { bold: true };
+        const imageHeader = imageSheet.getRow(2);
+        imageHeader.font = { bold: true, color: { argb: 'FFFFFFFF' } };
         imageHeader.fill = {
           type: 'pattern',
           pattern: 'solid',
-          fgColor: { argb: 'FFD3D3D3' }
+          fgColor: { argb: 'FF2962FF' } // CBUMS blue
         };
         
-        // Helper function to format URLs for the domain
+        // Format URLs for better display
         const formatImageUrl = (url: string) => {
-          if (url.startsWith('http')) return url;
           const domain = 'https://tripchallan.vercel.app';
-          return url.startsWith('/') ? `${domain}${url}` : `${domain}/${url}`;
+          
+          // If URL is already formatted correctly, return as is
+          if (url && url.includes('http')) {
+            return url;
+          }
+          
+          // If it's a relative URL starting with /api/images, prepend domain
+          if (url && url.startsWith('/api/images')) {
+            return `${domain}${url}`;
+          }
+          
+          // If it's just a path segment, construct a standard API URL
+          if (url && !url.startsWith('/')) {
+            return `${domain}/api/images/${sessionId}/${url}`;
+          }
+          
+          return url || 'N/A';
         };
         
-        // Add image information for single images
-        if (images.driverPicture) {
-          const url = formatImageUrl(images.driverPicture);
-          imageSheet.addRow({
-            type: 'Driver Picture',
-            status: 'Available',
-            count: 1,
-            url: url,
-            notes: 'Driver identification photo'
-          });
-        }
-        
-        if (images.vehicleNumberPlatePicture) {
-          const url = formatImageUrl(images.vehicleNumberPlatePicture);
-          imageSheet.addRow({
-            type: 'Vehicle Number Plate Picture',
-            status: 'Available',
-            count: 1,
-            url: url,
-            notes: 'Vehicle registration plate'
-          });
-        }
-        
-        if (images.gpsImeiPicture) {
-          const url = formatImageUrl(images.gpsImeiPicture);
-          imageSheet.addRow({
-            type: 'GPS/IMEI Picture',
-            status: 'Available',
-            count: 1,
-            url: url,
-            notes: 'GPS/IMEI identification'
-          });
-        }
-        
-        // Add array-based images with individual URLs
-        const addArrayImages = (images: string[], type: string, notes: string) => {
-          if (!images || images.length === 0) return;
+        // Helper to add single image row
+        const addSingleImage = (type: string, key: string, description: string) => {
+          const url = images[key] || null;
+          const status = url ? 'Available' : 'Not Available';
           
-          // Add a summary row first
           imageSheet.addRow({
-            type: `${type} (Summary)`,
-            status: 'Available',
-            count: images.length,
-            url: 'See individual entries below',
-            notes: notes
-          }).font = { bold: true };
+            type,
+            description,
+            status,
+            count: url ? 1 : 0,
+            url: url ? formatImageUrl(url) : 'N/A'
+          });
+        };
+        
+        // Helper to add array images
+        const addArrayImages = (type: string, key: string, description: string) => {
+          const imageArray = images[key] || [];
+          const count = Array.isArray(imageArray) ? imageArray.length : 0;
+          const status = count > 0 ? 'Available' : 'Not Available';
           
-          // Add individual image entries
-          images.forEach((imageUrl, index) => {
-            const url = formatImageUrl(imageUrl);
+          if (count === 0) {
             imageSheet.addRow({
-              type: `${type} ${index + 1}`,
-              status: 'Available',
-              count: 1,
-              url: url,
-              notes: `${type} image #${index + 1}`
+              type,
+              description,
+              status: 'Not Available',
+              count: 0,
+              url: 'N/A'
             });
-          });
-          
-          // Add a blank row for separation
-          imageSheet.addRow({});
-        };
-        
-        // Add all array-based images
-        if (images.sealingImages && images.sealingImages.length > 0) {
-          addArrayImages(images.sealingImages, 'Sealing Image', 'Images related to seal application');
-        }
-        
-        if (images.vehicleImages && images.vehicleImages.length > 0) {
-          addArrayImages(images.vehicleImages, 'Vehicle Image', 'Images of the vehicle from various angles');
-        }
-        
-        if (images.additionalImages && images.additionalImages.length > 0) {
-          addArrayImages(images.additionalImages, 'Additional Image', 'Supplementary images uploaded by operator');
-        }
-        
-        // Add direct API URLs for reference
-        const domain = 'https://tripchallan.vercel.app';
-        imageSheet.addRow({});
-        imageSheet.addRow({
-          type: 'DIRECT API REFERENCE',
-          status: '',
-          count: '',
-          url: '',
-          notes: ''
-        }).font = { bold: true, color: { argb: 'FF0000FF' } };
-        
-        // Add standard image type URLs
-        const directApiImages = [
-          { type: 'Driver Picture (API)', url: `${domain}/api/images/${sessionId}/driver` },
-          { type: 'Vehicle Number Plate (API)', url: `${domain}/api/images/${sessionId}/vehicleNumber` },
-          { type: 'GPS/IMEI Picture (API)', url: `${domain}/api/images/${sessionId}/gpsImei` }
-        ];
-        
-        directApiImages.forEach(item => {
-          imageSheet.addRow({
-            type: item.type,
-            status: 'Reference',
-            count: '',
-            url: item.url,
-            notes: 'Direct API URL'
-          });
-        });
-        
-        // Add array-based image references
-        for (let i = 0; i < 5; i++) {
-          imageSheet.addRow({
-            type: `Sealing Image ${i+1} (API)`,
-            status: 'Reference',
-            count: '',
-            url: `${domain}/api/images/${sessionId}/sealing/${i}`,
-            notes: 'Direct API URL'
-          });
-        }
-        
-        for (let i = 0; i < 5; i++) {
-          imageSheet.addRow({
-            type: `Vehicle Image ${i+1} (API)`,
-            status: 'Reference',
-            count: '',
-            url: `${domain}/api/images/${sessionId}/vehicle/${i}`,
-            notes: 'Direct API URL'
-          });
-        }
-        
-        // Format the URL column to be clickable hyperlinks
-        imageSheet.eachRow((row, rowNumber) => {
-          if (rowNumber > 1) { // Skip header row
-            const cell = row.getCell('url');
-            if (cell.value && typeof cell.value === 'string' && cell.value.startsWith('http')) {
-              cell.value = {
-                text: cell.value,
-                hyperlink: cell.value
-              };
-              cell.font = {
-                color: { argb: 'FF0000FF' },
-                underline: true
-              };
+          } else {
+            // Add a summary row first
+            imageSheet.addRow({
+              type,
+              description: `${description} (${count} available)`,
+              status,
+              count,
+              url: 'See individual entries below'
+            });
+            
+            // Add each image in the array
+            if (Array.isArray(imageArray)) {
+              imageArray.forEach((url, index) => {
+                imageSheet.addRow({
+                  type: '',
+                  description: `${description} ${index + 1}`,
+                  status: 'Available',
+                  count: '',
+                  url: formatImageUrl(url)
+                });
+              });
             }
           }
-        });
+        };
+        
+        // Process image data - match the same order as PDF
+        // Single images
+        addSingleImage('Driver', 'driverPicture', 'Driver Picture');
+        addSingleImage('Vehicle', 'vehicleNumberPlatePicture', 'Vehicle Number Plate Picture');
+        addSingleImage('GPS/IMEI', 'gpsImeiPicture', 'GPS or IMEI Picture');
+        
+        // Array images - matching PDF order
+        addArrayImages('Sealing', 'sealingImages', 'Sealing Image');
+        addArrayImages('Vehicle', 'vehicleImages', 'Vehicle Image');
+        addArrayImages('Additional', 'additionalImages', 'Additional Image');
+        
+        // If there are no images of any kind, add an informational row
+        if (Object.keys(images).length === 0 || (
+            !images.driverPicture && 
+            !images.vehicleNumberPlatePicture && 
+            !images.gpsImeiPicture && 
+            (!images.sealingImages || images.sealingImages.length === 0) &&
+            (!images.vehicleImages || images.vehicleImages.length === 0) &&
+            (!images.additionalImages || images.additionalImages.length === 0)
+        )) {
+          imageSheet.addRow({
+            type: 'No Images',
+            description: 'No images are available for this session',
+            status: 'N/A',
+            count: 0,
+            url: 'N/A'
+          });
+        }
       }
       
       // =========================================================
@@ -1011,7 +950,192 @@ export const GET = withAuth(
       }
       
       // =========================================================
-      // 5. GENERATE AND RETURN THE EXCEL FILE
+      // 5. CREATE VERIFICATION INFO SHEET
+      // =========================================================
+      console.log(`[EXCEL REPORT] Creating verification information sheet`);
+      
+      const verificationSheet = workbook.addWorksheet('Verification Information');
+      
+      // Add a very prominent header
+      verificationSheet.mergeCells('A1:D1');
+      const verHeaderCell = verificationSheet.getCell('A1');
+      verHeaderCell.value = 'VERIFICATION INFORMATION';
+      verHeaderCell.font = { size: 16, bold: true, color: { argb: 'FFFFFFFF' } };
+      verHeaderCell.fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FF2962FF' } // CBUMS blue
+      };
+      verHeaderCell.alignment = { horizontal: 'center' };
+      
+      // Set up columns
+      verificationSheet.columns = [
+        { header: 'Field', key: 'field', width: 30 },
+        { header: 'Operator Value', key: 'operatorValue', width: 30 },
+        { header: 'Guard Value', key: 'guardValue', width: 30 },
+        { header: 'Match Status', key: 'matchStatus', width: 15 }
+      ];
+      
+      // Style header row
+      const verHeaderRow = verificationSheet.getRow(2);
+      verHeaderRow.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+      verHeaderRow.fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FF2962FF' } // CBUMS blue
+      };
+      
+      // Add basic seal verification info
+      let verRowIndex = 3;
+      verificationSheet.addRow({
+        field: 'Seal Barcode',
+        operatorValue: sessionData.seal?.barcode || 'N/A',
+        guardValue: 'N/A',
+        matchStatus: 'N/A'
+      });
+      
+      verificationSheet.addRow({
+        field: 'Verification Status',
+        operatorValue: sessionData.seal?.verified ? 'Verified' : 'Not Verified',
+        guardValue: 'N/A',
+        matchStatus: 'N/A'
+      });
+      
+      if (sessionData.seal?.verified && sessionData.seal.verifiedBy) {
+        verificationSheet.addRow({
+          field: 'Verified By',
+          operatorValue: sessionData.seal.verifiedBy.name || 'N/A',
+          guardValue: 'N/A',
+          matchStatus: 'N/A'
+        });
+        
+        if (sessionData.seal.scannedAt) {
+          verificationSheet.addRow({
+            field: 'Verified At',
+            operatorValue: new Date(sessionData.seal.scannedAt).toLocaleString(),
+            guardValue: 'N/A',
+            matchStatus: 'N/A'
+          });
+        }
+      }
+      
+      // Check for verification details in activity logs
+      const verificationLogs = await prisma.activityLog.findMany({
+        where: {
+          targetResourceId: sessionId,
+          targetResourceType: 'session',
+          action: 'verify_seal'
+        },
+        orderBy: {
+          createdAt: 'desc'
+        },
+        take: 1
+      });
+      
+      // Add field verification details if available
+      if (verificationLogs.length > 0 && verificationLogs[0].details) {
+        // Add separator row
+        verificationSheet.addRow({});
+        const separatorRow = verificationSheet.getRow(++verRowIndex);
+        separatorRow.getCell(1).value = 'FIELD VERIFICATION DETAILS';
+        separatorRow.getCell(1).font = { bold: true };
+        separatorRow.fill = {
+          type: 'pattern',
+          pattern: 'solid',
+          fgColor: { argb: 'FFE0E0E0' }
+        };
+        verRowIndex++;
+        
+        let details = verificationLogs[0].details;
+        if (typeof details === 'string') {
+          try {
+            details = JSON.parse(details);
+          } catch (e) {
+            console.error(`[EXCEL REPORT] Error parsing verification details`, e);
+          }
+        }
+        
+        if (details?.verificationData?.fieldVerifications) {
+          const fieldVerifications = details.verificationData.fieldVerifications;
+          
+          for (const [field, fieldData] of Object.entries(fieldVerifications)) {
+            // Type assertion to ensure TS knows the structure
+            const data = fieldData as {
+              operatorValue: string | number;
+              guardValue: string | number;
+              matches: boolean;
+              comment?: string;
+            };
+            
+            // Format field name for display
+            const formattedField = field.replace(/([A-Z])/g, ' $1')
+              .replace(/^./, str => str.toUpperCase());
+            
+            // Determine match status
+            let matchStatus = 'Unknown';
+            if (data.matches === true) {
+              matchStatus = 'Matched ✓';
+            } else if (data.matches === false) {
+              matchStatus = 'Mismatched ✗';
+            }
+            
+            // Add row
+            const row = verificationSheet.addRow({
+              field: formattedField,
+              operatorValue: safeStringify(data.operatorValue),
+              guardValue: safeStringify(data.guardValue),
+              matchStatus: matchStatus
+            });
+            
+            // Color code match status
+            const cell = row.getCell(4);
+            if (matchStatus === 'Matched ✓') {
+              cell.font = { color: { argb: 'FF008000' } }; // Green
+            } else if (matchStatus === 'Mismatched ✗') {
+              cell.font = { color: { argb: 'FFFF0000' } }; // Red
+            }
+            
+            verRowIndex++;
+          }
+          
+          // Add overall match status
+          verificationSheet.addRow({});
+          const overallRow = verificationSheet.addRow({
+            field: 'Overall Match Status',
+            operatorValue: '',
+            guardValue: '',
+            matchStatus: details.verificationData.allMatch ? 'All Fields Match ✓' : 'Some Fields Mismatch ✗'
+          });
+          
+          // Style the overall row
+          overallRow.font = { bold: true };
+          const overallCell = overallRow.getCell(4);
+          if (details.verificationData.allMatch) {
+            overallCell.font = { bold: true, color: { argb: 'FF008000' } }; // Green
+          } else {
+            overallCell.font = { bold: true, color: { argb: 'FFFF0000' } }; // Red
+          }
+        } else {
+          verificationSheet.addRow({
+            field: 'No Field Verification Data',
+            operatorValue: '',
+            guardValue: '',
+            matchStatus: ''
+          });
+        }
+      } else if (!sessionData.seal?.verified) {
+        // Add message if not verified
+        verificationSheet.addRow({});
+        verificationSheet.addRow({
+          field: 'Status',
+          operatorValue: 'This session has not been verified yet',
+          guardValue: '',
+          matchStatus: ''
+        });
+      }
+      
+      // =========================================================
+      // 6. GENERATE AND RETURN THE EXCEL FILE
       // =========================================================
       
       console.log(`[EXCEL REPORT] Generating Excel buffer`);
