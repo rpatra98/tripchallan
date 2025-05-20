@@ -1486,7 +1486,7 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
               </TableRow>
             </TableHead>
             <TableBody>
-              {/* Matching fields first (green) */}
+              {/* Matching fields (green) - PASS */}
               {matches.map(field => {
                 const data = allFields[field];
                 return (
@@ -1499,14 +1499,14 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
                     <TableCell align="center">
                       <Box display="flex" alignItems="center" justifyContent="center" sx={{ color: 'success.main' }}>
                         <CheckCircle fontSize="small" sx={{ mr: 0.5 }} />
-                        <Typography variant="body2" sx={{ color: 'success.main', fontWeight: 'bold' }}>Match</Typography>
+                        <Typography variant="body2" sx={{ color: 'success.main', fontWeight: 'bold' }}>Pass</Typography>
                       </Box>
                     </TableCell>
                   </TableRow>
                 );
               })}
               
-              {/* Mismatched fields (red) */}
+              {/* Mismatched fields (red) - FAIL */}
               {mismatches.map(field => {
                 const data = allFields[field];
                 return (
@@ -1519,27 +1519,28 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
                     <TableCell align="center">
                       <Box display="flex" alignItems="center" justifyContent="center" sx={{ color: 'error.main' }}>
                         <Warning fontSize="small" sx={{ mr: 0.5 }} />
-                        <Typography variant="body2" sx={{ color: 'error.main', fontWeight: 'bold' }}>Mismatch</Typography>
+                        <Typography variant="body2" sx={{ color: 'error.main', fontWeight: 'bold' }}>Fail</Typography>
                       </Box>
                     </TableCell>
                   </TableRow>
                 );
               })}
               
-              {/* Unverified fields (neutral) */}
+              {/* Unverified fields (red) - FAIL */}
               {unverified.map(field => {
                 const data = allFields[field];
                 return (
-                  <TableRow key={field}>
+                  <TableRow key={field} sx={{ bgcolor: 'error.lightest' }}>
                     <TableCell component="th" scope="row">
                       {getFieldLabel(field)}
                     </TableCell>
                     <TableCell>{String(data.operatorValue || 'N/A')}</TableCell>
                     <TableCell>{String(data.guardValue || 'Not provided')}</TableCell>
                     <TableCell align="center">
-                      <Typography variant="body2" color="text.secondary">
-                        Not verified
-                      </Typography>
+                      <Box display="flex" alignItems="center" justifyContent="center" sx={{ color: 'error.main' }}>
+                        <Warning fontSize="small" sx={{ mr: 0.5 }} />
+                        <Typography variant="body2" sx={{ color: 'error.main', fontWeight: 'bold' }}>Fail</Typography>
+                      </Box>
                     </TableCell>
                   </TableRow>
                 );
@@ -1563,7 +1564,7 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
             </Paper>
           </Box>
           <Box sx={{ flex: '1 0 30%', minWidth: '200px' }}>
-            <Paper sx={{ p: 2, bgcolor: 'grey.300', color: 'text.primary' }}>
+            <Paper sx={{ p: 2, bgcolor: 'error.light', color: 'error.contrastText' }}>
               <Typography variant="h5" align="center">{unverified.length}</Typography>
               <Typography variant="body2" align="center">Unverified Fields</Typography>
             </Paper>
@@ -1694,11 +1695,11 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
               {/* Additional session details */}
             </Paper>
 
-            {/* Comment section */}
-            <CommentSection sessionId={sessionId} />
-
             {/* Verification Results */}
             {renderVerificationResults()}
+
+            {/* Comment section - moved after verification results */}
+            <CommentSection sessionId={sessionId} />
           </>
         )}
 
@@ -2030,11 +2031,11 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
         )}
       </Paper>
 
-      {/* Comment section */}
-      <CommentSection sessionId={sessionId} />
-
       {/* Verification Results */}
       {renderVerificationResults()}
+
+      {/* Comment section - moved after verification results */}
+      <CommentSection sessionId={sessionId} />
     </Container>
   );
 }
