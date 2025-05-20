@@ -204,6 +204,7 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
   const [verificationResults, setVerificationResults] = useState<{
     matches: string[];
     mismatches: string[];
+    unverified: string[];
     allFields: Record<string, {
       operatorValue: any;
       guardValue: any;
@@ -211,6 +212,7 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
       comment: string;
       isVerified: boolean;
     }>;
+    timestamp: string;
   } | null>(null);
   
   // Check if user is a guard
@@ -544,18 +546,12 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
     };
   };
   
-  // Modified version of handleVerifySeal to allow completion without all fields verified
+  // Modified version of handleVerifySeal to allow completion without a seal barcode
   const handleVerifySeal = async () => {
     if (!session?.seal) return;
     
-    // Validate seal input
-    if (!sealInput) {
-      setSealError("Please enter the seal barcode");
-      return;
-    }
-    
-    // Check if seal matches
-    if (sealInput !== session.seal.barcode) {
+    // Validate seal input only if provided
+    if (sealInput && sealInput !== session.seal.barcode) {
       setSealError("The seal barcode you entered does not match the expected seal. Please verify and try again.");
       return;
     }
@@ -663,7 +659,9 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
           verificationData: {
             fieldVerifications: fieldVerificationResults,
             guardImages: uploadedImageUrls,
-            allMatch: Object.values(fieldVerificationResults).every(v => v.matches && v.isVerified)
+            sealBarcode: sealInput || null,
+            allMatch: Object.values(fieldVerificationResults).every(v => v.matches && v.isVerified),
+            verificationTimestamp: new Date().toISOString()
           }
         }),
       });
@@ -684,12 +682,18 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
       const mismatches = Object.entries(fieldVerificationResults)
         .filter(([_, data]) => !data.matches && data.isVerified)
         .map(([field, _]) => field);
+      
+      const unverified = Object.entries(fieldVerificationResults)
+        .filter(([_, data]) => !data.isVerified)
+        .map(([field, _]) => field);
         
       // Set state for displaying verification results
       setVerificationResults({
         matches,
         mismatches,
-        allFields: fieldVerificationResults
+        unverified,
+        allFields: fieldVerificationResults,
+        timestamp: new Date().toISOString()
       });
       
       // Refresh session details after verification
@@ -1293,13 +1297,13 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
 
         <Paper variant="outlined" sx={{ p: 3, mb: 4 }}>
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-            {/* Seal entry field - moved to top */}
+            {/* Seal entry field - moved to top and made optional */}
             <Box sx={{ mb: 3 }}>
               <Typography variant="subtitle1" gutterBottom>
-                Enter Seal Barcode
+                Enter Seal Barcode (Optional)
               </Typography>
               <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                To complete the verification, please enter the seal barcode from the physical seal:
+                You may enter the seal barcode from the physical seal if available:
               </Typography>
               <TextField
                 fullWidth
@@ -1308,7 +1312,7 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
                 value={sealInput}
                 onChange={(e) => setSealInput(e.target.value)}
                 error={!!sealError}
-                helperText={sealError}
+                helperText={sealError || "This field is optional - the verification can be completed without entering a seal barcode."}
                 sx={{ mb: 2 }}
               />
             </Box>
@@ -1413,12 +1417,12 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
                 </Paper>
               </Box>
 
-              {/* Information about completion requirements - modified to allow completion regardless */}
+              {/* Information about completion requirements - modified to allow completion without any conditions */}
               <Alert severity="info" sx={{ mb: 3 }}>
                 <AlertTitle>Verification Information</AlertTitle>
                 <Typography variant="body2">
-                  You can complete the verification process even if not all fields are verified or images are uploaded.
-                  After verification, fields with matching values will be shown in green, and fields with differences will be shown in red.
+                  You can complete the verification process even if no fields are verified, no images are uploaded, and no seal barcode is entered.
+                  After verification, a summary table will be generated showing fields with matching values in green and fields with differences in red.
                 </Typography>
               </Alert>
             </Box>
@@ -1439,7 +1443,6 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
             color="success"
             onClick={openConfirmDialog}
             endIcon={<CheckCircle />}
-            disabled={!sealInput}
           >
             Complete Verification
           </Button>
@@ -1448,93 +1451,153 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
     );
   };
 
-  // Add a new function to display verification results with color coding
+  // Enhanced function to display verification results with color coding
   const renderVerificationResults = () => {
     if (!verificationResults || !session) return null;
     
-    const { matches, mismatches, allFields } = verificationResults;
+    const { matches, mismatches, unverified, allFields, timestamp } = verificationResults;
     
     return (
       <Paper elevation={2} sx={{ p: 3, mb: 3 }}>
         <Typography variant="h6" gutterBottom>
-          Verification Results
+          Trip Verification Results
         </Typography>
         
         <Alert severity="success" sx={{ mb: 3 }}>
           <AlertTitle>Verification Complete</AlertTitle>
-          Your verification of this trip has been recorded. The seal status has been updated to verified.
+          <Typography variant="body2">
+            Verification was completed on {new Date(timestamp).toLocaleString()}
+            {session.seal?.verifiedBy && ` by ${session.seal.verifiedBy.name}`}.
+          </Typography>
         </Alert>
         
-        <Typography variant="subtitle1" gutterBottom>
-          Field Comparison
+        <Typography variant="subtitle1" gutterBottom sx={{ mt: 3 }}>
+          Field Verification Summary
         </Typography>
         
-        <TableContainer component={Paper} variant="outlined" sx={{ mb: 3 }}>
+        <TableContainer component={Paper} variant="outlined" sx={{ mb: 4 }}>
           <Table>
             <TableHead>
-              <TableRow>
-                <TableCell>Field</TableCell>
-                <TableCell>Operator Value</TableCell>
-                <TableCell>Your Value</TableCell>
-                <TableCell align="center">Match</TableCell>
+              <TableRow sx={{ bgcolor: 'grey.100' }}>
+                <TableCell width="30%"><strong>Field</strong></TableCell>
+                <TableCell width="25%"><strong>Operator Value</strong></TableCell>
+                <TableCell width="25%"><strong>Guard Value</strong></TableCell>
+                <TableCell width="20%" align="center"><strong>Status</strong></TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
-              {Object.entries(allFields).map(([field, data]) => (
-                <TableRow 
-                  key={field} 
-                  sx={{ 
-                    bgcolor: data.matches ? 'success.lightest' : (data.isVerified ? 'error.lightest' : undefined),
-                  }}
-                >
-                  <TableCell component="th" scope="row">
-                    {getFieldLabel(field)}
-                  </TableCell>
-                  <TableCell>{String(data.operatorValue || 'N/A')}</TableCell>
-                  <TableCell>{String(data.guardValue || 'Not provided')}</TableCell>
-                  <TableCell align="center">
-                    {data.isVerified ? (
-                      data.matches ? (
-                        <Box display="flex" alignItems="center" justifyContent="center" sx={{ color: 'success.main' }}>
-                          <CheckCircle fontSize="small" sx={{ mr: 0.5 }} />
-                          <Typography variant="body2" sx={{ color: 'success.main' }}>Match</Typography>
-                        </Box>
-                      ) : (
-                        <Box display="flex" alignItems="center" justifyContent="center" sx={{ color: 'error.main' }}>
-                          <Warning fontSize="small" sx={{ mr: 0.5 }} />
-                          <Typography variant="body2" sx={{ color: 'error.main' }}>Mismatch</Typography>
-                        </Box>
-                      )
-                    ) : (
+              {/* Matching fields first (green) */}
+              {matches.map(field => {
+                const data = allFields[field];
+                return (
+                  <TableRow key={field} sx={{ bgcolor: 'success.lightest' }}>
+                    <TableCell component="th" scope="row">
+                      {getFieldLabel(field)}
+                    </TableCell>
+                    <TableCell>{String(data.operatorValue || 'N/A')}</TableCell>
+                    <TableCell>{String(data.guardValue || 'Not provided')}</TableCell>
+                    <TableCell align="center">
+                      <Box display="flex" alignItems="center" justifyContent="center" sx={{ color: 'success.main' }}>
+                        <CheckCircle fontSize="small" sx={{ mr: 0.5 }} />
+                        <Typography variant="body2" sx={{ color: 'success.main', fontWeight: 'bold' }}>Match</Typography>
+                      </Box>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+              
+              {/* Mismatched fields (red) */}
+              {mismatches.map(field => {
+                const data = allFields[field];
+                return (
+                  <TableRow key={field} sx={{ bgcolor: 'error.lightest' }}>
+                    <TableCell component="th" scope="row">
+                      {getFieldLabel(field)}
+                    </TableCell>
+                    <TableCell>{String(data.operatorValue || 'N/A')}</TableCell>
+                    <TableCell>{String(data.guardValue || 'Not provided')}</TableCell>
+                    <TableCell align="center">
+                      <Box display="flex" alignItems="center" justifyContent="center" sx={{ color: 'error.main' }}>
+                        <Warning fontSize="small" sx={{ mr: 0.5 }} />
+                        <Typography variant="body2" sx={{ color: 'error.main', fontWeight: 'bold' }}>Mismatch</Typography>
+                      </Box>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+              
+              {/* Unverified fields (neutral) */}
+              {unverified.map(field => {
+                const data = allFields[field];
+                return (
+                  <TableRow key={field}>
+                    <TableCell component="th" scope="row">
+                      {getFieldLabel(field)}
+                    </TableCell>
+                    <TableCell>{String(data.operatorValue || 'N/A')}</TableCell>
+                    <TableCell>{String(data.guardValue || 'Not provided')}</TableCell>
+                    <TableCell align="center">
                       <Typography variant="body2" color="text.secondary">
                         Not verified
                       </Typography>
-                    )}
-                  </TableCell>
-                </TableRow>
-              ))}
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
             </TableBody>
           </Table>
         </TableContainer>
         
-        {matches.length > 0 && (
-          <Alert severity="success" sx={{ mb: 2 }}>
-            <AlertTitle>{matches.length} Matching Field{matches.length !== 1 ? 's' : ''}</AlertTitle>
-            <Typography variant="body2">
-              The following fields matched the operator's entries:{' '}
-              <strong>{matches.map(field => getFieldLabel(field)).join(', ')}</strong>
-            </Typography>
-          </Alert>
-        )}
+        {/* Summary statistics */}
+        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, mb: 3 }}>
+          <Box sx={{ flex: '1 0 30%', minWidth: '200px' }}>
+            <Paper sx={{ p: 2, bgcolor: 'success.light', color: 'success.contrastText' }}>
+              <Typography variant="h5" align="center">{matches.length}</Typography>
+              <Typography variant="body2" align="center">Matching Fields</Typography>
+            </Paper>
+          </Box>
+          <Box sx={{ flex: '1 0 30%', minWidth: '200px' }}>
+            <Paper sx={{ p: 2, bgcolor: 'error.light', color: 'error.contrastText' }}>
+              <Typography variant="h5" align="center">{mismatches.length}</Typography>
+              <Typography variant="body2" align="center">Mismatched Fields</Typography>
+            </Paper>
+          </Box>
+          <Box sx={{ flex: '1 0 30%', minWidth: '200px' }}>
+            <Paper sx={{ p: 2, bgcolor: 'grey.300', color: 'text.primary' }}>
+              <Typography variant="h5" align="center">{unverified.length}</Typography>
+              <Typography variant="body2" align="center">Unverified Fields</Typography>
+            </Paper>
+          </Box>
+        </Box>
         
-        {mismatches.length > 0 && (
-          <Alert severity="error" sx={{ mb: 2 }}>
-            <AlertTitle>{mismatches.length} Mismatched Field{mismatches.length !== 1 ? 's' : ''}</AlertTitle>
-            <Typography variant="body2">
-              The following fields did not match the operator's entries:{' '}
-              <strong>{mismatches.map(field => getFieldLabel(field)).join(', ')}</strong>
-            </Typography>
-          </Alert>
+        {/* Seal verification information */}
+        {session.seal && (
+          <Box sx={{ mt: 3, p: 2, border: '1px solid', borderColor: 'divider', borderRadius: 1 }}>
+            <Typography variant="subtitle1" gutterBottom>Seal Information</Typography>
+            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
+              <Box sx={{ flex: '1 0 45%', minWidth: '250px' }}>
+                <Typography variant="body2">
+                  <strong>Seal Barcode:</strong> {session.seal.barcode}
+                </Typography>
+              </Box>
+              {session.seal.verified && (
+                <>
+                  <Box sx={{ flex: '1 0 45%', minWidth: '250px' }}>
+                    <Typography variant="body2">
+                      <strong>Verification Date:</strong> {formatDate(session.seal.scannedAt || '')}
+                    </Typography>
+                  </Box>
+                  {session.seal.verifiedBy && (
+                    <Box sx={{ flex: '1 0 45%', minWidth: '250px' }}>
+                      <Typography variant="body2">
+                        <strong>Verified By:</strong> {session.seal.verifiedBy.name}
+                      </Typography>
+                    </Box>
+                  )}
+                </>
+              )}
+            </Box>
+          </Box>
         )}
       </Paper>
     );
