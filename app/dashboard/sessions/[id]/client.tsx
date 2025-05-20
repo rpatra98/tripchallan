@@ -418,9 +418,16 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
   };
   
   const verifyField = (field: string) => {
+    // Get field data but don't show operator value to GUARD
     const fieldData = verificationFields[field];
-    const match = fieldData.operatorValue === fieldData.guardValue;
     
+    // Guard must enter a value
+    if (!fieldData.guardValue || fieldData.guardValue.trim() === '') {
+      alert('Please enter a value before verifying this field.');
+      return false;
+    }
+    
+    // Mark as verified without showing if it matches
     setVerificationFields(prev => ({
       ...prev,
       [field]: {
@@ -429,6 +436,8 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
       }
     }));
     
+    // Still check for match in background (for stats and verification results)
+    const match = String(fieldData.operatorValue).toLowerCase() === String(fieldData.guardValue).toLowerCase();
     return match;
   };
   
@@ -603,17 +612,16 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
           Trip Details Verification
         </Typography>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-          Please verify each trip detail by checking the actual values against what the operator entered.
+          Please enter and verify each trip detail by physically checking the actual values. Your entries will be compared with the operator's data during submission.
         </Typography>
 
         <TableContainer component={Paper} variant="outlined" sx={{ mb: 4 }}>
           <Table>
             <TableHead>
               <TableRow sx={{ backgroundColor: 'background.paper' }}>
-                <TableCell width="30%"><strong>Field</strong></TableCell>
-                <TableCell width="30%"><strong>Operator Value</strong></TableCell>
-                <TableCell width="30%"><strong>Your Verification</strong></TableCell>
-                <TableCell width="10%"><strong>Status</strong></TableCell>
+                <TableCell width="40%"><strong>Field</strong></TableCell>
+                <TableCell width="45%"><strong>Your Verification</strong></TableCell>
+                <TableCell width="15%"><strong>Status</strong></TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
@@ -622,7 +630,6 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
                   <TableCell component="th" scope="row">
                     {getFieldLabel(field)}
                   </TableCell>
-                  <TableCell>{String(data.operatorValue || 'N/A')}</TableCell>
                   <TableCell>
                     <TextField 
                       size="small"
