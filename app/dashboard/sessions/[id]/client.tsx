@@ -351,6 +351,51 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
     }
   }, [authStatus, authSession, sessionId, fetchSessionDetails]);
 
+  // Extract verification results from session data for completed trips
+  useEffect(() => {
+    // Only process for completed sessions with seal verification data
+    if (session?.status === SessionStatus.COMPLETED && 
+        session?.seal?.verified && 
+        session?.activityLogs?.length) {
+      
+      // Find the verification activity log
+      const verificationLog = session.activityLogs.find(log => 
+        log.action === "SEAL_VERIFIED" && 
+        log.details?.verification?.fieldVerifications
+      );
+      
+      if (verificationLog?.details?.verification?.fieldVerifications) {
+        const fieldVerifications = verificationLog.details.verification.fieldVerifications;
+        
+        // Extract matched, mismatched and unverified fields
+        const matches: string[] = [];
+        const mismatches: string[] = [];
+        const unverified: string[] = [];
+        
+        Object.entries(fieldVerifications).forEach(([field, data]: [string, any]) => {
+          if (data.isVerified) {
+            if (data.matches) {
+              matches.push(field);
+            } else {
+              mismatches.push(field);
+            }
+          } else {
+            unverified.push(field);
+          }
+        });
+        
+        // Set verification results for displaying
+        setVerificationResults({
+          matches,
+          mismatches,
+          unverified,
+          allFields: fieldVerifications,
+          timestamp: session.seal.scannedAt || new Date().toISOString()
+        });
+      }
+    }
+  }, [session]);
+
   // Check if user has edit permission
   useEffect(() => {
     // Only OPERATOR users with canModify permission can edit
