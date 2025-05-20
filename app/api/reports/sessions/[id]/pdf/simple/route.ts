@@ -583,7 +583,7 @@ export const GET = withAuth(
         doc.setFont('helvetica', 'bold');
         doc.text(`${label}: `, margin, yPos);
         doc.setFont('helvetica', 'normal');
-        doc.text(displayValue, margin + 85, yPos);
+        doc.text(displayValue, margin + 60, yPos);
         yPos += lineHeight;
       };
       
@@ -833,48 +833,15 @@ export const GET = withAuth(
         
         if (verificationDetails.fieldVerifications) {
           for (const [field, data] of Object.entries(verificationDetails.fieldVerifications)) {
-            const formattedField = field.replace(/([A-Z])/g, ' $1')
-              .replace(/^./, str => str.toUpperCase());
-            
-            // Add extra space before each field group
+          const formattedField = field.replace(/([A-Z])/g, ' $1')
+            .replace(/^./, str => str.toUpperCase());
+          
             yPos += lineHeight * 0.5;
-            
-            // Field name as a subheading
-            doc.setFont('helvetica', 'bold');
-            doc.text(`Field: ${formattedField}`, margin, yPos);
-            yPos += lineHeight;
-            
-            // Indented field details
-            const indentedMargin = margin + 10;
-            
-            // Display operator value
-            doc.setFont('helvetica', 'bold');
-            doc.text(`Operator Value:`, indentedMargin, yPos);
-            doc.setFont('helvetica', 'normal');
-            doc.text(String(data.operatorValue || 'N/A'), indentedMargin + 75, yPos);
-            yPos += lineHeight;
-            
-            // Display guard value
-            doc.setFont('helvetica', 'bold');
-            doc.text(`Guard Value:`, indentedMargin, yPos);
-            doc.setFont('helvetica', 'normal');
-            doc.text(String(data.guardValue || 'N/A'), indentedMargin + 75, yPos);
-            yPos += lineHeight;
-            
-            // Display match status
-            doc.setFont('helvetica', 'bold');
-            doc.text(`Match Status:`, indentedMargin, yPos);
-            doc.setFont('helvetica', 'normal');
-            doc.text(data.operatorValue === data.guardValue ? 'Pass' : 'Fail', indentedMargin + 75, yPos);
-            yPos += lineHeight;
-            
-            // Display comment if available
-            if (data.comment) {
-              doc.setFont('helvetica', 'bold');
-              doc.text(`Comment:`, indentedMargin, yPos);
-              doc.setFont('helvetica', 'normal');
-              doc.text(String(data.comment), indentedMargin + 75, yPos);
-              yPos += lineHeight;
+            addField(`${formattedField} - Operator`, data.operatorValue);
+            addField(`${formattedField} - Guard`, data.guardValue);
+            addField(`${formattedField} - Match`, data.operatorValue === data.guardValue ? 'Yes' : 'No');
+          if (data.comment) {
+              addField(`${formattedField} - Comment`, data.comment);
             }
           }
         }
