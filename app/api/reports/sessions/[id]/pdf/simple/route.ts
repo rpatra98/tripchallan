@@ -151,7 +151,7 @@ export const GET = withAuth(
       // Check for JSON data in the session object
       const checkObjectForTripFields = (obj: any) => {
         for (const field of ['vehicleNumber', 'driverName', 'freight', 'transporterName', 
-                            'driverContactNumber', 'materialName', 'gpsImeiNumber']) {
+                             'driverContactNumber', 'materialName', 'gpsImeiNumber']) {
           if (field in obj) {
             otherPossibleTripFields[field] = obj[field];
           }
@@ -303,6 +303,18 @@ export const GET = withAuth(
         }
       });
       
+      // CRITICAL DEBUGGING - dump RAW data to console
+      console.log("*** CRITICAL DEBUGGING ***");
+      console.log("Session ID:", sessionId);
+      console.log("Raw tripDetails:", sessionData.tripDetails ? JSON.stringify(sessionData.tripDetails) : "None");
+      console.log("Raw images:", sessionData.images ? JSON.stringify(sessionData.images) : "None");
+      console.log("Raw verification logs:", verificationLogs.length);
+      
+      // Direct print of some key fields to evaluate
+      if (sessionData.vehicleNumber) console.log("Direct vehicleNumber:", sessionData.vehicleNumber);
+      if (sessionData.driverName) console.log("Direct driverName:", sessionData.driverName);
+      if (sessionData.transporterName) console.log("Direct transporterName:", sessionData.transporterName);
+      
       // Create PDF document with simpler settings
       const doc = new jsPDF({
         orientation: 'portrait',
@@ -383,6 +395,31 @@ export const GET = withAuth(
       // TRIP DETAILS - show ALL available details
       addSectionHeading('TRIP DETAILS');
       
+      // EMERGENCY FALLBACK - Directly check most common fields from sessionData
+      const emergencyTripFields: Record<string, any> = {};
+      
+      // Directly check all properties on sessionData for trip-related fields
+      for (const key of Object.keys(sessionData)) {
+        const lowerKey = key.toLowerCase();
+        if (
+          lowerKey.includes('vehicle') || 
+          lowerKey.includes('driver') || 
+          lowerKey.includes('transporter') ||
+          lowerKey.includes('material') || 
+          lowerKey.includes('weight') || 
+          lowerKey.includes('freight') ||
+          lowerKey.includes('loader') || 
+          lowerKey.includes('challan') || 
+          lowerKey.includes('gps')
+        ) {
+          const value = sessionData[key as keyof typeof sessionData];
+          if (value !== undefined && value !== null) {
+            emergencyTripFields[key] = value;
+            console.log(`Found emergency trip field: ${key}=${value}`);
+          }
+        }
+      }
+      
       // Combine all trip details from all possible sources into one object
       let allTripFields: Record<string, any> = {};
       
@@ -451,6 +488,19 @@ export const GET = withAuth(
       // 4. Add from completeDetails as a final fallback
       allTripFields = {...allTripFields, ...completeDetails};
       
+      // 5. Add emergency fallback fields
+      allTripFields = {...allTripFields, ...emergencyTripFields};
+      
+      // 6. LAST RESORT: Hardcode some basic trip details if all else fails
+      if (Object.keys(allTripFields).length === 0) {
+        console.log("*** USING HARDCODED FALLBACK ***");
+        if (sessionData.id) allTripFields['sessionId'] = sessionData.id;
+        if (sessionData.source) allTripFields['source'] = sessionData.source;
+        if (sessionData.destination) allTripFields['destination'] = sessionData.destination;
+        if (sessionData.status) allTripFields['status'] = sessionData.status;
+        if (sessionData.createdAt) allTripFields['createdAt'] = formatDate(sessionData.createdAt);
+      }
+      
       // Log the final compiled trip details
       console.log("Final compiled trip details:", Object.keys(allTripFields).length, 
                 "fields found:", Object.keys(allTripFields).join(", "));
@@ -515,6 +565,26 @@ export const GET = withAuth(
       // IMAGES INFORMATION - improved to handle all possible image formats and locations
       addSectionHeading('IMAGES INFORMATION');
       
+      // EMERGENCY FALLBACK - check for any field that might contain image data
+      const emergencyImageFields: Record<string, any> = {};
+      
+      // Check for any property on sessionData that might contain image data
+      for (const key of Object.keys(sessionData)) {
+        const lowerKey = key.toLowerCase();
+        if (
+          lowerKey.includes('image') || 
+          lowerKey.includes('picture') || 
+          lowerKey.includes('photo') ||
+          lowerKey.includes('img')
+        ) {
+          const value = sessionData[key as keyof typeof sessionData];
+          if (value !== undefined && value !== null) {
+            emergencyImageFields[key] = value;
+            console.log(`Found emergency image field: ${key}`);
+          }
+        }
+      }
+      
       // Function to safely add an image field
       const addImageField = (label: string, value: any) => {
         if (value) {
@@ -526,6 +596,13 @@ export const GET = withAuth(
           } else if (typeof value === 'string' && value.trim() !== '') {
             addField(label, 'Available');
             return true;
+          } else if (typeof value === 'object' && value !== null) {
+            // Handle nested image objects
+            const imageKeys = Object.keys(value).length;
+            if (imageKeys > 0) {
+              addField(label, `${imageKeys} entries available`);
+              return true;
+            }
           }
         }
         return false;
@@ -589,12 +666,23 @@ export const GET = withAuth(
         }
       }
       
-      // If no images were found, show the fallback message
+      // 3. Try emergency fallback fields
       if (!imageInfoDisplayed) {
-        console.log("No images found in any source");
-        yPos += lineHeight;
-        doc.text('No images available', margin, yPos);
-        yPos += lineHeight;
+        for (const [key, value] of Object.entries(emergencyImageFields)) {
+          const formattedKey = key.replace(/([A-Z])/g, ' $1')
+            .replace(/^./, str => str.toUpperCase());
+          
+          if (addImageField(formattedKey, value)) {
+            imageInfoDisplayed = true;
+          }
+        }
+      }
+      
+      // 4. LAST RESORT: If still no images, just add a note about where images would typically be shown
+      if (!imageInfoDisplayed) {
+        addField("Images Status", "Not available for this session");
+        addField("Image Types", "Typically includes driver, vehicle, and GPS pictures");
+        imageInfoDisplayed = true;
       }
 
       // VERIFICATION RESULTS
@@ -602,6 +690,8 @@ export const GET = withAuth(
       const verificationInfo = verificationLogs.find((log: any) => 
         log.details && typeof log.details === 'object' && 'verification' in log.details
       );
+      
+      let verificationDisplayed = false;
       
       if (verificationInfo?.details) {
         const details = verificationInfo.details as unknown as { verification: VerificationDetails };
@@ -621,10 +711,50 @@ export const GET = withAuth(
             addField(`${formattedField} - Comment`, data.comment);
           }
         }
+        verificationDisplayed = true;
       } else {
-        yPos += lineHeight;
-        doc.text('No verification data available', margin, yPos);
-        yPos += lineHeight;
+        // FALLBACK: Check for any verification or activity log data
+        if (verificationLogs.length > 0) {
+          addField("Verification Logs Count", String(verificationLogs.length));
+          
+          // Try to extract any verification data from logs
+          for (const log of verificationLogs) {
+            if (log.action) {
+              addField("Activity Type", log.action);
+            }
+            if (log.user?.name) {
+              addField("Performed By", log.user.name);
+            }
+            if (log.createdAt) {
+              addField("Performed At", formatDate(log.createdAt));
+            }
+            
+            verificationDisplayed = true;
+            break; // Just show the first log entry
+          }
+        }
+        
+        // Add status note if found
+        if (sessionData.seal?.verified !== undefined) {
+          addField("Seal Verification Status", sessionData.seal.verified ? "Verified" : "Not Verified");
+          
+          if (sessionData.seal.verifiedBy?.name) {
+            addField("Verified By", sessionData.seal.verifiedBy.name);
+          }
+          
+          if (sessionData.seal.scannedAt) {
+            addField("Verified At", formatDate(sessionData.seal.scannedAt));
+          }
+          
+          verificationDisplayed = true;
+        }
+        
+        // If still no verification data, add a fallback message
+        if (!verificationDisplayed) {
+          addField("Verification Status", "No verification has been performed");
+          addField("Required Action", "Trip verification pending");
+          verificationDisplayed = true;
+        }
       }
 
       // Add footer with page numbers
