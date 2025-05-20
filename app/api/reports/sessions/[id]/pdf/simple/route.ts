@@ -372,35 +372,25 @@ export const GET = withAuth(
       if (Object.keys(imageInfo).length === 0) {
         console.log("Using fallback to generate direct API image URLs");
         const domain = 'https://tripchallan.vercel.app';
-            
-        // Initial setup with direct paths to ensure all basic images are included
+        
+        // Create image URL for each type using the correct format as seen in the details page
         imageInfo = {
           driverPicture: `${domain}/api/images/${sessionId}/driver`,
           vehicleNumberPlatePicture: `${domain}/api/images/${sessionId}/vehicleNumber`,
           gpsImeiPicture: `${domain}/api/images/${sessionId}/gpsImei`,
-          // Initialize arrays that will be populated with valid URLs
           sealingImages: [],
           vehicleImages: [],
           additionalImages: []
         };
         
-        // Directly populate the arrays with indices 0-3 for multiple images
-        // This approach avoids async operations and ensures we attempt all possible image indices
+        // Create numbered URLs for array types - testing indices 0-4 for each type
         for (let i = 0; i < 5; i++) {
           imageInfo.sealingImages.push(`${domain}/api/images/${sessionId}/sealing/${i}`);
           imageInfo.vehicleImages.push(`${domain}/api/images/${sessionId}/vehicle/${i}`);
           imageInfo.additionalImages.push(`${domain}/api/images/${sessionId}/additional/${i}`);
         }
         
-        console.log(`Generated fallback image URLs with pattern: ${domain}/api/images/${sessionId}/*`);
-        console.log(`Attempting to fetch a total of ${
-          1 + // driverPicture
-          1 + // vehicleNumberPlatePicture
-          1 + // gpsImeiPicture
-          imageInfo.sealingImages.length + 
-          imageInfo.vehicleImages.length + 
-          imageInfo.additionalImages.length
-        } images`);
+        console.log(`Generated direct API image URLs for all image types with pattern: ${domain}/api/images/${sessionId}/*`);
       }
       
       // ======== PDF GENERATION SECTION ========
@@ -432,70 +422,33 @@ export const GET = withAuth(
             return null;
           }
           
-          let fullUrl;
+          // Convert relative URLs to absolute URLs with the correct domain
+          const apiDomain = 'https://tripchallan.vercel.app';
+          let fullUrl = imageUrl;
           
-          // Handle different URL formats
-          if (imageUrl.startsWith('http')) {
-            // Already absolute URL
-            fullUrl = imageUrl;
-          } else if (imageUrl.includes('tripchallan.vercel.app') || imageUrl.includes('cbums')) {
-            // Domain-specific URL - don't modify
-            fullUrl = imageUrl;
-          } else if (imageUrl.startsWith('/api/images/')) {
-            // API endpoint path - use the production URL directly for reliability
-            fullUrl = `https://tripchallan.vercel.app${imageUrl}`;
-          } else if (imageUrl.startsWith('/')) {
-            // Other relative path - use the production URL directly for reliability
-            fullUrl = `https://tripchallan.vercel.app${imageUrl}`;
-          } else {
-            // Assume it's a relative path - use the production URL directly for reliability
-            fullUrl = `https://tripchallan.vercel.app/${imageUrl}`;
+          // Handle relative paths
+          if (imageUrl.startsWith('/')) {
+            fullUrl = `${apiDomain}${imageUrl}`;
+          } else if (!imageUrl.startsWith('http')) {
+            fullUrl = `${apiDomain}/${imageUrl}`;
           }
           
           console.log(`Fetching image from: ${fullUrl}`);
           
-          // Fetch the image
-          // Note: not using credentials to avoid CORS issues with the production site
+          // Fetch the image with proper cache control and headers
           const response = await fetch(fullUrl, {
-            cache: 'no-store',
+            method: 'GET',
             headers: {
-              'Accept': 'image/*, */*'
-            }
+              'Accept': 'image/*, */*',
+              'Cache-Control': 'no-cache',
+              'Pragma': 'no-cache'
+            },
+            cache: 'no-store',
+            next: { revalidate: 0 }
           });
           
           if (!response.ok) {
             console.error(`Failed to fetch image (${response.status}): ${fullUrl}`);
-            
-            // If we couldn't fetch from the current domain, try the direct API format
-            if (!fullUrl.includes('/api/images/')) {
-              const directApiUrl = `https://tripchallan.vercel.app/api/images/${sessionId}/${imageUrl.includes('driver') ? 'driver' : 
-                imageUrl.includes('vehicle') ? 'vehicle/0' : 
-                imageUrl.includes('plate') ? 'vehicleNumber' : 
-                imageUrl.includes('gps') ? 'gpsImei' : 
-                imageUrl.includes('sealing') ? 'sealing/0' : 'additional/0'}`;
-              
-              console.log(`Attempting direct API format: ${directApiUrl}`);
-              
-              try {
-                const directResponse = await fetch(directApiUrl);
-                if (directResponse.ok) {
-                  const blob = await directResponse.blob();
-                  if (blob.size > 0) {
-                    console.log(`Successfully retrieved from direct API: ${directApiUrl} (${blob.size} bytes)`);
-                    return new Promise((resolve) => {
-                      const reader = new FileReader();
-                      reader.onloadend = () => resolve(reader.result as string);
-                      reader.readAsDataURL(blob);
-                    });
-                  }
-                } else {
-                  console.error(`Direct API also failed (${directResponse.status}): ${directApiUrl}`);
-                }
-              } catch (directError) {
-                console.error(`Error with direct API URL: ${directError}`);
-              }
-            }
-            
             return null;
           }
           
@@ -812,12 +765,22 @@ export const GET = withAuth(
           { key: 'gpsImeiPicture', label: 'GPS/IMEI Picture' }
         ];
         
+        // Process each single image
         for (const { key, label } of singleImages) {
           if (imageInfo[key]) {
-            console.log(`Processing ${key} URL: ${imageInfo[key]}`);
-            const added = await addImageToPdf(imageInfo[key], label);
-            console.log(`${key} image ${added ? 'successfully added' : 'failed to add'}`);
-            if (added) imageDisplayed = true;
+            try {
+              console.log(`Processing ${key} URL: ${imageInfo[key]}`);
+              const imageData = await fetchImageData(imageInfo[key]);
+              if (imageData) {
+                const added = addBase64ImageToPdf(imageData, label);
+                console.log(`${key} image ${added ? 'successfully added' : 'failed to add'}`);
+                if (added) imageDisplayed = true;
+              } else {
+                console.log(`No image data returned for ${key}`);
+              }
+            } catch (error) {
+              console.error(`Error processing ${key} image:`, error);
+            }
           }
         }
         
@@ -828,16 +791,29 @@ export const GET = withAuth(
           { key: 'additionalImages', label: 'Additional Image' }
         ];
         
+        // Process each array type
         for (const { key, label } of arrayImages) {
           if (Array.isArray(imageInfo[key]) && imageInfo[key].length > 0) {
             console.log(`Processing ${key} array with ${imageInfo[key].length} images`);
             // Process all images in the array
             for (let i = 0; i < imageInfo[key].length; i++) {
-              const indexLabel = `${label} ${i + 1}`;
-              console.log(`Processing ${key}[${i}] URL: ${imageInfo[key][i]}`);
-              const added = await addImageToPdf(imageInfo[key][i], indexLabel);
-              console.log(`${key}[${i}] image ${added ? 'successfully added' : 'failed to add'}`);
-              if (added) imageDisplayed = true;
+              try {
+                if (!imageInfo[key][i]) continue;
+                
+                const indexLabel = `${label} ${i + 1}`;
+                console.log(`Processing ${key}[${i}] URL: ${imageInfo[key][i]}`);
+                
+                const imageData = await fetchImageData(imageInfo[key][i]);
+                if (imageData) {
+                  const added = addBase64ImageToPdf(imageData, indexLabel);
+                  console.log(`${key}[${i}] image ${added ? 'successfully added' : 'failed to add'}`);
+                  if (added) imageDisplayed = true;
+                } else {
+                  console.log(`No image data returned for ${key}[${i}]`);
+                }
+              } catch (error) {
+                console.error(`Error processing ${key}[${i}] image:`, error);
+              }
             }
           }
         }
