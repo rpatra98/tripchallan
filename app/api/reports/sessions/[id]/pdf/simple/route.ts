@@ -583,7 +583,7 @@ export const GET = withAuth(
         doc.setFont('helvetica', 'bold');
         doc.text(`${label}: `, margin, yPos);
         doc.setFont('helvetica', 'normal');
-        doc.text(displayValue, margin + 60, yPos);
+        doc.text(displayValue, margin + 80, yPos);
         yPos += lineHeight;
       };
       
