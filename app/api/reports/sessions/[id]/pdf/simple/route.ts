@@ -298,6 +298,52 @@ export const GET = withAuth(
         imageInfo = sessionData.images;
       }
       
+      // If no images found in sessionData, try to extract from activityLog
+      if (Object.keys(imageInfo).length === 0) {
+        console.log("No images found in sessionData, checking activity logs");
+        
+        // Look for an activity log that contains images
+        const imageLog = tripActivityLog || verificationLogs.find((log: any) => {
+          if (!log.details) return false;
+          
+          let details = log.details;
+          if (typeof details === 'string') {
+            try { details = JSON.parse(details); } 
+            catch { return false; }
+          }
+          
+          return (
+            details.imageBase64Data || 
+            details.images || 
+            (details.tripDetails && details.tripDetails.images)
+          );
+        });
+        
+        if (imageLog?.details) {
+          let details = imageLog.details;
+          
+          if (typeof details === 'string') {
+            try { details = JSON.parse(details); } 
+            catch (e) { console.error("Failed to parse image log details:", e); }
+          }
+          
+          // Extract image URLs
+          if (details.images) {
+            imageInfo = details.images;
+            console.log(`Found image URLs in activity log: ${Object.keys(imageInfo).join(', ')}`);
+          } else if (details.tripDetails?.images) {
+            imageInfo = details.tripDetails.images;
+            console.log(`Found image URLs in tripDetails: ${Object.keys(imageInfo).join(', ')}`);
+          }
+          
+          // Extract base64 data if available (for direct embedding)
+          if (details.imageBase64Data) {
+            console.log(`Found direct imageBase64Data in activity log`);
+            // We'll handle this specially in the image display section
+          }
+        }
+      }
+      
       // ======== PDF GENERATION SECTION ========
       
       // Create PDF document
@@ -311,6 +357,62 @@ export const GET = withAuth(
       const margin = 20;
       let yPos = 20;
       const lineHeight = 7;
+      
+      // Helper function to fetch image data from API endpoint
+      const fetchImageData = async (imageUrl: string): Promise<string | null> => {
+        try {
+          // Skip if URL is not defined
+          if (!imageUrl) return null;
+          
+          // Make sure URL is absolute
+          const fullUrl = imageUrl.startsWith('http') 
+            ? imageUrl 
+            : `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'}${imageUrl}`;
+          
+          // Fetch the image
+          const response = await fetch(fullUrl);
+          if (!response.ok) return null;
+          
+          // Convert to blob and then to base64
+          const blob = await response.blob();
+          return new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onloadend = () => resolve(reader.result as string);
+            reader.readAsDataURL(blob);
+          });
+        } catch (error) {
+          console.error('Error fetching image:', error);
+          return null;
+        }
+      };
+      
+      // Helper function to add images to PDF
+      const addImageToPdf = async (imageUrl: string, label: string): Promise<boolean> => {
+        try {
+          const imageData = await fetchImageData(imageUrl);
+          if (!imageData) return false;
+          
+          // Check if we need a new page
+          if (yPos > doc.internal.pageSize.height - 70) {
+            doc.addPage();
+            yPos = 20;
+          }
+          
+          // Add label for the image
+          doc.setFont('helvetica', 'bold');
+          doc.text(label, margin, yPos);
+          yPos += 5;
+          
+          // Add image (50x50px size)
+          doc.addImage(imageData, 'AUTO', margin, yPos, 50, 50);
+          yPos += 55; // Space for image + margin
+          
+          return true;
+        } catch (error) {
+          console.error(`Error adding image ${label}:`, error);
+          return false;
+        }
+      };
 
       // Helper functions for PDF generation
       const addSectionHeading = (text: string) => {
@@ -436,60 +538,128 @@ export const GET = withAuth(
       
       let imageDisplayed = false;
       
-      // Helper to display image information
-      const addImageField = (label: string, value: any) => {
-        if (value) {
-          if (Array.isArray(value)) {
-            if (value.length > 0) {
-              addField(label, `${value.length} available`);
-              return true;
-            }
-          } else if (typeof value === 'string' && value.trim() !== '') {
-            addField(label, 'Available');
-            return true;
-          } else if (typeof value === 'object' && value !== null) {
-            const imageKeys = Object.keys(value).length;
-            if (imageKeys > 0) {
-              addField(label, `${imageKeys} entries available`);
-              return true;
-            }
+      // Function to directly add base64 image data to PDF
+      const addBase64ImageToPdf = (imageData: string, label: string): boolean => {
+        try {
+          if (!imageData) return false;
+          
+          // Check if we need a new page
+          if (yPos > doc.internal.pageSize.height - 70) {
+            doc.addPage();
+            yPos = 20;
           }
+          
+          // Add label for the image
+          doc.setFont('helvetica', 'bold');
+          doc.text(label, margin, yPos);
+          yPos += 5;
+          
+          // Add image (50x50px size)
+          doc.addImage(imageData, 'AUTO', margin, yPos, 50, 50);
+          yPos += 55; // Space for image + margin
+          
+          return true;
+        } catch (error) {
+          console.error(`Error adding base64 image ${label}:`, error);
+          return false;
         }
-        return false;
       };
       
-      // Standard image fields
-      if (imageInfo && Object.keys(imageInfo).length > 0) {
-        const standardImageFields = [
-          {key: 'driverPicture', label: 'Driver Picture'},
-          {key: 'vehicleNumberPlatePicture', label: 'Vehicle Number Plate Picture'},
-          {key: 'gpsImeiPicture', label: 'GPS IMEI Picture'},
-          {key: 'sealingImages', label: 'Sealing Images'},
-          {key: 'vehicleImages', label: 'Vehicle Images'},
-          {key: 'additionalImages', label: 'Additional Images'}
+      // Check for direct base64 data in any activity log
+      const findBase64ImageData = (): Record<string, any> | null => {
+        // Try to find in the main activityLog first
+        if (tripActivityLog?.details) {
+          let details = tripActivityLog.details;
+          if (typeof details === 'string') {
+            try { details = JSON.parse(details); } catch (e) { /* ignore */ }
+          }
+          
+          if (details?.imageBase64Data) return details.imageBase64Data;
+        }
+        
+        // Search through verification logs
+        for (const log of verificationLogs) {
+          if (!log.details) continue;
+          
+          let details = log.details;
+          if (typeof details === 'string') {
+            try { details = JSON.parse(details); } catch (e) { continue; }
+          }
+          
+          if (details?.imageBase64Data) return details.imageBase64Data;
+        }
+        
+        return null;
+      };
+      
+      // Try to get base64 image data directly
+      const base64Images = findBase64ImageData();
+      
+      // Add images to the PDF
+      if (base64Images) {
+        // Add single images from base64 data
+        const singleImages = [
+          { key: 'driverPicture', label: 'Driver Picture' },
+          { key: 'vehicleNumberPlatePicture', label: 'Vehicle Plate' },
+          { key: 'gpsImeiPicture', label: 'GPS/IMEI Picture' }
         ];
         
-        // Display standard fields
-        for (const {key, label} of standardImageFields) {
-          if (imageInfo[key] && addImageField(label, imageInfo[key])) {
-            imageDisplayed = true;
+        for (const { key, label } of singleImages) {
+          if (base64Images[key]?.data) {
+            const base64Data = `data:${base64Images[key].contentType || 'image/jpeg'};base64,${base64Images[key].data}`;
+            const added = addBase64ImageToPdf(base64Data, label);
+            if (added) imageDisplayed = true;
           }
         }
         
-        // Display any other image fields
-        for (const key of Object.keys(imageInfo)) {
-          if (!standardImageFields.some(field => field.key === key)) {
-            const formattedKey = key.replace(/([A-Z])/g, ' $1')
-              .replace(/^./, str => str.toUpperCase());
-            
-            if (addImageField(formattedKey, imageInfo[key])) {
-              imageDisplayed = true;
-            }
+        // Add first image from each array
+        const arrayImages = [
+          { key: 'sealingImages', label: 'Sealing Image' },
+          { key: 'vehicleImages', label: 'Vehicle Image' },
+          { key: 'additionalImages', label: 'Additional Image' }
+        ];
+        
+        for (const { key, label } of arrayImages) {
+          if (Array.isArray(base64Images[key]) && base64Images[key].length > 0 && base64Images[key][0]?.data) {
+            const base64Data = `data:${base64Images[key][0].contentType || 'image/jpeg'};base64,${base64Images[key][0].data}`;
+            const added = addBase64ImageToPdf(base64Data, label);
+            if (added) imageDisplayed = true;
           }
         }
       }
       
-      // Fallback if no images
+      // If no direct base64 data, try to fetch images from URLs
+      if (!imageDisplayed && imageInfo && Object.keys(imageInfo).length > 0) {
+        // Try to add standard single images first
+        const singleImages = [
+          { key: 'driverPicture', label: 'Driver Picture' },
+          { key: 'vehicleNumberPlatePicture', label: 'Vehicle Plate' },
+          { key: 'gpsImeiPicture', label: 'GPS/IMEI Picture' }
+        ];
+        
+        for (const { key, label } of singleImages) {
+          if (imageInfo[key]) {
+            const added = await addImageToPdf(imageInfo[key], label);
+            if (added) imageDisplayed = true;
+          }
+        }
+        
+        // Try to add first image from each image array
+        const arrayImages = [
+          { key: 'sealingImages', label: 'Sealing Image' },
+          { key: 'vehicleImages', label: 'Vehicle Image' },
+          { key: 'additionalImages', label: 'Additional Image' }
+        ];
+        
+        for (const { key, label } of arrayImages) {
+          if (Array.isArray(imageInfo[key]) && imageInfo[key].length > 0) {
+            const added = await addImageToPdf(imageInfo[key][0], label);
+            if (added) imageDisplayed = true;
+          }
+        }
+      }
+      
+      // Fallback if no images were displayed
       if (!imageDisplayed) {
         addField("Images Status", "Not available for this session");
         addField("Image Types", "Typically includes driver, vehicle, and GPS pictures");
