@@ -368,6 +368,76 @@ export const GET = withAuth(
         }
       }
       
+      // Final fallback: Generate direct API URLs based on session ID
+      if (Object.keys(imageInfo).length === 0) {
+        console.log("Using fallback to generate direct API image URLs");
+        const domain = process.env.VERCEL_URL ? 
+            `https://${process.env.VERCEL_URL}` : 
+            (process.env.NEXT_PUBLIC_API_URL || 'https://tripchallan.vercel.app');
+            
+        // Helper to probe for array-based image types with multiple indices
+        const probeForMultipleImages = async (baseUrl: string, maxIndex: number = 5): Promise<string[]> => {
+          const validUrls: string[] = [];
+          
+          // Try fetching up to maxIndex images to see which ones exist
+          for (let i = 0; i < maxIndex; i++) {
+            const url = `${baseUrl}/${i}`;
+            try {
+              const response = await fetch(url, { method: 'HEAD' });
+              if (response.ok) {
+                console.log(`Found valid image at index ${i}: ${url}`);
+                validUrls.push(url);
+              } else {
+                console.log(`No image found at index ${i}: ${url}`);
+                // Stop after the first missing image for efficiency
+                break;
+              }
+            } catch (error) {
+              console.error(`Error checking image at ${url}:`, error);
+              break;
+            }
+          }
+          
+          // If none found, return at least the first URL as a possibility
+          if (validUrls.length === 0 && maxIndex > 0) {
+            validUrls.push(`${baseUrl}/0`);
+          }
+          
+          return validUrls;
+        };
+        
+        // Basic single images
+        imageInfo = {
+          driverPicture: `${domain}/api/images/${sessionId}/driver`,
+          vehicleNumberPlatePicture: `${domain}/api/images/${sessionId}/vehicleNumber`,
+          gpsImeiPicture: `${domain}/api/images/${sessionId}/gpsImei`,
+          sealingImages: [],
+          vehicleImages: [],
+          additionalImages: []
+        };
+        
+        // Probe for multiple images of each array type
+        try {
+          const sealingUrls = await probeForMultipleImages(`${domain}/api/images/${sessionId}/sealing`);
+          const vehicleUrls = await probeForMultipleImages(`${domain}/api/images/${sessionId}/vehicle`);
+          const additionalUrls = await probeForMultipleImages(`${domain}/api/images/${sessionId}/additional`);
+          
+          // Update the imageInfo with the found URLs
+          imageInfo.sealingImages = sealingUrls;
+          imageInfo.vehicleImages = vehicleUrls;
+          imageInfo.additionalImages = additionalUrls;
+          
+          console.log(`Found ${sealingUrls.length} sealing images, ${vehicleUrls.length} vehicle images, ${additionalUrls.length} additional images`);
+        } catch (error) {
+          console.error("Error probing for multiple images:", error);
+          // Fallback to assuming at least the first index exists
+          imageInfo.sealingImages = [`${domain}/api/images/${sessionId}/sealing/0`];
+          imageInfo.vehicleImages = [`${domain}/api/images/${sessionId}/vehicle/0`];
+        }
+        
+        console.log(`Generated fallback image URLs with pattern: ${domain}/api/images/${sessionId}/*`);
+      }
+      
       // ======== PDF GENERATION SECTION ========
       
       // Create PDF document
@@ -409,6 +479,9 @@ export const GET = withAuth(
           if (imageUrl.startsWith('http')) {
             // Already absolute URL
             fullUrl = imageUrl;
+          } else if (imageUrl.includes('tripchallan.vercel.app') || imageUrl.includes('cbums')) {
+            // Domain-specific URL - don't modify
+            fullUrl = imageUrl;
           } else if (imageUrl.startsWith('/api/images/')) {
             // API endpoint path
             fullUrl = `${baseUrl}${imageUrl}`;
@@ -434,6 +507,35 @@ export const GET = withAuth(
           
           if (!response.ok) {
             console.error(`Failed to fetch image (${response.status}): ${fullUrl}`);
+            
+            // If we couldn't fetch from the current domain, try the fallback domain
+            if (!fullUrl.includes('tripchallan.vercel.app') && (!fullUrl.startsWith('http') || fullUrl.includes(baseUrl))) {
+              const fallbackUrl = imageUrl.startsWith('/') 
+                ? `https://tripchallan.vercel.app${imageUrl}`
+                : `https://tripchallan.vercel.app/${imageUrl}`;
+              
+              console.log(`Attempting fallback URL: ${fallbackUrl}`);
+              
+              try {
+                const fallbackResponse = await fetch(fallbackUrl);
+                if (fallbackResponse.ok) {
+                  const blob = await fallbackResponse.blob();
+                  if (blob.size > 0) {
+                    console.log(`Successfully retrieved from fallback: ${fallbackUrl} (${blob.size} bytes)`);
+                    return new Promise((resolve) => {
+                      const reader = new FileReader();
+                      reader.onloadend = () => resolve(reader.result as string);
+                      reader.readAsDataURL(blob);
+                    });
+                  }
+                } else {
+                  console.error(`Fallback also failed (${fallbackResponse.status}): ${fallbackUrl}`);
+                }
+              } catch (fallbackError) {
+                console.error(`Error with fallback URL: ${fallbackError}`);
+              }
+            }
+            
             return null;
           }
           
