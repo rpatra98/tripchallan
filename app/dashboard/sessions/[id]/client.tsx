@@ -410,44 +410,111 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
         session?.seal?.verified) {
       
       console.log("Processing completed session for verification data:", session.id);
+      console.log("Session seal data:", session.seal);
       
-      // Try to extract from activity logs first
+      // First, check if verification data is directly in the seal object
+      if (session.seal.verificationData?.fieldVerifications) {
+        console.log("Found verification data directly in seal.verificationData");
+        extractAndSetVerificationResults(session.seal.verificationData.fieldVerifications);
+        return;
+      }
+      
+      // Then check activity logs if available
       if (session.activityLogs?.length) {
         console.log("Activity logs found:", session.activityLogs.length);
         
         // Look for verification logs with multiple possible action types
         const verificationActions = ["SEAL_VERIFIED", "VERIFY_SEAL", "SEAL_VERIFICATION"];
         
+        // Search for logs with verification data and log what we find
+        console.log("Searching logs for verification data");
+        for (const log of session.activityLogs) {
+          console.log(`Log action: ${log.action}, has details: ${!!log.details}`);
+          
+          if (log.details) {
+            console.log("Log details keys:", Object.keys(log.details));
+            
+            // Check verification property
+            if (log.details.verification) {
+              console.log("Found verification details in log");
+              
+              if (log.details.verification.fieldVerifications) {
+                console.log("Found fieldVerifications in log.details.verification");
+                extractAndSetVerificationResults(log.details.verification.fieldVerifications);
+                return;
+              }
+            }
+          }
+        }
+        
+        // If we didn't find structured verification data, look for any log with the right action
         const verificationLog = session.activityLogs.find(log => 
-          verificationActions.includes(log.action) && 
-          log.details?.verification?.fieldVerifications
+          verificationActions.includes(log.action)
         );
         
-        if (verificationLog) {
-          console.log("Verification log found:", verificationLog.action);
+        if (verificationLog?.details) {
+          console.log("Found verification log with action:", verificationLog.action);
           
-          if (verificationLog.details?.verification?.fieldVerifications) {
-            console.log("Field verifications found in log");
+          // Try different possible paths for verification data
+          // Use optional chaining to safely access nested properties that might not exist
+          if (verificationLog.details.verification?.fieldVerifications) {
+            console.log("Found fieldVerifications in verification property");
             extractAndSetVerificationResults(verificationLog.details.verification.fieldVerifications);
-            return; // Exit early since we found and processed the data
+            return;
           }
-        } else {
-          // Check if any logs have verification data in any format
-          console.log("Checking all logs for verification data");
-          for (const log of session.activityLogs) {
-            console.log("Log action:", log.action, "has details:", !!log.details);
-            if (log.details) {
-              console.log("Log details keys:", Object.keys(log.details));
-            }
+          
+          // Check for other possible locations
+          const detailsObj = verificationLog.details as any; // Type assertion to avoid TS errors
+          
+          if (detailsObj.fieldVerifications) {
+            console.log("Found fieldVerifications directly in details");
+            extractAndSetVerificationResults(detailsObj.fieldVerifications);
+            return;
+          }
+          
+          if (detailsObj.verificationData?.fieldVerifications) {
+            console.log("Found fieldVerifications in verificationData");
+            extractAndSetVerificationResults(detailsObj.verificationData.fieldVerifications);
+            return;
+          }
+          
+          if (detailsObj.data?.fieldVerifications) {
+            console.log("Found fieldVerifications in data property");
+            extractAndSetVerificationResults(detailsObj.data.fieldVerifications);
+            return;
+          }
+          
+          if (detailsObj.data?.verification?.fieldVerifications) {
+            console.log("Found fieldVerifications in data.verification");
+            extractAndSetVerificationResults(detailsObj.data.verification.fieldVerifications);
+            return;
           }
         }
       }
       
-      // If we couldn't extract from logs, try other sources
-      // Check if verification data is directly in the session object
-      if (session.seal?.verificationData?.fieldVerifications) {
-        console.log("Found verification data directly in session.seal.verificationData");
-        extractAndSetVerificationResults(session.seal.verificationData.fieldVerifications);
+      // If we still don't have verification data, create a basic placeholder
+      console.log("No verification data found, creating placeholder");
+      
+      // Create basic verification results with just the seal data
+      if (session.seal) {
+        const placeholderResults = {
+          matches: ["sealVerification"],
+          mismatches: [],
+          unverified: [],
+          allFields: {
+            sealVerification: {
+              operatorValue: session.seal.barcode,
+              guardValue: "Verified",
+              matches: true,
+              comment: "Seal verified without detailed field data",
+              isVerified: true
+            }
+          },
+          timestamp: session.seal.scannedAt || new Date().toISOString()
+        };
+        
+        console.log("Setting placeholder verification results");
+        setVerificationResults(placeholderResults);
       }
     }
   }, [session, extractAndSetVerificationResults]);
@@ -2137,6 +2204,132 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
                 {reportLoading === "excel" ? "Downloading..." : "Download Excel"}
               </Button>
             </Box>
+          </Box>
+        )}
+
+        {/* Field Verification Summary - Always show for completed sessions with verified seal */}
+        {session.status === SessionStatus.COMPLETED && session.seal?.verified && (
+          <Box mb={3}>
+            <Typography variant="h6" gutterBottom sx={{ color: 'primary.main', fontWeight: 'bold' }}>
+              Field Verification Summary
+            </Typography>
+            <Divider sx={{ mb: 2 }} />
+            
+            {verificationResults ? (
+              <>
+                <TableContainer component={Paper} variant="outlined" sx={{ mb: 4 }}>
+                  <Table>
+                    <TableHead>
+                      <TableRow sx={{ bgcolor: 'grey.100' }}>
+                        <TableCell width="30%"><strong>Field</strong></TableCell>
+                        <TableCell width="25%"><strong>Operator Value</strong></TableCell>
+                        <TableCell width="25%"><strong>Guard Value</strong></TableCell>
+                        <TableCell width="20%" align="center"><strong>Status</strong></TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {/* Matching fields (green) - PASS */}
+                      {verificationResults.matches.map(field => {
+                        const data = verificationResults.allFields[field];
+                        return (
+                          <TableRow key={field} sx={{ 
+                            bgcolor: 'rgba(46, 125, 50, 0.15)', 
+                            '&:hover': { bgcolor: 'rgba(46, 125, 50, 0.25)' }
+                          }}>
+                            <TableCell component="th" scope="row" sx={{ color: 'success.dark', fontWeight: 'medium' }}>
+                              {getFieldLabel(field)}
+                            </TableCell>
+                            <TableCell sx={{ color: 'success.dark' }}>{String(data.operatorValue || 'N/A')}</TableCell>
+                            <TableCell sx={{ color: 'success.dark' }}>{String(data.guardValue || 'Not provided')}</TableCell>
+                            <TableCell align="center">
+                              <Box display="flex" alignItems="center" justifyContent="center" sx={{ color: 'success.main' }}>
+                                <CheckCircle fontSize="small" sx={{ mr: 0.5 }} />
+                                <Typography variant="body2" sx={{ color: 'success.main', fontWeight: 'bold' }}>Pass</Typography>
+                              </Box>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                      
+                      {/* Mismatched fields (red) - FAIL */}
+                      {verificationResults.mismatches.map(field => {
+                        const data = verificationResults.allFields[field];
+                        return (
+                          <TableRow key={field} sx={{ 
+                            bgcolor: 'rgba(211, 47, 47, 0.15)', 
+                            '&:hover': { bgcolor: 'rgba(211, 47, 47, 0.25)' }
+                          }}>
+                            <TableCell component="th" scope="row" sx={{ color: 'error.dark', fontWeight: 'medium' }}>
+                              {getFieldLabel(field)}
+                            </TableCell>
+                            <TableCell sx={{ color: 'error.dark' }}>{String(data.operatorValue || 'N/A')}</TableCell>
+                            <TableCell sx={{ color: 'error.dark' }}>{String(data.guardValue || 'Not provided')}</TableCell>
+                            <TableCell align="center">
+                              <Box display="flex" alignItems="center" justifyContent="center" sx={{ color: 'error.main' }}>
+                                <Warning fontSize="small" sx={{ mr: 0.5 }} />
+                                <Typography variant="body2" sx={{ color: 'error.main', fontWeight: 'bold' }}>Fail</Typography>
+                              </Box>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                      
+                      {/* Unverified fields (red) - FAIL */}
+                      {verificationResults.unverified.map(field => {
+                        const data = verificationResults.allFields[field];
+                        return (
+                          <TableRow key={field} sx={{ 
+                            bgcolor: 'rgba(211, 47, 47, 0.15)', 
+                            '&:hover': { bgcolor: 'rgba(211, 47, 47, 0.25)' }
+                          }}>
+                            <TableCell component="th" scope="row" sx={{ color: 'error.dark', fontWeight: 'medium' }}>
+                              {getFieldLabel(field)}
+                            </TableCell>
+                            <TableCell sx={{ color: 'error.dark' }}>{String(data.operatorValue || 'N/A')}</TableCell>
+                            <TableCell sx={{ color: 'error.dark' }}>{String(data.guardValue || 'Not provided')}</TableCell>
+                            <TableCell align="center">
+                              <Box display="flex" alignItems="center" justifyContent="center" sx={{ color: 'error.main' }}>
+                                <Warning fontSize="small" sx={{ mr: 0.5 }} />
+                                <Typography variant="body2" sx={{ color: 'error.main', fontWeight: 'bold' }}>Fail</Typography>
+                              </Box>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+
+                {/* Summary statistics */}
+                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, mb: 3 }}>
+                  <Box sx={{ flex: '1 0 30%', minWidth: '200px' }}>
+                    <Paper sx={{ p: 2, bgcolor: 'success.light', color: 'success.contrastText' }}>
+                      <Typography variant="h5" align="center">{verificationResults.matches.length}</Typography>
+                      <Typography variant="body2" align="center">Matching Fields</Typography>
+                    </Paper>
+                  </Box>
+                  <Box sx={{ flex: '1 0 30%', minWidth: '200px' }}>
+                    <Paper sx={{ p: 2, bgcolor: 'error.light', color: 'error.contrastText' }}>
+                      <Typography variant="h5" align="center">{verificationResults.mismatches.length}</Typography>
+                      <Typography variant="body2" align="center">Mismatched Fields</Typography>
+                    </Paper>
+                  </Box>
+                  <Box sx={{ flex: '1 0 30%', minWidth: '200px' }}>
+                    <Paper sx={{ p: 2, bgcolor: 'error.light', color: 'error.contrastText' }}>
+                      <Typography variant="h5" align="center">{verificationResults.unverified.length}</Typography>
+                      <Typography variant="body2" align="center">Unverified Fields</Typography>
+                    </Paper>
+                  </Box>
+                </Box>
+              </>
+            ) : (
+              <Alert severity="info">
+                <AlertTitle>Verification Data Not Available</AlertTitle>
+                <Typography variant="body2">
+                  This session has been verified, but detailed verification data is not available.
+                </Typography>
+              </Alert>
+            )}
           </Box>
         )}
       </Paper>
