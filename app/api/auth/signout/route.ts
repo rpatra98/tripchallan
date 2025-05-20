@@ -3,8 +3,34 @@ import { NextResponse } from "next/server";
 // This handles NextAuth signOut() function calls
 export async function POST(request: Request) {
   try {
-    const body = await request.json();
-    const callbackUrl = body?.callbackUrl || '/';
+    // Check content type to handle different types of requests
+    const contentType = request.headers.get('content-type') || '';
+    
+    let callbackUrl = '/';
+    
+    if (contentType.includes('application/json')) {
+      // Handle JSON request body
+      const body = await request.json();
+      callbackUrl = body?.callbackUrl || '/';
+    } else if (contentType.includes('application/x-www-form-urlencoded')) {
+      // Handle form data
+      const formData = await request.formData();
+      callbackUrl = formData.get('callbackUrl')?.toString() || '/';
+    } else {
+      // Try to read as text and see if it's parseable
+      try {
+        const text = await request.text();
+        
+        // Check if it looks like URL-encoded form data
+        if (text.includes('=')) {
+          const params = new URLSearchParams(text);
+          callbackUrl = params.get('callbackUrl') || '/';
+        }
+        // Don't attempt to parse as JSON if it doesn't look like JSON
+      } catch (parseError) {
+        console.error('Error parsing request body:', parseError);
+      }
+    }
     
     // Return JSON with the URL to redirect to
     return NextResponse.json({ url: callbackUrl });
