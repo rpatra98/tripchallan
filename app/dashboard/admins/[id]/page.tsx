@@ -715,6 +715,17 @@ export default function AdminDetailsPage({ params }: AdminDetailsPageProps) {
             </Alert>
           )}
           
+          <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 2 }}>
+            <Button 
+              variant="outlined" 
+              size="small" 
+              onClick={fetchSessions}
+              disabled={loadingSessions}
+            >
+              {loadingSessions ? "Loading..." : "Refresh Sessions"}
+            </Button>
+          </Box>
+          
           {loadingSessions ? (
             <Box display="flex" justifyContent="center" p={3}>
               <CircularProgress />
