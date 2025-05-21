@@ -635,7 +635,7 @@ export default function ActivityLogsPage() {
                             <span style={{ fontSize: '0.75rem', color: '#666' }}>{row.targetUser.email}</span>
                           </div>
                         ) : (
-                          <span>{row.targetResourceType || 'Unknown'}</span>
+                          <span>{row.targetResourceType || ' - '}</span>
                         )}
                       </TableCell>
                       <TableCell>

@@ -254,7 +254,7 @@ export default function ActivityLogsPage() {
             } : undefined,
             createdAt: log.createdAt || new Date().toISOString(),
             userAgent: log.userAgent || undefined,
-            targetResourceType: log.targetResourceType || 'UNKNOWN'
+            targetResourceType: log.targetResourceType || ' - '
           };
         } catch (err) {
           console.error('Error processing log item:', err, log);
@@ -741,7 +741,7 @@ export default function ActivityLogsPage() {
                             <span style={{ fontSize: '0.75rem', color: '#666' }}>{row.targetUser.email}</span>
                           </div>
                         ) : (
-                          <span>{row.targetResourceType || 'Unknown'}</span>
+                          <span>{row.targetResourceType || ' - '}</span>
                         )}
                       </TableCell>
                       <TableCell>

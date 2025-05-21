@@ -77,11 +77,11 @@ pageContent = pageContent.replace(
             details: log.details || {},
             targetUser: log.targetUser ? {
               name: log.targetUser.name || "Unknown",
-              email: log.targetUser.email || "No email"
+              email: log.targetUser.email,
             } : undefined,
             createdAt: log.createdAt || new Date().toISOString(),
             userAgent: log.userAgent || undefined,
-            targetResourceType: log.targetResourceType || "UNKNOWN"
+            targetResourceType: log.targetResourceType || " - "
           };
         }).filter(Boolean);`
 );
