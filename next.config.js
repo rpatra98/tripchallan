@@ -24,6 +24,9 @@ const nextConfig = {
   skipTrailingSlashRedirect: true,
   skipMiddlewareUrlNormalize: true,
   
+  // Ensure react-qr-scanner and other client-only modules are properly bundled
+  transpilePackages: ['react-qr-scanner'],
+  
   // Add redirects for company and employee detail pages
   async redirects() {
     return [
@@ -45,6 +48,17 @@ const nextConfig = {
         permanent: false,
       }
     ];
+  },
+  
+  // Configure webpack to handle react-qr-scanner
+  webpack: (config, { isServer }) => {
+    // If on the server side, mark react-qr-scanner as external
+    // because it requires browser APIs
+    if (isServer) {
+      config.externals = [...config.externals, 'react-qr-scanner'];
+    }
+    
+    return config;
   },
 };
 

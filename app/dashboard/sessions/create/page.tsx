@@ -29,7 +29,7 @@ import {
 import Link from "next/link";
 import { EmployeeSubrole } from "@/prisma/enums";
 import { SessionUpdateContext } from "@/app/dashboard/layout";
-import QrScanner from "@/app/components/QrScanner";
+import ClientSideQrScanner from "@/app/components/ClientSideQrScanner";
 
 type CompanyType = {
   id: string;
@@ -893,7 +893,7 @@ export default function CreateSessionPage() {
       </Box>
 
       {/* Add the QrScanner component */}
-      <QrScanner
+      <ClientSideQrScanner
         open={scannerOpen}
         onClose={closeScanner}
         onScan={handleScanComplete}
