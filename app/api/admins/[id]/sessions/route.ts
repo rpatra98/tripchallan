@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { withAuth } from "@/lib/auth";
 import prisma from "@/lib/prisma";
-import { UserRole } from "@/prisma/enums";
+import { EmployeeSubrole, UserRole } from "@/prisma/enums";
 import { Prisma } from "@prisma/client";
 
 interface Company {
@@ -47,6 +47,8 @@ async function handler(
 
     // Get all company IDs from different sources
     const companyIds = new Set<string>();
+    // Get operator IDs created by this admin
+    const operatorIds = new Set<string>();
     
     // Source 1: Companies created by this admin
     const createdCompanies = await prisma.user.findMany({
@@ -108,27 +110,61 @@ async function handler(
       console.log("Error fetching companies with employees:", error);
     }
     
-    // Convert set to array
+    // Source 4: Find OPERATORS created by this admin
+    try {
+      const operatorsCreatedByAdmin = await prisma.user.findMany({
+        where: {
+          role: UserRole.EMPLOYEE,
+          subrole: EmployeeSubrole.OPERATOR,
+          createdById: adminId,
+        },
+        select: {
+          id: true,
+        }
+      });
+      
+      operatorsCreatedByAdmin.forEach((operator: { id: string }) => {
+        operatorIds.add(operator.id);
+      });
+      console.log(`🔍 Found ${operatorsCreatedByAdmin.length} OPERATORS created by admin`);
+    } catch (error) {
+      console.log("Error fetching operators created by admin:", error);
+    }
+    
+    // Convert sets to arrays
     const companyIdsArray = Array.from(companyIds);
+    const operatorIdsArray = Array.from(operatorIds);
     console.log(`🔍 Total unique companies: ${companyIdsArray.length}`);
+    console.log(`🔍 Total unique operators: ${operatorIdsArray.length}`);
 
     // Define the where clause based on available data
     let whereClause: any = {};
     
-    // According to session-system-reference.md, ADMIN should see:
-    // "Only sessions for companies created by them"
+    // Build the OR conditions
+    const orConditions = [];
     
-    // If the admin has companies, show sessions for those companies
+    // Condition 1: Sessions from companies created by admin
     if (companyIdsArray.length > 0) {
-      whereClause.companyId = { in: companyIdsArray };
-      console.log(`🔍 Filtering sessions for ${companyIdsArray.length} companies`);
+      orConditions.push({ companyId: { in: companyIdsArray } });
+      console.log(`🔍 Adding filter for ${companyIdsArray.length} companies`);
+    }
+    
+    // Condition 2: Sessions created by operators who were created by this admin
+    if (operatorIdsArray.length > 0) {
+      orConditions.push({ createdById: { in: operatorIdsArray } });
+      console.log(`🔍 Adding filter for ${operatorIdsArray.length} operators`);
+    }
+    
+    // If we have any OR conditions, add them to the where clause
+    if (orConditions.length > 0) {
+      whereClause.OR = orConditions;
     } else if (isSuperAdmin) {
-      // For superadmin with no companies, show all sessions 
-      console.log("🔍 SUPERADMIN with no companies, showing all sessions");
+      // For superadmin with no companies or operators, show all sessions 
+      console.log("🔍 SUPERADMIN with no companies or operators, showing all sessions");
       whereClause = {}; // Empty where clause to show all
     } else {
-      // If admin has no companies, show no sessions
-      console.log("🔍 Admin with no companies, showing no sessions");
+      // If admin has no companies/operators, show no sessions
+      console.log("🔍 Admin with no companies or operators, showing no sessions");
       whereClause.id = "non-existent-id"; // This ensures no results
     }
 
@@ -150,7 +186,14 @@ async function handler(
             id: true,
             name: true,
             email: true,
-            subrole: true
+            subrole: true,
+            createdBy: {
+              select: {
+                id: true,
+                name: true,
+                email: true
+              }
+            }
           },
         },
         company: {
@@ -181,6 +224,7 @@ async function handler(
     // For debugging - show some session details
     if (sessions.length > 0) {
       console.log(`🔍 First session - ID: ${sessions[0].id}, Company: ${sessions[0].company?.name || 'Unknown'}`);
+      console.log(`🔍 Created by: ${sessions[0].createdBy?.name}, Subrole: ${sessions[0].createdBy?.subrole}`);
     }
 
     return NextResponse.json({

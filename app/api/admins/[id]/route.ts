@@ -119,15 +119,50 @@ async function handleGet(
     // Get company IDs for all companies created by this admin
     const companyIds = companies.map((company: { id: string }) => company.id);
     
+    // Find operators created by this admin
+    const operators = await prisma.user.findMany({
+      where: {
+        role: UserRole.EMPLOYEE,
+        subrole: "OPERATOR",
+        createdById: adminId,
+      },
+      select: {
+        id: true,
+      },
+    }).catch((err: Error) => {
+      console.error("Error fetching operators:", err);
+      return [];
+    });
+
+    const operatorIds = operators.map((operator: { id: string }) => operator.id);
+    
     // Count sessions for companies created by this admin
+    // OR sessions created by operators created by this admin
     let sessionCount = 0;
+    
+    // Build the OR condition
+    const sessionWhereClause: any = { OR: [] };
+    
     if (companyIds.length > 0) {
-      sessionCount = await prisma.session.count({
-        where: {
-          companyId: {
-            in: companyIds
-          }
+      sessionWhereClause.OR.push({
+        companyId: {
+          in: companyIds
         }
+      });
+    }
+    
+    if (operatorIds.length > 0) {
+      sessionWhereClause.OR.push({
+        createdById: {
+          in: operatorIds
+        }
+      });
+    }
+    
+    // Only run the query if we have actual OR conditions
+    if (sessionWhereClause.OR.length > 0) {
+      sessionCount = await prisma.session.count({
+        where: sessionWhereClause
       }).catch((err: Error) => {
         console.error("Error counting sessions:", err);
         return 0;
