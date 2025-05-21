@@ -33,8 +33,11 @@ async function handler(
     // Get status filter if provided
     const statusFilter = url.searchParams.get("status");
 
-    // Find all companies created by this admin
-    const companies = await prisma.user.findMany({
+    // Get all company IDs from different sources
+    const companyIds = new Set<string>();
+    
+    // Source 1: Companies created by this admin
+    const createdCompanies = await prisma.user.findMany({
       where: {
         role: UserRole.COMPANY,
         createdById: adminId,
@@ -45,11 +48,55 @@ async function handler(
         email: true
       },
     });
+    
+    createdCompanies.forEach((company: Company) => companyIds.add(company.id));
+    
+    // Source 2: Companies the admin has access to via custom permissions
+    try {
+      const customPermissions = await prisma.custom_permissions.findMany({
+        where: {
+          userId: adminId,
+          resourceType: "COMPANY",
+        },
+        select: {
+          resourceId: true,
+        },
+      });
+      
+      customPermissions.forEach(permission => {
+        if (permission.resourceId) companyIds.add(permission.resourceId);
+      });
+    } catch (error) {
+      console.log("Custom permissions table may not exist or other error:", error);
+      // Continue if the table doesn't exist
+    }
+    
+    // Source 3: Companies where the admin created employees
+    try {
+      const companiesWithEmployees = await prisma.user.findMany({
+        where: {
+          role: {
+            in: [UserRole.EMPLOYEE, UserRole.GUARD]
+          },
+          createdById: adminId,
+        },
+        select: {
+          companyId: true
+        },
+        distinct: ['companyId']
+      });
+      
+      companiesWithEmployees.forEach(item => {
+        if (item.companyId) companyIds.add(item.companyId);
+      });
+    } catch (error) {
+      console.log("Error fetching companies with employees:", error);
+    }
+    
+    // Convert set to array
+    const companyIdsArray = Array.from(companyIds);
 
-    // Get company IDs
-    const companyIds = companies.map((company: Company) => company.id);
-
-    if (companyIds.length === 0) {
+    if (companyIdsArray.length === 0) {
       return NextResponse.json({
         sessions: [],
         totalCount: 0,
@@ -62,7 +109,7 @@ async function handler(
 
     // Build where clause for sessions
     const whereClause: any = {
-      companyId: { in: companyIds }
+      companyId: { in: companyIdsArray }
     };
 
     // Add status filter if provided

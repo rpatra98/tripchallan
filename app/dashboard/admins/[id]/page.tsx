@@ -200,6 +200,7 @@ export default function AdminDetailsPage({ params }: AdminDetailsPageProps) {
       setLoadingSessions(true);
       setSessionsError(null);
       
+      console.log(`Fetching sessions for admin ${params.id}...`);
       const response = await fetch(`/api/admins/${params.id}/sessions`, {
         credentials: 'include',
         headers: {
@@ -209,11 +210,12 @@ export default function AdminDetailsPage({ params }: AdminDetailsPageProps) {
       
       if (!response.ok) {
         const errorText = await response.text();
-        console.error(`API Error: ${errorText}`);
-        throw new Error("Failed to fetch sessions");
+        console.error(`API Error: ${response.status} - ${errorText}`);
+        throw new Error(`Failed to fetch sessions: ${response.status}`);
       }
       
       const data = await response.json();
+      console.log(`Received ${data.sessions?.length || 0} sessions for admin, total count: ${data.totalCount || 0}`);
       setSessions(data.sessions || []);
       
       // Update stats if needed - use functional update to avoid dependency on admin
@@ -329,6 +331,11 @@ export default function AdminDetailsPage({ params }: AdminDetailsPageProps) {
 
   const handleTabChange = (event: React.SyntheticEvent, newValue: number) => {
     setTabValue(newValue);
+    
+    // Always refresh sessions data when switching to the sessions tab
+    if (newValue === 2) {
+      fetchSessions();
+    }
   };
 
   // Get color for session status chip
