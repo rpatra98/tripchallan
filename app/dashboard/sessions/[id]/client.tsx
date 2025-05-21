@@ -2138,16 +2138,6 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
               >
                 {reportLoading === "pdf" ? "Downloading..." : "Download PDF"}
               </Button>
-              <Button
-                variant="outlined"
-                startIcon={<TableChart />}
-                onClick={() => handleDownloadReport("excel")}
-                disabled={reportLoading !== null}
-                size="small"
-                sx={{ color: 'success.main', borderColor: 'success.main', '&:hover': { borderColor: 'success.dark' } }}
-              >
-                {reportLoading === "excel" ? "Downloading..." : "Download Excel"}
-              </Button>
             </Box>
           </Box>
         )}
