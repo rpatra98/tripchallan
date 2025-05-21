@@ -6,7 +6,8 @@ generator client {
 datasource db {
   provider  = "postgresql"
   url       = env("DATABASE_URL")
-  directUrl = env("DIRECT_URL") != "" ? env("DIRECT_URL") : env("DATABASE_URL")
+  // directUrl is optional in deployment environments
+  // directUrl = env("DIRECT_URL")
 }
 
 model User {
