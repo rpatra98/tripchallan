@@ -14,8 +14,8 @@ import {
   Alert
 } from '@mui/material';
 
-// Dynamically import the QrScanner component with no SSR
-const QrScanner = dynamic(() => import('./QrScanner'), { 
+// Dynamically import the BasicQrScanner component with no SSR
+const BasicQrScanner = dynamic(() => import('./BasicQrScanner'), { 
   ssr: false,
   loading: () => (
     <Box display="flex" justifyContent="center" alignItems="center" minHeight="300px">
@@ -60,5 +60,5 @@ export default function ClientSideQrScanner(props: ClientSideQrScannerProps) {
     );
   }
 
-  return <QrScanner {...props} />;
+  return <BasicQrScanner {...props} />;
 } 
