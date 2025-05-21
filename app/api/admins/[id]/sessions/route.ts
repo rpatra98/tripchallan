@@ -36,6 +36,15 @@ async function handler(
     // Get status filter if provided
     const statusFilter = url.searchParams.get("status");
 
+    // Get the admin user to check their role
+    const adminUser = await prisma.user.findUnique({
+      where: { id: adminId },
+      select: { role: true }
+    });
+    
+    const isSuperAdmin = adminUser?.role === UserRole.SUPERADMIN;
+    console.log(`🔍 Admin is SUPERADMIN: ${isSuperAdmin}`);
+
     // Get all company IDs from different sources
     const companyIds = new Set<string>();
     
@@ -99,61 +108,28 @@ async function handler(
       console.log("Error fetching companies with employees:", error);
     }
     
-    // Source 4: Direct query for sessions created by this admin
-    try {
-      const sessionsCreatedByAdmin = await prisma.session.findMany({
-        where: {
-          createdById: adminId,
-        },
-        select: {
-          companyId: true
-        },
-        distinct: ['companyId']
-      });
-      
-      sessionsCreatedByAdmin.forEach((item: { companyId?: string }) => {
-        if (item.companyId) companyIds.add(item.companyId);
-      });
-      console.log(`🔍 Found ${sessionsCreatedByAdmin.length} companies with sessions created by admin`);
-    } catch (error) {
-      console.log("Error fetching sessions created by admin:", error);
-    }
-    
     // Convert set to array
     const companyIdsArray = Array.from(companyIds);
     console.log(`🔍 Total unique companies: ${companyIdsArray.length}`);
 
-    // If admin is SUPERADMIN, they should see all sessions (optional feature, disabled by default)
-    const adminUser = await prisma.user.findUnique({
-      where: { id: adminId },
-      select: { role: true }
-    });
-    
-    const isSuperAdmin = adminUser?.role === UserRole.SUPERADMIN;
-    console.log(`🔍 Admin is SUPERADMIN: ${isSuperAdmin}`);
-    
     // Define the where clause based on available data
     let whereClause: any = {};
     
+    // According to session-system-reference.md, ADMIN should see:
+    // "Only sessions for companies created by them"
+    
+    // If the admin has companies, show sessions for those companies
     if (companyIdsArray.length > 0) {
-      // Default case: Filter by companies
       whereClause.companyId = { in: companyIdsArray };
+      console.log(`🔍 Filtering sessions for ${companyIdsArray.length} companies`);
+    } else if (isSuperAdmin) {
+      // For superadmin with no companies, show all sessions 
+      console.log("🔍 SUPERADMIN with no companies, showing all sessions");
+      whereClause = {}; // Empty where clause to show all
     } else {
-      // Special case: No companies found but admin might have created sessions directly
-      whereClause.OR = [
-        { createdById: adminId }
-      ];
-      
-      // Add dummy condition to prevent empty OR clause
-      if (isSuperAdmin) {
-        // For superadmin with no companies, show all sessions 
-        console.log("🔍 SUPERADMIN with no companies, showing all sessions");
-        whereClause = {}; // Empty where clause to show all
-      } else {
-        // Add impossible condition to avoid error but return no results
-        console.log("🔍 Admin with no companies, showing no sessions");
-        whereClause.id = "non-existent-id";
-      }
+      // If admin has no companies, show no sessions
+      console.log("🔍 Admin with no companies, showing no sessions");
+      whereClause.id = "non-existent-id"; // This ensures no results
     }
 
     // Add status filter if provided
