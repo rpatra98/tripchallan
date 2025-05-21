@@ -87,7 +87,7 @@ export default function AdminsPage() {
   };
 
   const formatDate = (dateString: string) => {
-    return format(new Date(dateString), "MMM d, yyyy h:mm:ss a");
+    return format(new Date(dateString), "MMM d, yyyy HH:mm:ss");
   };
 
   const handleViewDetails = (adminId: string) => {

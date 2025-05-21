@@ -284,7 +284,7 @@ export default function AdminDetailsPage({ params }: AdminDetailsPageProps) {
 
   // Format date for display
   const formatDate = (dateString: string) => {
-    return format(new Date(dateString), "MMM d, yyyy");
+    return format(new Date(dateString), "MMM d, yyyy HH:mm:ss");
   };
 
   // Handle admin deletion

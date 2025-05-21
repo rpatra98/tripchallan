@@ -145,7 +145,7 @@ export default function SuperAdminDashboard({ user: initialUser }: SuperAdminDas
   // Format date for display
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
-    return format(date, "MMM dd, yyyy");
+    return format(date, "MMM dd, yyyy HH:mm:ss");
   };
 
   // Handle successful coin transfer
