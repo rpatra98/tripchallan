@@ -116,6 +116,24 @@ async function handleGet(
       return [];
     });
 
+    // Get company IDs for all companies created by this admin
+    const companyIds = companies.map((company: { id: string }) => company.id);
+    
+    // Count sessions for companies created by this admin
+    let sessionCount = 0;
+    if (companyIds.length > 0) {
+      sessionCount = await prisma.session.count({
+        where: {
+          companyId: {
+            in: companyIds
+          }
+        }
+      }).catch((err: Error) => {
+        console.error("Error counting sessions:", err);
+        return 0;
+      });
+    }
+
     return NextResponse.json({
       ...admin,
       createdCompanies: companies,
@@ -123,6 +141,7 @@ async function handleGet(
       stats: {
         totalCompanies: companies.length,
         totalEmployees: employees.length,
+        totalSessions: sessionCount
       }
     });
   } catch (error) {

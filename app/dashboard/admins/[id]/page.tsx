@@ -201,11 +201,12 @@ export default function AdminDetailsPage({ params }: AdminDetailsPageProps) {
       setSessionsError(null);
       
       console.log(`Fetching sessions for admin ${params.id}...`);
-      const response = await fetch(`/api/admins/${params.id}/sessions`, {
+      const response = await fetch(`/api/admins/${params.id}/sessions?timestamp=${Date.now()}`, {
         credentials: 'include',
         headers: {
           'Content-Type': 'application/json'
-        }
+        },
+        cache: 'no-store'
       });
       
       if (!response.ok) {
@@ -216,6 +217,20 @@ export default function AdminDetailsPage({ params }: AdminDetailsPageProps) {
       
       const data = await response.json();
       console.log(`Received ${data.sessions?.length || 0} sessions for admin, total count: ${data.totalCount || 0}`);
+      
+      // Log the first few sessions for debugging
+      if (data.sessions && data.sessions.length > 0) {
+        console.log("Sample sessions:", data.sessions.slice(0, 3).map((s: any) => ({
+          id: s.id,
+          company: s.company?.name,
+          source: s.source,
+          destination: s.destination,
+          status: s.status
+        })));
+      } else {
+        console.log("No sessions returned from API");
+      }
+      
       setSessions(data.sessions || []);
       
       // Update stats if needed - use functional update to avoid dependency on admin
@@ -749,9 +764,23 @@ export default function AdminDetailsPage({ params }: AdminDetailsPageProps) {
                   {sessions.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={8} align="center">
-                        <Typography variant="body1" py={2}>
-                          No sessions found for companies managed by this admin
-                        </Typography>
+                        <Box p={3} display="flex" flexDirection="column" alignItems="center" gap={2}>
+                          <Typography variant="body1">
+                            No sessions found for companies managed by this admin
+                          </Typography>
+                          <Typography variant="body2" color="text.secondary">
+                            This admin may not have created any companies, or the companies haven't created any sessions.
+                          </Typography>
+                          <Button 
+                            variant="contained" 
+                            size="small" 
+                            onClick={fetchSessions}
+                            disabled={loadingSessions}
+                            sx={{ mt: 1 }}
+                          >
+                            Retry
+                          </Button>
+                        </Box>
                       </TableCell>
                     </TableRow>
                   ) : (
