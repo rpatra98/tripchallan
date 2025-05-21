@@ -1802,59 +1802,19 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
                 </Box>
               </Box>
 
-              {/* Trip details */}
-              {session.tripDetails && Object.keys(session.tripDetails).length > 0 && (
+              {/* Only show Vehicle Number from Trip Details */}
+              {session.tripDetails?.vehicleNumber && (
                 <Box mb={3}>
-                  <Typography variant="h6" gutterBottom>
-                    Trip Details
-                  </Typography>
-                  <Divider sx={{ mb: 2 }} />
-                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
-                    {Object.entries(session.tripDetails).map(([key, value]) => (
-                      value && (
-                        <Box key={key} sx={{ flex: '1 0 45%', minWidth: '250px' }}>
-                          <Typography variant="body1">
-                            <strong>{getFieldLabel(key)}:</strong> {String(value)}
-                          </Typography>
-                        </Box>
-                      )
-                    ))}
-                  </Box>
-                </Box>
-              )}
-
-              {/* Seal information */}
-              {session.seal && (
-                <Box mb={3}>
-                  <Typography variant="h6" gutterBottom>
-                    Seal Information
-                  </Typography>
                   <Divider sx={{ mb: 2 }} />
                   <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
                     <Box sx={{ flex: '1 0 45%', minWidth: '250px' }}>
                       <Typography variant="body1">
-                        <strong>Barcode:</strong> {session.seal.barcode}
-                      </Typography>
-                    </Box>
-                    <Box sx={{ flex: '1 0 45%', minWidth: '250px' }}>
-                      <Typography variant="body1">
-                        <strong>Status:</strong>{" "}
-                        {session.seal.verified ? (
-                          <Box component="span" sx={{ display: "inline-flex", alignItems: "center" }}>
-                            Verified <CheckCircle color="success" sx={{ ml: 0.5 }} />
-                          </Box>
-                        ) : (
-                          <Box component="span" sx={{ display: "inline-flex", alignItems: "center" }}>
-                            Unverified <Warning color="warning" sx={{ ml: 0.5 }} />
-                          </Box>
-                        )}
+                        <strong>Vehicle Number:</strong> {session.tripDetails.vehicleNumber}
                       </Typography>
                     </Box>
                   </Box>
                 </Box>
               )}
-              
-              {/* Additional session details */}
             </Paper>
 
             {/* Verification Results */}
