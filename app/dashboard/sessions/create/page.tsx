@@ -29,6 +29,7 @@ import {
 import Link from "next/link";
 import { EmployeeSubrole } from "@/prisma/enums";
 import { SessionUpdateContext } from "@/app/dashboard/layout";
+import QrScanner from "@/app/components/QrScanner";
 
 type CompanyType = {
   id: string;
@@ -822,6 +823,55 @@ export default function CreateSessionPage() {
 
   const steps = ['Loading Details', 'Seal Tags', 'Images & Verification'];
 
+  // Add these new state variables for QR scanning
+  const [scannerOpen, setScannerOpen] = useState(false);
+  const [scannerTitle, setScannerTitle] = useState("Scan QR/Barcode");
+  const [scannerType, setScannerType] = useState<"sealTag" | "qrCode">("sealTag");
+
+  // Function to handle QR scan result
+  const handleScanComplete = (data: string) => {
+    if (scannerType === "sealTag") {
+      // Check if already scanned
+      if (sealTags.sealTagIds.includes(data)) {
+        setError("Tag ID already used");
+        setTimeout(() => setError(""), 3000);
+        return;
+      }
+      
+      setSealTags(prev => ({
+        ...prev,
+        sealTagIds: [...prev.sealTagIds, data],
+        timestamps: {
+          ...prev.timestamps,
+          [data]: new Date().toISOString()
+        }
+      }));
+    } else if (scannerType === "qrCode") {
+      if (!imagesForm.scannedCodes.includes(data)) {
+        setImagesForm(prev => ({
+          ...prev,
+          scannedCodes: [...prev.scannedCodes, data],
+          timestamps: {
+            ...prev.timestamps,
+            scannedCodes: new Date().toISOString()
+          }
+        }));
+      }
+    }
+  };
+
+  // Open camera scanner
+  const openScanner = (type: "sealTag" | "qrCode") => {
+    setScannerType(type);
+    setScannerTitle(type === "sealTag" ? "Scan Seal Tag" : "Scan QR Code");
+    setScannerOpen(true);
+  };
+
+  // Close camera scanner
+  const closeScanner = () => {
+    setScannerOpen(false);
+  };
+
   if (status === "loading") {
     return (
       <Box display="flex" justifyContent="center" alignItems="center" minHeight="50vh">
@@ -841,6 +891,14 @@ export default function CreateSessionPage() {
           Back to Sessions
         </Button>
       </Box>
+
+      {/* Add the QrScanner component */}
+      <QrScanner
+        open={scannerOpen}
+        onClose={closeScanner}
+        onScan={handleScanComplete}
+        title={scannerTitle}
+      />
 
       <Paper elevation={2} sx={{ p: 3 }}>
         <Typography variant="h4" component="h1" gutterBottom>
@@ -1168,27 +1226,7 @@ export default function CreateSessionPage() {
                     startIcon={<QrCode />}
                     fullWidth
                     sx={{ height: '56px' }}
-                    onClick={() => {
-                      // In a real implementation, this would open the camera for scanning
-                      // For now, we'll just simulate a scan
-                      const mockScanResult = `TAG-${Math.floor(Math.random() * 1000000)}`;
-                      
-                      // Check if already scanned
-                      if (sealTags.sealTagIds.includes(mockScanResult)) {
-                        setError("Tag ID already used");
-                        setTimeout(() => setError(""), 3000);
-                        return;
-                      }
-                      
-                      setSealTags(prev => ({
-                        ...prev,
-                        sealTagIds: [...prev.sealTagIds, mockScanResult],
-                        timestamps: {
-                          ...prev.timestamps,
-                          [mockScanResult]: new Date().toISOString()
-                        }
-                      }));
-                    }}
+                    onClick={() => openScanner("sealTag")}
                   >
                     Scan Tag via Camera
                   </Button>
@@ -1461,20 +1499,10 @@ export default function CreateSessionPage() {
                   startIcon={<QrCode />}
                   fullWidth
                   sx={{ height: '56px' }}
+                  onClick={() => openScanner("qrCode")}
                 >
-                  Upload QR Code Image
-                  <input
-                    type="file"
-                    hidden
-                    accept="image/*"
-                    onChange={(e) => handleFileChange(e, 'qrCodeImage')}
-                  />
+                  Scan QR Code via Camera
                 </Button>
-                {imagesForm.qrCodeImage && (
-                  <Typography variant="body2" sx={{ mt: 1 }}>
-                    {imagesForm.qrCodeImage.name}
-                  </Typography>
-                )}
               </Box>
               
               <Box sx={{ width: { xs: '100%', md: '47%' } }}>
