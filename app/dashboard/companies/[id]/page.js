@@ -179,19 +179,23 @@ export default async function CompanyDetailPage({ params }) {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <p className="text-gray-600">ID</p>
-                <p>{company?.id || 'N/A'}</p>
-              </div>
-              <div>
-                <p className="text-gray-600">Coins</p>
-                <p>{company?.coins || 0}</p>
-              </div>
-              <div>
-                <p className="text-gray-600">Created</p>
-                <p>{company?.createdAt ? new Date(company.createdAt).toLocaleDateString() : 'N/A'}</p>
+                <p className="font-mono text-sm">{company?.id || 'N/A'}</p>
               </div>
               <div>
                 <p className="text-gray-600">Company Type</p>
                 <p>{company?.companyType || "--Others--"}</p>
+              </div>
+              <div>
+                <p className="text-gray-600">Created On</p>
+                <p>{company?.createdAt ? new Date(company.createdAt).toLocaleString('en-US', {
+                  year: 'numeric',
+                  month: 'short',
+                  day: 'numeric',
+                  hour: '2-digit',
+                  minute: '2-digit',
+                  second: '2-digit',
+                  hour12: true
+                }) : 'N/A'}</p>
               </div>
               {company?.gstin && (
                 <div>
@@ -199,7 +203,59 @@ export default async function CompanyDetailPage({ params }) {
                   <p>{company.gstin}</p>
                 </div>
               )}
+              {company?.phone && (
+                <div>
+                  <p className="text-gray-600">Phone Number</p>
+                  <p>{company.phone}</p>
+                </div>
+              )}
+              {company?.address && (
+                <div>
+                  <p className="text-gray-600">Address</p>
+                  <p>{company.address}</p>
+                </div>
+              )}
             </div>
+
+            {company?.logo && (
+              <div className="mt-4">
+                <p className="text-gray-600 mb-2">Company Logo</p>
+                <div className="w-40 h-40 border rounded-md overflow-hidden">
+                  <img 
+                    src={company.logo} 
+                    alt={`${company.name} logo`} 
+                    className="w-full h-full object-contain"
+                    onError={(e) => {
+                      e.target.onerror = null;
+                      e.target.src = '/placeholder-logo.png'; // Fallback image
+                    }}
+                  />
+                </div>
+              </div>
+            )}
+
+            {company?.documents && company.documents.length > 0 && (
+              <div className="mt-4">
+                <p className="text-gray-600 mb-2">Documents</p>
+                <div className="flex flex-wrap gap-2">
+                  {company.documents.map((doc, index) => (
+                    <a 
+                      href={doc} 
+                      key={index}
+                      download
+                      target="_blank"
+                      rel="noopener noreferrer" 
+                      className="inline-flex items-center px-3 py-1 bg-blue-100 text-blue-700 rounded hover:bg-blue-200"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                      </svg>
+                      Document {index + 1}
+                    </a>
+                  ))}
+                </div>
+              </div>
+            )}
 
             <div className="mt-6">
               <CompanyActions 
@@ -311,19 +367,23 @@ export default async function CompanyDetailPage({ params }) {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <p className="text-gray-600">ID</p>
-              <p>{company?.id || 'N/A'}</p>
-            </div>
-            <div>
-              <p className="text-gray-600">Coins</p>
-              <p>{company?.coins || 0}</p>
-            </div>
-            <div>
-              <p className="text-gray-600">Created</p>
-              <p>{company?.createdAt ? new Date(company.createdAt).toLocaleDateString() : 'N/A'}</p>
+              <p className="font-mono text-sm">{company?.id || 'N/A'}</p>
             </div>
             <div>
               <p className="text-gray-600">Company Type</p>
               <p>{company?.companyType || "--Others--"}</p>
+            </div>
+            <div>
+              <p className="text-gray-600">Created On</p>
+              <p>{company?.createdAt ? new Date(company.createdAt).toLocaleString('en-US', {
+                year: 'numeric',
+                month: 'short',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit',
+                hour12: true
+              }) : 'N/A'}</p>
             </div>
             {company?.gstin && (
               <div>
@@ -331,7 +391,59 @@ export default async function CompanyDetailPage({ params }) {
                 <p>{company.gstin}</p>
               </div>
             )}
+            {company?.phone && (
+              <div>
+                <p className="text-gray-600">Phone Number</p>
+                <p>{company.phone}</p>
+              </div>
+            )}
+            {company?.address && (
+              <div>
+                <p className="text-gray-600">Address</p>
+                <p>{company.address}</p>
+              </div>
+            )}
           </div>
+
+          {company?.logo && (
+            <div className="mt-4">
+              <p className="text-gray-600 mb-2">Company Logo</p>
+              <div className="w-40 h-40 border rounded-md overflow-hidden">
+                <img 
+                  src={company.logo} 
+                  alt={`${company.name} logo`} 
+                  className="w-full h-full object-contain"
+                  onError={(e) => {
+                    e.target.onerror = null;
+                    e.target.src = '/placeholder-logo.png'; // Fallback image
+                  }}
+                />
+              </div>
+            </div>
+          )}
+
+          {company?.documents && company.documents.length > 0 && (
+            <div className="mt-4">
+              <p className="text-gray-600 mb-2">Documents</p>
+              <div className="flex flex-wrap gap-2">
+                {company.documents.map((doc, index) => (
+                  <a 
+                    href={doc} 
+                    key={index}
+                    download
+                    target="_blank"
+                    rel="noopener noreferrer" 
+                    className="inline-flex items-center px-3 py-1 bg-blue-100 text-blue-700 rounded hover:bg-blue-200"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    Document {index + 1}
+                  </a>
+                ))}
+              </div>
+            </div>
+          )}
 
           <div className="mt-6">
             <CompanyActions 
