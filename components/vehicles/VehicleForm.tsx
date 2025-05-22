@@ -132,6 +132,14 @@ const VehicleForm: React.FC<VehicleFormProps> = ({
     // Required fields
     if (!formData.numberPlate.trim()) {
       newErrors.numberPlate = 'Vehicle number is required';
+    } else {
+      // Check if vehicle number matches required format
+      const standardFormat = /^[A-Z]{2}[0-9]{2}[A-Z]{1,2}[0-9]{1,4}$/;
+      const tempFormat = /^TEMP\/[0-9]{2}\/[A-Z]{2}\/[0-9]{2}\/[0-9]{1,4}$/;
+      
+      if (!standardFormat.test(formData.numberPlate) && !tempFormat.test(formData.numberPlate)) {
+        newErrors.numberPlate = 'Vehicle number must be in format: MH02AB1234 or TEMP/25/OD/02/1234';
+      }
     }
     
     // Year validation
@@ -189,7 +197,7 @@ const VehicleForm: React.FC<VehicleFormProps> = ({
             value={formData.numberPlate}
             onChange={handleChange}
             error={!!errors.numberPlate}
-            helperText={errors.numberPlate}
+            helperText={errors.numberPlate || 'Format: MH02AB1234 (Standard) or TEMP/25/OD/02/1234 (Temporary)'}
             disabled={isSubmitting || Boolean(isEditing && initialData?.id)}
             InputProps={{
               readOnly: Boolean(isEditing)
@@ -293,6 +301,16 @@ const VehicleForm: React.FC<VehicleFormProps> = ({
                 <MenuItem value={VehicleStatus.MAINTENANCE}>Maintenance</MenuItem>
               </Select>
               <FormHelperText>Current operational status of the vehicle</FormHelperText>
+              {formData.status === VehicleStatus.INACTIVE && (
+                <Button 
+                  variant="outlined" 
+                  color="success"
+                  sx={{ mt: 2 }}
+                  onClick={() => setFormData(prev => ({ ...prev, status: VehicleStatus.ACTIVE }))}
+                >
+                  Reactivate Vehicle
+                </Button>
+              )}
             </FormControl>
           )}
           

@@ -707,6 +707,14 @@ export default function CreateSessionPage() {
         if (existingVehicle && existingVehicle.status === "INACTIVE") {
           newErrors.vehicleNumber = "The entered Vehicle number is not Active. Please select an active vehicle.";
         }
+        
+        // Check if vehicle number matches required format
+        const standardFormat = /^[A-Z]{2}[0-9]{2}[A-Z]{1,2}[0-9]{1,4}$/;
+        const tempFormat = /^TEMP\/[0-9]{2}\/[A-Z]{2}\/[0-9]{2}\/[0-9]{1,4}$/;
+        
+        if (!standardFormat.test(vehicleNumber) && !tempFormat.test(vehicleNumber)) {
+          newErrors.vehicleNumber = "Vehicle number must be in format: MH02AB1234 (Standard) or TEMP/25/OD/02/1234 (Temporary)";
+        }
       }
       
       if (!loadingDetails.registrationCertificate.trim()) {
@@ -1330,7 +1338,7 @@ export default function CreateSessionPage() {
                       error={!!validationErrors.vehicleNumber}
                       helperText={
                         validationErrors.vehicleNumber || 
-                        "Format: MH02AB1234"
+                        "Format: MH02AB1234 (Standard) or TEMP/25/OD/02/1234 (Temporary)"
                       }
                       InputProps={{
                         ...params.InputProps,

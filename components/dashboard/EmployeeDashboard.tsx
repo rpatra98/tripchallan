@@ -411,6 +411,11 @@ export default function EmployeeDashboard({ user }: EmployeeDashboardProps) {
       return;
     }
     
+    // Check if we're reactivating an inactive vehicle
+    const isReactivation = editingVehicle && 
+                          editingVehicle.status === 'INACTIVE' && 
+                          data.status === 'ACTIVE';
+    
     try {
       const response = await fetch(`/api/vehicles/${data.id}`, {
         method: 'PATCH',
@@ -428,8 +433,12 @@ export default function EmployeeDashboard({ user }: EmployeeDashboardProps) {
       // Refresh vehicles list
       fetchVehicles();
       
-      // Show success message instead of alert
-      showSuccessMessage('Vehicle updated successfully');
+      // Show appropriate success message
+      if (isReactivation) {
+        showSuccessMessage('Vehicle reactivated successfully');
+      } else {
+        showSuccessMessage('Vehicle updated successfully');
+      }
     } catch (err) {
       console.error('Error updating vehicle:', err);
       showErrorMessage(err instanceof Error ? err.message : 'Failed to update vehicle. Please try again.');
