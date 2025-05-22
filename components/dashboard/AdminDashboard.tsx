@@ -403,31 +403,29 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
                   {companies.map((company) => (
                     <Card key={company.id} variant="outlined">
                       <CardContent>
-                        <Typography variant="h6" gutterBottom>
-                          {company.name}
-                        </Typography>
-                        <Typography variant="body2" color="text.secondary">
+                        <Box display="flex" justifyContent="space-between" alignItems="center" mb={1}>
+                          <Typography variant="h6" component="div">
+                            {company.name}
+                          </Typography>
+                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                            company.isActive !== false ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                          }`}>
+                            {company.isActive !== false ? 'Active' : 'Inactive'}
+                          </span>
+                        </Box>
+                        <Typography variant="body2" color="text.secondary" gutterBottom>
                           {company.email}
                         </Typography>
-                        <Box mt={2} display="flex" justifyContent="space-between" alignItems="center">
-                          <Box display="flex" alignItems="center">
-                            <Chip 
-                              label={`${company._count?.employees || 0} employees`} 
-                              size="small" 
-                              color="primary" 
-                              variant="outlined"
-                              sx={{ mr: 1 }}
-                            />
-                            <Chip
-                              label={company.isActive !== false ? 'Active' : 'Inactive'}
-                              size="small"
-                              color={company.isActive !== false ? 'success' : 'error'}
-                              sx={{ 
-                                bgcolor: company.isActive !== false ? 'rgba(46, 125, 50, 0.1)' : 'rgba(211, 47, 47, 0.1)', 
-                                color: company.isActive !== false ? 'rgb(46, 125, 50)' : 'rgb(211, 47, 47)' 
-                              }}
-                            />
-                          </Box>
+                        <Typography variant="caption" color="text.secondary" display="block" mb={2}>
+                          Created: {formatDate(company.createdAt)}
+                        </Typography>
+                        <Box display="flex" justifyContent="space-between" alignItems="center" mt={1}>
+                          <Chip 
+                            label={`${company._count?.employees || 0} employees`} 
+                            size="small" 
+                            color="primary" 
+                            variant="outlined"
+                          />
                           <Box>
                             <Button 
                               size="small" 
