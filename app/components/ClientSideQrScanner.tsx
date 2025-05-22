@@ -2,7 +2,7 @@
 
 import React, { useState, useCallback } from 'react';
 import { Button, Dialog, DialogTitle, DialogContent, DialogActions, Typography, IconButton, Alert, Box } from '@mui/material';
-import { Close } from '@mui/icons-material';
+import { Close, Cameraswitch } from '@mui/icons-material';
 import { Html5Qrcode } from 'html5-qrcode';
 
 interface ClientSideQrScannerProps {
@@ -86,6 +86,10 @@ const QrScannerDialog: React.FC<QrScannerDialogProps> = ({
   title
 }) => {
   const [error, setError] = useState<string | null>(null);
+  const [cameras, setCameras] = useState<Array<{ id: string; label: string }>>([]);
+  const [currentCameraIndex, setCurrentCameraIndex] = useState(0);
+  const [isScanning, setIsScanning] = useState(false);
+  
   const scannerRef = React.useRef<any>(null);
   const scannerContainerId = "html5-qrcode-scanner";
   
@@ -101,27 +105,66 @@ const QrScannerDialog: React.FC<QrScannerDialogProps> = ({
           scannerRef.current = scanner;
         }
         
+        // Get all available cameras
         const devices = await Html5Qrcode.getCameras();
         if (devices && devices.length) {
-          const cameraId = devices[0].id;
+          // Sort cameras to prioritize back camera (environment facing)
+          const sortedDevices = sortCamerasByFacingMode(devices);
+          setCameras(sortedDevices);
           
-          await scanner.start(
-            cameraId, 
-            {
-              fps: 10,
-              qrbox: { width: 250, height: 250 }
-            },
-            (decodedText: string) => {
-              onScan(decodedText);
-            },
-            () => {}
-          );
+          // Start with the first camera (usually back camera after sorting)
+          await startScanner(scanner, sortedDevices[0].id);
         } else {
           setError("No camera found. Please make sure your camera is connected and you've granted permission to use it.");
         }
       } catch (err) {
         console.error('Error initializing scanner:', err);
         setError("Could not access camera. Please ensure camera permissions are granted.");
+      }
+    };
+    
+    // Sort cameras to prioritize back cameras on mobile
+    const sortCamerasByFacingMode = (cameras: Array<{ id: string; label: string }>) => {
+      return [...cameras].sort((a, b) => {
+        const aLabel = a.label.toLowerCase();
+        const bLabel = b.label.toLowerCase();
+        
+        // Check for common keywords used in camera labels
+        const aIsRear = 
+          aLabel.includes('back') || 
+          aLabel.includes('rear') || 
+          aLabel.includes('environment');
+        
+        const bIsRear = 
+          bLabel.includes('back') || 
+          bLabel.includes('rear') || 
+          bLabel.includes('environment');
+        
+        if (aIsRear && !bIsRear) return -1; // a is rear, b is not - a comes first
+        if (!aIsRear && bIsRear) return 1;  // b is rear, a is not - b comes first
+        return 0; // both are the same type
+      });
+    };
+    
+    const startScanner = async (scanner: any, cameraId: string) => {
+      try {
+        setIsScanning(true);
+        
+        await scanner.start(
+          cameraId, 
+          {
+            fps: 10,
+            qrbox: { width: 250, height: 250 }
+          },
+          (decodedText: string) => {
+            onScan(decodedText);
+          },
+          () => {}
+        );
+      } catch (err) {
+        console.error('Error starting scanner:', err);
+        setError("Failed to start scanner. Please try again.");
+        setIsScanning(false);
       }
     };
     
@@ -167,7 +210,27 @@ const QrScannerDialog: React.FC<QrScannerDialogProps> = ({
       
       Html5Qrcode.getCameras().then(devices => {
         if (devices && devices.length) {
-          const cameraId = devices[0].id;
+          const sortedDevices = devices.sort((a, b) => {
+            const aLabel = a.label.toLowerCase();
+            const bLabel = b.label.toLowerCase();
+            
+            const aIsRear = 
+              aLabel.includes('back') || 
+              aLabel.includes('rear') || 
+              aLabel.includes('environment');
+            
+            const bIsRear = 
+              bLabel.includes('back') || 
+              bLabel.includes('rear') || 
+              bLabel.includes('environment');
+            
+            if (aIsRear && !bIsRear) return -1;
+            if (!aIsRear && bIsRear) return 1;
+            return 0;
+          });
+          
+          setCameras(sortedDevices);
+          const cameraId = sortedDevices[0].id;
           
           scanner.start(
             cameraId, 
@@ -191,6 +254,46 @@ const QrScannerDialog: React.FC<QrScannerDialogProps> = ({
         setError("Could not access cameras. Please ensure camera permissions are granted.");
       });
     }, 300);
+  };
+  
+  const handleSwitchCamera = async () => {
+    if (cameras.length <= 1) return;
+    
+    try {
+      // Stop current scanner
+      if (scannerRef.current) {
+        try {
+          await scannerRef.current.stop();
+        } catch (err) {
+          console.warn('Error stopping scanner during camera switch:', err);
+        }
+      }
+      
+      // Switch to next camera
+      const nextCameraIndex = (currentCameraIndex + 1) % cameras.length;
+      setCurrentCameraIndex(nextCameraIndex);
+      
+      // Create a new scanner instance for reliability
+      const scanner = new Html5Qrcode(scannerContainerId);
+      scannerRef.current = scanner;
+      
+      // Start scanner with new camera
+      await scanner.start(
+        cameras[nextCameraIndex].id,
+        {
+          fps: 10,
+          qrbox: { width: 250, height: 250 }
+        },
+        (decodedText: string) => {
+          onScan(decodedText);
+        },
+        () => {}
+      );
+    } catch (err) {
+      console.error('Error switching camera:', err);
+      setError("Failed to switch camera. Please try again.");
+      handleRetry();
+    }
   };
   
   return (
@@ -247,7 +350,15 @@ const QrScannerDialog: React.FC<QrScannerDialogProps> = ({
         </Box>
       </DialogContent>
       
-      <DialogActions>
+      <DialogActions sx={{ justifyContent: 'space-between', px: 3, pb: 2 }}>
+        {cameras.length > 1 && (
+          <Button 
+            startIcon={<Cameraswitch />} 
+            onClick={handleSwitchCamera}
+          >
+            Switch Camera
+          </Button>
+        )}
         <Button onClick={onClose} color="primary">
           Cancel
         </Button>
