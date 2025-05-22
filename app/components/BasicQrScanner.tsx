@@ -60,15 +60,25 @@ interface BasicQrScannerProps {
 }
 
 export default function BasicQrScanner({ open, onClose, onScan, title = "Scan QR/Barcode" }: BasicQrScannerProps) {
+  // Initialize component state
   const [error, setError] = useState<string | null>(null);
   const [scanning, setScanning] = useState(false);
   const [cameraLoading, setCameraLoading] = useState(true);
   const [permissionDenied, setPermissionDenied] = useState(false);
   
+  // Create refs for managing resources
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const frameProcessorRef = useRef<number | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  
+  // Ensure video element is always in the DOM
+  useEffect(() => {
+    // Initialize video element reference if needed
+    if (!videoRef.current) {
+      console.log('Video ref is null, component might be remounting');
+    }
+  }, []);
   
   // Clean up resources when component unmounts or dialog closes
   const stopCamera = () => {
@@ -315,57 +325,98 @@ export default function BasicQrScanner({ open, onClose, onScan, title = "Scan QR
               variant="contained" 
               color="primary" 
               onClick={() => {
+                // Safely check video ref
+                const videoElement = videoRef.current;
+                console.log('Try Again clicked, videoRef exists:', !!videoElement);
+                
+                // Stop existing camera first
                 stopCamera();
+                
+                // Set loading state
                 setCameraLoading(true);
                 setError(null);
                 setPermissionDenied(false);
                 
-                // Try to start camera again with more detailed constraints
-                const constraints = {
-                  video: { 
-                    facingMode: 'environment',
-                    width: { ideal: 1280 },
-                    height: { ideal: 720 }
-                  },
-                  audio: false
-                };
-                
-                console.log('Trying camera access again with constraints:', constraints);
-                
-                navigator.mediaDevices.getUserMedia(constraints)
-                  .then(stream => {
-                    console.log('Camera restarted successfully');
-                    streamRef.current = stream;
-                    if (videoRef.current) {
-                      videoRef.current.srcObject = stream;
-                      videoRef.current.play()
-                        .then(() => {
-                          console.log('Video playback restarted');
-                          setCameraLoading(false);
-                          frameProcessorRef.current = requestAnimationFrame(processVideoFrame);
+                // Force a slight delay to ensure DOM is updated
+                setTimeout(() => {
+                  // Check video ref again after the timeout
+                  const videoElementAfterDelay = videoRef.current;
+                  console.log('After timeout, videoRef exists:', !!videoElementAfterDelay);
+                  
+                  // Type guard - Check if video element is still available
+                  if (!videoElementAfterDelay) {
+                    console.error('Video element not available for retry');
+                    setError('Camera initialization failed. Please close and reopen the scanner.');
+                    setCameraLoading(false);
+                    return;
+                  }
+                  
+                  // Try to start camera again with more detailed constraints
+                  const constraints = {
+                    video: { 
+                      facingMode: 'environment',
+                      width: { ideal: 1280 },
+                      height: { ideal: 720 }
+                    },
+                    audio: false
+                  };
+                  
+                  console.log('Trying camera access again with constraints:', constraints);
+                  
+                  navigator.mediaDevices.getUserMedia(constraints)
+                    .then(stream => {
+                      console.log('Camera restarted successfully, videoRef exists:', !!videoRef.current);
+                      
+                      streamRef.current = stream;
+                      
+                      // Get latest video ref in case it changed
+                      const currentVideoRef = videoRef.current;
+                      
+                      if (currentVideoRef) {
+                        // Ensure the video element is properly set up
+                        currentVideoRef.srcObject = stream;
+                        currentVideoRef.onloadedmetadata = () => {
+                          console.log('Video metadata loaded after retry');
                           
                           // Update canvas dimensions
-                          if (canvasRef.current && videoRef.current) {
-                            canvasRef.current.width = videoRef.current.videoWidth || 640;
-                            canvasRef.current.height = videoRef.current.videoHeight || 480;
+                          const currentCanvasRef = canvasRef.current;
+                          const updatedVideoRef = videoRef.current;
+                          
+                          if (currentCanvasRef && updatedVideoRef) {
+                            currentCanvasRef.width = updatedVideoRef.videoWidth || 640;
+                            currentCanvasRef.height = updatedVideoRef.videoHeight || 480;
                           }
-                        })
-                        .catch(playError => {
-                          console.error('Error playing video after restart:', playError);
-                          setError('Failed to start video playback. Please try again.');
-                          setCameraLoading(false);
-                        });
-                    } else {
-                      console.error('Video ref not available on retry');
-                      setError('Could not initialize video element');
+                          
+                          if (updatedVideoRef) {
+                            updatedVideoRef.play()
+                              .then(() => {
+                                console.log('Video playback restarted successfully');
+                                setCameraLoading(false);
+                                frameProcessorRef.current = requestAnimationFrame(processVideoFrame);
+                              })
+                              .catch(playError => {
+                                console.error('Error playing video after restart:', playError);
+                                setError('Failed to start video playback. Please try again.');
+                                setCameraLoading(false);
+                              });
+                          } else {
+                            console.error('Video reference lost during metadata loading');
+                            setError('Camera initialization failed. Please close and reopen the scanner.');
+                            setCameraLoading(false);
+                          }
+                        };
+                      } else {
+                        console.error('Video ref not available on retry');
+                        setError('Could not initialize video element. Please close and reopen the scanner.');
+                        setCameraLoading(false);
+                      }
+                    })
+                    .catch(err => {
+                      console.error('Failed to restart camera:', err);
+                      setError('Could not access camera. Please check browser permissions and try again.');
                       setCameraLoading(false);
-                    }
-                  })
-                  .catch(err => {
-                    console.error('Failed to restart camera:', err);
-                    setError('Could not access camera. Please check browser permissions and try again.');
-                    setCameraLoading(false);
-                  });
+                    });
+                }, 100); // Small delay to ensure DOM updates
               }}
               sx={{ mt: 2 }}
             >
