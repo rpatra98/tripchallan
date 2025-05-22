@@ -1,116 +1,102 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import React, { useState, useCallback } from 'react';
+import { Button, Stack, Typography } from '@mui/material';
+import QrCodeScannerIcon from '@mui/icons-material/QrCodeScanner';
 import dynamic from 'next/dynamic';
-import { 
-  Dialog, 
-  DialogTitle, 
-  DialogContent, 
-  DialogActions, 
-  Button, 
-  Typography, 
-  Box, 
-  CircularProgress,
-  Alert
-} from '@mui/material';
 
-// Check if we're in a browser environment with camera capabilities
-const isBrowserEnvironmentWithCamera = () => {
-  return (
-    typeof window !== 'undefined' && 
-    typeof navigator !== 'undefined' && 
-    !!navigator.mediaDevices && 
-    !!navigator.mediaDevices.getUserMedia
-  );
-};
-
-// Log wrapper for debugging client-side issues
-const logClientInfo = (message: string) => {
-  console.log(`[ClientScanner] ${message}`);
-};
-
-// Dynamically import the BasicQrScanner component with no SSR
-const BasicQrScanner = dynamic(() => import('./BasicQrScanner'), { 
-  ssr: false,
-  loading: () => (
-    <Box display="flex" justifyContent="center" alignItems="center" minHeight="300px">
-      <CircularProgress />
-      <Typography variant="body2" sx={{ ml: 2 }}>
-        Loading scanner...
-      </Typography>
-    </Box>
-  )
-});
-
-interface ClientSideQrScannerProps {
+// Types for the QR scanner props
+interface QRScannerProps {
   open: boolean;
   onClose: () => void;
   onScan: (data: string) => void;
   title?: string;
 }
 
-export default function ClientSideQrScanner(props: ClientSideQrScannerProps) {
-  const [isMounted, setIsMounted] = useState(false);
-  const [hasMediaDevices, setHasMediaDevices] = useState(false);
-
-  // Only render on client-side and check for camera capabilities
-  useEffect(() => {
-    logClientInfo('Component mounted');
-    setIsMounted(true);
-    
-    // Check if browser supports camera access
-    const hasCamera = isBrowserEnvironmentWithCamera();
-    setHasMediaDevices(hasCamera);
-    
-    if (!hasCamera) {
-      logClientInfo('Camera not supported in this environment');
-    } else {
-      logClientInfo('Camera support detected');
-    }
-  }, []);
-
-  if (!isMounted) {
-    return (
-      <Dialog open={props.open} onClose={props.onClose} maxWidth="sm" fullWidth>
-        <DialogTitle>{props.title || "Scan QR/Barcode"}</DialogTitle>
-        <DialogContent>
-          <Box display="flex" justifyContent="center" alignItems="center" minHeight="300px">
-            <CircularProgress />
-            <Typography variant="body2" sx={{ ml: 2 }}>
-              Initializing...
-            </Typography>
-          </Box>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={props.onClose} color="primary">
-            Cancel
-          </Button>
-        </DialogActions>
-      </Dialog>
-    );
-  }
+interface ClientSideQrScannerProps {
+  /**
+   * Callback function when a QR code is scanned
+   */
+  onScan: (data: string) => void;
   
-  if (!hasMediaDevices) {
-    return (
-      <Dialog open={props.open} onClose={props.onClose} maxWidth="sm" fullWidth>
-        <DialogTitle>{props.title || "Scan QR/Barcode"}</DialogTitle>
-        <DialogContent>
-          <Alert severity="error" sx={{ mb: 2 }}>
-            <Typography fontWeight="medium">Camera access not supported</Typography>
-            <Typography variant="body2">
-              Your browser doesn't support camera access, or you've denied permission.
-              Please try using a different browser or check your browser settings.
-            </Typography>
-          </Alert>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={props.onClose} color="primary">
-            Close
-          </Button>
-        </DialogActions>
-      </Dialog>
-    );
-  }
+  /**
+   * Text to display on the scan button
+   */
+  buttonText?: string;
+  
+  /**
+   * Dialog title for the QR scanner modal
+   */
+  scannerTitle?: string;
+  
+  /**
+   * Optional class name for styling
+   */
+  className?: string;
+  
+  /**
+   * Variant for the scan button
+   */
+  buttonVariant?: 'text' | 'outlined' | 'contained';
+}
 
-  return <BasicQrScanner {...props} />;
+// Dynamically import the SimpleQrScanner component with no SSR
+const SimpleQrScanner = dynamic(() => import('./SimpleQrScanner'), {
+  ssr: false,
+  loading: () => <div>Loading scanner...</div>
+});
+
+/**
+ * ClientSideQrScanner - A wrapper component that provides a button to open the QR scanner
+ * and handles the client-side import of the actual scanner component.
+ */
+export default function ClientSideQrScanner({
+  onScan,
+  buttonText = "Scan QR Code",
+  scannerTitle = "Scan QR/Barcode",
+  className,
+  buttonVariant = "contained"
+}: ClientSideQrScannerProps) {
+  // State to control the QR scanner dialog
+  const [showScanner, setShowScanner] = useState(false);
+  
+  // Handler for opening the scanner
+  const handleOpenScanner = useCallback(() => {
+    setShowScanner(true);
+  }, []);
+  
+  // Handler for closing the scanner
+  const handleCloseScanner = useCallback(() => {
+    setShowScanner(false);
+  }, []);
+  
+  // Handler for when a QR code is successfully scanned
+  const handleScan = useCallback((data: string) => {
+    onScan(data);
+    setShowScanner(false);
+  }, [onScan]);
+  
+  return (
+    <>
+      <Stack direction="row" spacing={1} alignItems="center" className={className}>
+        <Button
+          variant={buttonVariant}
+          startIcon={<QrCodeScannerIcon />}
+          onClick={handleOpenScanner}
+        >
+          {buttonText}
+        </Button>
+      </Stack>
+      
+      {/* Show the QR scanner when needed */}
+      {showScanner && (
+        <SimpleQrScanner
+          open={showScanner}
+          onClose={handleCloseScanner}
+          onScan={handleScan}
+          title={scannerTitle}
+        />
+      )}
+    </>
+  );
 } 
