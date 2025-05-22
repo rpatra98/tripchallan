@@ -79,8 +79,16 @@ export default function BasicQrScanner({ open, onClose, onScan, title = "Scan QR
     }
     
     if (streamRef.current) {
-      streamRef.current.getTracks().forEach(track => track.stop());
+      streamRef.current.getTracks().forEach(track => {
+        console.log('Stopping track:', track.kind, track.label, track.readyState);
+        track.stop();
+      });
       streamRef.current = null;
+    }
+    
+    // Clear video source
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
     }
   };
 
@@ -146,6 +154,8 @@ export default function BasicQrScanner({ open, onClose, onScan, title = "Scan QR
   
   // Initialize camera when dialog opens
   useEffect(() => {
+    console.log('QR Scanner useEffect triggered, open:', open);
+    
     if (!open) {
       stopCamera();
       return;
@@ -161,15 +171,50 @@ export default function BasicQrScanner({ open, onClose, onScan, title = "Scan QR
       setCameraLoading(false);
       return;
     }
+
+    // Check if we're on a secure origin (required for camera access in modern browsers)
+    const isSecureOrigin = window.location.protocol === 'https:' || 
+                          window.location.hostname === 'localhost' ||
+                          window.location.hostname === '127.0.0.1';
+    
+    if (!isSecureOrigin) {
+      console.warn('Camera access may fail: Not running on a secure origin. Camera access requires HTTPS (except on localhost).');
+    }
     
     // Immediately initialize camera
     const startCamera = async () => {
       try {
         console.log('Requesting camera permission...');
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: 'environment' },
+        // Add explicit constraints to ensure camera access works on more devices
+        const constraints = {
+          video: {
+            facingMode: 'environment',
+            width: { ideal: 1280 },
+            height: { ideal: 720 }
+          },
           audio: false
-        });
+        };
+        
+        let stream;
+        try {
+          // Try with full constraints first
+          stream = await navigator.mediaDevices.getUserMedia(constraints);
+        } catch (initialError) {
+          console.warn('Failed with full constraints, trying simplified constraints:', initialError);
+          
+          // Try with simpler constraints
+          try {
+            stream = await navigator.mediaDevices.getUserMedia({ 
+              video: true, 
+              audio: false 
+            });
+          } catch (fallbackError) {
+            // Re-throw to be caught by the outer catch
+            throw fallbackError;
+          }
+        }
+        
+        console.log('Camera access granted, stream tracks:', stream.getTracks().length);
         
         streamRef.current = stream;
         
@@ -199,6 +244,10 @@ export default function BasicQrScanner({ open, onClose, onScan, title = "Scan QR
               setCameraLoading(false);
             });
           };
+        } else {
+          console.error('Video ref is not available');
+          setError('Could not initialize video element');
+          setCameraLoading(false);
         }
       } catch (err) {
         console.error('Camera access error:', err);
@@ -271,24 +320,52 @@ export default function BasicQrScanner({ open, onClose, onScan, title = "Scan QR
                 setError(null);
                 setPermissionDenied(false);
                 
-                // Try to start camera again
-                navigator.mediaDevices.getUserMedia({
-                  video: { facingMode: 'environment' },
+                // Try to start camera again with more detailed constraints
+                const constraints = {
+                  video: { 
+                    facingMode: 'environment',
+                    width: { ideal: 1280 },
+                    height: { ideal: 720 }
+                  },
                   audio: false
-                }).then(stream => {
-                  streamRef.current = stream;
-                  if (videoRef.current) {
-                    videoRef.current.srcObject = stream;
-                    videoRef.current.play().then(() => {
+                };
+                
+                console.log('Trying camera access again with constraints:', constraints);
+                
+                navigator.mediaDevices.getUserMedia(constraints)
+                  .then(stream => {
+                    console.log('Camera restarted successfully');
+                    streamRef.current = stream;
+                    if (videoRef.current) {
+                      videoRef.current.srcObject = stream;
+                      videoRef.current.play()
+                        .then(() => {
+                          console.log('Video playback restarted');
+                          setCameraLoading(false);
+                          frameProcessorRef.current = requestAnimationFrame(processVideoFrame);
+                          
+                          // Update canvas dimensions
+                          if (canvasRef.current && videoRef.current) {
+                            canvasRef.current.width = videoRef.current.videoWidth || 640;
+                            canvasRef.current.height = videoRef.current.videoHeight || 480;
+                          }
+                        })
+                        .catch(playError => {
+                          console.error('Error playing video after restart:', playError);
+                          setError('Failed to start video playback. Please try again.');
+                          setCameraLoading(false);
+                        });
+                    } else {
+                      console.error('Video ref not available on retry');
+                      setError('Could not initialize video element');
                       setCameraLoading(false);
-                      frameProcessorRef.current = requestAnimationFrame(processVideoFrame);
-                    });
-                  }
-                }).catch(err => {
-                  console.error('Failed to restart camera:', err);
-                  setError('Could not access camera. Please try again.');
-                  setCameraLoading(false);
-                });
+                    }
+                  })
+                  .catch(err => {
+                    console.error('Failed to restart camera:', err);
+                    setError('Could not access camera. Please check browser permissions and try again.');
+                    setCameraLoading(false);
+                  });
               }}
               sx={{ mt: 2 }}
             >
@@ -313,7 +390,8 @@ export default function BasicQrScanner({ open, onClose, onScan, title = "Scan QR
                 style={{ 
                   width: '100%', 
                   height: '100%', 
-                  objectFit: 'cover'
+                  objectFit: 'cover',
+                  display: 'block'
                 }}
                 playsInline
                 muted
@@ -322,7 +400,7 @@ export default function BasicQrScanner({ open, onClose, onScan, title = "Scan QR
               
               <canvas 
                 ref={canvasRef} 
-                style={{ display: 'none' }} 
+                style={{ display: 'none', position: 'absolute', left: 0, top: 0 }} 
               />
               
               {/* QR code targeting frame */}
