@@ -12,6 +12,7 @@ import {
   CircularProgress,
   Alert
 } from '@mui/material';
+import type { BarcodeDetectorConstructor } from '../../types/barcode-detector';
 
 // Simple function to detect QR codes in a video frame
 const detectQRCode = async (videoElement: HTMLVideoElement, canvas: HTMLCanvasElement): Promise<string | null> => {
@@ -31,7 +32,7 @@ const detectQRCode = async (videoElement: HTMLVideoElement, canvas: HTMLCanvasEl
     // Try to access the BarcodeDetector API if available
     if ('BarcodeDetector' in window) {
       try {
-        const barcodeDetector = new window.BarcodeDetector({
+        const barcodeDetector = new (window.BarcodeDetector as BarcodeDetectorConstructor)({
           formats: ['qr_code']
         });
         
@@ -255,7 +256,7 @@ export default function BasicQrScanner({ open, onClose, onScan, title = "Scan QR
                 Please check your browser settings to enable camera access.
                 <Box component="ul" sx={{ mt: 1, pl: 2 }}>
                   <li>In Chrome: Click the camera icon in the address bar</li>
-                  <li>In Safari: Check Settings > Safari > Camera</li>
+                  <li>In Safari: Check Settings {`>`} Safari {`>`} Camera</li>
                   <li>In Firefox: Click the camera icon in the address bar</li>
                 </Box>
               </Typography>

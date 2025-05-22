@@ -1,4 +1,4 @@
-interface BarcodeDetector {
+export interface BarcodeDetector {
   detect(image: ImageBitmapSource): Promise<Array<{
     boundingBox: DOMRectReadOnly;
     rawValue: string;
@@ -7,11 +7,11 @@ interface BarcodeDetector {
   }>>;
 }
 
-interface BarcodeDetectorOptions {
+export interface BarcodeDetectorOptions {
   formats: string[];
 }
 
-interface BarcodeDetectorConstructor {
+export interface BarcodeDetectorConstructor {
   new(options?: BarcodeDetectorOptions): BarcodeDetector;
   supported?(): Promise<string[]>;
 }
