@@ -324,39 +324,66 @@ const SimpleQrScanner: React.FC<SimpleQrScannerProps> = ({
     if (!scannerRef.current) return;
     
     try {
-      // Get current track - different approach to access video track
-      const videoStream = (scannerRef.current as any).getRunningTrack();
-      if (!videoStream) {
-        throw new Error("No active video track found");
+      // Get the scanner's video element
+      let videoElement: HTMLVideoElement | null = null;
+      try {
+        // Try to find the video element created by Html5Qrcode
+        videoElement = document.querySelector(`#${scannerContainerId} video`);
+        if (!videoElement) {
+          throw new Error("Video element not found");
+        }
+      } catch (error) {
+        console.error("Error finding video element:", error);
       }
       
-      // Attempt to toggle torch
-      if (torchActive) {
-        await videoStream.applyConstraints({
-          advanced: [{ torch: false }]
-        });
-        setTorchActive(false);
-      } else {
-        await videoStream.applyConstraints({
-          advanced: [{ torch: true }]
-        });
-        setTorchActive(true);
+      if (videoElement && videoElement.srcObject) {
+        // Get video tracks from the video element
+        const stream = videoElement.srcObject as MediaStream;
+        const videoTrack = stream.getVideoTracks()[0];
+        
+        if (videoTrack) {
+          // Toggle torch directly on the track
+          const capabilities = videoTrack.getCapabilities();
+          // Check if torch is supported in this track's capabilities
+          if (capabilities && (capabilities as any).torch) {
+            // Apply the torch constraint
+            const torchValue = !torchActive;
+            await videoTrack.applyConstraints({
+              advanced: [{ torch: torchValue } as any]
+            });
+            setTorchActive(torchValue);
+            return; // Success
+          }
+        }
       }
+      
+      // Fallback method 1: Try using scanner's methods
+      if (typeof (scannerRef.current as any).getRunningTrack === 'function') {
+        const videoTrack = (scannerRef.current as any).getRunningTrack();
+        if (videoTrack) {
+          const newTorchValue = !torchActive;
+          await videoTrack.applyConstraints({
+            advanced: [{ torch: newTorchValue } as any]
+          });
+          setTorchActive(newTorchValue);
+          return; // Success
+        }
+      }
+      
+      // Fallback method 2: Try the toggleFlash method
+      if (typeof (scannerRef.current as any).toggleFlash === 'function') {
+        await (scannerRef.current as any).toggleFlash();
+        setTorchActive(!torchActive);
+        return; // Success
+      }
+      
+      // If we've reached here, none of the methods worked
+      throw new Error("Could not toggle flashlight with any available method");
+      
     } catch (err) {
       console.error('Error toggling torch:', err);
-      
-      // Try alternative approach for some browsers/devices
-      try {
-        if (scannerRef.current) {
-          const success = await (scannerRef.current as any).toggleFlash();
-          setTorchActive(!torchActive);
-          console.log("Used alternative flash toggle method:", success);
-        }
-      } catch (altErr) {
-        console.error('Alternative torch toggle failed:', altErr);
-        setError("Failed to toggle flashlight. Your device may not support this feature or you need to grant additional permissions.");
-        setTorchActive(false);
-      }
+      setError("Failed to toggle flashlight. Make sure to grant camera permissions and try again.");
+      setTorchActive(false);
     }
   };
   
