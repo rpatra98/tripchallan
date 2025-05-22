@@ -161,7 +161,7 @@ const VehicleForm: React.FC<VehicleFormProps> = ({
             onChange={handleChange}
             error={!!errors.numberPlate}
             helperText={errors.numberPlate}
-            disabled={isSubmitting || (isEditing && initialData?.id)}
+            disabled={isSubmitting || Boolean(isEditing && initialData?.id)}
             InputProps={{
               readOnly: Boolean(isEditing)
             }}
