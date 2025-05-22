@@ -19,13 +19,18 @@ import {
   IconButton,
   FormHelperText,
   Chip,
-  Autocomplete
+  Autocomplete,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem
 } from "@mui/material";
 import { 
   ArrowBack, 
   ArrowForward, 
   PhotoCamera, 
-  QrCode 
+  QrCode,
+  Download
 } from "@mui/icons-material";
 import Link from "next/link";
 import { EmployeeSubrole } from "@/prisma/enums";
@@ -43,9 +48,10 @@ type LoadingDetailsForm = {
   materialName: string;
   receiverPartyName: string;
   vehicleNumber: string;
+  registrationCertificate: string;
+  registrationCertificateDoc: File | null;
   gpsImeiNumber: string;
-  driverName: string;
-  driverContactNumber: string;
+  cargoType: string;
   loadingSite: string;
   loaderName: string;
   challanRoyaltyNumber: string;
@@ -57,6 +63,14 @@ type LoadingDetailsForm = {
   tareWeight: number;
   netMaterialWeight: number;
   loaderMobileNumber: string;
+  timestamps: Record<string, string>;
+};
+
+type DriverDetailsForm = {
+  driverName: string;
+  driverContactNumber: string;
+  driverLicense: string;
+  driverLicenseDoc: File | null;
   timestamps: Record<string, string>;
 };
 
@@ -229,15 +243,16 @@ export default function CreateSessionPage() {
   const [vehicles, setVehicles] = useState<Array<{id: string, numberPlate: string, status: string}>>([]);
   const [loadingVehicles, setLoadingVehicles] = useState(false);
   
-  // Step 1: Loading Details (now the first step)
+  // Step 1: Loading Details
   const [loadingDetails, setLoadingDetails] = useState<LoadingDetailsForm>({
     transporterName: "",
     materialName: "",
     receiverPartyName: "",
     vehicleNumber: "",
+    registrationCertificate: "",
+    registrationCertificateDoc: null,
     gpsImeiNumber: "",
-    driverName: "",
-    driverContactNumber: "",
+    cargoType: "--Others--",
     loadingSite: "",
     loaderName: "",
     challanRoyaltyNumber: "",
@@ -252,7 +267,16 @@ export default function CreateSessionPage() {
     timestamps: {}
   });
   
-  // Step 2: Seal Tags (now the second step)
+  // Step 2: Driver Details (new step)
+  const [driverDetails, setDriverDetails] = useState<DriverDetailsForm>({
+    driverName: "",
+    driverContactNumber: "",
+    driverLicense: "",
+    driverLicenseDoc: null,
+    timestamps: {}
+  });
+  
+  // Step 3: Seal Tags (now the third step)
   const [sealTags, setSealTags] = useState<SealTagsForm>({
     sealTagIds: [],
     sealTagScanned: false,
@@ -260,7 +284,7 @@ export default function CreateSessionPage() {
     timestamps: {}
   });
 
-  // Step 3: Images & Verification
+  // Step 4: Images & Verification
   const [imagesForm, setImagesForm] = useState<ImagesForm>({
     gpsImeiPicture: null,
     vehicleNumberPlatePicture: null,
@@ -519,24 +543,33 @@ export default function CreateSessionPage() {
     }
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, fieldName: keyof ImagesForm) => {
-    if (!e.target.files?.length) return;
+  const handleDriverDetailsChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setDriverDetails(prev => ({
+      ...prev,
+      [name]: value,
+      timestamps: {
+        ...prev.timestamps,
+        [name]: new Date().toISOString()
+      }
+    }));
     
-    // // Maximum file size: 5MB
-    // const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB in bytes
+    // Clear validation error when field is modified
+    if (validationErrors[name]) {
+      setValidationErrors(prev => {
+        const newErrors = {...prev};
+        delete newErrors[name];
+        return newErrors;
+      });
+    }
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, fieldName: keyof ImagesForm | 'registrationCertificateDoc' | 'driverLicenseDoc') => {
+    if (!e.target.files?.length) return;
     
     if (fieldName === 'sealingImages' || fieldName === 'vehicleImages' || fieldName === 'additionalImages') {
       // Filter out files that are too large
-      const filesArray = Array.from(e.target.files)/*.filter(file => {
-        if (file.size > MAX_FILE_SIZE) {
-          setValidationErrors(prev => ({
-            ...prev,
-            [fieldName]: `One or more files exceed the maximum size of 5MB. Please use smaller images.`
-          }));
-          return false;
-        }
-        return true;
-      })*/;
+      const filesArray = Array.from(e.target.files);
       
       if (filesArray.length > 0) {
         setImagesForm(prev => ({
@@ -548,17 +581,29 @@ export default function CreateSessionPage() {
           }
         }));
       }
-    } else {
-      // Check single file size
+    } else if (fieldName === 'registrationCertificateDoc') {
       const file = e.target.files[0];
-      // if (file.size > MAX_FILE_SIZE) {
-      //   setValidationErrors(prev => ({
-      //     ...prev,
-      //     [fieldName]: `File is too large (${(file.size / (1024 * 1024)).toFixed(2)}MB). Maximum size is 5MB.`
-      //   }));
-      //   return;
-      // }
-      
+      setLoadingDetails(prev => ({
+        ...prev,
+        registrationCertificateDoc: file,
+        timestamps: {
+          ...prev.timestamps,
+          registrationCertificateDoc: new Date().toISOString()
+        }
+      }));
+    } else if (fieldName === 'driverLicenseDoc') {
+      const file = e.target.files[0];
+      setDriverDetails(prev => ({
+        ...prev,
+        driverLicenseDoc: file,
+        timestamps: {
+          ...prev.timestamps,
+          driverLicenseDoc: new Date().toISOString()
+        }
+      }));
+    } else {
+      // Handle other single file uploads (non-array fields)
+      const file = e.target.files[0];
       setImagesForm(prev => ({
         ...prev,
         [fieldName]: file,
@@ -658,18 +703,12 @@ export default function CreateSessionPage() {
         }
       }
       
+      if (!loadingDetails.registrationCertificate.trim()) {
+        newErrors.registrationCertificate = "Registration Certificate is required";
+      }
+      
       if (!loadingDetails.gpsImeiNumber) {
         newErrors.gpsImeiNumber = "GPS IMEI number is required";
-      }
-      
-      if (!loadingDetails.driverName.trim()) {
-        newErrors.driverName = "Driver name is required";
-      }
-      
-      if (!loadingDetails.driverContactNumber.trim()) {
-        newErrors.driverContactNumber = "Driver contact number is required";
-      } else if (!/^\d{10}$/.test(loadingDetails.driverContactNumber)) {
-        newErrors.driverContactNumber = "Contact number must be 10 digits";
       }
       
       if (!loadingDetails.loadingSite.trim()) {
@@ -710,6 +749,21 @@ export default function CreateSessionPage() {
         newErrors.loaderMobileNumber = "Mobile number must be 10 digits";
       }
     } else if (step === 1) {
+      // Validate Driver Details
+      if (!driverDetails.driverName.trim()) {
+        newErrors.driverName = "Driver name is required";
+      }
+      
+      if (!driverDetails.driverContactNumber.trim()) {
+        newErrors.driverContactNumber = "Driver contact number is required";
+      } else if (!/^\d{10}$/.test(driverDetails.driverContactNumber)) {
+        newErrors.driverContactNumber = "Contact number must be 10 digits";
+      }
+      
+      if (!driverDetails.driverLicense.trim()) {
+        newErrors.driverLicense = "Driver license is required";
+      }
+    } else if (step === 2) {
       // Validate Seal Tags
       if (sealTags.sealTagIds.length === 0) {
         newErrors.sealTagIds = "At least one seal tag ID is required";
@@ -723,7 +777,7 @@ export default function CreateSessionPage() {
       if (sealTags.sealTagIds.length < 20) {
         newErrors.sealTagIds = "Minimum of 20 seal tags required";
       }
-    } else if (step === 2) {
+    } else if (step === 3) {
       // Validate Images & Verification
       if (!imagesForm.gpsImeiPicture) newErrors.gpsImeiPicture = "GPS IMEI picture is required";
       if (!imagesForm.vehicleNumberPlatePicture) newErrors.vehicleNumberPlatePicture = "Vehicle number plate picture is required";
@@ -746,28 +800,41 @@ export default function CreateSessionPage() {
     setActiveStep(prevStep => prevStep - 1);
   };
 
+  // Add state for loading ID and QR code display
+  const [tripCreated, setTripCreated] = useState(false);
+  const [loadingId, setLoadingId] = useState<string>("");
+  const [qrCodeUrl, setQrCodeUrl] = useState<string>("");
+  
+  // Function to generate QR code for the loading ID
+  const generateQRCode = (id: string) => {
+    // Create a URL for a QR code generator API (e.g., QRServer)
+    const baseUrl = "https://api.qrserver.com/v1/create-qr-code/";
+    const data = JSON.stringify({
+      loadingId: id,
+      createdAt: new Date().toISOString()
+    });
+    const url = `${baseUrl}?data=${encodeURIComponent(data)}&size=200x200&margin=10`;
+    setQrCodeUrl(url);
+  };
+
+  // Function to download QR code
+  const downloadQRCode = () => {
+    // Create a temporary link and trigger download
+    const link = document.createElement("a");
+    link.href = qrCodeUrl;
+    link.download = `loading-id-${loadingId}.png`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+  
+  // Update handleSubmit to handle QR code generation
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!validateStep(activeStep)) {
       return;
     }
-    
-    // // Validate image size and count before proceeding
-    // const validation = validateImageSizeAndCount(
-    //   imagesForm.gpsImeiPicture,
-    //   imagesForm.vehicleNumberPlatePicture,
-    //   imagesForm.driverPicture,
-    //   imagesForm.sealingImages,
-    //   imagesForm.vehicleImages,
-    //   imagesForm.additionalImages
-    // );
-    
-    // if (!validation.valid) {
-    //   setError(validation.message);
-    //   setErrorDetails(validation.details);
-    //   return;
-    // }
     
     setError("");
     setErrorDetails("");
@@ -794,7 +861,7 @@ export default function CreateSessionPage() {
       
       // Add loading details
       Object.entries(loadingDetails).forEach(([key, value]) => {
-        if (key !== 'timestamps') {
+        if (key !== 'timestamps' && key !== 'registrationCertificateDoc') {
           formData.append(key, String(value));
         }
       });
@@ -802,12 +869,58 @@ export default function CreateSessionPage() {
       // Add timestamps for loading details
       formData.append('loadingDetailsTimestamps', JSON.stringify(loadingDetails.timestamps));
       
+      // Add driver details
+      Object.entries(driverDetails).forEach(([key, value]) => {
+        if (key !== 'timestamps' && key !== 'driverLicenseDoc') {
+          formData.append(key, String(value));
+        }
+      });
+      
+      // Add timestamps for driver details
+      formData.append('driverDetailsTimestamps', JSON.stringify(driverDetails.timestamps));
+      
       // Add seal tags data
       formData.append('sealTagIds', JSON.stringify(sealTags.sealTagIds));
       formData.append('sealTagTimestamps', JSON.stringify(sealTags.timestamps));
       
       // Prepare base64 image data
       const imageBase64Data: Record<string, any> = {};
+      
+      // Convert registration certificate document to base64 if available
+      if (loadingDetails.registrationCertificateDoc) {
+        try {
+          const base64Data = await fileToBase64(loadingDetails.registrationCertificateDoc);
+          imageBase64Data.registrationCertificateDoc = {
+            data: base64Data.split(',')[1],
+            contentType: loadingDetails.registrationCertificateDoc.type,
+            name: loadingDetails.registrationCertificateDoc.name
+          };
+          formData.append('registrationCertificateDoc', loadingDetails.registrationCertificateDoc);
+        } catch (error) {
+          console.error("Error processing registration certificate document:", error);
+          setError("Error processing registration certificate document. Please try again.");
+          setIsSubmitting(false);
+          return;
+        }
+      }
+      
+      // Convert driver license document to base64 if available
+      if (driverDetails.driverLicenseDoc) {
+        try {
+          const base64Data = await fileToBase64(driverDetails.driverLicenseDoc);
+          imageBase64Data.driverLicenseDoc = {
+            data: base64Data.split(',')[1],
+            contentType: driverDetails.driverLicenseDoc.type,
+            name: driverDetails.driverLicenseDoc.name
+          };
+          formData.append('driverLicenseDoc', driverDetails.driverLicenseDoc);
+        } catch (error) {
+          console.error("Error processing driver license document:", error);
+          setError("Error processing driver license document. Please try again.");
+          setIsSubmitting(false);
+          return;
+        }
+      }
       
       // Convert individual images to base64
       if (imagesForm.gpsImeiPicture) {
@@ -824,45 +937,6 @@ export default function CreateSessionPage() {
         } catch (error) {
           console.error("Error processing GPS IMEI image:", error);
           setError("Error processing GPS IMEI image. Please try again."); // Generic error
-          // setErrorDetails("Images need to be under 5MB each, and the total size of all images should be under 20MB.");
-          setIsSubmitting(false);
-          return;
-        }
-      }
-      
-      if (imagesForm.vehicleNumberPlatePicture) {
-        try {
-          const resizedImage = await resizeImage(imagesForm.vehicleNumberPlatePicture, 1280, 1280, 0.8/*, 2*/);
-          const base64Data = await fileToBase64(resizedImage);
-          imageBase64Data.vehicleNumberPlatePicture = {
-            data: base64Data.split(',')[1],
-            contentType: resizedImage.type,
-            name: resizedImage.name
-          };
-          formData.append('vehicleNumberPlatePicture', resizedImage);
-        } catch (error) {
-          console.error("Error processing vehicle number plate image:", error);
-          setError("Error processing vehicle number plate image. Please try again."); // Generic error
-          // setErrorDetails("Images need to be under 5MB each, and the total size of all images should be under 20MB.");
-          setIsSubmitting(false);
-          return;
-        }
-      }
-      
-      if (imagesForm.driverPicture) {
-        try {
-          const resizedImage = await resizeImage(imagesForm.driverPicture, 1280, 1280, 0.8/*, 2*/);
-          const base64Data = await fileToBase64(resizedImage);
-          imageBase64Data.driverPicture = {
-            data: base64Data.split(',')[1],
-            contentType: resizedImage.type,
-            name: resizedImage.name
-          };
-          formData.append('driverPicture', resizedImage);
-        } catch (error) {
-          console.error("Error processing driver picture:", error);
-          setError("Error processing driver picture. Please try again."); // Generic error
-          // setErrorDetails("Images need to be under 5MB each, and the total size of all images should be under 20MB.");
           setIsSubmitting(false);
           return;
         }
@@ -891,7 +965,6 @@ export default function CreateSessionPage() {
         } catch (error) {
           console.error(`Error processing sealing image ${i}:`, error);
           setError(`Error processing sealing image ${i}. Please try again.`); // Generic error
-          // setErrorDetails("Images need to be under 5MB each, and the total size of all images should be under 20MB.");
           setIsSubmitting(false);
           return;
         }
@@ -912,7 +985,6 @@ export default function CreateSessionPage() {
         } catch (error) {
           console.error(`Error processing vehicle image ${i}:`, error);
           setError(`Error processing vehicle image ${i}. Please try again.`); // Generic error
-          // setErrorDetails("Images need to be under 5MB each, and the total size of all images should be under 20MB.");
           setIsSubmitting(false);
           return;
         }
@@ -933,7 +1005,6 @@ export default function CreateSessionPage() {
         } catch (error) {
           console.error(`Error processing additional image ${i}:`, error);
           setError(`Error processing additional image ${i}. Please try again.`); // Generic error
-          // setErrorDetails("Images need to be under 5MB each, and the total size of all images should be under 20MB.");
           setIsSubmitting(false);
           return;
         }
@@ -957,12 +1028,7 @@ export default function CreateSessionPage() {
 
       // Handle different error response types
       if (!response.ok) {
-        // For 413 Payload Too Large errors
-        // if (response.status === 413) {
-        //   throw new Error("Files are too large. Please use smaller images (under 5MB each) or fewer images.");
-        // }
-        
-        // Try to parse the error as JSON
+        // Error handling code...
         let errorData;
         try {
           errorData = await response.json();
@@ -991,27 +1057,28 @@ export default function CreateSessionPage() {
       
       const data = await response.json();
 
+      // Generate QR code for the loading ID
+      if (data.session && data.session.id) {
+        setLoadingId(data.session.id);
+        generateQRCode(data.session.id);
+        setTripCreated(true);
+      }
+
       // Refresh the user session to update coin balance
       await refreshUserSession();
 
-      // Redirect to the sessions page on success
-      router.push("/dashboard/sessions");
+      // Instead of redirecting immediately, show the QR code and loading ID
+      // router.push("/dashboard/sessions");
     } catch (err) {
       const error = err as Error;
       console.error("Error submitting form:", error);
       setError(error.message || "An unknown error occurred");
-      
-      // Check if we have detailed error information
-      // if (error.cause) {
-      //   setErrorDetails(error.cause as string);
-      // } // else if (error.message.includes("smaller images") || error.message.includes("too large")) {
-        // setErrorDetails("Try reducing image size or using fewer images. Each image should be under 5MB, and total upload should be under 20MB.");
-      } finally {
+    } finally {
       setIsSubmitting(false);
     }
   };
 
-  const steps = ['Loading Details', 'Seal Tags', 'Images & Verification'];
+  const steps = ['Loading Details', 'Driver Details', 'Seal Tags', 'Images & Verification'];
 
   // Add these new state variables for QR scanning
   const [scannerOpen, setScannerOpen] = useState(false);
@@ -1062,11 +1129,76 @@ export default function CreateSessionPage() {
     setScannerOpen(false);
   };
 
+  // Add a section to display QR code and loading ID after trip creation
+  const renderSuccessView = () => {
+    return (
+      <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', mt: 4 }}>
+        <Typography variant="h5" gutterBottom>
+          Trip Created Successfully!
+        </Typography>
+        
+        <Typography variant="body1" sx={{ mb: 2 }}>
+          Loading ID: <strong>{loadingId}</strong>
+        </Typography>
+        
+        <Box sx={{ mb: 3 }}>
+          {qrCodeUrl && (
+            <Box sx={{ textAlign: 'center' }}>
+              <img src={qrCodeUrl} alt="Loading ID QR Code" style={{ maxWidth: '200px' }} />
+              <Typography variant="caption" display="block" sx={{ mt: 1 }}>
+                Scan this QR code to view trip details
+              </Typography>
+            </Box>
+          )}
+        </Box>
+        
+        <Box sx={{ display: 'flex', gap: 2 }}>
+          <Button
+            variant="outlined"
+            startIcon={<Download />}
+            onClick={downloadQRCode}
+          >
+            Download QR Code
+          </Button>
+          
+          <Button
+            variant="contained"
+            color="primary"
+            onClick={() => router.push("/dashboard/sessions")}
+          >
+            View All Trips
+          </Button>
+        </Box>
+      </Box>
+    );
+  };
+
   if (status === "loading") {
     return (
       <Box display="flex" justifyContent="center" alignItems="center" minHeight="50vh">
         <CircularProgress />
       </Box>
+    );
+  }
+
+  // Display the success view after trip creation
+  if (tripCreated) {
+    return (
+      <Container maxWidth="lg">
+        <Box mb={3}>
+          <Button
+            component={Link}
+            href="/dashboard/sessions"
+            startIcon={<ArrowBack />}
+          >
+            Back to Sessions
+          </Button>
+        </Box>
+
+        <Paper elevation={2} sx={{ p: 3 }}>
+          {renderSuccessView()}
+        </Paper>
+      </Container>
     );
   }
 
@@ -1217,6 +1349,48 @@ export default function CreateSessionPage() {
               <Box sx={{ width: { xs: '100%', md: '47%' } }}>
                 <TextField
                   fullWidth
+                  label="Registration Certificate (RC)"
+                  name="registrationCertificate"
+                  value={loadingDetails.registrationCertificate}
+                  onChange={handleLoadingDetailsChange}
+                  required
+                  error={!!validationErrors.registrationCertificate}
+                  helperText={validationErrors.registrationCertificate}
+                />
+              </Box>
+              
+              <Box sx={{ width: { xs: '100%', md: '47%' } }}>
+                <Typography variant="subtitle1" gutterBottom>
+                  Upload RC Document
+                </Typography>
+                <Button
+                  variant="outlined"
+                  component="label"
+                  startIcon={<PhotoCamera />}
+                  fullWidth
+                  sx={{ height: '56px' }}
+                >
+                  {loadingDetails.registrationCertificateDoc ? 'Change Document' : 'Upload Document'}
+                  <input
+                    type="file"
+                    hidden
+                    accept="application/pdf,image/*"
+                    onChange={(e) => handleFileChange(e, 'registrationCertificateDoc')}
+                  />
+                </Button>
+                {loadingDetails.registrationCertificateDoc && (
+                  <Typography variant="body2" sx={{ mt: 1 }}>
+                    {loadingDetails.registrationCertificateDoc.name}
+                  </Typography>
+                )}
+                {validationErrors.registrationCertificateDoc && (
+                  <FormHelperText error>{validationErrors.registrationCertificateDoc}</FormHelperText>
+                )}
+              </Box>
+              
+              <Box sx={{ width: { xs: '100%', md: '47%' } }}>
+                <TextField
+                  fullWidth
                   label="GPS IMEI Number"
                   name="gpsImeiNumber"
                   value={loadingDetails.gpsImeiNumber}
@@ -1229,31 +1403,28 @@ export default function CreateSessionPage() {
               </Box>
               
               <Box sx={{ width: { xs: '100%', md: '47%' } }}>
-                <TextField
-                  fullWidth
-                  label="Driver Name"
-                  name="driverName"
-                  value={loadingDetails.driverName}
-                  onChange={handleLoadingDetailsChange}
-                  required
-                  error={!!validationErrors.driverName}
-                  helperText={validationErrors.driverName}
-                />
-              </Box>
-              
-              <Box sx={{ width: { xs: '100%', md: '47%' } }}>
-                <TextField
-                  fullWidth
-                  label="Driver Contact Number"
-                  name="driverContactNumber"
-                  value={loadingDetails.driverContactNumber}
-                  onChange={handleLoadingDetailsChange}
-                  required
-                  type="tel"
-                  inputProps={{ maxLength: 10 }}
-                  error={!!validationErrors.driverContactNumber}
-                  helperText={validationErrors.driverContactNumber}
-                />
+                <FormControl fullWidth error={!!validationErrors.cargoType}>
+                  <InputLabel id="cargo-type-label">Cargo Type</InputLabel>
+                  <Select
+                    labelId="cargo-type-label"
+                    id="cargo-type"
+                    name="cargoType"
+                    value={loadingDetails.cargoType}
+                    label="Cargo Type"
+                    onChange={(e) => handleLoadingDetailsChange(e as React.ChangeEvent<HTMLInputElement>)}
+                  >
+                    <MenuItem value="Perishable (fruits, vegetables, dairy)">Perishable (fruits, vegetables, dairy)</MenuItem>
+                    <MenuItem value="Hazardous (chemicals, explosives)">Hazardous (chemicals, explosives)</MenuItem>
+                    <MenuItem value="Liquid Bulk (petroleum, oils)">Liquid Bulk (petroleum, oils)</MenuItem>
+                    <MenuItem value="Dry Bulk (grains, coal)">Dry Bulk (grains, coal)</MenuItem>
+                    <MenuItem value="Containerized (packed in containers)">Containerized (packed in containers)</MenuItem>
+                    <MenuItem value="General Cargo (machinery, textiles)">General Cargo (machinery, textiles)</MenuItem>
+                    <MenuItem value="--Others--">--Others--</MenuItem>
+                  </Select>
+                  {validationErrors.cargoType && (
+                    <FormHelperText>{validationErrors.cargoType}</FormHelperText>
+                  )}
+                </FormControl>
               </Box>
               
               <Box sx={{ width: { xs: '100%', md: '47%' } }}>
@@ -1409,6 +1580,95 @@ export default function CreateSessionPage() {
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
               <Box sx={{ width: '100%' }}>
                 <Typography variant="h6" gutterBottom>
+                  Driver Details
+                </Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                  Enter the driver's details.
+                </Typography>
+                
+                {error && (
+                  <Alert severity="error" sx={{ mb: 2 }}>
+                    {error}
+                  </Alert>
+                )}
+              </Box>
+              
+              <Box sx={{ width: { xs: '100%', md: '47%' } }}>
+                <TextField
+                  fullWidth
+                  label="Driver Name"
+                  name="driverName"
+                  value={driverDetails.driverName}
+                  onChange={handleDriverDetailsChange}
+                  required
+                  error={!!validationErrors.driverName}
+                  helperText={validationErrors.driverName}
+                />
+              </Box>
+              
+              <Box sx={{ width: { xs: '100%', md: '47%' } }}>
+                <TextField
+                  fullWidth
+                  label="Driver Contact Number"
+                  name="driverContactNumber"
+                  value={driverDetails.driverContactNumber}
+                  onChange={handleDriverDetailsChange}
+                  required
+                  type="tel"
+                  inputProps={{ maxLength: 10 }}
+                  error={!!validationErrors.driverContactNumber}
+                  helperText={validationErrors.driverContactNumber}
+                />
+              </Box>
+              
+              <Box sx={{ width: { xs: '100%', md: '47%' } }}>
+                <TextField
+                  fullWidth
+                  label="Driver License"
+                  name="driverLicense"
+                  value={driverDetails.driverLicense}
+                  onChange={handleDriverDetailsChange}
+                  required
+                  error={!!validationErrors.driverLicense}
+                  helperText={validationErrors.driverLicense}
+                />
+              </Box>
+              
+              <Box sx={{ width: { xs: '100%', md: '47%' } }}>
+                <Typography variant="subtitle1" gutterBottom>
+                  Upload Driver's License Document
+                </Typography>
+                <Button
+                  variant="outlined"
+                  component="label"
+                  startIcon={<PhotoCamera />}
+                  fullWidth
+                  sx={{ height: '56px' }}
+                >
+                  {driverDetails.driverLicenseDoc ? 'Change Document' : 'Upload Document'}
+                  <input
+                    type="file"
+                    hidden
+                    accept="application/pdf,image/*"
+                    onChange={(e) => handleFileChange(e, 'driverLicenseDoc')}
+                  />
+                </Button>
+                {driverDetails.driverLicenseDoc && (
+                  <Typography variant="body2" sx={{ mt: 1 }}>
+                    {driverDetails.driverLicenseDoc.name}
+                  </Typography>
+                )}
+                {validationErrors.driverLicenseDoc && (
+                  <FormHelperText error>{validationErrors.driverLicenseDoc}</FormHelperText>
+                )}
+              </Box>
+            </Box>
+          )}
+
+          {activeStep === 2 && (
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+              <Box sx={{ width: '100%' }}>
+                <Typography variant="h6" gutterBottom>
                   Seal Tags
                 </Typography>
                 <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
@@ -1500,16 +1760,33 @@ export default function CreateSessionPage() {
                     maxHeight: '300px',
                     overflowY: 'auto',
                     display: 'flex',
-                    flexWrap: 'wrap',
+                    flexDirection: 'column',
                     gap: 1
                   }}>
                     {sealTags.sealTagIds.map((tagId, index) => (
-                      <Chip
+                      <Box 
                         key={tagId}
-                        label={`${index + 1}. ${tagId}`}
-                        onDelete={() => handleRemoveSealTag(tagId)}
-                        sx={{ mb: 1 }}
-                      />
+                        sx={{
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          borderBottom: '1px solid #eee',
+                          pb: 1
+                        }}
+                      >
+                        <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                          <Chip
+                            label={`${index + 1}. ${tagId}`}
+                            onDelete={() => handleRemoveSealTag(tagId)}
+                            sx={{ mr: 2 }}
+                          />
+                          {sealTags.timestamps[tagId] && (
+                            <Typography variant="caption" color="text.secondary">
+                              {new Date(sealTags.timestamps[tagId]).toLocaleString()}
+                            </Typography>
+                          )}
+                        </Box>
+                      </Box>
                     ))}
                   </Box>
                 ) : (
@@ -1521,7 +1798,7 @@ export default function CreateSessionPage() {
             </Box>
           )}
 
-          {activeStep === 2 && (
+          {activeStep === 3 && (
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
               <Box sx={{ width: '100%' }}>
                 <Typography variant="h6" gutterBottom>
