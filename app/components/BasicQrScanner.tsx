@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { 
   Dialog, 
   DialogTitle, 
@@ -65,23 +65,26 @@ export default function BasicQrScanner({ open, onClose, onScan, title = "Scan QR
   const [scanning, setScanning] = useState(false);
   const [cameraLoading, setCameraLoading] = useState(true);
   const [permissionDenied, setPermissionDenied] = useState(false);
+  const [isMounted, setIsMounted] = useState(false);
   
   // Create refs for managing resources
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const frameProcessorRef = useRef<number | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
-  
-  // Ensure video element is always in the DOM
+
+  // Track if the component is mounted
   useEffect(() => {
-    // Initialize video element reference if needed
-    if (!videoRef.current) {
-      console.log('Video ref is null, component might be remounting');
-    }
+    console.log('Component mounted');
+    setIsMounted(true);
+    return () => {
+      console.log('Component unmounting');
+      setIsMounted(false);
+    };
   }, []);
   
   // Clean up resources when component unmounts or dialog closes
-  const stopCamera = () => {
+  const stopCamera = useCallback(() => {
     console.log('Stopping camera');
     if (frameProcessorRef.current) {
       cancelAnimationFrame(frameProcessorRef.current);
@@ -100,10 +103,10 @@ export default function BasicQrScanner({ open, onClose, onScan, title = "Scan QR
     if (videoRef.current) {
       videoRef.current.srcObject = null;
     }
-  };
+  }, []);
 
   // Process video frames to detect QR codes
-  const processVideoFrame = async () => {
+  const processVideoFrame = useCallback(async () => {
     if (!open || !videoRef.current || !canvasRef.current) return;
     
     try {
@@ -124,58 +127,84 @@ export default function BasicQrScanner({ open, onClose, onScan, title = "Scan QR
     
     // Continue processing frames
     frameProcessorRef.current = requestAnimationFrame(processVideoFrame);
-  };
-  
-  // Attempt to switch cameras
-  const handleSwitchCamera = async () => {
-    stopCamera();
-    setCameraLoading(true);
-    
+  }, [open, onClose, onScan]);
+
+  // Start camera with the given constraints
+  const startCameraWithConstraints = useCallback(async (constraints: MediaStreamConstraints) => {
     try {
-      // Try front camera if we were using back, and vice versa
-      const currentFacingMode = streamRef.current?.getVideoTracks()[0]?.getSettings()?.facingMode;
-      const newFacingMode = currentFacingMode === 'environment' ? 'user' : 'environment';
+      if (!videoRef.current) {
+        console.error('Video element not available when starting camera');
+        setError('Could not initialize video element. Please try again later.');
+        setCameraLoading(false);
+        return false;
+      }
       
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: { ideal: newFacingMode } },
-        audio: false
-      });
+      console.log('Requesting camera with constraints:', constraints);
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      console.log('Camera access granted, stream tracks:', stream.getTracks().length);
       
       streamRef.current = stream;
+      videoRef.current.srcObject = stream;
       
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        
-        // Update canvas size
-        if (canvasRef.current) {
-          canvasRef.current.width = videoRef.current.videoWidth || 640;
-          canvasRef.current.height = videoRef.current.videoHeight || 480;
+      return new Promise<boolean>((resolve) => {
+        if (!videoRef.current) {
+          console.error('Video element lost after getting stream');
+          resolve(false);
+          return;
         }
         
-        setCameraLoading(false);
-        frameProcessorRef.current = requestAnimationFrame(processVideoFrame);
-      }
+        // Set up metadata event
+        videoRef.current.onloadedmetadata = () => {
+          console.log('Video metadata loaded');
+          if (!videoRef.current || !canvasRef.current) {
+            console.error('Refs lost after metadata loaded');
+            resolve(false);
+            return;
+          }
+          
+          // Set canvas dimensions
+          canvasRef.current.width = videoRef.current.videoWidth || 640;
+          canvasRef.current.height = videoRef.current.videoHeight || 480;
+          
+          // Start playback
+          videoRef.current.play()
+            .then(() => {
+              console.log('Video playback started');
+              if (frameProcessorRef.current === null) {
+                frameProcessorRef.current = requestAnimationFrame(processVideoFrame);
+              }
+              resolve(true);
+            })
+            .catch(playError => {
+              console.error('Failed to start video playback:', playError);
+              resolve(false);
+            });
+        };
+        
+        // Handle errors
+        videoRef.current.onerror = () => {
+          console.error('Video element error');
+          resolve(false);
+        };
+      });
     } catch (err) {
-      console.error('Error switching camera:', err);
-      setError('Failed to switch camera. Please try again.');
-      setCameraLoading(false);
+      console.error('Error accessing camera:', err);
+      
+      // Check if permission was denied
+      if (err instanceof DOMException && 
+         (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError')) {
+        setPermissionDenied(true);
+        setError('Camera access denied. Please allow camera access to scan codes.');
+      } else {
+        setError(`Camera error: ${err instanceof Error ? err.message : String(err)}`);
+      }
+      
+      return false;
     }
-  };
-  
-  // Initialize camera when dialog opens
-  useEffect(() => {
-    console.log('QR Scanner useEffect triggered, open:', open);
-    
-    if (!open) {
-      stopCamera();
-      return;
-    }
-    
-    setCameraLoading(true);
-    setError(null);
-    setPermissionDenied(false);
-    
-    // Check if camera access is supported
+  }, [processVideoFrame]);
+
+  // Initialize camera with fallback options
+  const initializeCamera = useCallback(async () => {
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
       setError("Your browser doesn't support camera access");
       setCameraLoading(false);
@@ -189,98 +218,97 @@ export default function BasicQrScanner({ open, onClose, onScan, title = "Scan QR
     
     if (!isSecureOrigin) {
       console.warn('Camera access may fail: Not running on a secure origin. Camera access requires HTTPS (except on localhost).');
+      setError('Camera access requires a secure connection (HTTPS). Please use a secure connection or contact support.');
+      setCameraLoading(false);
+      return;
     }
     
-    // Immediately initialize camera
-    const startCamera = async () => {
-      try {
-        console.log('Requesting camera permission...');
-        // Add explicit constraints to ensure camera access works on more devices
-        const constraints = {
-          video: {
-            facingMode: 'environment',
-            width: { ideal: 1280 },
-            height: { ideal: 720 }
-          },
-          audio: false
-        };
-        
-        let stream;
-        try {
-          // Try with full constraints first
-          stream = await navigator.mediaDevices.getUserMedia(constraints);
-        } catch (initialError) {
-          console.warn('Failed with full constraints, trying simplified constraints:', initialError);
-          
-          // Try with simpler constraints
-          try {
-            stream = await navigator.mediaDevices.getUserMedia({ 
-              video: true, 
-              audio: false 
-            });
-          } catch (fallbackError) {
-            // Re-throw to be caught by the outer catch
-            throw fallbackError;
-          }
-        }
-        
-        console.log('Camera access granted, stream tracks:', stream.getTracks().length);
-        
-        streamRef.current = stream;
-        
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
-          
-          // Make sure video element has correct size settings
-          videoRef.current.style.width = '100%';
-          videoRef.current.style.height = '100%';
-          
-          // Start scanning once video is playing
-          videoRef.current.onloadedmetadata = () => {
-            console.log('Video metadata loaded, size:', videoRef.current?.videoWidth, 'x', videoRef.current?.videoHeight);
-            
-            if (canvasRef.current) {
-              canvasRef.current.width = videoRef.current?.videoWidth || 640;
-              canvasRef.current.height = videoRef.current?.videoHeight || 480;
-            }
-            
-            videoRef.current?.play().then(() => {
-              console.log('Video playback started');
-              setCameraLoading(false);
-              frameProcessorRef.current = requestAnimationFrame(processVideoFrame);
-            }).catch(error => {
-              console.error('Failed to play video:', error);
-              setError('Failed to start camera. Please try again.');
-              setCameraLoading(false);
-            });
-          };
-        } else {
-          console.error('Video ref is not available');
-          setError('Could not initialize video element');
-          setCameraLoading(false);
-        }
-      } catch (err) {
-        console.error('Camera access error:', err);
-        
-        // Check if permission was denied
-        if (err instanceof DOMException && (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError')) {
-          setPermissionDenied(true);
-          setError('Camera access denied. Please allow camera access to scan codes.');
-        } else {
-          setError(`Camera error: ${err instanceof Error ? err.message : String(err)}`);
-        }
-        
-        setCameraLoading(false);
-      }
+    console.log('Initializing camera, video element exists:', !!videoRef.current);
+    
+    // Try with detailed constraints first
+    const detailedConstraints = {
+      video: {
+        facingMode: 'environment',
+        width: { ideal: 1280 },
+        height: { ideal: 720 }
+      },
+      audio: false
     };
     
-    startCamera();
+    let success = await startCameraWithConstraints(detailedConstraints);
+    
+    // If detailed constraints fail, try with simpler ones
+    if (!success) {
+      console.log('Detailed constraints failed, trying simpler ones');
+      success = await startCameraWithConstraints({ video: true, audio: false });
+    }
+    
+    // Update UI based on result
+    if (success) {
+      setCameraLoading(false);
+    } else if (!error) {
+      // Only set error if it hasn't been set by other functions
+      setError('Could not initialize camera. Please try again.');
+      setCameraLoading(false);
+    }
+  }, [error, startCameraWithConstraints]);
+
+  // Handle dialog open/close
+  useEffect(() => {
+    console.log('Dialog open state changed:', open, 'Component mounted:', isMounted);
+    
+    if (!open) {
+      stopCamera();
+      return;
+    }
+    
+    // Reset state
+    setCameraLoading(true);
+    setError(null);
+    setPermissionDenied(false);
+    
+    // Add a small delay to ensure DOM is ready
+    const timer = setTimeout(() => {
+      console.log('Starting camera after timeout, video element exists:', !!videoRef.current);
+      if (isMounted) {
+        initializeCamera();
+      }
+    }, 300);
     
     return () => {
+      clearTimeout(timer);
       stopCamera();
     };
-  }, [open, onClose, onScan]);
-  
+  }, [open, stopCamera, initializeCamera, isMounted]);
+
+  // Attempt to switch cameras
+  const handleSwitchCamera = useCallback(async () => {
+    stopCamera();
+    setCameraLoading(true);
+    setError(null);
+    
+    try {
+      // Try front camera if we were using back, and vice versa
+      const currentFacingMode = streamRef.current?.getVideoTracks()[0]?.getSettings()?.facingMode;
+      const newFacingMode = currentFacingMode === 'environment' ? 'user' : 'environment';
+      
+      const success = await startCameraWithConstraints({
+        video: { facingMode: { ideal: newFacingMode } },
+        audio: false
+      });
+      
+      if (!success && !error) {
+        setError('Failed to switch camera. Please try again.');
+      }
+      
+      setCameraLoading(false);
+    } catch (err) {
+      console.error('Error switching camera:', err);
+      setError('Failed to switch camera. Please try again.');
+      setCameraLoading(false);
+    }
+  }, [stopCamera, startCameraWithConstraints, error]);
+
   // Render scanner UI
   return (
     <Dialog 
@@ -325,98 +353,16 @@ export default function BasicQrScanner({ open, onClose, onScan, title = "Scan QR
               variant="contained" 
               color="primary" 
               onClick={() => {
-                // Safely check video ref
-                const videoElement = videoRef.current;
-                console.log('Try Again clicked, videoRef exists:', !!videoElement);
-                
-                // Stop existing camera first
+                console.log('Try Again clicked');
                 stopCamera();
-                
-                // Set loading state
                 setCameraLoading(true);
                 setError(null);
                 setPermissionDenied(false);
                 
-                // Force a slight delay to ensure DOM is updated
+                // Small delay to ensure DOM updates
                 setTimeout(() => {
-                  // Check video ref again after the timeout
-                  const videoElementAfterDelay = videoRef.current;
-                  console.log('After timeout, videoRef exists:', !!videoElementAfterDelay);
-                  
-                  // Type guard - Check if video element is still available
-                  if (!videoElementAfterDelay) {
-                    console.error('Video element not available for retry');
-                    setError('Camera initialization failed. Please close and reopen the scanner.');
-                    setCameraLoading(false);
-                    return;
-                  }
-                  
-                  // Try to start camera again with more detailed constraints
-                  const constraints = {
-                    video: { 
-                      facingMode: 'environment',
-                      width: { ideal: 1280 },
-                      height: { ideal: 720 }
-                    },
-                    audio: false
-                  };
-                  
-                  console.log('Trying camera access again with constraints:', constraints);
-                  
-                  navigator.mediaDevices.getUserMedia(constraints)
-                    .then(stream => {
-                      console.log('Camera restarted successfully, videoRef exists:', !!videoRef.current);
-                      
-                      streamRef.current = stream;
-                      
-                      // Get latest video ref in case it changed
-                      const currentVideoRef = videoRef.current;
-                      
-                      if (currentVideoRef) {
-                        // Ensure the video element is properly set up
-                        currentVideoRef.srcObject = stream;
-                        currentVideoRef.onloadedmetadata = () => {
-                          console.log('Video metadata loaded after retry');
-                          
-                          // Update canvas dimensions
-                          const currentCanvasRef = canvasRef.current;
-                          const updatedVideoRef = videoRef.current;
-                          
-                          if (currentCanvasRef && updatedVideoRef) {
-                            currentCanvasRef.width = updatedVideoRef.videoWidth || 640;
-                            currentCanvasRef.height = updatedVideoRef.videoHeight || 480;
-                          }
-                          
-                          if (updatedVideoRef) {
-                            updatedVideoRef.play()
-                              .then(() => {
-                                console.log('Video playback restarted successfully');
-                                setCameraLoading(false);
-                                frameProcessorRef.current = requestAnimationFrame(processVideoFrame);
-                              })
-                              .catch(playError => {
-                                console.error('Error playing video after restart:', playError);
-                                setError('Failed to start video playback. Please try again.');
-                                setCameraLoading(false);
-                              });
-                          } else {
-                            console.error('Video reference lost during metadata loading');
-                            setError('Camera initialization failed. Please close and reopen the scanner.');
-                            setCameraLoading(false);
-                          }
-                        };
-                      } else {
-                        console.error('Video ref not available on retry');
-                        setError('Could not initialize video element. Please close and reopen the scanner.');
-                        setCameraLoading(false);
-                      }
-                    })
-                    .catch(err => {
-                      console.error('Failed to restart camera:', err);
-                      setError('Could not access camera. Please check browser permissions and try again.');
-                      setCameraLoading(false);
-                    });
-                }, 100); // Small delay to ensure DOM updates
+                  initializeCamera();
+                }, 300);
               }}
               sx={{ mt: 2 }}
             >
@@ -447,11 +393,13 @@ export default function BasicQrScanner({ open, onClose, onScan, title = "Scan QR
                 playsInline
                 muted
                 autoPlay
+                key="qr-scanner-video"
               />
               
               <canvas 
                 ref={canvasRef} 
-                style={{ display: 'none', position: 'absolute', left: 0, top: 0 }} 
+                style={{ display: 'none', position: 'absolute', left: 0, top: 0 }}
+                key="qr-scanner-canvas"
               />
               
               {/* QR code targeting frame */}
