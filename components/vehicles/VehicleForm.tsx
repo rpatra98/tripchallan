@@ -102,7 +102,7 @@ const VehicleForm: React.FC<VehicleFormProps> = ({
     
     // Required fields
     if (!formData.numberPlate.trim()) {
-      newErrors.numberPlate = 'Number plate is required';
+      newErrors.numberPlate = 'Vehicle number is required';
     }
     
     // Year validation
@@ -154,7 +154,7 @@ const VehicleForm: React.FC<VehicleFormProps> = ({
         <DialogContent>
           <TextField
             name="numberPlate"
-            label="Number Plate *"
+            label="Vehicle Number *"
             fullWidth
             margin="normal"
             value={formData.numberPlate}
