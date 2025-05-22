@@ -13,16 +13,6 @@ import {
   Alert
 } from '@mui/material';
 
-// Log status messages to help with debugging
-const logStatus = (message: string) => {
-  console.log(`[QrScanner] ${message}`);
-};
-
-// Check if BarcodeDetector is supported
-const isBarcodeDetectorSupported = () => {
-  return 'BarcodeDetector' in window;
-};
-
 // Simple function to detect QR codes in a video frame
 const detectQRCode = async (videoElement: HTMLVideoElement, canvas: HTMLCanvasElement): Promise<string | null> => {
   if (!videoElement || !canvas) return null;
@@ -30,29 +20,32 @@ const detectQRCode = async (videoElement: HTMLVideoElement, canvas: HTMLCanvasEl
   const context = canvas.getContext('2d');
   if (!context) return null;
   
-  // Draw the current video frame on the canvas
-  context.drawImage(
-    videoElement,
-    0, 0,
-    canvas.width, canvas.height
-  );
-  
-  // Try to access the BarcodeDetector API if available
-  if (isBarcodeDetectorSupported()) {
-    try {
-      // @ts-ignore - BarcodeDetector is not yet in TypeScript's lib definitions
-      const barcodeDetector = new window.BarcodeDetector({
-        formats: ['qr_code']
-      });
-      
-      const barcodes = await barcodeDetector.detect(canvas);
-      if (barcodes.length > 0) {
-        logStatus(`Detected QR code: ${barcodes[0].rawValue}`);
-        return barcodes[0].rawValue;
+  try {
+    // Draw the current video frame on the canvas
+    context.drawImage(
+      videoElement,
+      0, 0,
+      canvas.width, canvas.height
+    );
+    
+    // Try to access the BarcodeDetector API if available
+    if ('BarcodeDetector' in window) {
+      try {
+        const barcodeDetector = new window.BarcodeDetector({
+          formats: ['qr_code']
+        });
+        
+        const barcodes = await barcodeDetector.detect(canvas);
+        if (barcodes.length > 0) {
+          console.log('QR code detected:', barcodes[0].rawValue);
+          return barcodes[0].rawValue;
+        }
+      } catch (error) {
+        console.error('Error detecting barcode:', error);
       }
-    } catch (error) {
-      console.error('Error detecting barcode:', error);
     }
+  } catch (err) {
+    console.error('Error processing video frame:', err);
   }
   
   return null;
@@ -69,238 +62,238 @@ export default function BasicQrScanner({ open, onClose, onScan, title = "Scan QR
   const [error, setError] = useState<string | null>(null);
   const [scanning, setScanning] = useState(false);
   const [cameraLoading, setCameraLoading] = useState(true);
-  const [usingFallback, setUsingFallback] = useState(false);
+  const [permissionDenied, setPermissionDenied] = useState(false);
   
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const frameProcessorRef = useRef<number | null>(null);
-  const mediaStreamRef = useRef<MediaStream | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
   
   // Clean up resources when component unmounts or dialog closes
   const stopCamera = () => {
-    logStatus('Stopping camera');
+    console.log('Stopping camera');
     if (frameProcessorRef.current) {
       cancelAnimationFrame(frameProcessorRef.current);
       frameProcessorRef.current = null;
     }
     
-    if (mediaStreamRef.current) {
-      mediaStreamRef.current.getTracks().forEach(track => track.stop());
-      mediaStreamRef.current = null;
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(track => track.stop());
+      streamRef.current = null;
+    }
+  };
+
+  // Process video frames to detect QR codes
+  const processVideoFrame = async () => {
+    if (!open || !videoRef.current || !canvasRef.current) return;
+    
+    try {
+      const code = await detectQRCode(videoRef.current, canvasRef.current);
+      if (code) {
+        setScanning(true);
+        // Add a short delay to show scanning animation
+        setTimeout(() => {
+          onScan(code);
+          setScanning(false);
+          onClose();
+        }, 500);
+        return;
+      }
+    } catch (err) {
+      console.error('Error processing frame:', err);
+    }
+    
+    // Continue processing frames
+    frameProcessorRef.current = requestAnimationFrame(processVideoFrame);
+  };
+  
+  // Attempt to switch cameras
+  const handleSwitchCamera = async () => {
+    stopCamera();
+    setCameraLoading(true);
+    
+    try {
+      // Try front camera if we were using back, and vice versa
+      const currentFacingMode = streamRef.current?.getVideoTracks()[0]?.getSettings()?.facingMode;
+      const newFacingMode = currentFacingMode === 'environment' ? 'user' : 'environment';
+      
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: newFacingMode } },
+        audio: false
+      });
+      
+      streamRef.current = stream;
+      
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        
+        // Update canvas size
+        if (canvasRef.current) {
+          canvasRef.current.width = videoRef.current.videoWidth || 640;
+          canvasRef.current.height = videoRef.current.videoHeight || 480;
+        }
+        
+        setCameraLoading(false);
+        frameProcessorRef.current = requestAnimationFrame(processVideoFrame);
+      }
+    } catch (err) {
+      console.error('Error switching camera:', err);
+      setError('Failed to switch camera. Please try again.');
+      setCameraLoading(false);
     }
   };
   
-  // Set up and initialize the camera
+  // Initialize camera when dialog opens
   useEffect(() => {
     if (!open) {
       stopCamera();
       return;
     }
     
-    logStatus('Initializing scanner');
     setCameraLoading(true);
     setError(null);
+    setPermissionDenied(false);
     
+    // Check if camera access is supported
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
       setError("Your browser doesn't support camera access");
       setCameraLoading(false);
-      logStatus('Media devices not supported');
       return;
     }
     
-    // Check if BarcodeDetector is supported
-    if (!isBarcodeDetectorSupported()) {
-      logStatus('BarcodeDetector API not supported in this browser');
-      // We'll still try to show the camera feed, but won't be able to detect codes
-    }
-    
+    // Immediately initialize camera
     const startCamera = async () => {
       try {
-        logStatus('Requesting camera permission');
+        console.log('Requesting camera permission...');
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: 'environment' },
+          audio: false
+        });
         
-        // First try to use the environment-facing camera (back camera)
-        try {
-          const stream = await navigator.mediaDevices.getUserMedia({
-            video: { 
-              facingMode: 'environment',
-              width: { ideal: 1280 },
-              height: { ideal: 720 }
-            }
-          });
-          mediaStreamRef.current = stream;
-          logStatus('Using environment-facing camera');
-        } catch (err) {
-          logStatus('Environment camera failed, trying fallback');
-          // If that fails, try any available camera
-          const stream = await navigator.mediaDevices.getUserMedia({
-            video: {
-              width: { ideal: 1280 },
-              height: { ideal: 720 }
-            }
-          });
-          mediaStreamRef.current = stream;
-          setUsingFallback(true);
-          logStatus('Using fallback camera');
-        }
+        streamRef.current = stream;
         
-        if (videoRef.current && mediaStreamRef.current) {
-          logStatus('Setting up video element');
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
           
-          // Set up the video element
-          videoRef.current.srcObject = mediaStreamRef.current;
+          // Make sure video element has correct size settings
+          videoRef.current.style.width = '100%';
+          videoRef.current.style.height = '100%';
           
-          // Wait for the video to be ready
-          videoRef.current.onloadedmetadata = async () => {
-            logStatus('Video metadata loaded');
+          // Start scanning once video is playing
+          videoRef.current.onloadedmetadata = () => {
+            console.log('Video metadata loaded, size:', videoRef.current?.videoWidth, 'x', videoRef.current?.videoHeight);
             
-            try {
-              await videoRef.current?.play();
-              logStatus('Video playback started');
-              
-              // Update canvas dimensions based on video
-              if (canvasRef.current && videoRef.current) {
-                canvasRef.current.width = videoRef.current.videoWidth;
-                canvasRef.current.height = videoRef.current.videoHeight;
-                logStatus(`Canvas dimensions set to ${canvasRef.current.width}x${canvasRef.current.height}`);
-              }
-              
-              // Start processing frames
-              const processFrame = async () => {
-                if (!open) return;
-                
-                if (videoRef.current && canvasRef.current) {
-                  const code = await detectQRCode(videoRef.current, canvasRef.current);
-                  if (code) {
-                    setScanning(true);
-                    // Add a short delay to show scanning animation
-                    setTimeout(() => {
-                      onScan(code);
-                      setScanning(false);
-                      onClose();
-                    }, 500);
-                    return;
-                  }
-                }
-                
-                // Continue processing frames
-                frameProcessorRef.current = requestAnimationFrame(processFrame);
-              };
-              
-              // Start processing
-              logStatus('Starting frame processing');
-              frameProcessorRef.current = requestAnimationFrame(processFrame);
-              setCameraLoading(false);
-            } catch (playError) {
-              logStatus(`Error playing video: ${playError}`);
-              setError(`Error starting camera: ${playError instanceof Error ? playError.message : String(playError)}`);
-              setCameraLoading(false);
+            if (canvasRef.current) {
+              canvasRef.current.width = videoRef.current?.videoWidth || 640;
+              canvasRef.current.height = videoRef.current?.videoHeight || 480;
             }
-          };
-          
-          // Handle video errors
-          videoRef.current.onerror = (videoError) => {
-            logStatus(`Video element error: ${videoError}`);
-            setError("Error with video playback. Please try again.");
-            setCameraLoading(false);
+            
+            videoRef.current?.play().then(() => {
+              console.log('Video playback started');
+              setCameraLoading(false);
+              frameProcessorRef.current = requestAnimationFrame(processVideoFrame);
+            }).catch(error => {
+              console.error('Failed to play video:', error);
+              setError('Failed to start camera. Please try again.');
+              setCameraLoading(false);
+            });
           };
         }
       } catch (err) {
-        console.error('Error accessing camera:', err);
-        setError(`Couldn't access camera: ${err instanceof Error ? err.message : String(err)}`);
+        console.error('Camera access error:', err);
+        
+        // Check if permission was denied
+        if (err instanceof DOMException && (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError')) {
+          setPermissionDenied(true);
+          setError('Camera access denied. Please allow camera access to scan codes.');
+        } else {
+          setError(`Camera error: ${err instanceof Error ? err.message : String(err)}`);
+        }
+        
         setCameraLoading(false);
       }
     };
     
     startCamera();
     
-    // Clean up when the dialog closes
     return () => {
       stopCamera();
     };
   }, [open, onClose, onScan]);
   
-  const handleSwitchCamera = async () => {
-    // Stop the current camera
-    stopCamera();
-    setCameraLoading(true);
-    
-    try {
-      // Request opposite camera type
-      logStatus('Switching camera');
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { 
-          facingMode: usingFallback ? 'environment' : 'user',
-          width: { ideal: 1280 },
-          height: { ideal: 720 }
-        }
-      });
-      
-      mediaStreamRef.current = stream;
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        
-        // Wait for the video to be ready
-        videoRef.current.onloadedmetadata = async () => {
-          try {
-            await videoRef.current?.play();
-            
-            // Update canvas dimensions
-            if (canvasRef.current && videoRef.current) {
-              canvasRef.current.width = videoRef.current.videoWidth;
-              canvasRef.current.height = videoRef.current.videoHeight;
-            }
-            
-            // Start processing frames again
-            const processFrame = async () => {
-              if (!open) return;
-              
-              if (videoRef.current && canvasRef.current) {
-                const code = await detectQRCode(videoRef.current, canvasRef.current);
-                if (code) {
-                  setScanning(true);
-                  setTimeout(() => {
-                    onScan(code);
-                    setScanning(false);
-                    onClose();
-                  }, 500);
-                  return;
-                }
-              }
-              
-              frameProcessorRef.current = requestAnimationFrame(processFrame);
-            };
-            
-            frameProcessorRef.current = requestAnimationFrame(processFrame);
-            setUsingFallback(!usingFallback);
-            setCameraLoading(false);
-          } catch (playError) {
-            setError(`Error starting camera: ${playError instanceof Error ? playError.message : String(playError)}`);
-            setCameraLoading(false);
-          }
-        };
-      }
-    } catch (err) {
-      console.error('Error switching camera:', err);
-      setError(`Couldn't switch camera: ${err instanceof Error ? err.message : String(err)}`);
-      setCameraLoading(false);
-    }
-  };
-  
+  // Render scanner UI
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
+    <Dialog 
+      open={open} 
+      onClose={onClose} 
+      maxWidth="sm" 
+      fullWidth
+      PaperProps={{
+        sx: { overflow: 'hidden' } // Fix potential scrolling issues
+      }}
+    >
       <DialogTitle>{title}</DialogTitle>
-      <DialogContent>
+      <DialogContent sx={{ p: 2 }}>
         {cameraLoading ? (
-          <Box display="flex" justifyContent="center" alignItems="center" minHeight="300px">
-            <CircularProgress />
-            <Typography variant="body2" sx={{ ml: 2 }}>
+          <Box display="flex" flexDirection="column" justifyContent="center" alignItems="center" minHeight="300px">
+            <CircularProgress size={60} />
+            <Typography variant="body1" sx={{ mt: 2 }}>
               Accessing camera...
+            </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+              Please allow camera access when prompted
             </Typography>
           </Box>
         ) : error ? (
-          <Alert severity="error" sx={{ mb: 2 }}>
-            {error}
-          </Alert>
+          <Box sx={{ py: 2 }}>
+            <Alert severity="error" sx={{ mb: 2 }}>
+              {error}
+            </Alert>
+            
+            {permissionDenied && (
+              <Typography variant="body2" sx={{ mt: 2 }}>
+                Please check your browser settings to enable camera access.
+                <Box component="ul" sx={{ mt: 1, pl: 2 }}>
+                  <li>In Chrome: Click the camera icon in the address bar</li>
+                  <li>In Safari: Check Settings > Safari > Camera</li>
+                  <li>In Firefox: Click the camera icon in the address bar</li>
+                </Box>
+              </Typography>
+            )}
+            
+            <Button 
+              variant="contained" 
+              color="primary" 
+              onClick={() => {
+                stopCamera();
+                setCameraLoading(true);
+                setError(null);
+                setPermissionDenied(false);
+                
+                // Try to start camera again
+                navigator.mediaDevices.getUserMedia({
+                  video: { facingMode: 'environment' },
+                  audio: false
+                }).then(stream => {
+                  streamRef.current = stream;
+                  if (videoRef.current) {
+                    videoRef.current.srcObject = stream;
+                    videoRef.current.play().then(() => {
+                      setCameraLoading(false);
+                      frameProcessorRef.current = requestAnimationFrame(processVideoFrame);
+                    });
+                  }
+                }).catch(err => {
+                  console.error('Failed to restart camera:', err);
+                  setError('Could not access camera. Please try again.');
+                  setCameraLoading(false);
+                });
+              }}
+              sx={{ mt: 2 }}
+            >
+              Try Again
+            </Button>
+          </Box>
         ) : (
           <Box sx={{ position: 'relative' }}>
             <Box sx={{ 
@@ -311,25 +304,23 @@ export default function BasicQrScanner({ open, onClose, onScan, title = "Scan QR
               aspectRatio: '4/3',
               overflow: 'hidden',
               borderRadius: 1,
-              backgroundColor: '#000' // Add black background to make video more visible
+              bgcolor: '#000',
+              border: '1px solid rgba(0,0,0,0.1)',
             }}>
               <video
                 ref={videoRef}
                 style={{ 
                   width: '100%', 
                   height: '100%', 
-                  objectFit: 'cover',
-                  transform: usingFallback ? 'scaleX(-1)' : 'none' // Flip if using front camera
+                  objectFit: 'cover'
                 }}
                 playsInline
                 muted
-                autoPlay // Add autoplay attribute
+                autoPlay
               />
               
               <canvas 
                 ref={canvasRef} 
-                width={640} 
-                height={480} 
                 style={{ display: 'none' }} 
               />
               
@@ -339,8 +330,8 @@ export default function BasicQrScanner({ open, onClose, onScan, title = "Scan QR
                 top: '50%',
                 left: '50%',
                 transform: 'translate(-50%, -50%)',
-                width: '60%',
-                height: '60%',
+                width: '70%',
+                height: '70%',
                 border: '2px solid #fff',
                 borderRadius: 1,
                 boxShadow: '0 0 0 4000px rgba(0, 0, 0, 0.3)',
@@ -372,9 +363,9 @@ export default function BasicQrScanner({ open, onClose, onScan, title = "Scan QR
                 Position the QR code in the center of the frame
               </Typography>
               
-              {!isBarcodeDetectorSupported() && (
-                <Alert severity="warning" sx={{ mb: 2, mt: 1 }}>
-                  Your browser doesn't fully support QR code scanning. Camera feed is shown, but QR detection may not work.
+              {!('BarcodeDetector' in window) && (
+                <Alert severity="warning" sx={{ mb: 2, mt: 1, fontSize: '0.8rem' }}>
+                  Your browser might not fully support QR scanning. Try using Google Chrome for best experience.
                 </Alert>
               )}
               
