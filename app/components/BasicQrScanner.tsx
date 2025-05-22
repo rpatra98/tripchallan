@@ -13,6 +13,16 @@ import {
   Alert
 } from '@mui/material';
 
+// Log status messages to help with debugging
+const logStatus = (message: string) => {
+  console.log(`[QrScanner] ${message}`);
+};
+
+// Check if BarcodeDetector is supported
+const isBarcodeDetectorSupported = () => {
+  return 'BarcodeDetector' in window;
+};
+
 // Simple function to detect QR codes in a video frame
 const detectQRCode = async (videoElement: HTMLVideoElement, canvas: HTMLCanvasElement): Promise<string | null> => {
   if (!videoElement || !canvas) return null;
@@ -28,7 +38,7 @@ const detectQRCode = async (videoElement: HTMLVideoElement, canvas: HTMLCanvasEl
   );
   
   // Try to access the BarcodeDetector API if available
-  if ('BarcodeDetector' in window) {
+  if (isBarcodeDetectorSupported()) {
     try {
       // @ts-ignore - BarcodeDetector is not yet in TypeScript's lib definitions
       const barcodeDetector = new window.BarcodeDetector({
@@ -37,6 +47,7 @@ const detectQRCode = async (videoElement: HTMLVideoElement, canvas: HTMLCanvasEl
       
       const barcodes = await barcodeDetector.detect(canvas);
       if (barcodes.length > 0) {
+        logStatus(`Detected QR code: ${barcodes[0].rawValue}`);
         return barcodes[0].rawValue;
       }
     } catch (error) {
@@ -67,6 +78,7 @@ export default function BasicQrScanner({ open, onClose, onScan, title = "Scan QR
   
   // Clean up resources when component unmounts or dialog closes
   const stopCamera = () => {
+    logStatus('Stopping camera');
     if (frameProcessorRef.current) {
       cancelAnimationFrame(frameProcessorRef.current);
       frameProcessorRef.current = null;
@@ -85,55 +97,112 @@ export default function BasicQrScanner({ open, onClose, onScan, title = "Scan QR
       return;
     }
     
+    logStatus('Initializing scanner');
     setCameraLoading(true);
     setError(null);
     
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      setError("Your browser doesn't support camera access");
+      setCameraLoading(false);
+      logStatus('Media devices not supported');
+      return;
+    }
+    
+    // Check if BarcodeDetector is supported
+    if (!isBarcodeDetectorSupported()) {
+      logStatus('BarcodeDetector API not supported in this browser');
+      // We'll still try to show the camera feed, but won't be able to detect codes
+    }
+    
     const startCamera = async () => {
       try {
+        logStatus('Requesting camera permission');
+        
         // First try to use the environment-facing camera (back camera)
         try {
           const stream = await navigator.mediaDevices.getUserMedia({
-            video: { facingMode: 'environment' }
+            video: { 
+              facingMode: 'environment',
+              width: { ideal: 1280 },
+              height: { ideal: 720 }
+            }
           });
           mediaStreamRef.current = stream;
+          logStatus('Using environment-facing camera');
         } catch (err) {
+          logStatus('Environment camera failed, trying fallback');
           // If that fails, try any available camera
           const stream = await navigator.mediaDevices.getUserMedia({
-            video: true
+            video: {
+              width: { ideal: 1280 },
+              height: { ideal: 720 }
+            }
           });
           mediaStreamRef.current = stream;
           setUsingFallback(true);
+          logStatus('Using fallback camera');
         }
         
         if (videoRef.current && mediaStreamRef.current) {
-          videoRef.current.srcObject = mediaStreamRef.current;
-          await videoRef.current.play();
+          logStatus('Setting up video element');
           
-          // Start processing frames
-          const processFrame = async () => {
-            if (!open) return;
+          // Set up the video element
+          videoRef.current.srcObject = mediaStreamRef.current;
+          
+          // Wait for the video to be ready
+          videoRef.current.onloadedmetadata = async () => {
+            logStatus('Video metadata loaded');
             
-            if (videoRef.current && canvasRef.current) {
-              const code = await detectQRCode(videoRef.current, canvasRef.current);
-              if (code) {
-                setScanning(true);
-                // Add a short delay to show scanning animation
-                setTimeout(() => {
-                  onScan(code);
-                  setScanning(false);
-                  onClose();
-                }, 500);
-                return;
+            try {
+              await videoRef.current?.play();
+              logStatus('Video playback started');
+              
+              // Update canvas dimensions based on video
+              if (canvasRef.current && videoRef.current) {
+                canvasRef.current.width = videoRef.current.videoWidth;
+                canvasRef.current.height = videoRef.current.videoHeight;
+                logStatus(`Canvas dimensions set to ${canvasRef.current.width}x${canvasRef.current.height}`);
               }
+              
+              // Start processing frames
+              const processFrame = async () => {
+                if (!open) return;
+                
+                if (videoRef.current && canvasRef.current) {
+                  const code = await detectQRCode(videoRef.current, canvasRef.current);
+                  if (code) {
+                    setScanning(true);
+                    // Add a short delay to show scanning animation
+                    setTimeout(() => {
+                      onScan(code);
+                      setScanning(false);
+                      onClose();
+                    }, 500);
+                    return;
+                  }
+                }
+                
+                // Continue processing frames
+                frameProcessorRef.current = requestAnimationFrame(processFrame);
+              };
+              
+              // Start processing
+              logStatus('Starting frame processing');
+              frameProcessorRef.current = requestAnimationFrame(processFrame);
+              setCameraLoading(false);
+            } catch (playError) {
+              logStatus(`Error playing video: ${playError}`);
+              setError(`Error starting camera: ${playError instanceof Error ? playError.message : String(playError)}`);
+              setCameraLoading(false);
             }
-            
-            // Continue processing frames
-            frameProcessorRef.current = requestAnimationFrame(processFrame);
           };
           
-          // Start processing
-          frameProcessorRef.current = requestAnimationFrame(processFrame);
-          setCameraLoading(false);
+          // Handle video errors
+          videoRef.current.onerror = (videoError) => {
+            logStatus(`Video element error: ${videoError}`);
+            setError("Error with video playback. Please try again.");
+            setCameraLoading(false);
+          };
         }
       } catch (err) {
         console.error('Error accessing camera:', err);
@@ -157,40 +226,59 @@ export default function BasicQrScanner({ open, onClose, onScan, title = "Scan QR
     
     try {
       // Request opposite camera type
+      logStatus('Switching camera');
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: usingFallback ? 'environment' : 'user' }
+        video: { 
+          facingMode: usingFallback ? 'environment' : 'user',
+          width: { ideal: 1280 },
+          height: { ideal: 720 }
+        }
       });
       
       mediaStreamRef.current = stream;
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
-        await videoRef.current.play();
         
-        // Start processing frames again
-        const processFrame = async () => {
-          if (!open) return;
-          
-          if (videoRef.current && canvasRef.current) {
-            const code = await detectQRCode(videoRef.current, canvasRef.current);
-            if (code) {
-              setScanning(true);
-              setTimeout(() => {
-                onScan(code);
-                setScanning(false);
-                onClose();
-              }, 500);
-              return;
+        // Wait for the video to be ready
+        videoRef.current.onloadedmetadata = async () => {
+          try {
+            await videoRef.current?.play();
+            
+            // Update canvas dimensions
+            if (canvasRef.current && videoRef.current) {
+              canvasRef.current.width = videoRef.current.videoWidth;
+              canvasRef.current.height = videoRef.current.videoHeight;
             }
+            
+            // Start processing frames again
+            const processFrame = async () => {
+              if (!open) return;
+              
+              if (videoRef.current && canvasRef.current) {
+                const code = await detectQRCode(videoRef.current, canvasRef.current);
+                if (code) {
+                  setScanning(true);
+                  setTimeout(() => {
+                    onScan(code);
+                    setScanning(false);
+                    onClose();
+                  }, 500);
+                  return;
+                }
+              }
+              
+              frameProcessorRef.current = requestAnimationFrame(processFrame);
+            };
+            
+            frameProcessorRef.current = requestAnimationFrame(processFrame);
+            setUsingFallback(!usingFallback);
+            setCameraLoading(false);
+          } catch (playError) {
+            setError(`Error starting camera: ${playError instanceof Error ? playError.message : String(playError)}`);
+            setCameraLoading(false);
           }
-          
-          frameProcessorRef.current = requestAnimationFrame(processFrame);
         };
-        
-        frameProcessorRef.current = requestAnimationFrame(processFrame);
       }
-      
-      setUsingFallback(!usingFallback);
-      setCameraLoading(false);
     } catch (err) {
       console.error('Error switching camera:', err);
       setError(`Couldn't switch camera: ${err instanceof Error ? err.message : String(err)}`);
@@ -205,6 +293,9 @@ export default function BasicQrScanner({ open, onClose, onScan, title = "Scan QR
         {cameraLoading ? (
           <Box display="flex" justifyContent="center" alignItems="center" minHeight="300px">
             <CircularProgress />
+            <Typography variant="body2" sx={{ ml: 2 }}>
+              Accessing camera...
+            </Typography>
           </Box>
         ) : error ? (
           <Alert severity="error" sx={{ mb: 2 }}>
@@ -219,7 +310,8 @@ export default function BasicQrScanner({ open, onClose, onScan, title = "Scan QR
               height: 'auto',
               aspectRatio: '4/3',
               overflow: 'hidden',
-              borderRadius: 1
+              borderRadius: 1,
+              backgroundColor: '#000' // Add black background to make video more visible
             }}>
               <video
                 ref={videoRef}
@@ -231,6 +323,7 @@ export default function BasicQrScanner({ open, onClose, onScan, title = "Scan QR
                 }}
                 playsInline
                 muted
+                autoPlay // Add autoplay attribute
               />
               
               <canvas 
@@ -278,6 +371,12 @@ export default function BasicQrScanner({ open, onClose, onScan, title = "Scan QR
               <Typography variant="body2" color="text.secondary" gutterBottom>
                 Position the QR code in the center of the frame
               </Typography>
+              
+              {!isBarcodeDetectorSupported() && (
+                <Alert severity="warning" sx={{ mb: 2, mt: 1 }}>
+                  Your browser doesn't fully support QR code scanning. Camera feed is shown, but QR detection may not work.
+                </Alert>
+              )}
               
               <Button 
                 onClick={handleSwitchCamera} 
