@@ -15,28 +15,41 @@ export const authOptions: AuthOptions = {
         password: { label: "Password", type: "password" },
       },
       async authorize(credentials, req) {
-        try {
-          if (!credentials?.email || !credentials?.password) {
-            throw new Error("Invalid credentials");
-          }
+        if (!credentials?.email || !credentials?.password) {
+          return null;
+        }
 
+        try {
+          // Check if user exists
           const user = await prisma.user.findUnique({
             where: {
               email: credentials.email,
             },
+            include: {
+              company: true, // Include company data
+              operatorPermissions: true,
+            }
           });
 
-          if (!user || !user?.password) {
-            throw new Error("User not found");
+          if (!user) {
+            return null;
           }
 
-          const isCorrectPassword = await compare(
-            credentials.password,
-            user.password
-          );
+          // If user is a COMPANY, check if it's active
+          if (user.role === UserRole.COMPANY && user.company && !user.company.isActive) {
+            throw new Error("The Company you are accessing is deactivated by your Admin. Contact Admin for reactivation.");
+          }
 
-          if (!isCorrectPassword) {
-            throw new Error("Invalid password");
+          // If user belongs to a company, verify the company's active status
+          if (user.companyId && user.company && !user.company.isActive) {
+            throw new Error("The Company you are accessing is deactivated by your Admin. Contact Admin for reactivation.");
+          }
+
+          // Verify password
+          const passwordsMatch = await compare(credentials.password, user.password);
+
+          if (!passwordsMatch) {
+            return null;
           }
 
           const userAgent = req?.headers?.["user-agent"] || "unknown";
@@ -48,7 +61,7 @@ export const authOptions: AuthOptions = {
             action: ActivityAction.LOGIN,
             details: {
               method: "credentials",
-              device: deviceInfo.type,
+              device: deviceInfo,
               deviceDetails: deviceInfo
             },
             ipAddress: req?.headers?.["x-forwarded-for"]?.toString() || "unknown",
@@ -68,10 +81,8 @@ export const authOptions: AuthOptions = {
 
           return safeUser;
         } catch (error) {
-          console.error("Auth error:", error);
-          // Convert any errors to string messages
-          const message = error instanceof Error ? error.message : "Authentication failed";
-          throw new Error(message);
+          console.error("Authentication error:", error);
+          throw error;
         }
       },
     }),

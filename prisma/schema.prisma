@@ -44,6 +44,11 @@ model Company {
   email     String    @unique
   address   String?
   phone     String?
+  companyType String?  @default("--Others--")
+  gstin     String?
+  logo      String?
+  documents String[]
+  isActive  Boolean   @default(true)
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   sessions  Session[]

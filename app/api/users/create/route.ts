@@ -25,10 +25,34 @@ export const POST = withAuth(
   async (req: NextRequest) => {
     try {
       const session = await getServerSession(authOptions);
-      const body = await req.json();
+      // Check if request is multipart form-data
+      const contentType = req.headers.get("content-type") || "";
+      let body;
+      
+      if (contentType.includes("multipart/form-data")) {
+        // Handle form data
+        const formData = await req.formData();
+        body = Object.fromEntries(formData);
+        
+        // Convert documents from FormData to array
+        const documentEntries = Array.from(formData.entries())
+          .filter(([key]) => key.startsWith('documents['))
+          .map(([_, value]) => value);
+          
+        if (documentEntries.length > 0) {
+          // Create a new body object with the documents array
+          body = {
+            ...body,
+            documents: documentEntries
+          };
+        }
+      } else {
+        // Handle JSON data
+        body = await req.json();
+      }
       
       // Log the request body for debugging
-      console.log("Create user request body:", JSON.stringify(body, null, 2));
+      console.log("Create user request body:", body);
       
       // Validate required fields
       if (!body.email || !body.name || !body.role) {
@@ -85,6 +109,29 @@ export const POST = withAuth(
       // For COMPANY role, create the company first then the user
       if (body.role === UserRole.COMPANY) {
         try {
+          // Process file uploads (logo and documents)
+          let logoUrl = null;
+          let documentUrls: string[] = [];
+          
+          // Process logo if provided
+          if (body.logo && body.logo instanceof File) {
+            // Here you would upload the logo to your file storage service
+            // For now, we'll just store the filename
+            logoUrl = `uploads/logos/${Date.now()}_${body.logo.name}`;
+          }
+          
+          // Process documents if provided
+          if (body.documents) {
+            const docs = Array.isArray(body.documents) ? body.documents : [body.documents];
+            // Here you would upload each document to your file storage service
+            documentUrls = docs.map((doc: FormDataEntryValue, index: number) => {
+              if (doc instanceof File) {
+                return `uploads/documents/${Date.now()}_${index}_${doc.name}`;
+              }
+              return "";
+            }).filter(Boolean);
+          }
+          
           // First create the company
           const company = await prisma.company.create({
             data: {
@@ -92,6 +139,11 @@ export const POST = withAuth(
               email: body.email,
               address: body.companyAddress || "",
               phone: body.companyPhone || "",
+              companyType: body.companyType || "--Others--",
+              gstin: body.gstin || null,
+              logo: logoUrl,
+              documents: documentUrls,
+              isActive: true
             }
           });
           
@@ -249,17 +301,12 @@ export const POST = withAuth(
                 canDelete: body.permissions.canDelete !== undefined ? body.permissions.canDelete : false,
               };
               
-              // Create the permissions in the database
-              const createdPermissions = await prisma.operatorPermissions.create({
+              await prisma.operatorPermissions.create({
                 data: permissionsToCreate
               });
-              
-              console.log(`Created operator permissions for user ${newUser.id}:`, JSON.stringify(createdPermissions));
-            } catch (err) {
-              console.error("Error creating operator permissions:", err);
-              // Don't fail the whole request if permissions creation fails
-              // We'll just use the defaults, but log the error for debugging
-              console.error("Failed to create permissions for operator. User ID:", newUser.id);
+            } catch (permErr) {
+              console.error("Failed to create permissions for operator, but user was created:", permErr);
+              // Don't throw error here, just log it and continue (user is already created)
             }
           }
         }

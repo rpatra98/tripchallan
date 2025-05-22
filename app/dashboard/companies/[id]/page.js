@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-options";
 import prisma from "@/lib/prisma";
 import Link from "next/link";
+import CompanyActions from "./company-actions";
 
 // Force dynamic rendering to bypass caching issues
 export const dynamic = 'force-dynamic';
@@ -72,6 +73,7 @@ export default async function CompanyDetailPage({ params }) {
             createdAt: companyUser.createdAt,
             coins: companyUser.coins,
             companyId: companyUser.companyId,
+            isActive: true, // Default to true for legacy data
             _synthetic: true,
           };
         }
@@ -144,13 +146,24 @@ export default async function CompanyDetailPage({ params }) {
             <Link href="/dashboard" className="text-blue-600 hover:underline mb-4 inline-block">
               &larr; Back to Dashboard
             </Link>
-            <h1 className="text-2xl font-bold">{company.name}</h1>
-            <p className="text-gray-600">{company.email}</p>
-            {company._synthetic && (
-              <p className="text-amber-600 text-sm mt-1">
-                Note: Using company user data, actual company record may be missing
-              </p>
-            )}
+            <div className="flex justify-between items-center">
+              <div>
+                <h1 className="text-2xl font-bold">{company.name}</h1>
+                <p className="text-gray-600">{company.email}</p>
+                {company._synthetic && (
+                  <p className="text-amber-600 text-sm mt-1">
+                    Note: Using company user data, actual company record may be missing
+                  </p>
+                )}
+              </div>
+              <div className="flex items-center">
+                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                  company.isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                }`}>
+                  {company.isActive ? 'Active' : 'Inactive'}
+                </span>
+              </div>
+            </div>
           </div>
 
           <div className="bg-white shadow-md rounded-lg p-6 mb-8">
@@ -168,6 +181,24 @@ export default async function CompanyDetailPage({ params }) {
                 <p className="text-gray-600">Created</p>
                 <p>{new Date(company.createdAt).toLocaleDateString()}</p>
               </div>
+              <div>
+                <p className="text-gray-600">Company Type</p>
+                <p>{company.companyType || "--Others--"}</p>
+              </div>
+              {company.gstin && (
+                <div>
+                  <p className="text-gray-600">GSTIN</p>
+                  <p>{company.gstin}</p>
+                </div>
+              )}
+            </div>
+
+            <div className="mt-6">
+              <CompanyActions 
+                companyId={company.id} 
+                companyName={company.name}
+                isActive={company.isActive || true}
+              />
             </div>
           </div>
 
@@ -242,13 +273,24 @@ export default async function CompanyDetailPage({ params }) {
           <Link href="/dashboard" className="text-blue-600 hover:underline mb-4 inline-block">
             &larr; Back to Dashboard
           </Link>
-          <h1 className="text-2xl font-bold">{company.name}</h1>
-          <p className="text-gray-600">{company.email}</p>
-          {company._synthetic && (
-            <p className="text-amber-600 text-sm mt-1">
-              Note: Using company user data, actual company record may be missing
-            </p>
-          )}
+          <div className="flex justify-between items-center">
+            <div>
+              <h1 className="text-2xl font-bold">{company.name}</h1>
+              <p className="text-gray-600">{company.email}</p>
+              {company._synthetic && (
+                <p className="text-amber-600 text-sm mt-1">
+                  Note: Using company user data, actual company record may be missing
+                </p>
+              )}
+            </div>
+            <div className="flex items-center">
+              <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                company.isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+              }`}>
+                {company.isActive ? 'Active' : 'Inactive'}
+              </span>
+            </div>
+          </div>
         </div>
 
         <div className="bg-white shadow-md rounded-lg p-6 mb-8">
@@ -266,6 +308,24 @@ export default async function CompanyDetailPage({ params }) {
               <p className="text-gray-600">Created</p>
               <p>{new Date(company.createdAt).toLocaleDateString()}</p>
             </div>
+            <div>
+              <p className="text-gray-600">Company Type</p>
+              <p>{company.companyType || "--Others--"}</p>
+            </div>
+            {company.gstin && (
+              <div>
+                <p className="text-gray-600">GSTIN</p>
+                <p>{company.gstin}</p>
+              </div>
+            )}
+          </div>
+
+          <div className="mt-6">
+            <CompanyActions 
+              companyId={company.id} 
+              companyName={company.name}
+              isActive={company.isActive || true}
+            />
           </div>
         </div>
 
@@ -327,12 +387,12 @@ export default async function CompanyDetailPage({ params }) {
       </div>
     );
   } catch (error) {
-    console.error("Error in company details page:", error);
+    console.error("Error in CompanyDetailPage:", error);
     return (
       <div className="container mx-auto px-4 py-8 bg-red-50 p-6 rounded-lg">
         <h1 className="text-2xl font-bold text-red-700">Error</h1>
-        <p className="mt-2">An error occurred while trying to fetch company details.</p>
-        <p className="mt-2 text-red-500">{error instanceof Error ? error.message : String(error)}</p>
+        <p className="mt-2">An error occurred while fetching the company details.</p>
+        <p className="mt-2 text-red-500">{error.message}</p>
         <div className="mt-4">
           <Link href="/dashboard" className="text-blue-600 hover:underline">
             &larr; Go back to Dashboard
