@@ -95,6 +95,18 @@ cbums/
 - **Company**: Can view and manage assigned Employees
 - **Employee**: Can view their profile and coin transactions
 
+## Company Fields
+
+Companies in CBUMS now include additional fields:
+
+- **Company Type**: Classification of the company (Manufacturing, Trade/Retail, Services, etc.)
+- **GSTIN**: GST Identification Number for tax purposes
+- **Logo**: Company logo image
+- **Documents**: Multiple document uploads for company verification
+- **Active Status**: Companies can be activated/deactivated by admins
+
+These fields help with better organization and management of companies in the system.
+
 ## License
 
 [MIT](LICENSE)
