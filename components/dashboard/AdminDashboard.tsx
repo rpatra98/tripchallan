@@ -100,10 +100,10 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
       
       const data = await response.json();
       console.log("Fetched company data:", data);
-      // Make sure isActive is properly handled (default to true if not provided)
+      // Make sure isActive is explicitly a boolean
       const enhancedData = data.map((company: CompanyData) => ({
         ...company,
-        isActive: company.isActive === undefined ? true : company.isActive
+        isActive: Boolean(company.isActive)
       }));
       setCompanies(enhancedData);
     } catch (err) {
@@ -408,9 +408,9 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
                             {company.name}
                           </Typography>
                           <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                            company.isActive !== false ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                            company.isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
                           }`}>
-                            {company.isActive !== false ? 'Active' : 'Inactive'}
+                            {company.isActive ? 'Active' : 'Inactive'}
                           </span>
                         </Box>
                         <Typography variant="body2" color="text.secondary" gutterBottom>
