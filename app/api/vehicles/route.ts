@@ -103,6 +103,7 @@ export async function POST(request: NextRequest) {
         model: data.model || null,
         manufacturer: data.manufacturer || null,
         yearOfMake: data.yearOfMake ? parseInt(data.yearOfMake) : null,
+        registrationCertificate: data.registrationCertificate || null,
         status: VehicleStatus.ACTIVE,
         company: { connect: { id: session.user.companyId } },
         createdBy: { connect: { id: session.user.id } },

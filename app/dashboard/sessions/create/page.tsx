@@ -390,12 +390,16 @@ export default function CreateSessionPage() {
   // Handle creating a new vehicle
   const createNewVehicle = async (vehicleNumber: string) => {
     try {
+      // Include RC data from the loading details
       const response = await fetch('/api/vehicles', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ numberPlate: vehicleNumber }),
+        body: JSON.stringify({ 
+          numberPlate: vehicleNumber,
+          registrationCertificate: loadingDetails.registrationCertificate || null
+        }),
       });
       
       if (!response.ok) {

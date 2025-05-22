@@ -13,9 +13,11 @@ import {
   IconButton,
   FormHelperText,
   Typography,
-  SelectChangeEvent
+  SelectChangeEvent,
+  Box,
+  Input
 } from '@mui/material';
-import { Close } from '@mui/icons-material';
+import { Close, CloudUpload } from '@mui/icons-material';
 import { VehicleStatus } from '@/prisma/enums';
 
 interface VehicleFormProps {
@@ -33,6 +35,8 @@ export interface VehicleFormData {
   manufacturer?: string;
   yearOfMake?: string;
   status?: VehicleStatus;
+  registrationCertificate?: string;
+  registrationCertificateDoc?: File | null;
 }
 
 const VehicleForm: React.FC<VehicleFormProps> = ({
@@ -47,7 +51,9 @@ const VehicleForm: React.FC<VehicleFormProps> = ({
     model: '',
     manufacturer: '',
     yearOfMake: '',
-    status: VehicleStatus.ACTIVE
+    status: VehicleStatus.ACTIVE,
+    registrationCertificate: '',
+    registrationCertificateDoc: null
   });
   
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -62,7 +68,9 @@ const VehicleForm: React.FC<VehicleFormProps> = ({
         model: initialData.model || '',
         manufacturer: initialData.manufacturer || '',
         yearOfMake: initialData.yearOfMake || '',
-        status: initialData.status || VehicleStatus.ACTIVE
+        status: initialData.status || VehicleStatus.ACTIVE,
+        registrationCertificate: initialData.registrationCertificate || '',
+        registrationCertificateDoc: initialData.registrationCertificateDoc || null
       });
     } else {
       // Reset form when adding a new vehicle
@@ -71,7 +79,9 @@ const VehicleForm: React.FC<VehicleFormProps> = ({
         model: '',
         manufacturer: '',
         yearOfMake: '',
-        status: VehicleStatus.ACTIVE
+        status: VehicleStatus.ACTIVE,
+        registrationCertificate: '',
+        registrationCertificateDoc: null
       });
     }
     
@@ -94,6 +104,25 @@ const VehicleForm: React.FC<VehicleFormProps> = ({
           return newErrors;
         });
       }
+    }
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files?.length) return;
+    
+    const file = e.target.files[0];
+    setFormData(prev => ({ 
+      ...prev, 
+      registrationCertificateDoc: file 
+    }));
+    
+    // Clear error for this field when user uploads a file
+    if (errors.registrationCertificateDoc) {
+      setErrors(prev => {
+        const newErrors = { ...prev };
+        delete newErrors.registrationCertificateDoc;
+        return newErrors;
+      });
     }
   };
   
@@ -202,6 +231,51 @@ const VehicleForm: React.FC<VehicleFormProps> = ({
             helperText={errors.yearOfMake || 'Year the vehicle was manufactured'}
             disabled={isSubmitting}
           />
+          
+          <TextField
+            name="registrationCertificate"
+            label="Registration Certificate (RC)"
+            fullWidth
+            margin="normal"
+            value={formData.registrationCertificate}
+            onChange={handleChange}
+            error={!!errors.registrationCertificate}
+            helperText={errors.registrationCertificate}
+            disabled={isSubmitting}
+          />
+          
+          <Box sx={{ mt: 2, mb: 2 }}>
+            <Typography variant="body2" color="text.secondary" gutterBottom>
+              Upload RC Document
+            </Typography>
+            <label htmlFor="rc-document-upload">
+              <Input
+                id="rc-document-upload"
+                type="file"
+                inputProps={{ 
+                  accept: 'image/*,.pdf' 
+                }}
+                onChange={handleFileChange}
+                style={{ display: 'none' }}
+              />
+              <Button
+                variant="outlined"
+                component="span"
+                startIcon={<CloudUpload />}
+                disabled={isSubmitting}
+              >
+                Upload
+              </Button>
+            </label>
+            {formData.registrationCertificateDoc && (
+              <Typography variant="caption" component="p" sx={{ mt: 1 }}>
+                Selected: {formData.registrationCertificateDoc.name}
+              </Typography>
+            )}
+            {errors.registrationCertificateDoc && (
+              <FormHelperText error>{errors.registrationCertificateDoc}</FormHelperText>
+            )}
+          </Box>
           
           {isEditing && (
             <FormControl fullWidth margin="normal">

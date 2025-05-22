@@ -141,18 +141,19 @@ model OperatorPermissions {
 }
 
 model Vehicle {
-  id            String        @id @default(uuid())
-  numberPlate   String        @unique
-  model         String?
-  manufacturer  String?
-  yearOfMake    Int?
-  status        VehicleStatus @default(ACTIVE)
-  companyId     String
-  createdById   String
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
-  company       Company       @relation(fields: [companyId], references: [id])
-  createdBy     User          @relation("VehicleCreatedBy", fields: [createdById], references: [id])
+  id                   String        @id @default(uuid())
+  numberPlate          String        @unique
+  model                String?
+  manufacturer         String?
+  yearOfMake           Int?
+  registrationCertificate String?
+  status               VehicleStatus @default(ACTIVE)
+  companyId            String
+  createdById          String
+  createdAt            DateTime      @default(now())
+  updatedAt            DateTime      @updatedAt
+  company              Company       @relation(fields: [companyId], references: [id])
+  createdBy            User          @relation("VehicleCreatedBy", fields: [createdById], references: [id])
 
   @@map("vehicles")
 }

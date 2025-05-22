@@ -10,6 +10,7 @@ import VehicleForm, { VehicleFormData } from "../vehicles/VehicleForm";
 import { useSession } from "next-auth/react";
 import { SessionUpdateContext } from "@/app/dashboard/layout";
 import { EmployeeSubrole } from "@/prisma/enums";
+import { Snackbar, Alert } from "@mui/material";
 
 export default function EmployeeDashboard({ user }: EmployeeDashboardProps) {
   const [activeTab, setActiveTab] = useState("profile");
@@ -33,7 +34,37 @@ export default function EmployeeDashboard({ user }: EmployeeDashboardProps) {
     canModify: false,
     canDelete: false
   });
-  
+
+  // Add snackbar state
+  const [snackbar, setSnackbar] = useState({
+    open: false,
+    message: "",
+    severity: "success" as "success" | "error" | "info" | "warning"
+  });
+
+  // Handle snackbar close
+  const handleSnackbarClose = () => {
+    setSnackbar({...snackbar, open: false});
+  };
+
+  // Show success message
+  const showSuccessMessage = (message: string) => {
+    setSnackbar({
+      open: true,
+      message,
+      severity: "success"
+    });
+  };
+
+  // Show error message
+  const showErrorMessage = (message: string) => {
+    setSnackbar({
+      open: true,
+      message,
+      severity: "error"
+    });
+  };
+
   // Format the subrole for display
   const formattedSubrole = user.subrole ? String(user.subrole).toLowerCase().replace('_', ' ') : '';
   
@@ -337,10 +368,11 @@ export default function EmployeeDashboard({ user }: EmployeeDashboardProps) {
       // Refresh the vehicles list
       fetchVehicles();
       
-      alert("Vehicle deactivated successfully");
+      // Show success message instead of alert
+      showSuccessMessage("Vehicle deactivated successfully");
     } catch (err) {
       console.error("Error deactivating vehicle:", err);
-      alert(err instanceof Error ? err.message : "Failed to deactivate vehicle. Please try again.");
+      showErrorMessage(err instanceof Error ? err.message : "Failed to deactivate vehicle. Please try again.");
     }
   };
 
@@ -362,10 +394,12 @@ export default function EmployeeDashboard({ user }: EmployeeDashboardProps) {
       
       // Refresh vehicles list
       fetchVehicles();
-      alert('Vehicle added successfully');
+      
+      // Show success message instead of alert
+      showSuccessMessage('Vehicle added successfully');
     } catch (err) {
       console.error('Error adding vehicle:', err);
-      alert(err instanceof Error ? err.message : 'Failed to add vehicle. Please try again.');
+      showErrorMessage(err instanceof Error ? err.message : 'Failed to add vehicle. Please try again.');
       throw err; // Re-throw to prevent dialog from closing
     }
   };
@@ -373,7 +407,7 @@ export default function EmployeeDashboard({ user }: EmployeeDashboardProps) {
   // Handle updating a vehicle
   const handleUpdateVehicle = async (data: VehicleFormData) => {
     if (!data.id) {
-      alert('Cannot update vehicle: Missing ID');
+      showErrorMessage('Cannot update vehicle: Missing ID');
       return;
     }
     
@@ -393,10 +427,12 @@ export default function EmployeeDashboard({ user }: EmployeeDashboardProps) {
       
       // Refresh vehicles list
       fetchVehicles();
-      alert('Vehicle updated successfully');
+      
+      // Show success message instead of alert
+      showSuccessMessage('Vehicle updated successfully');
     } catch (err) {
       console.error('Error updating vehicle:', err);
-      alert(err instanceof Error ? err.message : 'Failed to update vehicle. Please try again.');
+      showErrorMessage(err instanceof Error ? err.message : 'Failed to update vehicle. Please try again.');
       throw err; // Re-throw to prevent dialog from closing
     }
   };
@@ -1173,6 +1209,17 @@ export default function EmployeeDashboard({ user }: EmployeeDashboardProps) {
         initialData={editingVehicle}
         isEditing={!!editingVehicle}
       />
+
+      {/* Snackbar */}
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={6000}
+        onClose={handleSnackbarClose}
+      >
+        <Alert onClose={handleSnackbarClose} severity={snackbar.severity}>
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
     </div>
   );
 } 
