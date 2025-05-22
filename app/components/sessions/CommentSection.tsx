@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { 
   Box, 
   Typography, 
@@ -12,9 +12,17 @@ import {
   Avatar, 
   Divider,
   CircularProgress,
-  Paper
+  Paper,
+  IconButton,
+  Tooltip
 } from "@mui/material";
-import { Comment, Send } from "@mui/icons-material";
+import { 
+  Comment, 
+  Send, 
+  Photo, 
+  Close,
+  PhotoCamera
+} from "@mui/icons-material";
 import { UserRole } from "@/prisma/enums";
 
 type UserType = {
@@ -27,6 +35,7 @@ type UserType = {
 type CommentType = {
   id: string;
   message: string;
+  imageUrl?: string | null;
   createdAt: string;
   user: UserType;
 };
@@ -42,6 +51,9 @@ export default function CommentSection({ sessionId }: CommentSectionProps) {
   const [isFetching, setIsFetching] = useState(true);
   const [error, setError] = useState("");
   const [loadFailed, setLoadFailed] = useState(false);
+  const [selectedImage, setSelectedImage] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const fetchComments = useCallback(async () => {
     if (!sessionId) {
@@ -81,33 +93,90 @@ export default function CommentSection({ sessionId }: CommentSectionProps) {
     }
   }, [sessionId, fetchComments]);
 
+  // Handle image selection
+  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files || e.target.files.length === 0) {
+      return;
+    }
+
+    const file = e.target.files[0];
+    setSelectedImage(file);
+
+    // Create and set image preview URL
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setImagePreview(reader.result as string);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  // Remove selected image
+  const handleRemoveImage = () => {
+    setSelectedImage(null);
+    setImagePreview(null);
+    // Reset file input
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
   const handleSendComment = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!message.trim()) return;
+    if (!message.trim() && !selectedImage) {
+      return; // Require either message or image
+    }
     
     setIsLoading(true);
     setError("");
-    
+
     try {
-      const response = await fetch("/api/comments", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          sessionId,
-          message: message.trim(),
-        }),
-      });
-      
-      if (!response.ok) {
-        throw new Error("Failed to add comment");
+      // Create FormData if there's an image
+      if (selectedImage) {
+        const formData = new FormData();
+        formData.append("sessionId", sessionId);
+        formData.append("message", message.trim() || ""); // Use empty string if no message
+        formData.append("image", selectedImage);
+
+        const response = await fetch("/api/comments", {
+          method: "POST",
+          body: formData,
+        });
+
+        if (!response.ok) {
+          throw new Error("Failed to add comment");
+        }
+
+        const newComment = await response.json();
+        setComments((prev) => [newComment, ...prev]);
+      } else {
+        // Standard JSON request for text-only comments
+        const response = await fetch("/api/comments", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            sessionId,
+            message: message.trim(),
+          }),
+        });
+
+        if (!response.ok) {
+          throw new Error("Failed to add comment");
+        }
+
+        const newComment = await response.json();
+        setComments((prev) => [newComment, ...prev]);
       }
-      
-      const newComment = await response.json();
-      setComments((prev) => [newComment, ...prev]);
+
+      // Reset form
       setMessage("");
+      setSelectedImage(null);
+      setImagePreview(null);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
     } catch (err) {
       console.error("Error adding comment:", err);
       setError("Failed to add comment");
@@ -163,12 +232,61 @@ export default function CommentSection({ sessionId }: CommentSectionProps) {
           disabled={isLoading}
           sx={{ mb: 2 }}
         />
-        <Box sx={{ display: "flex", justifyContent: "flex-end" }}>
+
+        {/* Image preview area */}
+        {imagePreview && (
+          <Box sx={{ position: 'relative', width: 'fit-content', mt: 1, mb: 2 }}>
+            <img 
+              src={imagePreview} 
+              alt="Selected" 
+              style={{ 
+                maxWidth: '100%', 
+                maxHeight: '200px', 
+                borderRadius: '4px' 
+              }} 
+            />
+            <IconButton
+              size="small"
+              sx={{ 
+                position: 'absolute', 
+                top: -12, 
+                right: -12, 
+                bgcolor: 'white',
+                '&:hover': { bgcolor: 'white' }
+              }}
+              onClick={handleRemoveImage}
+            >
+              <Close fontSize="small" />
+            </IconButton>
+          </Box>
+        )}
+
+        <Box sx={{ display: "flex", justifyContent: "space-between", mb: 2 }}>
+          <input
+            type="file"
+            accept="image/*"
+            style={{ display: 'none' }}
+            id="image-upload"
+            onChange={handleImageSelect}
+            ref={fileInputRef}
+          />
+          <label htmlFor="image-upload">
+            <Tooltip title="Attach image">
+              <IconButton 
+                component="span" 
+                color="primary"
+                disabled={isLoading}
+              >
+                <PhotoCamera />
+              </IconButton>
+            </Tooltip>
+          </label>
+          
           <Button
             type="submit"
             variant="contained"
             color="primary"
-            disabled={!message.trim() || isLoading}
+            disabled={(!(message.trim() || selectedImage)) || isLoading}
             endIcon={isLoading ? <CircularProgress size={20} /> : <Send />}
           >
             Send
@@ -226,6 +344,22 @@ export default function CommentSection({ sessionId }: CommentSectionProps) {
                       >
                         {comment.message}
                       </Typography>
+                      
+                      {/* Display image if present */}
+                      {comment.imageUrl && (
+                        <Box sx={{ mt: 1 }}>
+                          <img 
+                            src={comment.imageUrl} 
+                            alt="Comment attachment" 
+                            style={{ 
+                              maxWidth: '100%', 
+                              maxHeight: '300px',
+                              borderRadius: '4px'
+                            }} 
+                          />
+                        </Box>
+                      )}
+                      
                       <Typography
                         component="span"
                         variant="caption"

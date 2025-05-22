@@ -90,4 +90,18 @@ export function truncateText(text: string, maxLength: number = 100): string {
  */
 export function deepClone<T>(obj: T): T {
   return JSON.parse(JSON.stringify(obj));
+}
+
+/**
+ * Converts a File object to a base64 string
+ * @param file The File to convert
+ * @returns Promise resolving to base64 string
+ */
+export function fileToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = error => reject(error);
+  });
 } 
