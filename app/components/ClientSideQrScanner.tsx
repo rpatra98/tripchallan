@@ -1,8 +1,8 @@
 'use client';
 
 import React, { useState, useCallback } from 'react';
-import { Button, Dialog, DialogTitle, DialogContent, DialogActions, Typography, IconButton, Alert, Box } from '@mui/material';
-import { Close, Cameraswitch } from '@mui/icons-material';
+import { Button, Dialog, DialogTitle, DialogContent, DialogActions, Typography, IconButton, Alert, Box, Divider, Stack } from '@mui/material';
+import { Close, Cameraswitch, FlashOn, FlashOff, Upload } from '@mui/icons-material';
 import { Html5Qrcode } from 'html5-qrcode';
 
 interface ClientSideQrScannerProps {
@@ -89,9 +89,13 @@ const QrScannerDialog: React.FC<QrScannerDialogProps> = ({
   const [cameras, setCameras] = useState<Array<{ id: string; label: string }>>([]);
   const [currentCameraIndex, setCurrentCameraIndex] = useState(0);
   const [isScanning, setIsScanning] = useState(false);
+  const [torchAvailable, setTorchAvailable] = useState(false);
+  const [torchActive, setTorchActive] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
   
   const scannerRef = React.useRef<any>(null);
   const scannerContainerId = "html5-qrcode-scanner";
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
   
   React.useEffect(() => {
     let scanner: any = null;
@@ -114,12 +118,30 @@ const QrScannerDialog: React.FC<QrScannerDialogProps> = ({
           
           // Start with the first camera (usually back camera after sorting)
           await startScanner(scanner, sortedDevices[0].id);
+          
+          // Check if torch is available
+          checkTorchAvailability();
         } else {
           setError("No camera found. Please make sure your camera is connected and you've granted permission to use it.");
         }
       } catch (err) {
         console.error('Error initializing scanner:', err);
         setError("Could not access camera. Please ensure camera permissions are granted.");
+      }
+    };
+    
+    // Check if torch/flashlight is available
+    const checkTorchAvailability = async () => {
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getSupportedConstraints) {
+        setTorchAvailable(false);
+        return;
+      }
+      
+      const supportedConstraints = navigator.mediaDevices.getSupportedConstraints();
+      if (supportedConstraints && (supportedConstraints as any)['torch']) {
+        setTorchAvailable(true);
+      } else {
+        setTorchAvailable(false);
       }
     };
     
@@ -277,6 +299,9 @@ const QrScannerDialog: React.FC<QrScannerDialogProps> = ({
       const scanner = new Html5Qrcode(scannerContainerId);
       scannerRef.current = scanner;
       
+      // Reset torch state when switching camera
+      setTorchActive(false);
+      
       // Start scanner with new camera
       await scanner.start(
         cameras[nextCameraIndex].id,
@@ -294,6 +319,55 @@ const QrScannerDialog: React.FC<QrScannerDialogProps> = ({
       setError("Failed to switch camera. Please try again.");
       handleRetry();
     }
+  };
+  
+  const toggleTorch = async () => {
+    if (!scannerRef.current) return;
+    
+    try {
+      // Get current track
+      const videoStream = scannerRef.current['getRunningTrackFromCamera']();
+      if (!videoStream) return;
+      
+      // Attempt to toggle torch
+      if (torchActive) {
+        await videoStream.applyConstraints({
+          advanced: [{ torch: false }]
+        });
+        setTorchActive(false);
+      } else {
+        await videoStream.applyConstraints({
+          advanced: [{ torch: true }]
+        });
+        setTorchActive(true);
+      }
+    } catch (err) {
+      console.error('Error toggling torch:', err);
+      setError("Failed to toggle flashlight. Your device may not support this feature.");
+      setTorchActive(false);
+    }
+  };
+  
+  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    
+    setUploadError(null);
+    
+    // Create a new scanner if needed
+    if (!scannerRef.current) {
+      scannerRef.current = new Html5Qrcode(scannerContainerId);
+    }
+    
+    // Scan the file
+    scannerRef.current.scanFile(file, true)
+      .then((decodedText: string) => {
+        onScan(decodedText);
+      })
+      .catch((error: any) => {
+        console.error("Error scanning file:", error);
+        setUploadError("Could not scan the image. Make sure it contains a valid QR code or barcode.");
+      });
   };
   
   return (
@@ -325,6 +399,16 @@ const QrScannerDialog: React.FC<QrScannerDialogProps> = ({
           </Alert>
         )}
         
+        {uploadError && (
+          <Alert 
+            severity="error" 
+            sx={{ mb: 2 }}
+            onClose={() => setUploadError(null)}
+          >
+            {uploadError}
+          </Alert>
+        )}
+        
         <Box 
           id={scannerContainerId} 
           sx={{ 
@@ -348,17 +432,54 @@ const QrScannerDialog: React.FC<QrScannerDialogProps> = ({
             Your browser might not fully support QR scanning. Try using Google Chrome for best experience.
           </Typography>
         </Box>
+        
+        <Divider sx={{ my: 2 }} />
+        
+        <Box sx={{ mt: 2 }}>
+          <Typography variant="subtitle2" gutterBottom>
+            Or upload an image containing a QR code/barcode:
+          </Typography>
+          <input
+            type="file"
+            accept="image/*"
+            onChange={handleFileUpload}
+            style={{ display: 'none' }}
+            ref={fileInputRef}
+          />
+          <Button
+            variant="outlined"
+            startIcon={<Upload />}
+            onClick={() => fileInputRef.current?.click()}
+            fullWidth
+            sx={{ mt: 1 }}
+          >
+            Upload Image
+          </Button>
+        </Box>
       </DialogContent>
       
       <DialogActions sx={{ justifyContent: 'space-between', px: 3, pb: 2 }}>
-        {cameras.length > 1 && (
-          <Button 
-            startIcon={<Cameraswitch />} 
-            onClick={handleSwitchCamera}
-          >
-            Switch Camera
-          </Button>
-        )}
+        <Stack direction="row" spacing={1}>
+          {cameras.length > 1 && (
+            <Button 
+              startIcon={<Cameraswitch />} 
+              onClick={handleSwitchCamera}
+              size="small"
+            >
+              Switch Camera
+            </Button>
+          )}
+          
+          {torchAvailable && (
+            <Button
+              startIcon={torchActive ? <FlashOff /> : <FlashOn />}
+              onClick={toggleTorch}
+              size="small"
+            >
+              {torchActive ? 'Turn Off Flash' : 'Turn On Flash'}
+            </Button>
+          )}
+        </Stack>
         <Button onClick={onClose} color="primary">
           Cancel
         </Button>

@@ -475,9 +475,9 @@ export default function CreateSessionPage() {
         newErrors.sealTagIds = "Maximum of 40 seal tags allowed";
       }
       
-      // Check for minimum number of tags (30 recommended, but allowing less for flexibility)
-      if (sealTags.sealTagIds.length < 5) {
-        newErrors.sealTagMinCount = "Recommended to have at least 30 seal tags";
+      // Check for minimum number of tags (minimum 20 required)
+      if (sealTags.sealTagIds.length < 20) {
+        newErrors.sealTagIds = "Minimum of 20 seal tags required";
       }
     } else if (step === 1) {
       // Validate Loading Details
@@ -947,7 +947,7 @@ export default function CreateSessionPage() {
                   Seal Tags
                 </Typography>
                 <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                  Scan or manually enter 30-40 seal tags. Each tag must be unique and will be registered to this session.
+                  Scan or manually enter seal tags. A minimum of 20 seal tags is required. Each tag must be unique and will be registered to this session.
                 </Typography>
                 
                 {error && (
