@@ -3,14 +3,26 @@
 import { useState, useContext, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { EmployeeDashboardProps } from "./types";
-import { Person, AccountCircle, Apartment, LocalAtm, DirectionsCar, CheckCircle } from "@mui/icons-material";
+import { Person, AccountCircle, Apartment, LocalAtm, DirectionsCar, CheckCircle, Delete } from "@mui/icons-material";
 import TransferCoinsForm from "../coins/TransferCoinsForm";
 import TransactionHistory from "../coins/TransactionHistory";
 import VehicleForm, { VehicleFormData } from "../vehicles/VehicleForm";
 import { useSession } from "next-auth/react";
 import { SessionUpdateContext } from "@/app/dashboard/layout";
 import { EmployeeSubrole } from "@/prisma/enums";
-import { Snackbar, Alert } from "@mui/material";
+import { 
+  Snackbar, 
+  Alert, 
+  Dialog, 
+  DialogTitle, 
+  DialogContent, 
+  DialogActions, 
+  Button, 
+  TextField,
+  Typography,
+  IconButton 
+} from "@mui/material";
+import { Close } from "@mui/icons-material";
 
 export default function EmployeeDashboard({ user }: EmployeeDashboardProps) {
   const [activeTab, setActiveTab] = useState("profile");
@@ -34,6 +46,13 @@ export default function EmployeeDashboard({ user }: EmployeeDashboardProps) {
     canModify: false,
     canDelete: false
   });
+
+  // Add state for delete confirmation
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [vehicleToDelete, setVehicleToDelete] = useState<string | null>(null);
+  const [deletePassword, setDeletePassword] = useState("");
+  const [deletePasswordError, setDeletePasswordError] = useState("");
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // Add snackbar state
   const [snackbar, setSnackbar] = useState({
@@ -478,6 +497,89 @@ export default function EmployeeDashboard({ user }: EmployeeDashboardProps) {
     } catch (err) {
       console.error("Error deleting trip:", err);
       alert(err instanceof Error ? err.message : "Failed to delete trip. Please try again.");
+    }
+  };
+
+  // Handle opening the delete confirmation modal
+  const handleDeleteVehicle = (vehicleId: string) => {
+    setVehicleToDelete(vehicleId);
+    setDeletePassword("");
+    setDeletePasswordError("");
+    setDeleteConfirmOpen(true);
+  };
+
+  // Handle closing the delete confirmation modal
+  const handleCloseDeleteConfirm = () => {
+    setDeleteConfirmOpen(false);
+    setVehicleToDelete(null);
+    setDeletePassword("");
+    setDeletePasswordError("");
+  };
+
+  // Handle password input change
+  const handlePasswordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setDeletePassword(e.target.value);
+    if (deletePasswordError) {
+      setDeletePasswordError("");
+    }
+  };
+
+  // Handle confirming the deletion with password
+  const confirmDeleteVehicle = async () => {
+    if (!deletePassword) {
+      setDeletePasswordError("Password is required");
+      return;
+    }
+
+    setIsDeleting(true);
+    
+    try {
+      // Verify the password first
+      const verifyResponse = await fetch('/api/auth/verify-password', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ password: deletePassword }),
+      });
+      
+      if (!verifyResponse.ok) {
+        throw new Error("Incorrect password");
+      }
+      
+      // If password verification is successful, proceed with deletion
+      const deleteResponse = await fetch(`/api/vehicles/${vehicleToDelete}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ 
+          permanent: true, // This indicates permanent deletion instead of deactivation
+        }),
+      });
+      
+      if (!deleteResponse.ok) {
+        const errorData = await deleteResponse.json();
+        throw new Error(errorData.error || "Failed to delete vehicle");
+      }
+      
+      // Close the confirmation dialog
+      handleCloseDeleteConfirm();
+      
+      // Refresh the vehicles list
+      fetchVehicles();
+      
+      // Show success message
+      showSuccessMessage("Vehicle deleted successfully");
+    } catch (err) {
+      console.error("Error deleting vehicle:", err);
+      if (err instanceof Error && err.message === "Incorrect password") {
+        setDeletePasswordError("Incorrect password");
+      } else {
+        showErrorMessage(err instanceof Error ? err.message : "Failed to delete vehicle. Please try again.");
+      }
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -1032,9 +1134,17 @@ export default function EmployeeDashboard({ user }: EmployeeDashboardProps) {
                                 {operatorPermissions.canDelete && vehicle.status !== 'INACTIVE' && (
                                   <button
                                     onClick={() => handleDeactivateVehicle(vehicle.id)}
-                                    className="text-red-600 hover:text-red-900"
+                                    className="text-yellow-600 hover:text-yellow-900 mr-3"
                                   >
                                     Deactivate
+                                  </button>
+                                )}
+                                {operatorPermissions.canDelete && (
+                                  <button
+                                    onClick={() => handleDeleteVehicle(vehicle.id)}
+                                    className="text-red-600 hover:text-red-900"
+                                  >
+                                    Delete
                                   </button>
                                 )}
                               </td>
@@ -1229,6 +1339,66 @@ export default function EmployeeDashboard({ user }: EmployeeDashboardProps) {
           {snackbar.message}
         </Alert>
       </Snackbar>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog
+        open={deleteConfirmOpen}
+        onClose={!isDeleting ? handleCloseDeleteConfirm : undefined}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            Confirm Vehicle Deletion
+            {!isDeleting && (
+              <IconButton onClick={handleCloseDeleteConfirm} size="small">
+                <Close />
+              </IconButton>
+            )}
+          </div>
+        </DialogTitle>
+        
+        <DialogContent>
+          <Typography variant="body1" gutterBottom>
+            You are about to permanently delete this vehicle. This action cannot be undone.
+          </Typography>
+          
+          <Typography variant="body1" sx={{ mt: 2, mb: 2 }} color="error">
+            For security, please enter your password to confirm deletion:
+          </Typography>
+          
+          <TextField
+            type="password"
+            label="Your Password"
+            fullWidth
+            value={deletePassword}
+            onChange={handlePasswordChange}
+            error={!!deletePasswordError}
+            helperText={deletePasswordError}
+            disabled={isDeleting}
+            autoComplete="current-password"
+            sx={{ mt: 1 }}
+          />
+        </DialogContent>
+        
+        <DialogActions sx={{ px: 3, pb: 3 }}>
+          <Button 
+            onClick={handleCloseDeleteConfirm} 
+            disabled={isDeleting}
+            color="inherit"
+          >
+            Cancel
+          </Button>
+          <Button 
+            onClick={confirmDeleteVehicle} 
+            variant="contained" 
+            color="error"
+            disabled={isDeleting}
+          >
+            {isDeleting ? 'Deleting...' : 'Delete Vehicle'}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </div>
   );
 } 

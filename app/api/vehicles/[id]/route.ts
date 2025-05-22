@@ -129,7 +129,7 @@ export async function PATCH(
   }
 }
 
-// DELETE /api/vehicles/[id] - Delete a vehicle (soft delete by marking as INACTIVE)
+// DELETE /api/vehicles/[id] - Delete a vehicle (soft delete by marking as INACTIVE or hard delete)
 export async function DELETE(
   request: NextRequest,
   { params }: { params: { id: string } }
@@ -153,7 +153,7 @@ export async function DELETE(
       });
       
       if (!permissions?.canDelete) {
-        return NextResponse.json({ error: "You don't have permission to deactivate vehicles" }, { status: 403 });
+        return NextResponse.json({ error: "You don't have permission to deactivate or delete vehicles" }, { status: 403 });
       }
     }
     
@@ -171,18 +171,36 @@ export async function DELETE(
       return NextResponse.json({ error: "Vehicle not found" }, { status: 404 });
     }
     
-    // Instead of hard deleting, mark as INACTIVE (soft delete)
-    const deactivatedVehicle = await prisma.vehicle.update({
-      where: { id: vehicleId },
-      data: { status: VehicleStatus.INACTIVE },
-    });
+    // Check for permanent deletion flag in the request body
+    const requestData = request.headers.get('content-type')?.includes('application/json') 
+      ? await request.json().catch(() => ({})) 
+      : {};
     
-    return NextResponse.json({ 
-      message: "Vehicle deactivated successfully",
-      vehicle: deactivatedVehicle
-    });
+    const isPermanentDelete = requestData.permanent === true;
+    
+    if (isPermanentDelete) {
+      // Hard delete the vehicle from the database
+      await prisma.vehicle.delete({
+        where: { id: vehicleId },
+      });
+      
+      return NextResponse.json({ 
+        message: "Vehicle permanently deleted",
+      });
+    } else {
+      // Soft delete by marking as INACTIVE
+      const deactivatedVehicle = await prisma.vehicle.update({
+        where: { id: vehicleId },
+        data: { status: VehicleStatus.INACTIVE },
+      });
+      
+      return NextResponse.json({ 
+        message: "Vehicle deactivated successfully",
+        vehicle: deactivatedVehicle
+      });
+    }
   } catch (error) {
-    console.error("Error deactivating vehicle:", error);
-    return NextResponse.json({ error: "Failed to deactivate vehicle" }, { status: 500 });
+    console.error("Error handling vehicle delete/deactivate:", error);
+    return NextResponse.json({ error: "Failed to process vehicle deletion request" }, { status: 500 });
   }
 } 
