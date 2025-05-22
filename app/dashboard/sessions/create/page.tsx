@@ -18,7 +18,8 @@ import {
   InputAdornment,
   IconButton,
   FormHelperText,
-  Chip
+  Chip,
+  Autocomplete
 } from "@mui/material";
 import { 
   ArrowBack, 
@@ -224,6 +225,11 @@ export default function CreateSessionPage() {
   const [errorDetails, setErrorDetails] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   
+  // Vehicle data for autocomplete
+  const [vehicles, setVehicles] = useState<Array<{id: string, numberPlate: string, status: string}>>([]);
+  const [loadingVehicles, setLoadingVehicles] = useState(false);
+  const [vehicleError, setVehicleError] = useState("");
+  
   // Step 1: Loading Details (now the first step)
   const [loadingDetails, setLoadingDetails] = useState<LoadingDetailsForm>({
     transporterName: "",
@@ -330,6 +336,134 @@ export default function CreateSessionPage() {
         });
     }
   }, [status, session]);
+
+  // Fetch vehicles for the company
+  useEffect(() => {
+    if (status === "authenticated" && session?.user) {
+      setLoadingVehicles(true);
+      fetch('/api/vehicles')
+        .then(response => response.json())
+        .then(data => {
+          if (data.vehicles) {
+            // Sort vehicles alphabetically by number plate
+            const sortedVehicles = [...data.vehicles].sort((a, b) => 
+              a.numberPlate.localeCompare(b.numberPlate)
+            );
+            setVehicles(sortedVehicles);
+          }
+        })
+        .catch(err => {
+          console.error("Error fetching vehicles:", err);
+          setVehicleError("Could not load vehicle data. You can still enter a vehicle number manually.");
+        })
+        .finally(() => {
+          setLoadingVehicles(false);
+        });
+    }
+  }, [status, session]);
+
+  // Handle creating a new vehicle
+  const createNewVehicle = async (vehicleNumber: string) => {
+    try {
+      const response = await fetch('/api/vehicles', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ numberPlate: vehicleNumber }),
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        if (response.status === 409) {
+          // Vehicle already exists but wasn't in our list (could happen if another operator added it)
+          // We can just continue with the trip
+          console.log("Vehicle already exists in the system, continuing with trip creation");
+          return true;
+        }
+        throw new Error(errorData.error || "Failed to create vehicle record");
+      }
+      
+      const data = await response.json();
+      // Add the new vehicle to our list
+      setVehicles(prev => [...prev, data.vehicle].sort((a, b) => 
+        a.numberPlate.localeCompare(b.numberPlate))
+      );
+      
+      return true;
+    } catch (err) {
+      console.error("Error creating vehicle:", err);
+      // Don't block trip creation if vehicle creation fails
+      return true;
+    }
+  };
+
+  // Specialized handler for vehicle number changes
+  const handleVehicleNumberChange = (event: React.SyntheticEvent, value: string | null) => {
+    // Clear any previous vehicle errors
+    setVehicleError("");
+    
+    if (value) {
+      // Check if vehicle exists and is active
+      const existingVehicle = vehicles.find(v => v.numberPlate === value);
+      
+      if (existingVehicle && existingVehicle.status === "INACTIVE") {
+        setVehicleError("The entered Vehicle number is not Active");
+      }
+      
+      // Update form value regardless of status
+      setLoadingDetails(prev => ({
+        ...prev,
+        vehicleNumber: value,
+        timestamps: {
+          ...prev.timestamps,
+          vehicleNumber: new Date().toISOString()
+        }
+      }));
+      
+      // Clear validation error
+      if (validationErrors.vehicleNumber) {
+        setValidationErrors(prev => {
+          const newErrors = {...prev};
+          delete newErrors.vehicleNumber;
+          return newErrors;
+        });
+      }
+    } else {
+      // Handle clearing the field
+      setLoadingDetails(prev => ({
+        ...prev,
+        vehicleNumber: "",
+        timestamps: {
+          ...prev.timestamps,
+          vehicleNumber: new Date().toISOString()
+        }
+      }));
+    }
+  };
+  
+  // Handle manual input in the vehicle number field
+  const handleVehicleInputChange = (event: React.SyntheticEvent, value: string) => {
+    // Update the form data with the typed value
+    setLoadingDetails(prev => ({
+      ...prev,
+      vehicleNumber: value,
+      timestamps: {
+        ...prev.timestamps,
+        vehicleNumber: new Date().toISOString()
+      }
+    }));
+    
+    // Clear errors
+    setVehicleError("");
+    if (validationErrors.vehicleNumber) {
+      setValidationErrors(prev => {
+        const newErrors = {...prev};
+        delete newErrors.vehicleNumber;
+        return newErrors;
+      });
+    }
+  };
 
   const handleLoadingDetailsChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -599,6 +733,21 @@ export default function CreateSessionPage() {
     setIsSubmitting(true);
 
     try {
+      // Check if we need to create a new vehicle record
+      const vehicleNumber = loadingDetails.vehicleNumber.trim();
+      if (vehicleNumber) {
+        const existingVehicle = vehicles.find(v => v.numberPlate === vehicleNumber);
+        
+        // If the vehicle doesn't exist in our list, create it
+        if (!existingVehicle) {
+          const vehicleCreated = await createNewVehicle(vehicleNumber);
+          if (!vehicleCreated) {
+            // If vehicle creation fails, show an error but don't block trip creation
+            console.warn("Failed to create vehicle record, but continuing with trip creation");
+          }
+        }
+      }
+      
       // Create form data to handle file uploads
       const formData = new FormData();
       
@@ -988,16 +1137,40 @@ export default function CreateSessionPage() {
               </Box>
               
               <Box sx={{ width: { xs: '100%', md: '47%' } }}>
-                <TextField
-                  fullWidth
-                  label="Vehicle Number"
-                  name="vehicleNumber"
+                <Autocomplete
+                  freeSolo
+                  options={vehicles.map(vehicle => vehicle.numberPlate)}
                   value={loadingDetails.vehicleNumber}
-                  onChange={handleLoadingDetailsChange}
-                  required
-                  placeholder="MH02AB1234"
-                  error={!!validationErrors.vehicleNumber}
-                  helperText={validationErrors.vehicleNumber || "Format: MH02AB1234"}
+                  onChange={handleVehicleNumberChange}
+                  onInputChange={handleVehicleInputChange}
+                  renderInput={(params) => (
+                    <TextField
+                      {...params}
+                      fullWidth
+                      label="Vehicle Number"
+                      name="vehicleNumber"
+                      required
+                      placeholder="MH02AB1234"
+                      error={!!validationErrors.vehicleNumber || !!vehicleError}
+                      helperText={
+                        validationErrors.vehicleNumber || 
+                        vehicleError || 
+                        "Format: MH02AB1234"
+                      }
+                      InputProps={{
+                        ...params.InputProps,
+                        endAdornment: (
+                          <>
+                            {loadingVehicles ? <CircularProgress size={20} /> : null}
+                            {params.InputProps.endAdornment}
+                          </>
+                        ),
+                      }}
+                    />
+                  )}
+                  loading={loadingVehicles}
+                  loadingText="Loading vehicles..."
+                  noOptionsText="No vehicles found"
                 />
               </Box>
               
