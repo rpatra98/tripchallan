@@ -30,6 +30,7 @@ interface CompanyData {
     employees: number;
   };
   companyUserId?: string;
+  isActive?: boolean;
 }
 
 interface EmployeeData {
@@ -99,7 +100,12 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
       
       const data = await response.json();
       console.log("Fetched company data:", data);
-      setCompanies(data);
+      // Make sure isActive is properly handled (default to true if not provided)
+      const enhancedData = data.map((company: CompanyData) => ({
+        ...company,
+        isActive: company.isActive === undefined ? true : company.isActive
+      }));
+      setCompanies(enhancedData);
     } catch (err) {
       console.error("Error fetching companies:", err);
       setError(err instanceof Error ? err.message : "Failed to load companies");
@@ -404,12 +410,24 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
                           {company.email}
                         </Typography>
                         <Box mt={2} display="flex" justifyContent="space-between" alignItems="center">
-                          <Chip 
-                            label={`${company._count?.employees || 0} employees`} 
-                            size="small" 
-                            color="primary" 
-                            variant="outlined"
-                          />
+                          <Box display="flex" alignItems="center">
+                            <Chip 
+                              label={`${company._count?.employees || 0} employees`} 
+                              size="small" 
+                              color="primary" 
+                              variant="outlined"
+                              sx={{ mr: 1 }}
+                            />
+                            <Chip
+                              label={company.isActive !== false ? 'Active' : 'Inactive'}
+                              size="small"
+                              color={company.isActive !== false ? 'success' : 'error'}
+                              sx={{ 
+                                bgcolor: company.isActive !== false ? 'rgba(46, 125, 50, 0.1)' : 'rgba(211, 47, 47, 0.1)', 
+                                color: company.isActive !== false ? 'rgb(46, 125, 50)' : 'rgb(211, 47, 47)' 
+                              }}
+                            />
+                          </Box>
                           <Box>
                             <Button 
                               size="small" 
