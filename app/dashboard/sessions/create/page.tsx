@@ -228,7 +228,6 @@ export default function CreateSessionPage() {
   // Vehicle data for autocomplete
   const [vehicles, setVehicles] = useState<Array<{id: string, numberPlate: string, status: string}>>([]);
   const [loadingVehicles, setLoadingVehicles] = useState(false);
-  const [vehicleError, setVehicleError] = useState("");
   
   // Step 1: Loading Details (now the first step)
   const [loadingDetails, setLoadingDetails] = useState<LoadingDetailsForm>({
@@ -354,7 +353,7 @@ export default function CreateSessionPage() {
         })
         .catch(err => {
           console.error("Error fetching vehicles:", err);
-          setVehicleError("Could not load vehicle data. You can still enter a vehicle number manually.");
+          setError("Could not load vehicle data. You can still enter a vehicle number manually.");
         })
         .finally(() => {
           setLoadingVehicles(false);
@@ -401,20 +400,43 @@ export default function CreateSessionPage() {
   // Specialized handler for vehicle number changes
   const handleVehicleNumberChange = (event: React.SyntheticEvent, value: string | null) => {
     // Clear any previous vehicle errors
-    setVehicleError("");
+    setError("");
     
     if (value) {
       // Check if vehicle exists and is active
       const existingVehicle = vehicles.find(v => v.numberPlate === value);
       
       if (existingVehicle && existingVehicle.status === "INACTIVE") {
-        setVehicleError("The entered Vehicle number is not Active");
+        // Set validation error to block form submission
+        setValidationErrors(prev => ({
+          ...prev,
+          vehicleNumber: "The entered Vehicle number is not Active. Please select an active vehicle."
+        }));
+      } else {
+        // Clear validation error if vehicle is active or new
+        if (validationErrors.vehicleNumber) {
+          setValidationErrors(prev => {
+            const newErrors = {...prev};
+            delete newErrors.vehicleNumber;
+            return newErrors;
+          });
+        }
       }
       
       // Update form value regardless of status
       setLoadingDetails(prev => ({
         ...prev,
         vehicleNumber: value,
+        timestamps: {
+          ...prev.timestamps,
+          vehicleNumber: new Date().toISOString()
+        }
+      }));
+    } else {
+      // Handle clearing the field
+      setLoadingDetails(prev => ({
+        ...prev,
+        vehicleNumber: "",
         timestamps: {
           ...prev.timestamps,
           vehicleNumber: new Date().toISOString()
@@ -429,16 +451,6 @@ export default function CreateSessionPage() {
           return newErrors;
         });
       }
-    } else {
-      // Handle clearing the field
-      setLoadingDetails(prev => ({
-        ...prev,
-        vehicleNumber: "",
-        timestamps: {
-          ...prev.timestamps,
-          vehicleNumber: new Date().toISOString()
-        }
-      }));
     }
   };
   
@@ -454,14 +466,35 @@ export default function CreateSessionPage() {
       }
     }));
     
-    // Clear errors
-    setVehicleError("");
-    if (validationErrors.vehicleNumber) {
-      setValidationErrors(prev => {
-        const newErrors = {...prev};
-        delete newErrors.vehicleNumber;
-        return newErrors;
-      });
+    // Check if the entered vehicle exists and is inactive
+    if (value) {
+      const existingVehicle = vehicles.find(v => v.numberPlate === value);
+      
+      if (existingVehicle && existingVehicle.status === "INACTIVE") {
+        // Set validation error to block form submission
+        setValidationErrors(prev => ({
+          ...prev,
+          vehicleNumber: "The entered Vehicle number is not Active. Please select an active vehicle."
+        }));
+      } else {
+        // Clear validation error if vehicle is active or new
+        if (validationErrors.vehicleNumber) {
+          setValidationErrors(prev => {
+            const newErrors = {...prev};
+            delete newErrors.vehicleNumber;
+            return newErrors;
+          });
+        }
+      }
+    } else {
+      // Clear errors when field is empty
+      if (validationErrors.vehicleNumber) {
+        setValidationErrors(prev => {
+          const newErrors = {...prev};
+          delete newErrors.vehicleNumber;
+          return newErrors;
+        });
+      }
     }
   };
 
@@ -615,6 +648,14 @@ export default function CreateSessionPage() {
       
       if (!loadingDetails.vehicleNumber.trim()) {
         newErrors.vehicleNumber = "Vehicle number is required";
+      } else {
+        // Check if the vehicle is inactive
+        const vehicleNumber = loadingDetails.vehicleNumber.trim();
+        const existingVehicle = vehicles.find(v => v.numberPlate === vehicleNumber);
+        
+        if (existingVehicle && existingVehicle.status === "INACTIVE") {
+          newErrors.vehicleNumber = "The entered Vehicle number is not Active. Please select an active vehicle.";
+        }
       }
       
       if (!loadingDetails.gpsImeiNumber) {
@@ -1151,10 +1192,9 @@ export default function CreateSessionPage() {
                       name="vehicleNumber"
                       required
                       placeholder="MH02AB1234"
-                      error={!!validationErrors.vehicleNumber || !!vehicleError}
+                      error={!!validationErrors.vehicleNumber}
                       helperText={
                         validationErrors.vehicleNumber || 
-                        vehicleError || 
                         "Format: MH02AB1234"
                       }
                       InputProps={{
