@@ -1,16 +1,49 @@
 'use client';
 
-import React, { useState, useCallback } from 'react';
-import { Button, Stack, Typography } from '@mui/material';
-import QrCodeScannerIcon from '@mui/icons-material/QrCodeScanner';
-import dynamic from 'next/dynamic';
+import React, { useState, useEffect, useRef } from 'react';
+import { Box, Button, Dialog, DialogTitle, DialogContent, DialogActions, Typography, IconButton, Alert } from '@mui/material';
+import { Close, Cameraswitch } from '@mui/icons-material';
 
-// Types for the QR scanner props
-interface QRScannerProps {
-  open: boolean;
-  onClose: () => void;
-  onScan: (data: string) => void;
-  title?: string;
+// Define interfaces for html5-qrcode since it might not have TypeScript definitions
+interface Html5QrcodeResult {
+  text: string;
+  format: string;
+}
+
+enum Html5QrcodeScannerState {
+  NOT_STARTED = 0,
+  SCANNING = 1,
+  PAUSED = 2
+}
+
+interface Html5QrcodeError {
+  message: string;
+}
+
+// Define formats enum for QR code types
+enum QrCodeFormats {
+  QR_CODE = 0,
+  EAN_13 = 3,
+  CODE_39 = 4,
+  CODE_128 = 5
+}
+
+// Define Html5Qrcode class interface
+interface Html5QrcodeClass {
+  start: (
+    cameraId: string,
+    config: {
+      fps: number;
+      qrbox: { width: number; height: number };
+      aspectRatio: number;
+      formatsToSupport: QrCodeFormats[];
+    },
+    onSuccess: (decodedText: string, result: Html5QrcodeResult) => void,
+    onFailure: (errorMessage: string, error: Html5QrcodeError) => void
+  ) => Promise<void>;
+  stop: () => Promise<void>;
+  getState: () => Html5QrcodeScannerState;
+  clear: () => void;
 }
 
 interface ClientSideQrScannerProps {
@@ -40,63 +73,243 @@ interface ClientSideQrScannerProps {
   buttonVariant?: 'text' | 'outlined' | 'contained';
 }
 
-// Dynamically import the SimpleQrScanner component with no SSR
-const SimpleQrScanner = dynamic(() => import('./SimpleQrScanner'), {
-  ssr: false,
-  loading: () => <div>Loading scanner...</div>
-});
-
 /**
  * ClientSideQrScanner - A wrapper component that provides a button to open the QR scanner
  * and handles the client-side import of the actual scanner component.
  */
-export default function ClientSideQrScanner({
+const ClientSideQrScanner: React.FC<ClientSideQrScannerProps> = ({
   onScan,
-  buttonText = "Scan QR Code",
-  scannerTitle = "Scan QR/Barcode",
-  className,
-  buttonVariant = "contained"
-}: ClientSideQrScannerProps) {
-  // State to control the QR scanner dialog
-  const [showScanner, setShowScanner] = useState(false);
+  buttonText = 'Scan QR Code',
+  scannerTitle = 'Scan QR/Barcode',
+  buttonVariant = 'contained',
+}) => {
+  const [open, setOpen] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [cameras, setCameras] = useState<Array<{ id: string; label: string }>>([]);
+  const [currentCamera, setCurrentCamera] = useState<string | null>(null);
+  const [scannerInitialized, setScannerInitialized] = useState(false);
   
-  // Handler for opening the scanner
-  const handleOpenScanner = useCallback(() => {
-    setShowScanner(true);
+  const scanner = useRef<any>(null);
+  const scannerContainerId = "qr-reader";
+
+  const handleClose = () => {
+    if (scanner.current && scanner.current.getState() === Html5QrcodeScannerState.SCANNING) {
+      scanner.current.stop()
+        .catch((error: Error) => console.error("Error stopping scanner:", error));
+    }
+    setOpen(false);
+    setScannerInitialized(false);
+  };
+
+  const handleOpen = () => {
+    setOpen(true);
+    setError(null);
+  };
+
+  const initializeScanner = async () => {
+    try {
+      setError(null);
+      
+      // Dynamically import html5-qrcode
+      const Html5QrcodeModule = await import('html5-qrcode');
+      const Html5Qrcode = Html5QrcodeModule.Html5Qrcode;
+      
+      if (!scanner.current) {
+        scanner.current = new Html5Qrcode(scannerContainerId);
+      }
+
+      // Get all cameras
+      const devices = await Html5Qrcode.getCameras();
+      
+      if (devices && devices.length > 0) {
+        setCameras(devices);
+        // Set the first camera as default if currentCamera is not set
+        if (!currentCamera) {
+          setCurrentCamera(devices[0].id);
+        }
+        
+        startScanner(currentCamera || devices[0].id);
+      } else {
+        setError("No cameras found. Please ensure camera permissions are granted.");
+      }
+    } catch (err) {
+      console.error("Error initializing scanner:", err);
+      setError("Could not access camera. Please ensure camera permissions are granted and try again.");
+    }
+  };
+
+  const startScanner = async (cameraId: string) => {
+    if (!scanner.current) return;
+    
+    try {
+      // Stop scanner if it's already running
+      if (scanner.current.getState() === Html5QrcodeScannerState.SCANNING) {
+        await scanner.current.stop();
+      }
+      
+      const config = { 
+        fps: 10, 
+        qrbox: { width: 250, height: 250 },
+        aspectRatio: 1.0,
+        formatsToSupport: [
+          QrCodeFormats.QR_CODE,
+          QrCodeFormats.EAN_13,
+          QrCodeFormats.CODE_39,
+          QrCodeFormats.CODE_128
+        ]
+      };
+
+      await scanner.current.start(
+        cameraId, 
+        config,
+        (decodedText: string) => {
+          // On successful scan
+          handleScanSuccess(decodedText);
+        },
+        (errorMessage: string) => {
+          // On error, we don't need to do anything since this callback 
+          // is called frequently when no QR code is in view
+        }
+      );
+      
+      setScannerInitialized(true);
+      setCurrentCamera(cameraId);
+    } catch (err: unknown) {
+      console.error("Error starting scanner:", err);
+      if (err instanceof Error) {
+        setError(`Scanner error: ${err.message}`);
+      } else {
+        setError("Failed to start scanner. Please try again.");
+      }
+    }
+  };
+
+  const switchCamera = async () => {
+    if (cameras.length <= 1) return;
+    
+    const currentIndex = cameras.findIndex(camera => camera.id === currentCamera);
+    const nextIndex = (currentIndex + 1) % cameras.length;
+    
+    startScanner(cameras[nextIndex].id);
+  };
+
+  const handleScanSuccess = (decodedText: string) => {
+    // Stop the scanner
+    if (scanner.current) {
+      scanner.current.stop()
+        .then(() => {
+          // Close the dialog and call the onScan callback
+          setOpen(false);
+          onScan(decodedText);
+        })
+        .catch((error: Error) => {
+          console.error("Error stopping scanner after successful scan:", error);
+        });
+    }
+  };
+
+  // Initialize scanner when dialog opens
+  useEffect(() => {
+    if (open && !scannerInitialized) {
+      // Small timeout to ensure the DOM element is ready
+      const timer = setTimeout(() => {
+        initializeScanner();
+      }, 300);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [open, scannerInitialized]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (scanner.current && scanner.current.getState() === Html5QrcodeScannerState.SCANNING) {
+        scanner.current.stop().catch((err: Error) => console.error("Error stopping scanner on cleanup:", err));
+      }
+    };
   }, []);
-  
-  // Handler for closing the scanner
-  const handleCloseScanner = useCallback(() => {
-    setShowScanner(false);
-  }, []);
-  
-  // Handler for when a QR code is successfully scanned
-  const handleScan = useCallback((data: string) => {
-    onScan(data);
-    setShowScanner(false);
-  }, [onScan]);
-  
+
   return (
     <>
-      <Stack direction="row" spacing={1} alignItems="center" className={className}>
-        <Button
-          variant={buttonVariant}
-          startIcon={<QrCodeScannerIcon />}
-          onClick={handleOpenScanner}
-        >
-          {buttonText}
-        </Button>
-      </Stack>
+      <Button 
+        variant={buttonVariant} 
+        onClick={handleOpen}
+        fullWidth
+        sx={{ height: '56px' }}
+      >
+        {buttonText}
+      </Button>
       
-      {/* Show the QR scanner when needed */}
-      {showScanner && (
-        <SimpleQrScanner
-          open={showScanner}
-          onClose={handleCloseScanner}
-          onScan={handleScan}
-          title={scannerTitle}
-        />
-      )}
+      <Dialog 
+        open={open} 
+        onClose={handleClose} 
+        maxWidth="sm" 
+        fullWidth
+      >
+        <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          {scannerTitle}
+          <IconButton onClick={handleClose} size="small">
+            <Close />
+          </IconButton>
+        </DialogTitle>
+        
+        <DialogContent>
+          {error && (
+            <Alert 
+              severity="error" 
+              sx={{ mb: 2 }}
+              action={
+                <Button color="inherit" size="small" onClick={initializeScanner}>
+                  Try again
+                </Button>
+              }
+            >
+              {error}
+            </Alert>
+          )}
+          
+          <Box 
+            id={scannerContainerId} 
+            sx={{ 
+              width: '100%', 
+              height: 300,
+              display: 'flex',
+              justifyContent: 'center',
+              alignItems: 'center',
+              border: '1px solid #ddd',
+              borderRadius: 1,
+              position: 'relative',
+              overflow: 'hidden'
+            }}
+          />
+          
+          <Box sx={{ mt: 2, textAlign: 'center' }}>
+            <Typography variant="body2" color="text.secondary" gutterBottom>
+              Position the QR code in the center of the frame
+            </Typography>
+            <Typography variant="caption" color="text.secondary">
+              Your browser might not fully support QR scanning. Try using Google Chrome for best experience.
+            </Typography>
+          </Box>
+        </DialogContent>
+        
+        <DialogActions sx={{ justifyContent: 'space-between', px: 3, pb: 2 }}>
+          {cameras.length > 1 && (
+            <Button 
+              startIcon={<Cameraswitch />} 
+              onClick={switchCamera}
+              disabled={!scannerInitialized}
+            >
+              Switch Camera
+            </Button>
+          )}
+          <Button onClick={handleClose} color="primary">
+            Cancel
+          </Button>
+        </DialogActions>
+      </Dialog>
     </>
   );
-} 
+};
+
+export default ClientSideQrScanner; 
