@@ -223,7 +223,15 @@ export default function CreateSessionPage() {
   const [errorDetails, setErrorDetails] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   
-  // Step 1: Loading Details
+  // Step 1: Seal Tags (now the first step)
+  const [sealTags, setSealTags] = useState<SealTagsForm>({
+    sealTagIds: [],
+    sealTagScanned: false,
+    manualSealTagId: "",
+    timestamps: {}
+  });
+  
+  // Step 2: Loading Details (now the second step)
   const [loadingDetails, setLoadingDetails] = useState<LoadingDetailsForm>({
     transporterName: "",
     materialName: "",
@@ -243,14 +251,6 @@ export default function CreateSessionPage() {
     tareWeight: 0,
     netMaterialWeight: 0,
     loaderMobileNumber: "",
-    timestamps: {}
-  });
-
-  // Step 2: Seal Tags
-  const [sealTags, setSealTags] = useState<SealTagsForm>({
-    sealTagIds: [],
-    sealTagScanned: false,
-    manualSealTagId: "",
     timestamps: {}
   });
 
@@ -465,6 +465,20 @@ export default function CreateSessionPage() {
     const newErrors: Record<string, string> = {};
     
     if (step === 0) {
+      // Validate Seal Tags
+      if (sealTags.sealTagIds.length === 0) {
+        newErrors.sealTagIds = "At least one seal tag ID is required";
+      }
+      
+      if (sealTags.sealTagIds.length > 40) {
+        newErrors.sealTagIds = "Maximum of 40 seal tags allowed";
+      }
+      
+      // Check for minimum number of tags (30 recommended, but allowing less for flexibility)
+      if (sealTags.sealTagIds.length < 5) {
+        newErrors.sealTagMinCount = "Recommended to have at least 30 seal tags";
+      }
+    } else if (step === 1) {
       // Validate Loading Details
       if (!loadingDetails.transporterName.trim()) {
         newErrors.transporterName = "Transporter name is required";
@@ -533,21 +547,6 @@ export default function CreateSessionPage() {
       } else if (!/^\d{10}$/.test(loadingDetails.loaderMobileNumber)) {
         newErrors.loaderMobileNumber = "Mobile number must be 10 digits";
       }
-    } else if (step === 1) {
-      // Validate Seal Tags
-      if (sealTags.sealTagIds.length === 0) {
-        newErrors.sealTagIds = "At least one seal tag ID is required";
-      }
-      
-      if (sealTags.sealTagIds.length > 40) {
-        newErrors.sealTagIds = "Maximum of 40 seal tags allowed";
-      }
-      
-      // Check for minimum number of tags (30 recommended, but allowing less for flexibility)
-      if (sealTags.sealTagIds.length < 5) {
-        newErrors.sealTagMinCount = "Recommended to have at least 30 seal tags";
-      }
-      
     } else if (step === 2) {
       // Validate Images & Verification
       if (!imagesForm.gpsImeiPicture) newErrors.gpsImeiPicture = "GPS IMEI picture is required";
@@ -821,7 +820,7 @@ export default function CreateSessionPage() {
     }
   };
 
-  const steps = ['Loading Details', 'Seal Tags', 'Images & Verification'];
+  const steps = ['Seal Tags', 'Loading Details', 'Images & Verification'];
 
   // Add these new state variables for QR scanning
   const [scannerOpen, setScannerOpen] = useState(false);
@@ -947,6 +946,110 @@ export default function CreateSessionPage() {
 
         <form onSubmit={handleSubmit}>
           {activeStep === 0 && (
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+              <Box sx={{ width: '100%' }}>
+                <Typography variant="h6" gutterBottom>
+                  Seal Tags
+                </Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                  Scan or manually enter 30-40 seal tags. Each tag must be unique and will be registered to this session.
+                </Typography>
+                
+                {error && (
+                  <Alert severity="error" sx={{ mb: 2 }}>
+                    {error}
+                  </Alert>
+                )}
+              </Box>
+              
+              <Box sx={{ width: '100%', display: 'flex', flexWrap: 'wrap', gap: 2 }}>
+                <Box sx={{ width: { xs: '100%', md: '47%' } }}>
+                  <Typography variant="subtitle1" gutterBottom>
+                    Scan QR/Barcode
+                  </Typography>
+                  <Button
+                    variant="outlined"
+                    component="label"
+                    startIcon={<QrCode />}
+                    fullWidth
+                    sx={{ height: '56px' }}
+                    onClick={() => openScanner("sealTag")}
+                  >
+                    Scan Tag via Camera
+                  </Button>
+                </Box>
+                
+                <Box sx={{ width: { xs: '100%', md: '47%' } }}>
+                  <Typography variant="subtitle1" gutterBottom>
+                    Manual Entry
+                  </Typography>
+                  <TextField
+                    fullWidth
+                    label="Seal Tag ID"
+                    value={sealTags.manualSealTagId}
+                    onChange={(e) => setSealTags(prev => ({
+                      ...prev,
+                      manualSealTagId: e.target.value
+                    }))}
+                    InputProps={{
+                      endAdornment: (
+                        <InputAdornment position="end">
+                          <Button 
+                            onClick={handleAddSealTag} 
+                            disabled={!sealTags.manualSealTagId}
+                          >
+                            Add
+                          </Button>
+                        </InputAdornment>
+                      ),
+                    }}
+                    error={!!validationErrors.sealTagIds}
+                    helperText={validationErrors.sealTagIds}
+                  />
+                </Box>
+              </Box>
+              
+              <Box sx={{ width: '100%' }}>
+                <Typography variant="subtitle1" gutterBottom sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <span>Registered Seal Tags: {sealTags.sealTagIds.length}</span>
+                  {validationErrors.sealTagMinCount && (
+                    <Typography variant="caption" color="warning.main">
+                      {validationErrors.sealTagMinCount}
+                    </Typography>
+                  )}
+                </Typography>
+                
+                {sealTags.sealTagIds.length > 0 ? (
+                  <Box sx={{ 
+                    mt: 1, 
+                    p: 2, 
+                    bgcolor: 'background.paper', 
+                    borderRadius: 1,
+                    maxHeight: '300px',
+                    overflowY: 'auto',
+                    display: 'flex',
+                    flexWrap: 'wrap',
+                    gap: 1
+                  }}>
+                    {sealTags.sealTagIds.map((tagId, index) => (
+                      <Chip
+                        key={tagId}
+                        label={`${index + 1}. ${tagId}`}
+                        onDelete={() => handleRemoveSealTag(tagId)}
+                        sx={{ mb: 1 }}
+                      />
+                    ))}
+                  </Box>
+                ) : (
+                  <Typography variant="body2" color="text.secondary" sx={{ mt: 1, fontStyle: 'italic' }}>
+                    No seal tags registered yet. Scan or manually enter seal tags above.
+                  </Typography>
+                )}
+              </Box>
+            </Box>
+          )}
+
+          {activeStep === 1 && (
             <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
               <Box sx={{ width: '100%' }}>
                 <Typography variant="h6" gutterBottom>
@@ -1194,110 +1297,6 @@ export default function CreateSessionPage() {
                   }}
                   disabled
                 />
-              </Box>
-            </Box>
-          )}
-
-          {activeStep === 1 && (
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-              <Box sx={{ width: '100%' }}>
-                <Typography variant="h6" gutterBottom>
-                  Seal Tags
-                </Typography>
-                <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                  Scan or manually enter 30-40 seal tags. Each tag must be unique and will be registered to this session.
-                </Typography>
-                
-                {error && (
-                  <Alert severity="error" sx={{ mb: 2 }}>
-                    {error}
-                  </Alert>
-                )}
-              </Box>
-              
-              <Box sx={{ width: '100%', display: 'flex', flexWrap: 'wrap', gap: 2 }}>
-                <Box sx={{ width: { xs: '100%', md: '47%' } }}>
-                  <Typography variant="subtitle1" gutterBottom>
-                    Scan QR/Barcode
-                  </Typography>
-                  <Button
-                    variant="outlined"
-                    component="label"
-                    startIcon={<QrCode />}
-                    fullWidth
-                    sx={{ height: '56px' }}
-                    onClick={() => openScanner("sealTag")}
-                  >
-                    Scan Tag via Camera
-                  </Button>
-                </Box>
-                
-                <Box sx={{ width: { xs: '100%', md: '47%' } }}>
-                  <Typography variant="subtitle1" gutterBottom>
-                    Manual Entry
-                  </Typography>
-                  <TextField
-                    fullWidth
-                    label="Seal Tag ID"
-                    value={sealTags.manualSealTagId}
-                    onChange={(e) => setSealTags(prev => ({
-                      ...prev,
-                      manualSealTagId: e.target.value
-                    }))}
-                    InputProps={{
-                      endAdornment: (
-                        <InputAdornment position="end">
-                          <Button 
-                            onClick={handleAddSealTag} 
-                            disabled={!sealTags.manualSealTagId}
-                          >
-                            Add
-                          </Button>
-                        </InputAdornment>
-                      ),
-                    }}
-                    error={!!validationErrors.sealTagIds}
-                    helperText={validationErrors.sealTagIds}
-                  />
-                </Box>
-              </Box>
-              
-              <Box sx={{ width: '100%' }}>
-                <Typography variant="subtitle1" gutterBottom sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <span>Registered Seal Tags: {sealTags.sealTagIds.length}</span>
-                  {validationErrors.sealTagMinCount && (
-                    <Typography variant="caption" color="warning.main">
-                      {validationErrors.sealTagMinCount}
-                    </Typography>
-                  )}
-                </Typography>
-                
-                {sealTags.sealTagIds.length > 0 ? (
-                  <Box sx={{ 
-                    mt: 1, 
-                    p: 2, 
-                    bgcolor: 'background.paper', 
-                    borderRadius: 1,
-                    maxHeight: '300px',
-                    overflowY: 'auto',
-                    display: 'flex',
-                    flexWrap: 'wrap',
-                    gap: 1
-                  }}>
-                    {sealTags.sealTagIds.map((tagId, index) => (
-                      <Chip
-                        key={tagId}
-                        label={`${index + 1}. ${tagId}`}
-                        onDelete={() => handleRemoveSealTag(tagId)}
-                        sx={{ mb: 1 }}
-                      />
-                    ))}
-                  </Box>
-                ) : (
-                  <Typography variant="body2" color="text.secondary" sx={{ mt: 1, fontStyle: 'italic' }}>
-                    No seal tags registered yet. Scan or manually enter seal tags above.
-                  </Typography>
-                )}
               </Box>
             </Box>
           )}
