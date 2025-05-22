@@ -29,9 +29,9 @@ interface VehicleFormProps {
 export interface VehicleFormData {
   id?: string;
   numberPlate: string;
-  model: string;
-  manufacturer: string;
-  yearOfMake: string;
+  model?: string;
+  manufacturer?: string;
+  yearOfMake?: string;
   status?: VehicleStatus;
 }
 
