@@ -230,11 +230,11 @@ export default function CommentSection({ sessionId }: CommentSectionProps) {
   const getUrgencyColor = (urgency: string) => {
     switch (urgency) {
       case "LOW":
-        return "#FFD700"; // Yellow
+        return "#DAA520"; // Dark Gold
       case "MEDIUM":
-        return "#4CAF50"; // Green
+        return "#FF8C00"; // Burnt Orange
       case "HIGH":
-        return "#FF0000"; // Red
+        return "#900603"; // Ruby
       default:
         return "inherit"; // Default color (black)
     }
@@ -329,9 +329,9 @@ export default function CommentSection({ sessionId }: CommentSectionProps) {
                 }
               >
                 <MenuItem value="NA">--NA--</MenuItem>
-                <MenuItem value="LOW">Yellow (Low)</MenuItem>
-                <MenuItem value="MEDIUM">Green (Medium)</MenuItem>
-                <MenuItem value="HIGH">Red (High)</MenuItem>
+                <MenuItem value="LOW">Dark Gold (Low)</MenuItem>
+                <MenuItem value="MEDIUM">Burnt Orange (Medium)</MenuItem>
+                <MenuItem value="HIGH">Ruby (High)</MenuItem>
               </Select>
             </FormControl>
           </Box>
@@ -436,9 +436,9 @@ export default function CommentSection({ sessionId }: CommentSectionProps) {
                           }}>
                             <Flag fontSize="small" sx={{ mr: 0.5, fontSize: '0.8rem' }} />
                             <Typography variant="caption">
-                              {comment.urgency === "LOW" ? "Yellow" : 
-                               comment.urgency === "MEDIUM" ? "Green" : 
-                               comment.urgency === "HIGH" ? "Red" : ""}
+                              {comment.urgency === "LOW" ? "Dark Gold" : 
+                               comment.urgency === "MEDIUM" ? "Burnt Orange" : 
+                               comment.urgency === "HIGH" ? "Ruby" : ""}
                             </Typography>
                           </Box>
                         )}
