@@ -230,7 +230,7 @@ export default function CommentSection({ sessionId }: CommentSectionProps) {
   const getUrgencyColor = (urgency: string) => {
     switch (urgency) {
       case "LOW":
-        return "#CCFF00"; // Bright yellow-green
+        return "#EFCC00"; // Yellow gold
       case "MEDIUM":
         return "#FF4D04"; // Bright orange-red
       case "HIGH":
@@ -330,7 +330,7 @@ export default function CommentSection({ sessionId }: CommentSectionProps) {
               >
                 <MenuItem value="NA">--NA--</MenuItem>
                 <MenuItem value="LOW">
-                  <Typography sx={{ color: "#CCFF00" }}>
+                  <Typography sx={{ color: "#EFCC00" }}>
                     Low
                   </Typography>
                 </MenuItem>
