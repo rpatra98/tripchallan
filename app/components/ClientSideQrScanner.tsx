@@ -93,10 +93,7 @@ const ClientSideQrScanner: React.FC<ClientSideQrScannerProps> = ({
   const scannerContainerId = "qr-reader";
 
   const handleClose = () => {
-    if (scanner.current && scanner.current.getState() === Html5QrcodeScannerState.SCANNING) {
-      scanner.current.stop()
-        .catch((error: Error) => console.error("Error stopping scanner:", error));
-    }
+    cleanupScanner();
     setOpen(false);
     setScannerInitialized(false);
   };
@@ -106,17 +103,43 @@ const ClientSideQrScanner: React.FC<ClientSideQrScannerProps> = ({
     setError(null);
   };
 
+  // Safely clean up the scanner
+  const cleanupScanner = () => {
+    if (scanner.current) {
+      try {
+        // Only try to stop if it's actually scanning
+        if (scanner.current.getState && scanner.current.getState() === Html5QrcodeScannerState.SCANNING) {
+          scanner.current.stop()
+            .catch((error: Error) => console.error("Error stopping scanner:", error));
+        }
+      } catch (err) {
+        console.error("Error during scanner cleanup:", err);
+      }
+    }
+  };
+
+  const resetScanner = () => {
+    cleanupScanner();
+    scanner.current = null;
+    setScannerInitialized(false);
+    setTimeout(() => {
+      initializeScanner();
+    }, 300);
+  };
+
   const initializeScanner = async () => {
     try {
       setError(null);
+      
+      // Ensure scanner is properly cleaned up before initializing a new one
+      cleanupScanner();
       
       // Dynamically import html5-qrcode
       const Html5QrcodeModule = await import('html5-qrcode');
       const Html5Qrcode = Html5QrcodeModule.Html5Qrcode;
       
-      if (!scanner.current) {
-        scanner.current = new Html5Qrcode(scannerContainerId);
-      }
+      // Create a new scanner instance
+      scanner.current = new Html5Qrcode(scannerContainerId);
 
       // Get all cameras
       const devices = await Html5Qrcode.getCameras();
@@ -128,23 +151,34 @@ const ClientSideQrScanner: React.FC<ClientSideQrScannerProps> = ({
           setCurrentCamera(devices[0].id);
         }
         
-        startScanner(currentCamera || devices[0].id);
+        await startScanner(currentCamera || devices[0].id);
       } else {
         setError("No cameras found. Please ensure camera permissions are granted.");
       }
     } catch (err) {
       console.error("Error initializing scanner:", err);
       setError("Could not access camera. Please ensure camera permissions are granted and try again.");
+      scanner.current = null;
     }
   };
 
   const startScanner = async (cameraId: string) => {
-    if (!scanner.current) return;
+    if (!scanner.current) {
+      console.error("Scanner not initialized");
+      setError("Scanner not initialized. Please try again.");
+      return;
+    }
     
     try {
-      // Stop scanner if it's already running
-      if (scanner.current.getState() === Html5QrcodeScannerState.SCANNING) {
-        await scanner.current.stop();
+      // Make sure we're starting with a clean state
+      try {
+        // Only try to stop if it's actually scanning
+        if (scanner.current.getState && scanner.current.getState() === Html5QrcodeScannerState.SCANNING) {
+          await scanner.current.stop();
+        }
+      } catch (stopErr) {
+        // If we can't stop it, log the error but continue
+        console.warn("Warning when stopping scanner:", stopErr);
       }
       
       const config = { 
@@ -181,6 +215,7 @@ const ClientSideQrScanner: React.FC<ClientSideQrScannerProps> = ({
       } else {
         setError("Failed to start scanner. Please try again.");
       }
+      setScannerInitialized(false);
     }
   };
 
@@ -190,21 +225,39 @@ const ClientSideQrScanner: React.FC<ClientSideQrScannerProps> = ({
     const currentIndex = cameras.findIndex(camera => camera.id === currentCamera);
     const nextIndex = (currentIndex + 1) % cameras.length;
     
-    startScanner(cameras[nextIndex].id);
+    await startScanner(cameras[nextIndex].id);
   };
 
   const handleScanSuccess = (decodedText: string) => {
-    // Stop the scanner
-    if (scanner.current) {
-      scanner.current.stop()
-        .then(() => {
-          // Close the dialog and call the onScan callback
-          setOpen(false);
-          onScan(decodedText);
-        })
-        .catch((error: Error) => {
-          console.error("Error stopping scanner after successful scan:", error);
-        });
+    try {
+      // Stop the scanner
+      if (scanner.current) {
+        scanner.current.stop()
+          .then(() => {
+            // Close the dialog and call the onScan callback
+            setOpen(false);
+            setScannerInitialized(false);
+            onScan(decodedText);
+          })
+          .catch((error: Error) => {
+            console.error("Error stopping scanner after successful scan:", error);
+            // Still call onScan even if there was an error stopping
+            setOpen(false);
+            setScannerInitialized(false);
+            onScan(decodedText);
+          });
+      } else {
+        // Call onScan even if scanner is not available
+        setOpen(false);
+        setScannerInitialized(false);
+        onScan(decodedText);
+      }
+    } catch (err) {
+      console.error("Error in handleScanSuccess:", err);
+      // Ensure we still deliver the scan result
+      setOpen(false);
+      setScannerInitialized(false);
+      onScan(decodedText);
     }
   };
 
@@ -223,9 +276,7 @@ const ClientSideQrScanner: React.FC<ClientSideQrScannerProps> = ({
   // Cleanup on unmount
   useEffect(() => {
     return () => {
-      if (scanner.current && scanner.current.getState() === Html5QrcodeScannerState.SCANNING) {
-        scanner.current.stop().catch((err: Error) => console.error("Error stopping scanner on cleanup:", err));
-      }
+      cleanupScanner();
     };
   }, []);
 
@@ -259,7 +310,7 @@ const ClientSideQrScanner: React.FC<ClientSideQrScannerProps> = ({
               severity="error" 
               sx={{ mb: 2 }}
               action={
-                <Button color="inherit" size="small" onClick={initializeScanner}>
+                <Button color="inherit" size="small" onClick={resetScanner}>
                   Try again
                 </Button>
               }
