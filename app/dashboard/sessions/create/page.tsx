@@ -796,7 +796,6 @@ export default function CreateSessionPage() {
       if (!imagesForm.gpsImeiPicture) newErrors.gpsImeiPicture = "GPS IMEI picture is required";
       if (!imagesForm.vehicleNumberPlatePicture) newErrors.vehicleNumberPlatePicture = "Vehicle number plate picture is required";
       if (!imagesForm.driverPicture) newErrors.driverPicture = "Driver's picture is required";
-      if (imagesForm.sealingImages.length === 0) newErrors.sealingImages = "At least one sealing image is required";
       if (imagesForm.vehicleImages.length === 0) newErrors.vehicleImages = "At least one vehicle image is required";
     }
     
@@ -846,13 +845,16 @@ export default function CreateSessionPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
+    // Immediately set isSubmitting to true to disable the submit button
+    setIsSubmitting(true);
+    
     if (!validateStep(activeStep)) {
+      setIsSubmitting(false);
       return;
     }
     
     setError("");
     setErrorDetails("");
-    setIsSubmitting(true);
 
     try {
       // Check if we need to create a new vehicle record
@@ -964,26 +966,6 @@ export default function CreateSessionPage() {
       // Add multiple files - limit the number of files to reduce payload size
       const maxImagesPerCategory = 5; // Limit to 5 images per category
       
-      // Process sealing images
-      for (let i = 0; i < Math.min(imagesForm.sealingImages.length, maxImagesPerCategory); i++) {
-        try {
-          const file = imagesForm.sealingImages[i];
-          const resizedImage = await resizeImage(file, 1280, 1280, 0.8/*, 2*/);
-          const base64Data = await fileToBase64(resizedImage);
-          imageBase64Data.sealingImages.push({
-            data: base64Data.split(',')[1],
-            contentType: resizedImage.type,
-            name: resizedImage.name
-          });
-          formData.append(`sealingImages[${i}]`, resizedImage);
-        } catch (error) {
-          console.error(`Error processing sealing image ${i}:`, error);
-          setError(`Error processing sealing image ${i}. Please try again.`); // Generic error
-          setIsSubmitting(false);
-          return;
-        }
-      }
-      
       // Process vehicle images
       for (let i = 0; i < Math.min(imagesForm.vehicleImages.length, maxImagesPerCategory); i++) {
         try {
@@ -999,26 +981,6 @@ export default function CreateSessionPage() {
         } catch (error) {
           console.error(`Error processing vehicle image ${i}:`, error);
           setError(`Error processing vehicle image ${i}. Please try again.`); // Generic error
-          setIsSubmitting(false);
-          return;
-        }
-      }
-      
-      // Process additional images
-      for (let i = 0; i < Math.min(imagesForm.additionalImages.length, maxImagesPerCategory); i++) {
-        try {
-          const file = imagesForm.additionalImages[i];
-          const resizedImage = await resizeImage(file, 1280, 1280, 0.8/*, 2*/);
-          const base64Data = await fileToBase64(resizedImage);
-          imageBase64Data.additionalImages.push({
-            data: base64Data.split(',')[1],
-            contentType: resizedImage.type,
-            name: resizedImage.name
-          });
-          formData.append(`additionalImages[${i}]`, resizedImage);
-        } catch (error) {
-          console.error(`Error processing additional image ${i}:`, error);
-          setError(`Error processing additional image ${i}. Please try again.`); // Generic error
           setIsSubmitting(false);
           return;
         }
@@ -1092,7 +1054,7 @@ export default function CreateSessionPage() {
     }
   };
 
-  const steps = ['Loading Details', 'Driver Details', 'Seal Tags', 'Images & Verification'];
+  const steps = ['Loading Details', 'Driver Details', 'Seal Tags', 'Images'];
 
   // Steps for the form
 
@@ -1797,7 +1759,7 @@ export default function CreateSessionPage() {
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
               <Box sx={{ width: '100%' }}>
                 <Typography variant="h6" gutterBottom>
-                  Images & Verification
+                  Images
                 </Typography>
                 {/* <FileUploadHelp /> */}
                 <ImageProcessingInfo />
@@ -1892,36 +1854,6 @@ export default function CreateSessionPage() {
               
               <Box sx={{ width: { xs: '100%', md: '47%' } }}>
                 <Typography variant="subtitle1" gutterBottom>
-                  Upload Sealing Images
-                </Typography>
-                <Button
-                  variant="outlined"
-                  component="label"
-                  startIcon={<PhotoCamera />}
-                  fullWidth
-                  sx={{ height: '56px' }}
-                >
-                  Upload Images (Multiple)
-                  <input
-                    type="file"
-                    hidden
-                    accept="image/*"
-                    multiple
-                    onChange={(e) => handleFileChange(e, 'sealingImages')}
-                  />
-                </Button>
-                {imagesForm.sealingImages.length > 0 && (
-                  <Typography variant="body2" sx={{ mt: 1 }}>
-                    {imagesForm.sealingImages.length} image(s) selected
-                  </Typography>
-                )}
-                {validationErrors.sealingImages && (
-                  <FormHelperText error>{validationErrors.sealingImages}</FormHelperText>
-                )}
-              </Box>
-              
-              <Box sx={{ width: { xs: '100%', md: '47%' } }}>
-                <Typography variant="subtitle1" gutterBottom>
                   Upload Vehicle Images
                 </Typography>
                 <Button
@@ -1947,33 +1879,6 @@ export default function CreateSessionPage() {
                 )}
                 {validationErrors.vehicleImages && (
                   <FormHelperText error>{validationErrors.vehicleImages}</FormHelperText>
-                )}
-              </Box>
-              
-              <Box sx={{ width: { xs: '100%', md: '47%' } }}>
-                <Typography variant="subtitle1" gutterBottom>
-                  Capture Additional Images
-                </Typography>
-                <Button
-                  variant="outlined"
-                  component="label"
-                  startIcon={<PhotoCamera />}
-                  fullWidth
-                  sx={{ height: '56px' }}
-                >
-                  Upload Images (Multiple)
-                  <input
-                    type="file"
-                    hidden
-                    accept="image/*"
-                    multiple
-                    onChange={(e) => handleFileChange(e, 'additionalImages')}
-                  />
-                </Button>
-                {imagesForm.additionalImages.length > 0 && (
-                  <Typography variant="body2" sx={{ mt: 1 }}>
-                    {imagesForm.additionalImages.length} image(s) selected
-                  </Typography>
                 )}
               </Box>
               
