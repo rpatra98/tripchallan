@@ -30,6 +30,7 @@ import Link from "next/link";
 import { EmployeeSubrole } from "@/prisma/enums";
 import { SessionUpdateContext } from "@/app/dashboard/layout";
 import ClientSideQrScanner from "@/app/components/ClientSideQrScanner";
+import SimpleQrScanner from "@/app/components/SimpleQrScanner";
 
 type CompanyType = {
   id: string;
@@ -891,13 +892,7 @@ export default function CreateSessionPage() {
         </Button>
       </Box>
 
-      {/* Add the QrScanner component */}
-      <ClientSideQrScanner
-        open={scannerOpen}
-        onClose={closeScanner}
-        onScan={handleScanComplete}
-        title={scannerTitle}
-      />
+      {/* QR scanner component has been integrated directly in the button below */}
 
       <Paper elevation={2} sx={{ p: 3 }}>
         <Typography variant="h4" component="h1" gutterBottom>
@@ -967,16 +962,28 @@ export default function CreateSessionPage() {
                   <Typography variant="subtitle1" gutterBottom>
                     Scan QR/Barcode
                   </Typography>
-                  <Button
-                    variant="outlined"
-                    component="label"
-                    startIcon={<QrCode />}
-                    fullWidth
-                    sx={{ height: '56px' }}
-                    onClick={() => openScanner("sealTag")}
-                  >
-                    Scan Tag via Camera
-                  </Button>
+                  <ClientSideQrScanner
+                    onScan={(data) => {
+                      // Check if already scanned
+                      if (sealTags.sealTagIds.includes(data)) {
+                        setError("Tag ID already used");
+                        setTimeout(() => setError(""), 3000);
+                        return;
+                      }
+                      
+                      setSealTags(prev => ({
+                        ...prev,
+                        sealTagIds: [...prev.sealTagIds, data],
+                        timestamps: {
+                          ...prev.timestamps,
+                          [data]: new Date().toISOString()
+                        }
+                      }));
+                    }}
+                    buttonText="Scan QR Code"
+                    scannerTitle="Scan Seal Tag"
+                    buttonVariant="outlined"
+                  />
                 </Box>
                 
                 <Box sx={{ width: { xs: '100%', md: '47%' } }}>
