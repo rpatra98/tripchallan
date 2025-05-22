@@ -58,6 +58,7 @@ type LoadingDetailsForm = {
   doNumber: string;
   freight: number;
   qualityOfMaterials: string;
+  numberOfPackages: string;
   tpNumber: string;
   grossWeight: number;
   tareWeight: number;
@@ -259,6 +260,7 @@ export default function CreateSessionPage() {
     doNumber: "",
     freight: 0,
     qualityOfMaterials: "",
+    numberOfPackages: "",
     tpNumber: "",
     grossWeight: 0,
     tareWeight: 0,
@@ -1083,7 +1085,7 @@ export default function CreateSessionPage() {
   // Add these new state variables for QR scanning
   const [scannerOpen, setScannerOpen] = useState(false);
   const [scannerTitle, setScannerTitle] = useState("Scan QR/Barcode");
-  const [scannerType, setScannerType] = useState<"sealTag" | "qrCode">("sealTag");
+  const [scannerType, setScannerType] = useState<"sealTag" | "qrCode" | "gpsImei">("sealTag");
 
   // Function to handle QR scan result
   const handleScanComplete = (data: string) => {
@@ -1114,13 +1116,26 @@ export default function CreateSessionPage() {
           }
         }));
       }
+    } else if (scannerType === "gpsImei") {
+      setLoadingDetails(prev => ({
+        ...prev,
+        gpsImeiNumber: data,
+        timestamps: {
+          ...prev.timestamps,
+          gpsImeiNumber: new Date().toISOString()
+        }
+      }));
     }
   };
 
   // Open camera scanner
-  const openScanner = (type: "sealTag" | "qrCode") => {
+  const openScanner = (type: "sealTag" | "qrCode" | "gpsImei") => {
     setScannerType(type);
-    setScannerTitle(type === "sealTag" ? "Scan Seal Tag" : "Scan QR Code");
+    setScannerTitle(
+      type === "sealTag" ? "Scan Seal Tag" : 
+      type === "qrCode" ? "Scan QR Code" : 
+      "Scan GPS IMEI"
+    );
     setScannerOpen(true);
   };
 
@@ -1214,7 +1229,13 @@ export default function CreateSessionPage() {
         </Button>
       </Box>
 
-      {/* QR scanner component has been integrated directly in the button below */}
+      {/* QR scanner component for GPS IMEI */}
+      {scannerOpen && (
+        <ClientSideQrScanner
+          onScan={handleScanComplete}
+          scannerTitle={scannerTitle}
+        />
+      )}
 
       <Paper elevation={2} sx={{ p: 3 }}>
         <Typography variant="h4" component="h1" gutterBottom>
@@ -1286,6 +1307,19 @@ export default function CreateSessionPage() {
               <Box sx={{ width: { xs: '100%', md: '47%' } }}>
                 <TextField
                   fullWidth
+                  label="Receiver Party Name"
+                  name="receiverPartyName"
+                  value={loadingDetails.receiverPartyName}
+                  onChange={handleLoadingDetailsChange}
+                  required
+                  error={!!validationErrors.receiverPartyName}
+                  helperText={validationErrors.receiverPartyName}
+                />
+              </Box>
+              
+              <Box sx={{ width: { xs: '100%', md: '47%' } }}>
+                <TextField
+                  fullWidth
                   label="Material Name"
                   name="materialName"
                   value={loadingDetails.materialName}
@@ -1297,15 +1331,48 @@ export default function CreateSessionPage() {
               </Box>
               
               <Box sx={{ width: { xs: '100%', md: '47%' } }}>
+                <FormControl fullWidth error={!!validationErrors.cargoType}>
+                  <InputLabel id="cargo-type-label">Cargo Type</InputLabel>
+                  <Select
+                    labelId="cargo-type-label"
+                    id="cargo-type"
+                    name="cargoType"
+                    value={loadingDetails.cargoType}
+                    label="Cargo Type"
+                    onChange={(e) => handleLoadingDetailsChange(e as React.ChangeEvent<HTMLInputElement>)}
+                  >
+                    <MenuItem value="Perishable (fruits, vegetables, dairy)">Perishable (fruits, vegetables, dairy)</MenuItem>
+                    <MenuItem value="Hazardous (chemicals, explosives)">Hazardous (chemicals, explosives)</MenuItem>
+                    <MenuItem value="Liquid Bulk (petroleum, oils)">Liquid Bulk (petroleum, oils)</MenuItem>
+                    <MenuItem value="Dry Bulk (grains, coal)">Dry Bulk (grains, coal)</MenuItem>
+                    <MenuItem value="Containerized (packed in containers)">Containerized (packed in containers)</MenuItem>
+                    <MenuItem value="General Cargo (machinery, textiles)">General Cargo (machinery, textiles)</MenuItem>
+                    <MenuItem value="--Others--">--Others--</MenuItem>
+                  </Select>
+                  {validationErrors.cargoType && (
+                    <FormHelperText>{validationErrors.cargoType}</FormHelperText>
+                  )}
+                </FormControl>
+              </Box>
+              
+              <Box sx={{ width: { xs: '100%', md: '47%' } }}>
                 <TextField
                   fullWidth
-                  label="Receiver Party Name"
-                  name="receiverPartyName"
-                  value={loadingDetails.receiverPartyName}
+                  label="Quality of Materials"
+                  name="qualityOfMaterials"
+                  value={loadingDetails.qualityOfMaterials}
                   onChange={handleLoadingDetailsChange}
-                  required
-                  error={!!validationErrors.receiverPartyName}
-                  helperText={validationErrors.receiverPartyName}
+                />
+              </Box>
+              
+              <Box sx={{ width: { xs: '100%', md: '47%' } }}>
+                <TextField
+                  fullWidth
+                  label="Number of Packages (Optional)"
+                  name="numberOfPackages"
+                  value={loadingDetails.numberOfPackages}
+                  onChange={handleLoadingDetailsChange}
+                  type="number"
                 />
               </Box>
               
@@ -1389,42 +1456,32 @@ export default function CreateSessionPage() {
               </Box>
               
               <Box sx={{ width: { xs: '100%', md: '47%' } }}>
-                <TextField
-                  fullWidth
-                  label="GPS IMEI Number"
-                  name="gpsImeiNumber"
-                  value={loadingDetails.gpsImeiNumber}
-                  onChange={handleLoadingDetailsChange}
-                  required
-                  type="number"
-                  error={!!validationErrors.gpsImeiNumber}
-                  helperText={validationErrors.gpsImeiNumber}
-                />
-              </Box>
-              
-              <Box sx={{ width: { xs: '100%', md: '47%' } }}>
-                <FormControl fullWidth error={!!validationErrors.cargoType}>
-                  <InputLabel id="cargo-type-label">Cargo Type</InputLabel>
-                  <Select
-                    labelId="cargo-type-label"
-                    id="cargo-type"
-                    name="cargoType"
-                    value={loadingDetails.cargoType}
-                    label="Cargo Type"
-                    onChange={(e) => handleLoadingDetailsChange(e as React.ChangeEvent<HTMLInputElement>)}
-                  >
-                    <MenuItem value="Perishable (fruits, vegetables, dairy)">Perishable (fruits, vegetables, dairy)</MenuItem>
-                    <MenuItem value="Hazardous (chemicals, explosives)">Hazardous (chemicals, explosives)</MenuItem>
-                    <MenuItem value="Liquid Bulk (petroleum, oils)">Liquid Bulk (petroleum, oils)</MenuItem>
-                    <MenuItem value="Dry Bulk (grains, coal)">Dry Bulk (grains, coal)</MenuItem>
-                    <MenuItem value="Containerized (packed in containers)">Containerized (packed in containers)</MenuItem>
-                    <MenuItem value="General Cargo (machinery, textiles)">General Cargo (machinery, textiles)</MenuItem>
-                    <MenuItem value="--Others--">--Others--</MenuItem>
-                  </Select>
-                  {validationErrors.cargoType && (
-                    <FormHelperText>{validationErrors.cargoType}</FormHelperText>
-                  )}
-                </FormControl>
+                <Box sx={{ display: 'flex', gap: 1 }}>
+                  <TextField
+                    fullWidth
+                    label="GPS IMEI Number"
+                    name="gpsImeiNumber"
+                    value={loadingDetails.gpsImeiNumber}
+                    onChange={handleLoadingDetailsChange}
+                    required
+                    type="number"
+                    error={!!validationErrors.gpsImeiNumber}
+                    helperText={validationErrors.gpsImeiNumber}
+                    InputProps={{
+                      endAdornment: (
+                        <InputAdornment position="end">
+                          <IconButton 
+                            edge="end" 
+                            onClick={() => openScanner("gpsImei")}
+                            title="Scan QR Code"
+                          >
+                            <QrCode />
+                          </IconButton>
+                        </InputAdornment>
+                      )
+                    }}
+                  />
+                </Box>
               </Box>
               
               <Box sx={{ width: { xs: '100%', md: '47%' } }}>
@@ -1508,16 +1565,6 @@ export default function CreateSessionPage() {
                   }}
                   error={!!validationErrors.freight}
                   helperText={validationErrors.freight}
-                />
-              </Box>
-              
-              <Box sx={{ width: { xs: '100%', md: '47%' } }}>
-                <TextField
-                  fullWidth
-                  label="Quality of Materials"
-                  name="qualityOfMaterials"
-                  value={loadingDetails.qualityOfMaterials}
-                  onChange={handleLoadingDetailsChange}
                 />
               </Box>
               
