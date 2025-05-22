@@ -1082,67 +1082,7 @@ export default function CreateSessionPage() {
 
   const steps = ['Loading Details', 'Driver Details', 'Seal Tags', 'Images & Verification'];
 
-  // Add these new state variables for QR scanning
-  const [scannerOpen, setScannerOpen] = useState(false);
-  const [scannerTitle, setScannerTitle] = useState("Scan QR/Barcode");
-  const [scannerType, setScannerType] = useState<"sealTag" | "qrCode" | "gpsImei">("sealTag");
-
-  // Function to handle QR scan result
-  const handleScanComplete = (data: string) => {
-    if (scannerType === "sealTag") {
-      // Check if already scanned
-      if (sealTags.sealTagIds.includes(data)) {
-        setError("Tag ID already used");
-        setTimeout(() => setError(""), 3000);
-        return;
-      }
-      
-      setSealTags(prev => ({
-        ...prev,
-        sealTagIds: [...prev.sealTagIds, data],
-        timestamps: {
-          ...prev.timestamps,
-          [data]: new Date().toISOString()
-        }
-      }));
-    } else if (scannerType === "qrCode") {
-      if (!imagesForm.scannedCodes.includes(data)) {
-        setImagesForm(prev => ({
-          ...prev,
-          scannedCodes: [...prev.scannedCodes, data],
-          timestamps: {
-            ...prev.timestamps,
-            scannedCodes: new Date().toISOString()
-          }
-        }));
-      }
-    } else if (scannerType === "gpsImei") {
-      setLoadingDetails(prev => ({
-        ...prev,
-        gpsImeiNumber: data,
-        timestamps: {
-          ...prev.timestamps,
-          gpsImeiNumber: new Date().toISOString()
-        }
-      }));
-    }
-  };
-
-  // Open camera scanner
-  const openScanner = (type: "sealTag" | "qrCode" | "gpsImei") => {
-    setScannerType(type);
-    setScannerTitle(
-      type === "sealTag" ? "Scan Seal Tag" : 
-      type === "qrCode" ? "Scan QR Code" : 
-      "Scan GPS IMEI"
-    );
-    setScannerOpen(true);
-  };
-
-  // Close camera scanner
-  const closeScanner = () => {
-    setScannerOpen(false);
-  };
+  // Steps for the form
 
   // Add a section to display QR code and loading ID after trip creation
   const renderSuccessView = () => {
@@ -1228,14 +1168,6 @@ export default function CreateSessionPage() {
           Back to Sessions
         </Button>
       </Box>
-
-      {/* QR scanner component for GPS IMEI */}
-      {scannerOpen && (
-        <ClientSideQrScanner
-          onScan={handleScanComplete}
-          scannerTitle={scannerTitle}
-        />
-      )}
 
       <Paper elevation={2} sx={{ p: 3 }}>
         <Typography variant="h4" component="h1" gutterBottom>
@@ -1456,7 +1388,7 @@ export default function CreateSessionPage() {
               </Box>
               
               <Box sx={{ width: { xs: '100%', md: '47%' } }}>
-                <Box sx={{ display: 'flex', gap: 1 }}>
+                <Box sx={{ display: 'flex', gap: 1, alignItems: 'flex-start' }}>
                   <TextField
                     fullWidth
                     label="GPS IMEI Number"
@@ -1467,20 +1399,24 @@ export default function CreateSessionPage() {
                     type="number"
                     error={!!validationErrors.gpsImeiNumber}
                     helperText={validationErrors.gpsImeiNumber}
-                    InputProps={{
-                      endAdornment: (
-                        <InputAdornment position="end">
-                          <IconButton 
-                            edge="end" 
-                            onClick={() => openScanner("gpsImei")}
-                            title="Scan QR Code"
-                          >
-                            <QrCode />
-                          </IconButton>
-                        </InputAdornment>
-                      )
-                    }}
                   />
+                  <Box sx={{ minWidth: '120px', mt: 1 }}>
+                    <ClientSideQrScanner
+                      buttonVariant="outlined"
+                      buttonText="Scan"
+                      scannerTitle="Scan GPS IMEI"
+                      onScan={(data) => {
+                        setLoadingDetails(prev => ({
+                          ...prev,
+                          gpsImeiNumber: data,
+                          timestamps: {
+                            ...prev.timestamps,
+                            gpsImeiNumber: new Date().toISOString()
+                          }
+                        }));
+                      }}
+                    />
+                  </Box>
                 </Box>
               </Box>
               
@@ -2036,16 +1972,23 @@ export default function CreateSessionPage() {
               </Box>
               
               <Box sx={{ width: { xs: '100%', md: '47%' } }}>
-                <Button
-                  variant="outlined"
-                  component="label"
-                  startIcon={<QrCode />}
-                  fullWidth
-                  sx={{ height: '56px' }}
-                  onClick={() => openScanner("qrCode")}
-                >
-                  Scan QR Code via Camera
-                </Button>
+                <ClientSideQrScanner
+                  buttonVariant="outlined"
+                  buttonText="Scan QR Code via Camera"
+                  scannerTitle="Scan QR Code"
+                  onScan={(data) => {
+                    if (!imagesForm.scannedCodes.includes(data)) {
+                      setImagesForm(prev => ({
+                        ...prev,
+                        scannedCodes: [...prev.scannedCodes, data],
+                        timestamps: {
+                          ...prev.timestamps,
+                          scannedCodes: new Date().toISOString()
+                        }
+                      }));
+                    }
+                  }}
+                />
               </Box>
               
               <Box sx={{ width: { xs: '100%', md: '47%' } }}>
