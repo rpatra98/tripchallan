@@ -85,12 +85,42 @@ const SimpleQrScanner: React.FC<SimpleQrScannerProps> = ({
         return;
       }
       
+      // First method: check constraints
       const supportedConstraints = navigator.mediaDevices.getSupportedConstraints();
       if (supportedConstraints && (supportedConstraints as any)['torch']) {
         setTorchAvailable(true);
-      } else {
-        setTorchAvailable(false);
+        return;
       }
+      
+      // Second method: try to check if the scanner library has torch capability
+      try {
+        // Simply check if the method exists, don't try to call it
+        if (scannerRef.current && (scannerRef.current as any).hasFlash) {
+          // Assume it might work on a mobile device with rear camera
+          setTorchAvailable(true);
+          return;
+        }
+      } catch (err) {
+        console.warn('Error checking flash capability:', err);
+      }
+      
+      // Last resort: on many Android devices, we can assume torch is available
+      // if it's a rear-facing camera on a mobile device
+      const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+      if (isMobile) {
+        const cameraLabel = cameras[currentCameraIndex]?.label.toLowerCase() || '';
+        const isRearCamera = 
+          cameraLabel.includes('back') || 
+          cameraLabel.includes('rear') || 
+          cameraLabel.includes('environment');
+        
+        if (isRearCamera) {
+          setTorchAvailable(true);
+          return;
+        }
+      }
+      
+      setTorchAvailable(false);
     };
     
     // Sort cameras to prioritize back cameras on mobile
@@ -148,11 +178,11 @@ const SimpleQrScanner: React.FC<SimpleQrScannerProps> = ({
     onScan(data);
   };
 
-  const handleRetry = () => {
+  const handleRetry = async () => {
     cleanup();
     scannerRef.current = null;
     
-    setTimeout(() => {
+    setTimeout(async () => {
       setError(null);
       const scanner = new Html5Qrcode(scannerContainerId);
       scannerRef.current = scanner;
@@ -202,12 +232,41 @@ const SimpleQrScanner: React.FC<SimpleQrScannerProps> = ({
             return;
           }
           
+          // First method: check constraints
           const supportedConstraints = navigator.mediaDevices.getSupportedConstraints();
           if (supportedConstraints && (supportedConstraints as any)['torch']) {
             setTorchAvailable(true);
-          } else {
-            setTorchAvailable(false);
+            return;
           }
+          
+          // Second method: try to check if the scanner has torch capability
+          try {
+            // Simply check if the method exists, don't try to call it
+            if (scanner && (scanner as any).hasFlash) {
+              // Assume it might work on a mobile device with rear camera
+              setTorchAvailable(true);
+              return;
+            }
+          } catch (err) {
+            console.warn('Error checking flash capability during retry:', err);
+          }
+          
+          // Last resort: check for mobile + rear camera
+          const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+          if (isMobile) {
+            const cameraLabel = sortedDevices[0]?.label.toLowerCase() || '';
+            const isRearCamera = 
+              cameraLabel.includes('back') || 
+              cameraLabel.includes('rear') || 
+              cameraLabel.includes('environment');
+            
+            if (isRearCamera) {
+              setTorchAvailable(true);
+              return;
+            }
+          }
+          
+          setTorchAvailable(false);
         } else {
           setError("No camera found. Please make sure your camera is connected and you've granted permission to use it.");
         }
@@ -265,9 +324,11 @@ const SimpleQrScanner: React.FC<SimpleQrScannerProps> = ({
     if (!scannerRef.current) return;
     
     try {
-      // Get current track
-      const videoStream = scannerRef.current['getRunningTrackFromCamera']();
-      if (!videoStream) return;
+      // Get current track - different approach to access video track
+      const videoStream = (scannerRef.current as any).getRunningTrack();
+      if (!videoStream) {
+        throw new Error("No active video track found");
+      }
       
       // Attempt to toggle torch
       if (torchActive) {
@@ -283,8 +344,19 @@ const SimpleQrScanner: React.FC<SimpleQrScannerProps> = ({
       }
     } catch (err) {
       console.error('Error toggling torch:', err);
-      setError("Failed to toggle flashlight. Your device may not support this feature.");
-      setTorchActive(false);
+      
+      // Try alternative approach for some browsers/devices
+      try {
+        if (scannerRef.current) {
+          const success = await (scannerRef.current as any).toggleFlash();
+          setTorchActive(!torchActive);
+          console.log("Used alternative flash toggle method:", success);
+        }
+      } catch (altErr) {
+        console.error('Alternative torch toggle failed:', altErr);
+        setError("Failed to toggle flashlight. Your device may not support this feature or you need to grant additional permissions.");
+        setTorchActive(false);
+      }
     }
   };
   
