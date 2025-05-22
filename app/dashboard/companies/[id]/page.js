@@ -138,7 +138,7 @@ export default async function CompanyDetailPage({ params }) {
         orderBy: {
           name: "asc",
         },
-      });
+      }) || [];
       
       return (
         <div className="container mx-auto px-4 py-8">
@@ -213,9 +213,9 @@ export default async function CompanyDetailPage({ params }) {
               </Link>
             </div>
 
-            {employees.length === 0 ? (
+            {employees && employees.length === 0 ? (
               <p className="text-gray-500 text-center py-4">No employees found for this company.</p>
-            ) : (
+            ) : employees && employees.length > 0 ? (
               <div className="overflow-x-auto">
                 <table className="min-w-full divide-y divide-gray-200">
                   <thead className="bg-gray-50">
@@ -255,6 +255,8 @@ export default async function CompanyDetailPage({ params }) {
                   </tbody>
                 </table>
               </div>
+            ) : (
+              <p className="text-gray-500 text-center py-4">No employees found for this company.</p>
             )}
           </div>
         </div>
@@ -265,7 +267,7 @@ export default async function CompanyDetailPage({ params }) {
     const company = await response.json();
     
     // Get employees for this company
-    const employees = company.employees || [];
+    const employees = Array.isArray(company.employees) ? company.employees : [];
 
     return (
       <div className="container mx-auto px-4 py-8">
@@ -340,9 +342,9 @@ export default async function CompanyDetailPage({ params }) {
             </Link>
           </div>
 
-          {employees.length === 0 ? (
+          {employees && employees.length === 0 ? (
             <p className="text-gray-500 text-center py-4">No employees found for this company.</p>
-          ) : (
+          ) : employees && employees.length > 0 ? (
             <div className="overflow-x-auto">
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
@@ -382,17 +384,20 @@ export default async function CompanyDetailPage({ params }) {
                 </tbody>
               </table>
             </div>
+          ) : (
+            <p className="text-gray-500 text-center py-4">No employees found for this company.</p>
           )}
         </div>
       </div>
     );
   } catch (error) {
     console.error("Error in CompanyDetailPage:", error);
+    console.error("Error details:", JSON.stringify(error, Object.getOwnPropertyNames(error)));
     return (
       <div className="container mx-auto px-4 py-8 bg-red-50 p-6 rounded-lg">
         <h1 className="text-2xl font-bold text-red-700">Error</h1>
         <p className="mt-2">An error occurred while fetching the company details.</p>
-        <p className="mt-2 text-red-500">{error.message}</p>
+        <p className="mt-2 text-red-500">{error instanceof Error ? error.message : String(error)}</p>
         <div className="mt-4">
           <Link href="/dashboard" className="text-blue-600 hover:underline">
             &larr; Go back to Dashboard
