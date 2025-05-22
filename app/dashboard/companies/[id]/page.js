@@ -35,48 +35,53 @@ export default async function CompanyDetailPage({ params }) {
       // If we can't find the company via the API, try to look it up directly
       let company = null;
       
-      // Try as a direct company ID first
-      company = await prisma.company.findUnique({
-        where: { id: companyId },
-      });
-      
-      // If not found, try as a company user
-      if (!company) {
-        const companyUser = await prisma.user.findFirst({
-          where: {
-            id: companyId,
-            role: "COMPANY",
-          },
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            companyId: true,
-            coins: true,
-            createdAt: true,
-          },
+      try {
+        // Try as a direct company ID first
+        company = await prisma.company.findUnique({
+          where: { id: companyId },
         });
         
-        // If we found a company user, check if it has an associated company
-        if (companyUser?.companyId) {
-          company = await prisma.company.findUnique({
-            where: { id: companyUser.companyId },
+        // If not found, try as a company user
+        if (!company) {
+          const companyUser = await prisma.user.findFirst({
+            where: {
+              id: companyId,
+              role: "COMPANY",
+            },
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              companyId: true,
+              coins: true,
+              createdAt: true,
+            },
           });
+          
+          // If we found a company user, check if it has an associated company
+          if (companyUser?.companyId) {
+            company = await prisma.company.findUnique({
+              where: { id: companyUser.companyId },
+            });
+          }
+          
+          // If no company record but we have a company user, use that data
+          if (!company && companyUser) {
+            company = {
+              id: companyUser.id,
+              name: companyUser.name,
+              email: companyUser.email,
+              createdAt: companyUser.createdAt,
+              coins: companyUser.coins,
+              companyId: companyUser.companyId,
+              isActive: true, // Default to true for legacy data
+              _synthetic: true,
+            };
+          }
         }
-        
-        // If no company record but we have a company user, use that data
-        if (!company && companyUser) {
-          company = {
-            id: companyUser.id,
-            name: companyUser.name,
-            email: companyUser.email,
-            createdAt: companyUser.createdAt,
-            coins: companyUser.coins,
-            companyId: companyUser.companyId,
-            isActive: true, // Default to true for legacy data
-            _synthetic: true,
-          };
-        }
+      } catch (lookupError) {
+        console.error("Error during fallback company lookup:", lookupError);
+        // Continue with the null company, the rest of the code will handle it
       }
       
       // If we still couldn't find the company, show available companies
@@ -140,6 +145,9 @@ export default async function CompanyDetailPage({ params }) {
         },
       }) || [];
       
+      // Debug the direct prisma company data
+      console.log("Direct company data structure:", JSON.stringify(company, null, 2));
+      
       return (
         <div className="container mx-auto px-4 py-8">
           <div className="mb-6">
@@ -171,21 +179,21 @@ export default async function CompanyDetailPage({ params }) {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <p className="text-gray-600">ID</p>
-                <p>{company.id}</p>
+                <p>{company?.id || 'N/A'}</p>
               </div>
               <div>
                 <p className="text-gray-600">Coins</p>
-                <p>{company.coins || 0}</p>
+                <p>{company?.coins || 0}</p>
               </div>
               <div>
                 <p className="text-gray-600">Created</p>
-                <p>{new Date(company.createdAt).toLocaleDateString()}</p>
+                <p>{company?.createdAt ? new Date(company.createdAt).toLocaleDateString() : 'N/A'}</p>
               </div>
               <div>
                 <p className="text-gray-600">Company Type</p>
-                <p>{company.companyType || "--Others--"}</p>
+                <p>{company?.companyType || "--Others--"}</p>
               </div>
-              {company.gstin && (
+              {company?.gstin && (
                 <div>
                   <p className="text-gray-600">GSTIN</p>
                   <p>{company.gstin}</p>
@@ -195,9 +203,9 @@ export default async function CompanyDetailPage({ params }) {
 
             <div className="mt-6">
               <CompanyActions 
-                companyId={company.id} 
-                companyName={company.name}
-                isActive={company.isActive || true}
+                companyId={company?.id || companyId} 
+                companyName={company?.name || 'Company'} 
+                isActive={company?.isActive !== undefined ? company.isActive : true}
               />
             </div>
           </div>
@@ -266,6 +274,9 @@ export default async function CompanyDetailPage({ params }) {
     // If the API request was successful, parse the company data
     const company = await response.json();
     
+    // Debug the company data structure
+    console.log("Company data structure:", JSON.stringify(company, null, 2));
+    
     // Get employees for this company
     const employees = Array.isArray(company.employees) ? company.employees : [];
 
@@ -300,21 +311,21 @@ export default async function CompanyDetailPage({ params }) {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <p className="text-gray-600">ID</p>
-              <p>{company.id}</p>
+              <p>{company?.id || 'N/A'}</p>
             </div>
             <div>
               <p className="text-gray-600">Coins</p>
-              <p>{company.coins || 0}</p>
+              <p>{company?.coins || 0}</p>
             </div>
             <div>
               <p className="text-gray-600">Created</p>
-              <p>{new Date(company.createdAt).toLocaleDateString()}</p>
+              <p>{company?.createdAt ? new Date(company.createdAt).toLocaleDateString() : 'N/A'}</p>
             </div>
             <div>
               <p className="text-gray-600">Company Type</p>
-              <p>{company.companyType || "--Others--"}</p>
+              <p>{company?.companyType || "--Others--"}</p>
             </div>
-            {company.gstin && (
+            {company?.gstin && (
               <div>
                 <p className="text-gray-600">GSTIN</p>
                 <p>{company.gstin}</p>
@@ -324,9 +335,9 @@ export default async function CompanyDetailPage({ params }) {
 
           <div className="mt-6">
             <CompanyActions 
-              companyId={company.id} 
-              companyName={company.name}
-              isActive={company.isActive || true}
+              companyId={company?.id || companyId} 
+              companyName={company?.name || 'Company'} 
+              isActive={company?.isActive !== undefined ? company.isActive : true}
             />
           </div>
         </div>
