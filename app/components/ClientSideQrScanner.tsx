@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Box, Button, Dialog, DialogTitle, DialogContent, DialogActions, Typography, IconButton, Alert } from '@mui/material';
+import { Box, Button, Dialog, DialogTitle, DialogContent, DialogActions, Typography, IconButton, Alert, CircularProgress } from '@mui/material';
 import { Close, Cameraswitch } from '@mui/icons-material';
 
 // Define interfaces for html5-qrcode since it might not have TypeScript definitions
@@ -88,6 +88,7 @@ const ClientSideQrScanner: React.FC<ClientSideQrScannerProps> = ({
   const [cameras, setCameras] = useState<Array<{ id: string; label: string }>>([]);
   const [currentCamera, setCurrentCamera] = useState<string | null>(null);
   const [scannerInitialized, setScannerInitialized] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   
   const scanner = useRef<any>(null);
   const scannerContainerId = "qr-reader";
@@ -130,6 +131,7 @@ const ClientSideQrScanner: React.FC<ClientSideQrScannerProps> = ({
   const initializeScanner = async () => {
     try {
       setError(null);
+      setIsLoading(true);
       
       // Ensure scanner is properly cleaned up before initializing a new one
       cleanupScanner();
@@ -145,13 +147,24 @@ const ClientSideQrScanner: React.FC<ClientSideQrScannerProps> = ({
       const devices = await Html5Qrcode.getCameras();
       
       if (devices && devices.length > 0) {
-        setCameras(devices);
-        // Set the first camera as default if currentCamera is not set
-        if (!currentCamera) {
-          setCurrentCamera(devices[0].id);
-        }
+        // Sort cameras to prioritize rear cameras on mobile
+        const sortedDevices = sortCamerasByFacingMode(devices);
+        setCameras(sortedDevices);
         
-        await startScanner(currentCamera || devices[0].id);
+        // If no camera is selected yet, prefer the rear (environment) camera if available
+        if (!currentCamera) {
+          // Try to find a camera that's likely to be a rear-facing camera
+          const rearCamera = sortedDevices.find(camera => 
+            camera.label.toLowerCase().includes('back') || 
+            camera.label.toLowerCase().includes('rear') || 
+            camera.label.toLowerCase().includes('environment')
+          );
+          
+          setCurrentCamera(rearCamera ? rearCamera.id : sortedDevices[0].id);
+          await startScanner(rearCamera ? rearCamera.id : sortedDevices[0].id);
+        } else {
+          await startScanner(currentCamera);
+        }
       } else {
         setError("No cameras found. Please ensure camera permissions are granted.");
       }
@@ -159,7 +172,34 @@ const ClientSideQrScanner: React.FC<ClientSideQrScannerProps> = ({
       console.error("Error initializing scanner:", err);
       setError("Could not access camera. Please ensure camera permissions are granted and try again.");
       scanner.current = null;
+    } finally {
+      setIsLoading(false);
     }
+  };
+
+  // Sort cameras to prioritize rear cameras on mobile devices
+  const sortCamerasByFacingMode = (cameras: Array<{ id: string; label: string }>) => {
+    return [...cameras].sort((a, b) => {
+      const aLabel = a.label.toLowerCase();
+      const bLabel = b.label.toLowerCase();
+      
+      // Check for common keywords used in camera labels
+      const aIsRear = 
+        aLabel.includes('back') || 
+        aLabel.includes('rear') || 
+        aLabel.includes('environment') ||
+        !aLabel.includes('front');
+      
+      const bIsRear = 
+        bLabel.includes('back') || 
+        bLabel.includes('rear') || 
+        bLabel.includes('environment') ||
+        !bLabel.includes('front');
+      
+      if (aIsRear && !bIsRear) return -1; // a is rear, b is not - a comes first
+      if (!aIsRear && bIsRear) return 1;  // b is rear, a is not - b comes first
+      return 0; // both are the same type
+    });
   };
 
   const startScanner = async (cameraId: string) => {
@@ -170,11 +210,15 @@ const ClientSideQrScanner: React.FC<ClientSideQrScannerProps> = ({
     }
     
     try {
+      setIsLoading(true);
+      
       // Make sure we're starting with a clean state
       try {
         // Only try to stop if it's actually scanning
         if (scanner.current.getState && scanner.current.getState() === Html5QrcodeScannerState.SCANNING) {
           await scanner.current.stop();
+          // Add a small delay to allow for cleanup
+          await new Promise(resolve => setTimeout(resolve, 300));
         }
       } catch (stopErr) {
         // If we can't stop it, log the error but continue
@@ -216,16 +260,36 @@ const ClientSideQrScanner: React.FC<ClientSideQrScannerProps> = ({
         setError("Failed to start scanner. Please try again.");
       }
       setScannerInitialized(false);
+    } finally {
+      setIsLoading(false);
     }
   };
 
   const switchCamera = async () => {
     if (cameras.length <= 1) return;
+    setIsLoading(true);
     
-    const currentIndex = cameras.findIndex(camera => camera.id === currentCamera);
-    const nextIndex = (currentIndex + 1) % cameras.length;
-    
-    await startScanner(cameras[nextIndex].id);
+    try {
+      // First clean up the current scanner
+      cleanupScanner();
+      
+      // Recreate the scanner instance to avoid issues
+      const Html5QrcodeModule = await import('html5-qrcode');
+      const Html5Qrcode = Html5QrcodeModule.Html5Qrcode;
+      scanner.current = new Html5Qrcode(scannerContainerId);
+      
+      // Find the next camera in the list
+      const currentIndex = cameras.findIndex(camera => camera.id === currentCamera);
+      const nextIndex = (currentIndex + 1) % cameras.length;
+      const nextCameraId = cameras[nextIndex].id;
+      
+      // Start the new camera
+      await startScanner(nextCameraId);
+    } catch (err) {
+      console.error("Error switching camera:", err);
+      setError("Failed to switch camera. Please try again.");
+      resetScanner();
+    }
   };
 
   const handleScanSuccess = (decodedText: string) => {
@@ -332,7 +396,26 @@ const ClientSideQrScanner: React.FC<ClientSideQrScannerProps> = ({
               position: 'relative',
               overflow: 'hidden'
             }}
-          />
+          >
+            {isLoading && (
+              <Box 
+                sx={{ 
+                  position: 'absolute', 
+                  top: 0, 
+                  left: 0, 
+                  right: 0, 
+                  bottom: 0, 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  justifyContent: 'center',
+                  backgroundColor: 'rgba(255, 255, 255, 0.7)',
+                  zIndex: 10
+                }}
+              >
+                <CircularProgress />
+              </Box>
+            )}
+          </Box>
           
           <Box sx={{ mt: 2, textAlign: 'center' }}>
             <Typography variant="body2" color="text.secondary" gutterBottom>
@@ -349,7 +432,7 @@ const ClientSideQrScanner: React.FC<ClientSideQrScannerProps> = ({
             <Button 
               startIcon={<Cameraswitch />} 
               onClick={switchCamera}
-              disabled={!scannerInitialized}
+              disabled={!scannerInitialized || isLoading}
             >
               Switch Camera
             </Button>
