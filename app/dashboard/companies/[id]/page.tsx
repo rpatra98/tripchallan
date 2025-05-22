@@ -5,6 +5,7 @@ import prisma from "@/lib/prisma";
 import { UserRole, EmployeeSubrole } from "@/prisma/enums";
 import Link from "next/link";
 import { cookies } from "next/headers";
+import CompanyActions from "./company-actions";
 
 // Add dynamic export to ensure Next.js treats this as a dynamic route
 export const dynamic = 'force-dynamic';
@@ -19,6 +20,24 @@ interface Employee {
   role: string;
   subrole?: string;
   coins?: number;
+}
+
+// Company interface
+interface Company {
+  id: string;
+  name: string;
+  email: string;
+  coins?: number;
+  createdAt: Date;
+  isActive?: boolean;
+  companyType?: string;
+  gstin?: string;
+  phone?: string;
+  address?: string;
+  logo?: string;
+  documents?: string[];
+  _synthetic?: boolean;
+  employees?: Employee[];
 }
 
 export default async function CompanyDetailPage({ params }: { params: { id: string } }) {
@@ -50,23 +69,21 @@ export default async function CompanyDetailPage({ params }: { params: { id: stri
       redirect("/dashboard");
     }
 
-    // Get company details
-    const company = await prisma.user.findUnique({
-      where: {
-        id: companyId,
-        role: UserRole.COMPANY,
+    // Get full company details from the API which will include more data
+    const cookieStore = cookies();
+    const response = await fetch(`${process.env.NEXTAUTH_URL}/api/companies/${companyId}`, {
+      headers: {
+        cookie: cookieStore.toString(),
       },
+      next: { revalidate: 0 },
     });
 
-    // Debug output
-    console.log("Company found:", company ? "Yes" : "No");
-
-    if (!company) {
-      // Return debugging info instead of 404
+    if (!response.ok) {
+      console.error("API error:", response.status, response.statusText);
       return (
         <div className="container mx-auto px-4 py-8 bg-red-50 p-6 rounded-lg">
           <h1 className="text-2xl font-bold text-red-700">Company Not Found</h1>
-          <p className="mt-2">The company with ID: {companyId} was not found in the database.</p>
+          <p className="mt-2">The company with ID: {companyId} was not found or could not be accessed.</p>
           <div className="mt-4">
             <Link href="/dashboard" className="text-blue-600 hover:underline">
               &larr; Go back to Dashboard
@@ -76,16 +93,14 @@ export default async function CompanyDetailPage({ params }: { params: { id: stri
       );
     }
 
-    // Get employees for this company using the API route
-    const cookieStore = cookies();
-    const employeesResponse = await fetch(`${process.env.NEXTAUTH_URL}/api/companies/${companyId}/employees`, {
-      headers: {
-        cookie: cookieStore.toString(),
-      },
-      next: { revalidate: 0 },
-    });
+    // Parse the company data
+    const company = await response.json() as Company;
     
-    const employees = await employeesResponse.json() as Employee[];
+    // Debug the company data structure
+    console.log("Company data structure:", JSON.stringify(company, null, 2));
+    
+    // Get employees for this company
+    const employees = Array.isArray(company.employees) ? company.employees : [];
 
     return (
       <div className="container mx-auto px-4 py-8">
@@ -93,8 +108,24 @@ export default async function CompanyDetailPage({ params }: { params: { id: stri
           <Link href="/dashboard" className="text-blue-600 hover:underline mb-4 inline-block">
             &larr; Back to Dashboard
           </Link>
-          <h1 className="text-2xl font-bold">{company.name}</h1>
-          <p className="text-gray-600">{company.email}</p>
+          <div className="flex justify-between items-center">
+            <div>
+              <h1 className="text-2xl font-bold">{company.name}</h1>
+              <p className="text-gray-600">{company.email}</p>
+              {company._synthetic && (
+                <p className="text-amber-600 text-sm mt-1">
+                  Note: Using company user data, actual company record may be missing
+                </p>
+              )}
+            </div>
+            <div className="flex items-center">
+              <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                company.isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+              }`}>
+                {company.isActive ? 'Active' : 'Inactive'}
+              </span>
+            </div>
+          </div>
         </div>
 
         <div className="bg-white shadow-md rounded-lg p-6 mb-8">
@@ -102,28 +133,114 @@ export default async function CompanyDetailPage({ params }: { params: { id: stri
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <p className="text-gray-600">ID</p>
-              <p>{company.id}</p>
+              <p className="font-mono text-sm">{company?.id || 'N/A'}</p>
             </div>
             <div>
-              <p className="text-gray-600">Coins</p>
-              <p>{company.coins}</p>
+              <p className="text-gray-600">Company Type</p>
+              <p>{company?.companyType || "--Others--"}</p>
             </div>
             <div>
-              <p className="text-gray-600">Created</p>
-              <p>{new Date(company.createdAt).toLocaleDateString()}</p>
+              <p className="text-gray-600">Created On</p>
+              <p>{company?.createdAt ? new Date(company.createdAt).toLocaleString('en-US', {
+                year: 'numeric',
+                month: 'short',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit',
+                hour12: true
+              }) : 'N/A'}</p>
             </div>
+            {company?.gstin && (
+              <div>
+                <p className="text-gray-600">GSTIN</p>
+                <p>{company.gstin}</p>
+              </div>
+            )}
+            {company?.phone && (
+              <div>
+                <p className="text-gray-600">Phone Number</p>
+                <p>{company.phone}</p>
+              </div>
+            )}
+            {company?.address && (
+              <div>
+                <p className="text-gray-600">Address</p>
+                <p>{company.address}</p>
+              </div>
+            )}
+            {company?.coins !== undefined && (
+              <div>
+                <p className="text-gray-600">Coins</p>
+                <p>{company.coins}</p>
+              </div>
+            )}
+          </div>
+
+          {company?.logo && (
+            <div className="mt-4">
+              <p className="text-gray-600 mb-2">Company Logo</p>
+              <div className="w-40 h-40 border rounded-md overflow-hidden">
+                <img 
+                  src={company.logo} 
+                  alt={`${company.name} logo`} 
+                  className="w-full h-full object-contain"
+                  onError={(e) => {
+                    const imgElement = e.target as HTMLImageElement;
+                    imgElement.onerror = null;
+                    imgElement.src = '/placeholder-logo.png'; // Fallback image
+                  }}
+                />
+              </div>
+            </div>
+          )}
+
+          {company?.documents && company.documents.length > 0 && (
+            <div className="mt-4">
+              <p className="text-gray-600 mb-2">Documents</p>
+              <div className="flex flex-wrap gap-2">
+                {company.documents.map((doc, index) => (
+                  <a 
+                    href={doc} 
+                    key={index}
+                    download
+                    target="_blank"
+                    rel="noopener noreferrer" 
+                    className="inline-flex items-center px-3 py-1 bg-blue-100 text-blue-700 rounded hover:bg-blue-200"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    Document {index + 1}
+                  </a>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div className="mt-6">
+            <CompanyActions 
+              companyId={company?.id || companyId} 
+              companyName={company?.name || 'Company'} 
+              isActive={company?.isActive !== undefined ? company.isActive : true}
+            />
           </div>
         </div>
 
         <div className="bg-white shadow-md rounded-lg p-6">
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-xl font-semibold">Employees</h2>
-            {/* Add Employee button removed as requested */}
+            <Link 
+              href={`/dashboard/employees/create?companyId=${company.id}`}
+              className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
+            >
+              Add Employee
+            </Link>
           </div>
 
-          {employees.length === 0 ? (
+          {employees && employees.length === 0 ? (
             <p className="text-gray-500 text-center py-4">No employees found for this company.</p>
-          ) : (
+          ) : employees && employees.length > 0 ? (
             <div className="overflow-x-auto">
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
@@ -136,7 +253,7 @@ export default async function CompanyDetailPage({ params }: { params: { id: stri
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {employees.map((employee) => (
+                  {employees.map((employee: Employee) => (
                     <tr key={employee.id}>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                         {employee.name}
@@ -163,6 +280,8 @@ export default async function CompanyDetailPage({ params }: { params: { id: stri
                 </tbody>
               </table>
             </div>
+          ) : (
+            <p className="text-gray-500 text-center py-4">No employees found for this company.</p>
           )}
         </div>
       </div>
