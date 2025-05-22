@@ -232,11 +232,11 @@ export default function CommentSection({ sessionId }: CommentSectionProps) {
       case "LOW":
         return "#FFD700"; // Yellow
       case "MEDIUM":
-        return "#FFA500"; // Orange
+        return "#4CAF50"; // Green
       case "HIGH":
         return "#FF0000"; // Red
       default:
-        return "inherit"; // Default color
+        return "inherit"; // Default color (black)
     }
   };
 
@@ -330,7 +330,7 @@ export default function CommentSection({ sessionId }: CommentSectionProps) {
               >
                 <MenuItem value="NA">--NA--</MenuItem>
                 <MenuItem value="LOW">Yellow (Low)</MenuItem>
-                <MenuItem value="MEDIUM">Orange (Medium)</MenuItem>
+                <MenuItem value="MEDIUM">Green (Medium)</MenuItem>
                 <MenuItem value="HIGH">Red (High)</MenuItem>
               </Select>
             </FormControl>
@@ -437,7 +437,7 @@ export default function CommentSection({ sessionId }: CommentSectionProps) {
                             <Flag fontSize="small" sx={{ mr: 0.5, fontSize: '0.8rem' }} />
                             <Typography variant="caption">
                               {comment.urgency === "LOW" ? "Yellow" : 
-                               comment.urgency === "MEDIUM" ? "Orange" : 
+                               comment.urgency === "MEDIUM" ? "Green" : 
                                comment.urgency === "HIGH" ? "Red" : ""}
                             </Typography>
                           </Box>
