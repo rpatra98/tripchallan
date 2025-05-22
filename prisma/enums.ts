@@ -34,5 +34,11 @@ export enum ActivityAction {
   LOGOUT = "LOGOUT",
   TRANSFER = "TRANSFER",
   ALLOCATE = "ALLOCATE",
-  VIEW = "VIEW",
+  VIEW = "VIEW"
+}
+
+export enum VehicleStatus {
+  ACTIVE = "ACTIVE",
+  INACTIVE = "INACTIVE",
+  MAINTENANCE = "MAINTENANCE"
 } 

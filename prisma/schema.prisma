@@ -30,6 +30,7 @@ model User {
   operatorPermissions  OperatorPermissions?
   verifiedSeals        Seal[]               @relation("SealVerifiedBy")
   createdSessions      Session[]            @relation("SessionCreatedBy")
+  createdVehicles      Vehicle[]            @relation("VehicleCreatedBy")
   company              Company?             @relation(fields: [companyId], references: [id])
   createdBy            User?                @relation("UserCreatedBy", fields: [createdById], references: [id])
   createdUsers         User[]               @relation("UserCreatedBy")
@@ -47,6 +48,7 @@ model Company {
   updatedAt DateTime  @updatedAt
   sessions  Session[]
   employees User[]
+  vehicles  Vehicle[]
 
   @@map("companies")
 }
@@ -136,6 +138,23 @@ model OperatorPermissions {
   @@map("operator_permissions")
 }
 
+model Vehicle {
+  id            String        @id @default(uuid())
+  numberPlate   String        @unique
+  model         String?
+  manufacturer  String?
+  yearOfMake    Int?
+  status        VehicleStatus @default(ACTIVE)
+  companyId     String
+  createdById   String
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  company       Company       @relation(fields: [companyId], references: [id])
+  createdBy     User          @relation("VehicleCreatedBy", fields: [createdById], references: [id])
+
+  @@map("vehicles")
+}
+
 enum UserRole {
   SUPERADMIN
   ADMIN
@@ -172,4 +191,10 @@ enum ActivityAction {
   TRANSFER
   ALLOCATE
   VIEW
+}
+
+enum VehicleStatus {
+  ACTIVE
+  INACTIVE
+  MAINTENANCE
 }

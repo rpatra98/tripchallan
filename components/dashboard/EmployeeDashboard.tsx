@@ -6,6 +6,7 @@ import { EmployeeDashboardProps } from "./types";
 import { Person, AccountCircle, Apartment, LocalAtm, DirectionsCar, CheckCircle } from "@mui/icons-material";
 import TransferCoinsForm from "../coins/TransferCoinsForm";
 import TransactionHistory from "../coins/TransactionHistory";
+import VehicleForm, { VehicleFormData } from "../vehicles/VehicleForm";
 import { useSession } from "next-auth/react";
 import { SessionUpdateContext } from "@/app/dashboard/layout";
 import { EmployeeSubrole } from "@/prisma/enums";
@@ -22,6 +23,11 @@ export default function EmployeeDashboard({ user }: EmployeeDashboardProps) {
   const [operatorSessions, setOperatorSessions] = useState<any[]>([]);
   const [loadingOperatorSessions, setLoadingOperatorSessions] = useState(false);
   const [operatorSessionsError, setOperatorSessionsError] = useState("");
+  const [vehicles, setVehicles] = useState<any[]>([]);
+  const [loadingVehicles, setLoadingVehicles] = useState(false);
+  const [vehiclesError, setVehiclesError] = useState("");
+  const [vehicleFormOpen, setVehicleFormOpen] = useState(false);
+  const [editingVehicle, setEditingVehicle] = useState<any>(null);
   const [operatorPermissions, setOperatorPermissions] = useState({
     canCreate: false,
     canModify: false,
@@ -229,6 +235,12 @@ export default function EmployeeDashboard({ user }: EmployeeDashboardProps) {
     }
   }, [activeTab, isOperator]);
 
+  useEffect(() => {
+    if (activeTab === "vehicles" && isOperator) {
+      fetchVehicles();
+    }
+  }, [activeTab, isOperator]);
+
   const fetchOperatorSessions = async () => {
     setLoadingOperatorSessions(true);
     setOperatorSessionsError("");
@@ -271,6 +283,130 @@ export default function EmployeeDashboard({ user }: EmployeeDashboardProps) {
       setOperatorSessions([]);
     } finally {
       setLoadingOperatorSessions(false);
+    }
+  };
+
+  // Fetch vehicles for the company
+  const fetchVehicles = async () => {
+    setLoadingVehicles(true);
+    setVehiclesError("");
+    
+    try {
+      const response = await fetch("/api/vehicles");
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        console.error("Error fetching vehicles:", response.status, errorData);
+        
+        throw new Error(errorData.error || "Failed to fetch vehicles");
+      }
+      
+      const data = await response.json();
+      
+      if (data.vehicles && Array.isArray(data.vehicles)) {
+        setVehicles(data.vehicles);
+      } else {
+        console.error("Unexpected API response format:", data);
+        setVehicles([]);
+      }
+    } catch (err) {
+      console.error("Error fetching vehicles:", err);
+      setVehiclesError("Failed to load vehicles. Please try again.");
+      setVehicles([]);
+    } finally {
+      setLoadingVehicles(false);
+    }
+  };
+
+  // Handle vehicle deletion (deactivation)
+  const handleDeactivateVehicle = async (vehicleId: string) => {
+    if (!confirm("Are you sure you want to deactivate this vehicle? This will mark it as inactive.")) {
+      return;
+    }
+    
+    try {
+      const response = await fetch(`/api/vehicles/${vehicleId}`, {
+        method: "DELETE"
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || "Failed to deactivate vehicle");
+      }
+      
+      // Refresh the vehicles list
+      fetchVehicles();
+      
+      alert("Vehicle deactivated successfully");
+    } catch (err) {
+      console.error("Error deactivating vehicle:", err);
+      alert(err instanceof Error ? err.message : "Failed to deactivate vehicle. Please try again.");
+    }
+  };
+
+  // Handle adding a new vehicle
+  const handleAddVehicle = async (data: VehicleFormData) => {
+    try {
+      const response = await fetch('/api/vehicles', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data),
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to add vehicle');
+      }
+      
+      // Refresh vehicles list
+      fetchVehicles();
+      alert('Vehicle added successfully');
+    } catch (err) {
+      console.error('Error adding vehicle:', err);
+      alert(err instanceof Error ? err.message : 'Failed to add vehicle. Please try again.');
+      throw err; // Re-throw to prevent dialog from closing
+    }
+  };
+  
+  // Handle updating a vehicle
+  const handleUpdateVehicle = async (data: VehicleFormData) => {
+    if (!data.id) {
+      alert('Cannot update vehicle: Missing ID');
+      return;
+    }
+    
+    try {
+      const response = await fetch(`/api/vehicles/${data.id}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data),
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to update vehicle');
+      }
+      
+      // Refresh vehicles list
+      fetchVehicles();
+      alert('Vehicle updated successfully');
+    } catch (err) {
+      console.error('Error updating vehicle:', err);
+      alert(err instanceof Error ? err.message : 'Failed to update vehicle. Please try again.');
+      throw err; // Re-throw to prevent dialog from closing
+    }
+  };
+  
+  // Generic handler that will call either add or update based on whether we're editing
+  const handleSubmitVehicleForm = async (data: VehicleFormData) => {
+    if (editingVehicle) {
+      await handleUpdateVehicle(data);
+    } else {
+      await handleAddVehicle(data);
     }
   };
 
@@ -369,6 +505,20 @@ export default function EmployeeDashboard({ user }: EmployeeDashboardProps) {
                       }`}
                     >
                       Trip Management
+                    </button>
+                  </li>
+                )}
+                {isOperator && (
+                  <li className="mb-2">
+                    <button
+                      onClick={() => setActiveTab("vehicles")}
+                      className={`w-full text-left px-4 py-2 rounded-md ${
+                        activeTab === "vehicles"
+                          ? "bg-blue-50 text-blue-600"
+                          : "text-gray-700 hover:bg-gray-100"
+                      }`}
+                    >
+                      Vehicle Records
                     </button>
                   </li>
                 )}
@@ -715,6 +865,162 @@ export default function EmployeeDashboard({ user }: EmployeeDashboardProps) {
               </div>
             )}
 
+            {/* Vehicle Records content */}
+            {activeTab === "vehicles" && isOperator && (
+              <div>
+                <h3 className="text-lg font-medium mb-4">Vehicle Records</h3>
+                
+                <div className="bg-gray-100 p-6 rounded-md mb-6">
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <h4 className="font-medium mb-2">Company Vehicles</h4>
+                      <p className="text-sm text-gray-600">Manage your company's vehicle fleet</p>
+                    </div>
+                    <div className="flex">
+                      <button
+                        onClick={fetchVehicles}
+                        className="px-4 py-2 border border-blue-500 text-blue-500 rounded-md text-sm hover:bg-blue-50 mr-2"
+                      >
+                        Refresh
+                      </button>
+                      {operatorPermissions.canCreate && (
+                        <button 
+                          onClick={() => {
+                            setEditingVehicle(null);
+                            setVehicleFormOpen(true);
+                          }}
+                          className="px-4 py-2 bg-blue-500 text-white rounded-md text-sm hover:bg-blue-600"
+                        >
+                          Add New Vehicle
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+                
+                {vehiclesError && (
+                  <div className="bg-red-50 text-red-700 p-4 rounded-md mb-4">
+                    {vehiclesError}
+                  </div>
+                )}
+                
+                {loadingVehicles ? (
+                  <div className="flex justify-center py-8">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+                  </div>
+                ) : vehicles.length === 0 ? (
+                  <div className="text-center py-10 text-gray-500 bg-white border rounded-lg">
+                    <DirectionsCar sx={{ fontSize: 48 }} className="mx-auto mb-4 text-gray-400" />
+                    <p className="mb-2">No vehicles found</p>
+                    <p className="text-sm">
+                      {operatorPermissions.canCreate 
+                        ? "Add a new vehicle to start building your fleet"
+                        : "You don't have permission to add vehicles. Contact your administrator."}
+                    </p>
+                  </div>
+                ) : (
+                  <div className="bg-white border rounded-lg p-6">
+                    <div className="overflow-x-auto">
+                      <table className="min-w-full divide-y divide-gray-200">
+                        <thead className="bg-gray-50">
+                          <tr>
+                            <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              Number Plate
+                            </th>
+                            <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              Vehicle Details
+                            </th>
+                            <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              Status
+                            </th>
+                            <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              Added By
+                            </th>
+                            <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              Added Date
+                            </th>
+                            <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              Actions
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody className="bg-white divide-y divide-gray-200">
+                          {vehicles.map((vehicle) => (
+                            <tr key={vehicle.id} className="hover:bg-gray-50">
+                              <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                                {vehicle.numberPlate}
+                              </td>
+                              <td className="px-6 py-4 text-sm text-gray-500">
+                                {vehicle.manufacturer && vehicle.model ? (
+                                  <span>{vehicle.manufacturer} {vehicle.model}{vehicle.yearOfMake ? ` (${vehicle.yearOfMake})` : ''}</span>
+                                ) : (
+                                  <span className="text-gray-400">No details provided</span>
+                                )}
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm">
+                                <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                                  vehicle.status === 'ACTIVE' ? 'bg-green-100 text-green-800' :
+                                  vehicle.status === 'MAINTENANCE' ? 'bg-yellow-100 text-yellow-800' :
+                                  'bg-red-100 text-red-800'
+                                }`}>
+                                  {vehicle.status}
+                                </span>
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                {vehicle.createdBy?.name || 'Unknown'}
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                {new Date(vehicle.createdAt).toLocaleDateString()}
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                {operatorPermissions.canModify && (
+                                  <button
+                                    onClick={() => {
+                                      setEditingVehicle(vehicle);
+                                      setVehicleFormOpen(true);
+                                    }}
+                                    className="text-blue-600 hover:text-blue-900 mr-3"
+                                  >
+                                    Edit
+                                  </button>
+                                )}
+                                {operatorPermissions.canDelete && vehicle.status !== 'INACTIVE' && (
+                                  <button
+                                    onClick={() => handleDeactivateVehicle(vehicle.id)}
+                                    className="text-red-600 hover:text-red-900"
+                                  >
+                                    Deactivate
+                                  </button>
+                                )}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+                
+                <div className="mt-6 bg-white border rounded-lg p-6">
+                  <h4 className="font-medium mb-4">Vehicle Status Guide</h4>
+                  <div className="space-y-3">
+                    <div className="flex items-center">
+                      <div className="w-3 h-3 rounded-full mr-2 bg-green-500"></div>
+                      <span className="text-sm">Active - Vehicle is operational and available for use</span>
+                    </div>
+                    <div className="flex items-center">
+                      <div className="w-3 h-3 rounded-full mr-2 bg-yellow-500"></div>
+                      <span className="text-sm">Maintenance - Vehicle is currently undergoing maintenance</span>
+                    </div>
+                    <div className="flex items-center">
+                      <div className="w-3 h-3 rounded-full mr-2 bg-red-500"></div>
+                      <span className="text-sm">Inactive - Vehicle is no longer in use or has been deactivated</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Trip Verification content for guards */}
             {activeTab === "verifications" && isGuard && (
               <div>
@@ -858,6 +1164,15 @@ export default function EmployeeDashboard({ user }: EmployeeDashboardProps) {
           </div>
         </div>
       </div>
+      
+      {/* Vehicle Form Dialog */}
+      <VehicleForm 
+        open={vehicleFormOpen}
+        onClose={() => setVehicleFormOpen(false)}
+        onSubmit={handleSubmitVehicleForm}
+        initialData={editingVehicle}
+        isEditing={!!editingVehicle}
+      />
     </div>
   );
 } 
