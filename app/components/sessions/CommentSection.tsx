@@ -230,11 +230,11 @@ export default function CommentSection({ sessionId }: CommentSectionProps) {
   const getUrgencyColor = (urgency: string) => {
     switch (urgency) {
       case "LOW":
-        return "#DAA520"; // Dark Gold
+        return "#CCFF00"; // Bright yellow-green
       case "MEDIUM":
-        return "#FF8C00"; // Burnt Orange
+        return "#FF4D04"; // Bright orange-red
       case "HIGH":
-        return "#900603"; // Ruby
+        return "#FF0000"; // Red
       default:
         return "inherit"; // Default color (black)
     }
@@ -329,9 +329,21 @@ export default function CommentSection({ sessionId }: CommentSectionProps) {
                 }
               >
                 <MenuItem value="NA">--NA--</MenuItem>
-                <MenuItem value="LOW">Dark Gold (Low)</MenuItem>
-                <MenuItem value="MEDIUM">Burnt Orange (Medium)</MenuItem>
-                <MenuItem value="HIGH">Ruby (High)</MenuItem>
+                <MenuItem value="LOW">
+                  <Typography sx={{ color: "#CCFF00" }}>
+                    Low
+                  </Typography>
+                </MenuItem>
+                <MenuItem value="MEDIUM">
+                  <Typography sx={{ color: "#FF4D04" }}>
+                    Medium
+                  </Typography>
+                </MenuItem>
+                <MenuItem value="HIGH">
+                  <Typography sx={{ color: "#FF0000" }}>
+                    High
+                  </Typography>
+                </MenuItem>
               </Select>
             </FormControl>
           </Box>
@@ -436,9 +448,9 @@ export default function CommentSection({ sessionId }: CommentSectionProps) {
                           }}>
                             <Flag fontSize="small" sx={{ mr: 0.5, fontSize: '0.8rem' }} />
                             <Typography variant="caption">
-                              {comment.urgency === "LOW" ? "Dark Gold" : 
-                               comment.urgency === "MEDIUM" ? "Burnt Orange" : 
-                               comment.urgency === "HIGH" ? "Ruby" : ""}
+                              {comment.urgency === "LOW" ? "Low" : 
+                               comment.urgency === "MEDIUM" ? "Medium" : 
+                               comment.urgency === "HIGH" ? "High" : ""}
                             </Typography>
                           </Box>
                         )}
