@@ -65,22 +65,62 @@ export default function BasicQrScanner({ open, onClose, onScan, title = "Scan QR
   const [scanning, setScanning] = useState(false);
   const [cameraLoading, setCameraLoading] = useState(true);
   const [permissionDenied, setPermissionDenied] = useState(false);
-  const [isMounted, setIsMounted] = useState(false);
+  const [videoElementExists, setVideoElementExists] = useState(false);
   
   // Create refs for managing resources
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const videoContainerRef = useRef<HTMLDivElement>(null);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const frameProcessorRef = useRef<number | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
-
-  // Track if the component is mounted
-  useEffect(() => {
-    console.log('Component mounted');
-    setIsMounted(true);
-    return () => {
-      console.log('Component unmounting');
-      setIsMounted(false);
-    };
+  
+  // Create and initialize video and canvas elements dynamically
+  const createVideoAndCanvas = useCallback(() => {
+    // If no container exists, we can't proceed
+    if (!videoContainerRef.current) {
+      console.error('Video container element not found');
+      return false;
+    }
+    
+    // Clean up any existing elements first
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+      videoRef.current.remove();
+    }
+    
+    if (canvasRef.current) {
+      canvasRef.current.remove();
+    }
+    
+    // Create new video element
+    const videoElement = document.createElement('video');
+    videoElement.style.width = '100%';
+    videoElement.style.height = '100%';
+    videoElement.style.objectFit = 'cover';
+    videoElement.style.display = 'block';
+    videoElement.playsInline = true;
+    videoElement.muted = true;
+    videoElement.autoplay = true;
+    
+    // Create new canvas element
+    const canvasElement = document.createElement('canvas');
+    canvasElement.style.display = 'none';
+    canvasElement.style.position = 'absolute';
+    canvasElement.style.left = '0';
+    canvasElement.style.top = '0';
+    
+    // Append elements to the container
+    videoContainerRef.current.appendChild(videoElement);
+    videoContainerRef.current.appendChild(canvasElement);
+    
+    // Update refs
+    videoRef.current = videoElement;
+    canvasRef.current = canvasElement;
+    
+    console.log('Created new video and canvas elements, video is:', videoElement);
+    setVideoElementExists(true);
+    
+    return true;
   }, []);
   
   // Clean up resources when component unmounts or dialog closes
@@ -104,10 +144,13 @@ export default function BasicQrScanner({ open, onClose, onScan, title = "Scan QR
       videoRef.current.srcObject = null;
     }
   }, []);
-
+  
   // Process video frames to detect QR codes
   const processVideoFrame = useCallback(async () => {
-    if (!open || !videoRef.current || !canvasRef.current) return;
+    if (!open || !videoRef.current || !canvasRef.current) {
+      console.log('Cannot process frame: open=', open, 'videoRef=', !!videoRef.current, 'canvasRef=', !!canvasRef.current);
+      return;
+    }
     
     try {
       const code = await detectQRCode(videoRef.current, canvasRef.current);
@@ -128,12 +171,23 @@ export default function BasicQrScanner({ open, onClose, onScan, title = "Scan QR
     // Continue processing frames
     frameProcessorRef.current = requestAnimationFrame(processVideoFrame);
   }, [open, onClose, onScan]);
-
+  
   // Start camera with the given constraints
-  const startCameraWithConstraints = useCallback(async (constraints: MediaStreamConstraints) => {
+  const startCameraWithConstraints = useCallback(async (constraints: MediaStreamConstraints): Promise<boolean> => {
+    // Ensure video element exists before attempting to use it
+    if (!videoRef.current) {
+      console.error('Video element not available when starting camera');
+      if (!createVideoAndCanvas()) {
+        setError('Could not create video element. Please try again later.');
+        setCameraLoading(false);
+        return false;
+      }
+    }
+    
     try {
+      // Re-check after potential creation
       if (!videoRef.current) {
-        console.error('Video element not available when starting camera');
+        console.error('Video element still not available after creation attempt');
         setError('Could not initialize video element. Please try again later.');
         setCameraLoading(false);
         return false;
@@ -143,15 +197,24 @@ export default function BasicQrScanner({ open, onClose, onScan, title = "Scan QR
       const stream = await navigator.mediaDevices.getUserMedia(constraints);
       console.log('Camera access granted, stream tracks:', stream.getTracks().length);
       
+      // Store stream reference
       streamRef.current = stream;
+      
+      // Assign stream to video element
       videoRef.current.srcObject = stream;
       
+      // Handle video loading and playback
       return new Promise<boolean>((resolve) => {
         if (!videoRef.current) {
           console.error('Video element lost after getting stream');
           resolve(false);
           return;
         }
+        
+        const handleVideoError = () => {
+          console.error('Video element error event fired');
+          resolve(false);
+        };
         
         // Set up metadata event
         videoRef.current.onloadedmetadata = () => {
@@ -169,7 +232,7 @@ export default function BasicQrScanner({ open, onClose, onScan, title = "Scan QR
           // Start playback
           videoRef.current.play()
             .then(() => {
-              console.log('Video playback started');
+              console.log('Video playback started successfully');
               if (frameProcessorRef.current === null) {
                 frameProcessorRef.current = requestAnimationFrame(processVideoFrame);
               }
@@ -182,10 +245,7 @@ export default function BasicQrScanner({ open, onClose, onScan, title = "Scan QR
         };
         
         // Handle errors
-        videoRef.current.onerror = () => {
-          console.error('Video element error');
-          resolve(false);
-        };
+        videoRef.current.onerror = handleVideoError;
       });
     } catch (err) {
       console.error('Error accessing camera:', err);
@@ -201,8 +261,8 @@ export default function BasicQrScanner({ open, onClose, onScan, title = "Scan QR
       
       return false;
     }
-  }, [processVideoFrame]);
-
+  }, [createVideoAndCanvas, processVideoFrame]);
+  
   // Initialize camera with fallback options
   const initializeCamera = useCallback(async () => {
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
@@ -210,7 +270,7 @@ export default function BasicQrScanner({ open, onClose, onScan, title = "Scan QR
       setCameraLoading(false);
       return;
     }
-
+    
     // Check if we're on a secure origin (required for camera access in modern browsers)
     const isSecureOrigin = window.location.protocol === 'https:' || 
                           window.location.hostname === 'localhost' ||
@@ -223,7 +283,7 @@ export default function BasicQrScanner({ open, onClose, onScan, title = "Scan QR
       return;
     }
     
-    console.log('Initializing camera, video element exists:', !!videoRef.current);
+    console.log('Initializing camera');
     
     // Try with detailed constraints first
     const detailedConstraints = {
@@ -251,11 +311,11 @@ export default function BasicQrScanner({ open, onClose, onScan, title = "Scan QR
       setError('Could not initialize camera. Please try again.');
       setCameraLoading(false);
     }
-  }, [error, startCameraWithConstraints]);
-
+  }, [startCameraWithConstraints, error]);
+  
   // Handle dialog open/close
   useEffect(() => {
-    console.log('Dialog open state changed:', open, 'Component mounted:', isMounted);
+    console.log('Dialog open state changed:', open);
     
     if (!open) {
       stopCamera();
@@ -267,20 +327,22 @@ export default function BasicQrScanner({ open, onClose, onScan, title = "Scan QR
     setError(null);
     setPermissionDenied(false);
     
+    // Create video element when dialog opens
+    const elementsCreated = createVideoAndCanvas();
+    console.log('Elements created:', elementsCreated);
+    
     // Add a small delay to ensure DOM is ready
     const timer = setTimeout(() => {
-      console.log('Starting camera after timeout, video element exists:', !!videoRef.current);
-      if (isMounted) {
-        initializeCamera();
-      }
-    }, 300);
+      console.log('Starting camera after timeout');
+      initializeCamera();
+    }, 500);
     
     return () => {
       clearTimeout(timer);
       stopCamera();
     };
-  }, [open, stopCamera, initializeCamera, isMounted]);
-
+  }, [open, stopCamera, initializeCamera, createVideoAndCanvas]);
+  
   // Attempt to switch cameras
   const handleSwitchCamera = useCallback(async () => {
     stopCamera();
@@ -308,7 +370,7 @@ export default function BasicQrScanner({ open, onClose, onScan, title = "Scan QR
       setCameraLoading(false);
     }
   }, [stopCamera, startCameraWithConstraints, error]);
-
+  
   // Render scanner UI
   return (
     <Dialog 
@@ -359,10 +421,13 @@ export default function BasicQrScanner({ open, onClose, onScan, title = "Scan QR
                 setError(null);
                 setPermissionDenied(false);
                 
+                // Create new elements
+                createVideoAndCanvas();
+                
                 // Small delay to ensure DOM updates
                 setTimeout(() => {
                   initializeCamera();
-                }, 300);
+                }, 500);
               }}
               sx={{ mt: 2 }}
             >
@@ -371,36 +436,21 @@ export default function BasicQrScanner({ open, onClose, onScan, title = "Scan QR
           </Box>
         ) : (
           <Box sx={{ position: 'relative' }}>
-            <Box sx={{ 
-              position: 'relative', 
-              width: '100%', 
-              maxWidth: '100%',
-              height: 'auto',
-              aspectRatio: '4/3',
-              overflow: 'hidden',
-              borderRadius: 1,
-              bgcolor: '#000',
-              border: '1px solid rgba(0,0,0,0.1)',
-            }}>
-              <video
-                ref={videoRef}
-                style={{ 
-                  width: '100%', 
-                  height: '100%', 
-                  objectFit: 'cover',
-                  display: 'block'
-                }}
-                playsInline
-                muted
-                autoPlay
-                key="qr-scanner-video"
-              />
-              
-              <canvas 
-                ref={canvasRef} 
-                style={{ display: 'none', position: 'absolute', left: 0, top: 0 }}
-                key="qr-scanner-canvas"
-              />
+            <Box 
+              ref={videoContainerRef}
+              sx={{ 
+                position: 'relative', 
+                width: '100%', 
+                maxWidth: '100%',
+                height: 'auto',
+                aspectRatio: '4/3',
+                overflow: 'hidden',
+                borderRadius: 1,
+                bgcolor: '#000',
+                border: '1px solid rgba(0,0,0,0.1)',
+              }}
+            >
+              {/* Video and canvas elements will be dynamically created and appended here */}
               
               {/* QR code targeting frame */}
               <Box sx={{
