@@ -97,14 +97,15 @@ model Seal {
 }
 
 model Comment {
-  id        String   @id @default(uuid())
+  id        String         @id @default(uuid())
   sessionId String
   userId    String
   message   String
   imageUrl  String?
-  createdAt DateTime @default(now())
-  session   Session  @relation(fields: [sessionId], references: [id])
-  user      User     @relation(fields: [userId], references: [id])
+  urgency   CommentUrgency @default(NA)
+  createdAt DateTime       @default(now())
+  session   Session        @relation(fields: [sessionId], references: [id])
+  user      User           @relation(fields: [userId], references: [id])
 
   @@map("comments")
 }
@@ -198,4 +199,11 @@ enum VehicleStatus {
   ACTIVE
   INACTIVE
   MAINTENANCE
+}
+
+enum CommentUrgency {
+  NA
+  LOW
+  MEDIUM
+  HIGH
 }

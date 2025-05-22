@@ -14,14 +14,20 @@ import {
   CircularProgress,
   Paper,
   IconButton,
-  Tooltip
+  Tooltip,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  SelectChangeEvent
 } from "@mui/material";
 import { 
   Comment, 
   Send, 
   Photo, 
   Close,
-  PhotoCamera
+  PhotoCamera,
+  Flag
 } from "@mui/icons-material";
 import { UserRole } from "@/prisma/enums";
 
@@ -36,6 +42,7 @@ type CommentType = {
   id: string;
   message: string;
   imageUrl?: string | null;
+  urgency: string;
   createdAt: string;
   user: UserType;
 };
@@ -47,6 +54,7 @@ type CommentSectionProps = {
 export default function CommentSection({ sessionId }: CommentSectionProps) {
   const [comments, setComments] = useState<CommentType[]>([]);
   const [message, setMessage] = useState("");
+  const [urgency, setUrgency] = useState<string>("NA");
   const [isLoading, setIsLoading] = useState(false);
   const [isFetching, setIsFetching] = useState(true);
   const [error, setError] = useState("");
@@ -136,6 +144,7 @@ export default function CommentSection({ sessionId }: CommentSectionProps) {
         const formData = new FormData();
         formData.append("sessionId", sessionId);
         formData.append("message", message.trim() || ""); // Use empty string if no message
+        formData.append("urgency", urgency);
         formData.append("image", selectedImage);
 
         const response = await fetch("/api/comments", {
@@ -159,6 +168,7 @@ export default function CommentSection({ sessionId }: CommentSectionProps) {
           body: JSON.stringify({
             sessionId,
             message: message.trim(),
+            urgency
           }),
         });
 
@@ -172,6 +182,7 @@ export default function CommentSection({ sessionId }: CommentSectionProps) {
 
       // Reset form
       setMessage("");
+      setUrgency("NA");
       setSelectedImage(null);
       setImagePreview(null);
       if (fileInputRef.current) {
@@ -213,6 +224,24 @@ export default function CommentSection({ sessionId }: CommentSectionProps) {
       default:
         return "#9e9e9e"; // gray
     }
+  };
+
+  // Get color based on urgency
+  const getUrgencyColor = (urgency: string) => {
+    switch (urgency) {
+      case "LOW":
+        return "#FFD700"; // Yellow
+      case "MEDIUM":
+        return "#FFA500"; // Orange
+      case "HIGH":
+        return "#FF0000"; // Red
+      default:
+        return "inherit"; // Default color
+    }
+  };
+
+  const handleUrgencyChange = (event: SelectChangeEvent<string>) => {
+    setUrgency(event.target.value);
   };
 
   return (
@@ -261,26 +290,51 @@ export default function CommentSection({ sessionId }: CommentSectionProps) {
           </Box>
         )}
 
-        <Box sx={{ display: "flex", justifyContent: "space-between", mb: 2 }}>
-          <input
-            type="file"
-            accept="image/*"
-            style={{ display: 'none' }}
-            id="image-upload"
-            onChange={handleImageSelect}
-            ref={fileInputRef}
-          />
-          <label htmlFor="image-upload">
-            <Tooltip title="Attach image">
-              <IconButton 
-                component="span" 
-                color="primary"
+        <Box sx={{ display: "flex", justifyContent: "space-between", mb: 2, alignItems: "center" }}>
+          <Box sx={{ display: "flex", alignItems: "center" }}>
+            <input
+              type="file"
+              accept="image/*"
+              style={{ display: 'none' }}
+              id="image-upload"
+              onChange={handleImageSelect}
+              ref={fileInputRef}
+            />
+            <label htmlFor="image-upload">
+              <Tooltip title="Attach image">
+                <IconButton 
+                  component="span" 
+                  color="primary"
+                  disabled={isLoading}
+                >
+                  <PhotoCamera />
+                </IconButton>
+              </Tooltip>
+            </label>
+            
+            <FormControl size="small" sx={{ width: 150, ml: 1 }}>
+              <InputLabel id="urgency-label">Urgency</InputLabel>
+              <Select
+                labelId="urgency-label"
+                value={urgency}
+                label="Urgency"
+                onChange={handleUrgencyChange}
                 disabled={isLoading}
+                startAdornment={
+                  <Flag sx={{ 
+                    color: getUrgencyColor(urgency),
+                    mr: 1,
+                    fontSize: '1.2rem'
+                  }} />
+                }
               >
-                <PhotoCamera />
-              </IconButton>
-            </Tooltip>
-          </label>
+                <MenuItem value="NA">--NA--</MenuItem>
+                <MenuItem value="LOW">Yellow (Low)</MenuItem>
+                <MenuItem value="MEDIUM">Orange (Medium)</MenuItem>
+                <MenuItem value="HIGH">Red (High)</MenuItem>
+              </Select>
+            </FormControl>
+          </Box>
           
           <Button
             type="submit"
@@ -339,8 +393,12 @@ export default function CommentSection({ sessionId }: CommentSectionProps) {
                       <Typography
                         component="span"
                         variant="body2"
-                        color="text.primary"
-                        sx={{ display: "block", mt: 1 }}
+                        color={comment.urgency !== "NA" ? getUrgencyColor(comment.urgency) : "text.primary"}
+                        sx={{ 
+                          display: "block", 
+                          mt: 1,
+                          fontWeight: comment.urgency !== "NA" ? 500 : 400
+                        }}
                       >
                         {comment.message}
                       </Typography>
@@ -360,14 +418,31 @@ export default function CommentSection({ sessionId }: CommentSectionProps) {
                         </Box>
                       )}
                       
-                      <Typography
-                        component="span"
-                        variant="caption"
-                        color="text.secondary"
-                        sx={{ display: "block", mt: 0.5 }}
-                      >
-                        {comment.user.role}
-                      </Typography>
+                      <Box sx={{ display: "flex", mt: 0.5, alignItems: "center" }}>
+                        <Typography
+                          component="span"
+                          variant="caption"
+                          color="text.secondary"
+                        >
+                          {comment.user.role}
+                        </Typography>
+                        
+                        {comment.urgency !== "NA" && (
+                          <Box sx={{ 
+                            display: "flex", 
+                            alignItems: "center", 
+                            ml: 1,
+                            color: getUrgencyColor(comment.urgency)
+                          }}>
+                            <Flag fontSize="small" sx={{ mr: 0.5, fontSize: '0.8rem' }} />
+                            <Typography variant="caption">
+                              {comment.urgency === "LOW" ? "Yellow" : 
+                               comment.urgency === "MEDIUM" ? "Orange" : 
+                               comment.urgency === "HIGH" ? "Red" : ""}
+                            </Typography>
+                          </Box>
+                        )}
+                      </Box>
                     </>
                   }
                 />

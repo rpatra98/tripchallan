@@ -67,6 +67,7 @@ export async function POST(req: NextRequest) {
       const formData = await req.formData();
       const sessionId = formData.get("sessionId") as string;
       const message = formData.get("message") as string;
+      const urgency = formData.get("urgency") as string || "NA";
       const imageFile = formData.get("image") as File | null;
       
       if (!sessionId || !message) {
@@ -119,6 +120,7 @@ export async function POST(req: NextRequest) {
           userId: user.id,
           message,
           imageUrl,
+          urgency: urgency as any || "NA",
         },
         include: {
           user: {
@@ -135,7 +137,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(comment);
     } else {
       // Handle JSON request (backward compatibility)
-      const { sessionId, message } = await req.json();
+      const { sessionId, message, urgency = "NA" } = await req.json();
       
       if (!sessionId || !message) {
         return NextResponse.json(
@@ -162,6 +164,7 @@ export async function POST(req: NextRequest) {
           sessionId,
           userId: user.id,
           message,
+          urgency: urgency as any || "NA",
         },
         include: {
           user: {
