@@ -36,7 +36,8 @@ import {
   PhotoCamera, 
   QrCode,
   Download,
-  Close
+  Close,
+  Delete
 } from "@mui/icons-material";
 import Link from "next/link";
 import { EmployeeSubrole } from "@/prisma/enums";
@@ -753,7 +754,7 @@ export default function CreateSessionPage() {
     
     if (sealTags.sealTagIds.length === 0) {
       newErrors.sealTagIds = "At least one seal tag ID is required";
-    }
+      }
       
     if (sealTags.sealTagIds.length > 40) {
       newErrors.sealTagIds = "Maximum of 40 seal tags allowed";
@@ -762,13 +763,13 @@ export default function CreateSessionPage() {
     // Check for minimum number of tags (minimum 20 required)
     if (sealTags.sealTagIds.length < 20) {
       newErrors.sealTagIds = "Minimum of 20 seal tags required";
-    }
+        }
         
     // Check if all seal tags have associated images
     const missingImages = sealTags.sealTagIds.filter(id => !sealTags.sealTagImages[id]);
     if (missingImages.length > 0) {
       newErrors.sealTagImages = `${missingImages.length} seal tag(s) are missing images`;
-    }
+        }
     
     setValidationErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -1902,6 +1903,7 @@ export default function CreateSessionPage() {
                           <TableCell>Method</TableCell>
                           <TableCell>Image</TableCell>
                           <TableCell>Timestamp</TableCell>
+                          <TableCell>Actions</TableCell>
                         </TableRow>
                       </TableHead>
                       <TableBody>
@@ -1931,6 +1933,16 @@ export default function CreateSessionPage() {
                               {new Date(sealTags.timestamps[tagId]).toLocaleString()}
                             </Typography>
                           )}
+                            </TableCell>
+                            <TableCell>
+                              <IconButton
+                                size="small"
+                                color="error"
+                                onClick={() => handleRemoveSealTag(tagId)}
+                                aria-label="Delete Seal Tag"
+                              >
+                                <Delete fontSize="small" />
+                              </IconButton>
                             </TableCell>
                           </TableRow>
                     ))}
@@ -2000,7 +2012,7 @@ export default function CreateSessionPage() {
                     <Box sx={{ maxWidth: '150px', maxHeight: '150px', overflow: 'hidden', borderRadius: '4px' }}>
                       {renderImagePreview(driverDetails.driverPicture)}
                     </Box>
-                  )}
+                )}
                 </Box>
                 {validationErrors.driverPicture && (
                   <FormHelperText error>{validationErrors.driverPicture}</FormHelperText>
