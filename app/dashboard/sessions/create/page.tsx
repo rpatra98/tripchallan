@@ -957,6 +957,12 @@ export default function CreateSessionPage() {
     e.preventDefault();
     console.log("Form submission started");
     
+    // Check if form is already submitting to prevent double submissions
+    if (isSubmitting) {
+      console.log("Submission already in progress, preventing duplicate submission");
+      return;
+    }
+    
     // Immediately set isSubmitting to true to disable the submit button
     setIsSubmitting(true);
     
@@ -1227,14 +1233,13 @@ export default function CreateSessionPage() {
       if (data.session && data.session.id) {
         setLoadingId(data.session.id);
         generateQRCode(data.session.id);
-        setTripCreated(true);
-        console.log("Trip created successfully with ID:", data.session.id);
         
         // Refresh the user session to update coin balance
         await refreshUserSession();
         
         // Redirect to sessions page after successful creation
         router.push("/dashboard/sessions");
+        return; // Ensure no further code runs after redirect
       } else {
         console.error("API response missing session ID:", data);
         throw new Error("Invalid response from server. Session ID not found.");
@@ -2339,6 +2344,14 @@ export default function CreateSessionPage() {
                   variant="contained"
                   color="primary"
                   disabled={isSubmitting || (userCoins !== null && userCoins < 1)}
+                  onClick={(e) => {
+                    // Prevent the button from submitting the form directly
+                    // as the form already has an onSubmit handler
+                    e.preventDefault();
+                    if (!isSubmitting) {
+                      handleSubmit(e);
+                    }
+                  }}
                 >
                   {isSubmitting ? (
                     <CircularProgress size={24} color="inherit" />
