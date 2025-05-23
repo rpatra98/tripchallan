@@ -229,6 +229,27 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
     timestamp: string;
   } | null>(null);
   
+  // New state for seal tag verification
+  const [scanInput, setScanInput] = useState('');
+  const [scanMethod, setScanMethod] = useState('manual');
+  const [isScanning, setIsScanning] = useState(false);
+  const [scanError, setScanError] = useState('');
+  const [guardScannedSeals, setGuardScannedSeals] = useState<Array<{
+    id: string;
+    method: string;
+    image: File | null;
+    imagePreview: string | null;
+    timestamp: string;
+    verified: boolean;
+  }>>([]);
+  const [sealComparison, setSealComparison] = useState<{
+    matched: string[];
+    mismatched: string[];
+  }>({
+    matched: [],
+    mismatched: []
+  });
+
   // Check if user is a guard
   const isGuard = useMemo(() => 
     userRole === "EMPLOYEE" && userSubrole === EmployeeSubrole.GUARD, 
@@ -251,6 +272,174 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
     !session.seal.verified,
     [isGuard, session]
   );
+
+  // Extract operator seals from session data
+  const operatorSeals = useMemo(() => {
+    if (!session) return [];
+    
+    const seals: Array<{
+      id: string;
+      method: string;
+      image: string | null;
+      timestamp: string;
+    }> = [];
+    
+    // Primary seal
+    if (session.seal?.barcode) {
+      seals.push({
+        id: session.seal.barcode,
+        method: 'digital',
+        image: session.images?.sealingImages?.[0] || null,
+        timestamp: session.createdAt
+      });
+    }
+    
+    // Additional seals
+    if (session.qrCodes?.additionalBarcodes) {
+      session.qrCodes.additionalBarcodes.forEach((barcode, index) => {
+        seals.push({
+          id: barcode,
+          method: 'digital',
+          image: session.images?.sealingImages?.[index + 1] || null,
+          timestamp: session.timestamps?.loadingDetails?.sealingTime || session.createdAt
+        });
+      });
+    }
+    
+    return seals;
+  }, [session]);
+
+  // Utility functions  
+  const getFieldLabel = useCallback((key: string): string => {
+    // Convert camelCase to Title Case with spaces
+    return key.replace(/([A-Z])/g, ' $1')
+      .replace(/^./, str => str.toUpperCase());
+  }, []);
+
+  const handleInputChange = useCallback((field: string, value: any) => {
+    setVerificationFields(prev => ({
+      ...prev,
+      [field]: {
+        ...prev[field],
+        guardValue: value
+      }
+    }));
+  }, []);
+
+  const handleCommentChange = useCallback((field: string, comment: string) => {
+    setVerificationFields(prev => ({
+      ...prev,
+      [field]: {
+        ...prev[field],
+        comment
+      }
+    }));
+  }, []);
+
+  const verifyField = useCallback((field: string) => {
+    // Get field data but don't show operator value to GUARD
+    const fieldData = verificationFields[field];
+    
+    // Guard must enter a value
+    if (!fieldData.guardValue || fieldData.guardValue.trim() === '') {
+      alert('Please enter a value before verifying this field.');
+      return false;
+    }
+    
+    // Mark as verified without showing if it matches
+    setVerificationFields(prev => ({
+      ...prev,
+      [field]: {
+        ...prev[field],
+        isVerified: true
+      }
+    }));
+    
+    // Still check for match in background (for stats and verification results)
+    const match = String(fieldData.operatorValue).toLowerCase() === String(fieldData.guardValue).toLowerCase();
+    return match;
+  }, [verificationFields]);
+
+  // Handle QR/barcode scanner input
+  const handleScanComplete = useCallback((sealId: string) => {
+    if (!sealId.trim()) {
+      setScanError('Please enter a valid Seal Tag ID');
+      return;
+    }
+    
+    // Check if already scanned by guard
+    if (guardScannedSeals.some(seal => seal.id === sealId)) {
+      setScanError('This seal has already been scanned');
+      return;
+    }
+    
+    // Add to scanned seals
+    const newSeal = {
+      id: sealId,
+      method: scanMethod,
+      image: null,
+      imagePreview: null,
+      timestamp: new Date().toISOString(),
+      verified: operatorSeals.some(seal => seal.id === sealId)
+    };
+    
+    setGuardScannedSeals(prev => [...prev, newSeal]);
+    setScanInput('');
+    setScanError('');
+    
+    // Update comparison
+    updateSealComparison([...guardScannedSeals, newSeal]);
+  }, [guardScannedSeals, scanMethod, operatorSeals]);
+
+  // Update seal comparison data
+  const updateSealComparison = useCallback((scannedSeals: typeof guardScannedSeals) => {
+    const guardSealIds = scannedSeals.map(seal => seal.id);
+    const operatorSealIds = operatorSeals.map(seal => seal.id);
+    
+    const matched = guardSealIds.filter(id => operatorSealIds.includes(id));
+    const mismatched = [
+      ...guardSealIds.filter(id => !operatorSealIds.includes(id)),
+      ...operatorSealIds.filter(id => !guardSealIds.includes(id))
+    ];
+    
+    setSealComparison({ matched, mismatched });
+  }, [operatorSeals]);
+
+  // Handle image upload for a seal
+  const handleSealImageUpload = useCallback((index: number, file: File | null) => {
+    if (!file) return;
+    
+    const updatedSeals = [...guardScannedSeals];
+    updatedSeals[index].image = file;
+    updatedSeals[index].imagePreview = URL.createObjectURL(file);
+    setGuardScannedSeals(updatedSeals);
+  }, [guardScannedSeals]);
+
+  // Remove a scanned seal
+  const removeSealTag = useCallback((index: number) => {
+    const updatedSeals = [...guardScannedSeals];
+    
+    // Revoke object URL if exists to prevent memory leaks
+    if (updatedSeals[index].imagePreview) {
+      URL.revokeObjectURL(updatedSeals[index].imagePreview as string);
+    }
+    
+    updatedSeals.splice(index, 1);
+    setGuardScannedSeals(updatedSeals);
+    
+    // Update comparison
+    updateSealComparison(updatedSeals);
+  }, [guardScannedSeals, updateSealComparison]);
+
+  // Start/stop scanner
+  const toggleScanner = useCallback(() => {
+    setIsScanning(!isScanning);
+    if (!isScanning) {
+      setScanMethod('digital');
+    } else {
+      setScanMethod('manual');
+    }
+  }, [isScanning]);
 
   // Report download handlers
   const handleDownloadReport = async (format: string) => {
@@ -620,50 +809,6 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
     setVerificationStep(0);
   };
   
-  const handleInputChange = (field: string, value: any) => {
-    setVerificationFields(prev => ({
-      ...prev,
-      [field]: {
-        ...prev[field],
-        guardValue: value
-      }
-    }));
-  };
-  
-  const handleCommentChange = (field: string, comment: string) => {
-    setVerificationFields(prev => ({
-      ...prev,
-      [field]: {
-        ...prev[field],
-        comment
-      }
-    }));
-  };
-  
-  const verifyField = (field: string) => {
-    // Get field data but don't show operator value to GUARD
-    const fieldData = verificationFields[field];
-    
-    // Guard must enter a value
-    if (!fieldData.guardValue || fieldData.guardValue.trim() === '') {
-      alert('Please enter a value before verifying this field.');
-      return false;
-    }
-    
-    // Mark as verified without showing if it matches
-    setVerificationFields(prev => ({
-      ...prev,
-      [field]: {
-        ...prev[field],
-        isVerified: true
-      }
-    }));
-    
-    // Still check for match in background (for stats and verification results)
-    const match = String(fieldData.operatorValue).toLowerCase() === String(fieldData.guardValue).toLowerCase();
-    return match;
-  };
-  
   const verifyImage = (imageKey: string) => {
     setImageVerificationStatus(prev => ({
       ...prev,
@@ -681,12 +826,6 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
     
     // Move to image verification
     setVerificationStep(1);
-  };
-  
-  const getFieldLabel = (key: string): string => {
-    // Convert camelCase to Title Case with spaces
-    return key.replace(/([A-Z])/g, ' $1')
-      .replace(/^./, str => str.toUpperCase());
   };
   
   // Calculate verification statistics
@@ -1622,142 +1761,6 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
         </Box>
       );
     }
-
-    // State for the scanner and related data
-    const [scanInput, setScanInput] = useState('');
-    const [scanMethod, setScanMethod] = useState('manual');
-    const [isScanning, setIsScanning] = useState(false);
-    const [scanError, setScanError] = useState('');
-    const [guardScannedSeals, setGuardScannedSeals] = useState<Array<{
-      id: string;
-      method: string;
-      image: File | null;
-      imagePreview: string | null;
-      timestamp: string;
-      verified: boolean;
-    }>>([]);
-    const [sealComparison, setSealComparison] = useState<{
-      matched: string[];
-      mismatched: string[];
-    }>({
-      matched: [],
-      mismatched: []
-    });
-
-    // Extract operator seals from session data
-    const operatorSeals = useMemo(() => {
-      const seals: Array<{
-        id: string;
-        method: string;
-        image: string | null;
-        timestamp: string;
-      }> = [];
-      
-      // Primary seal
-      if (session.seal?.barcode) {
-        seals.push({
-          id: session.seal.barcode,
-          method: 'digital',
-          image: session.images?.sealingImages?.[0] || null,
-          timestamp: session.createdAt
-        });
-      }
-      
-      // Additional seals
-      if (session.qrCodes?.additionalBarcodes) {
-        session.qrCodes.additionalBarcodes.forEach((barcode, index) => {
-          seals.push({
-            id: barcode,
-            method: 'digital',
-            image: session.images?.sealingImages?.[index + 1] || null,
-            timestamp: session.timestamps?.loadingDetails?.sealingTime || session.createdAt
-          });
-        });
-      }
-      
-      return seals;
-    }, [session]);
-
-    // Handle QR/barcode scanner input
-    const handleScanComplete = (sealId: string) => {
-      if (!sealId.trim()) {
-        setScanError('Please enter a valid Seal Tag ID');
-        return;
-      }
-      
-      // Check if already scanned by guard
-      if (guardScannedSeals.some(seal => seal.id === sealId)) {
-        setScanError('This seal has already been scanned');
-        return;
-      }
-      
-      // Add to scanned seals
-      const newSeal = {
-        id: sealId,
-        method: scanMethod,
-        image: null,
-        imagePreview: null,
-        timestamp: new Date().toISOString(),
-        verified: operatorSeals.some(seal => seal.id === sealId)
-      };
-      
-      setGuardScannedSeals(prev => [...prev, newSeal]);
-      setScanInput('');
-      setScanError('');
-      
-      // Update comparison
-      updateSealComparison([...guardScannedSeals, newSeal]);
-    };
-
-    // Update seal comparison data
-    const updateSealComparison = (scannedSeals: typeof guardScannedSeals) => {
-      const guardSealIds = scannedSeals.map(seal => seal.id);
-      const operatorSealIds = operatorSeals.map(seal => seal.id);
-      
-      const matched = guardSealIds.filter(id => operatorSealIds.includes(id));
-      const mismatched = [
-        ...guardSealIds.filter(id => !operatorSealIds.includes(id)),
-        ...operatorSealIds.filter(id => !guardSealIds.includes(id))
-      ];
-      
-      setSealComparison({ matched, mismatched });
-    };
-
-    // Handle image upload for a seal
-    const handleSealImageUpload = (index: number, file: File | null) => {
-      if (!file) return;
-      
-      const updatedSeals = [...guardScannedSeals];
-      updatedSeals[index].image = file;
-      updatedSeals[index].imagePreview = URL.createObjectURL(file);
-      setGuardScannedSeals(updatedSeals);
-    };
-
-    // Remove a scanned seal
-    const removeSealTag = (index: number) => {
-      const updatedSeals = [...guardScannedSeals];
-      
-      // Revoke object URL if exists to prevent memory leaks
-      if (updatedSeals[index].imagePreview) {
-        URL.revokeObjectURL(updatedSeals[index].imagePreview as string);
-      }
-      
-      updatedSeals.splice(index, 1);
-      setGuardScannedSeals(updatedSeals);
-      
-      // Update comparison
-      updateSealComparison(updatedSeals);
-    };
-
-    // Start/stop scanner
-    const toggleScanner = () => {
-      setIsScanning(!isScanning);
-      if (!isScanning) {
-        setScanMethod('digital');
-      } else {
-        setScanMethod('manual');
-      }
-    };
 
     return (
       <Box>
