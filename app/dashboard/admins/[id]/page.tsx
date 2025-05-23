@@ -98,6 +98,7 @@ interface SessionEntity {
   };
   tripDetails?: {
     vehicleNumber?: string;
+    loadingSite?: string;
     // Other trip details...
   };
 }
@@ -756,6 +757,7 @@ export default function AdminDetailsPage({ params }: AdminDetailsPageProps) {
                   <TableRow>
                     <TableCell>ID</TableCell>
                     <TableCell>Source</TableCell>
+                    <TableCell>Loading Site</TableCell>
                     <TableCell>Destination</TableCell>
                     <TableCell>Company</TableCell>
                     <TableCell>Created By</TableCell>
@@ -768,7 +770,7 @@ export default function AdminDetailsPage({ params }: AdminDetailsPageProps) {
                 <TableBody>
                   {sessions.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={9} align="center">
+                      <TableCell colSpan={10} align="center">
                         <Box p={3} display="flex" flexDirection="column" alignItems="center" gap={2}>
                           <Typography variant="body1">
                             No sessions found for companies managed by this admin
@@ -793,6 +795,7 @@ export default function AdminDetailsPage({ params }: AdminDetailsPageProps) {
                       <TableRow key={session.id}>
                         <TableCell>{session.id.substring(0, 8)}...</TableCell>
                         <TableCell>{session.source}</TableCell>
+                        <TableCell>{session.tripDetails?.loadingSite || "N/A"}</TableCell>
                         <TableCell>{session.destination}</TableCell>
                         <TableCell>{session.company.name}</TableCell>
                         <TableCell>{session.createdBy.name}</TableCell>

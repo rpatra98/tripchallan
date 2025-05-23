@@ -57,6 +57,7 @@ interface SessionData {
   } | null;
   tripDetails?: {
     vehicleNumber?: string;
+    loadingSite?: string;
     // Other trip details...
   };
 }
@@ -486,6 +487,13 @@ export default function CompanyDashboard({ user, initialTab }: CompanyDashboardP
                           <LocationOn color="action" sx={{ mr: 1 }} />
                           <Typography variant="body2" color="text.secondary">
                             From: {session.source}
+                          </Typography>
+                        </Box>
+
+                        <Box sx={{ display: "flex", alignItems: "center", mb: 1 }}>
+                          <LocationOn color="action" sx={{ mr: 1 }} />
+                          <Typography variant="body2" color="text.secondary">
+                            Loading Site: {session.tripDetails?.loadingSite || "N/A"}
                           </Typography>
                         </Box>
 

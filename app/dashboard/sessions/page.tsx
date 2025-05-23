@@ -51,6 +51,7 @@ interface Session {
   };
   tripDetails?: {
     vehicleNumber?: string;
+    loadingSite?: string;
     // Other trip details...
   };
 }
@@ -149,6 +150,14 @@ export default function SessionsPage() {
     {
       accessorKey: "source",
       header: "Source",
+      searchable: true,
+    },
+    {
+      accessorKey: "tripDetails.loadingSite",
+      header: "Loading Site",
+      cell: ({ row }: { row: any }) => (
+        <span>{row.tripDetails?.loadingSite || "N/A"}</span>
+      ),
       searchable: true,
     },
     {
