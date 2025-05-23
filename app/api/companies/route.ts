@@ -14,6 +14,7 @@ interface Company {
   email: string;
   createdAt: Date;
   updatedAt: Date;
+  isActive?: boolean;
 }
 
 async function handler() {
@@ -46,6 +47,7 @@ async function handler() {
           email: true,
           createdAt: true,
           updatedAt: true,
+          isActive: true,
         },
         orderBy: { name: "asc" },
       });
@@ -134,6 +136,7 @@ async function handler() {
             email: true,
             createdAt: true,
             updatedAt: true,
+            isActive: true,
           },
           orderBy: { name: "asc" },
         });
@@ -156,6 +159,7 @@ async function handler() {
               email: true,
               createdAt: true,
               updatedAt: true,
+              isActive: true,
             }
           });
           
@@ -195,6 +199,7 @@ async function handler() {
           email: company.email,
           createdAt: company.createdAt,
           updatedAt: company.updatedAt,
+          isActive: company.isActive, // Include isActive field in the response
           _count: {
             employees: employeeCount
           }
