@@ -466,6 +466,16 @@ export const POST = withAuth(
         loaderMobileNumber: formData.get('loaderMobileNumber') as string,
       };
 
+      // Extract seal tag data
+      const sealTagIdsJson = formData.get('sealTagIds') as string;
+      const sealTagMethodsJson = formData.get('sealTagMethods') as string;
+      const sealTagTimestampsJson = formData.get('sealTagTimestamps') as string;
+      
+      // Parse the seal tag data if it exists
+      const sealTagIds = sealTagIdsJson ? JSON.parse(sealTagIdsJson) : [];
+      const sealTagMethods = sealTagMethodsJson ? JSON.parse(sealTagMethodsJson) : {};
+      const sealTagTimestamps = sealTagTimestampsJson ? JSON.parse(sealTagTimestampsJson) : {};
+
       // Handle scanned codes
       const scannedCodesJson = formData.get('scannedCodes') as string;
       const scannedCodes = scannedCodesJson ? JSON.parse(scannedCodesJson) : [];
@@ -719,18 +729,7 @@ export const POST = withAuth(
             });
             console.log(`Session created with ID: ${newSession.id}`);
             
-            console.log("Creating seal for session");
-            // Then create the seal associated with the session
-            const seal = await tx.seal.create({
-              data: {
-                barcode: scannedCodes.length > 0 ? scannedCodes[0] : `SEAL-${Date.now()}`,
-                sessionId: newSession.id, // Link the seal to the session
-              },
-            }).catch((error: Error) => {
-              console.error("Error creating seal:", error);
-              throw new Error(`Seal creation failed: ${error.message}`);
-            });
-            console.log(`Seal created with barcode: ${seal.barcode}`);
+            console.log(`No longer creating system-generated seal record. Using ${sealTagIds.length} actual seal tags from operator.`);
 
             console.log("Creating coin transaction record");
             // Create coin transaction record - coin is spent, not transferred
@@ -747,7 +746,7 @@ export const POST = withAuth(
               throw new Error(`Coin transaction failed: ${error.message}`);
             });
             console.log("Coin transaction created successfully");
-
+            
             console.log("Storing trip details in activity log");
             // Store all the trip details in the activity log
             await tx.activityLog.create({
@@ -776,8 +775,13 @@ export const POST = withAuth(
                     imagesForm: imagesFormTimestamps ? JSON.parse(imagesFormTimestamps as string) : {},
                   },
                   qrCodes: {
-                    primaryBarcode: scannedCodes.length > 0 ? scannedCodes[0] : `SEAL-${Date.now()}`,
-                    additionalBarcodes: scannedCodes.length > 1 ? scannedCodes.slice(1) : []
+                    primaryBarcode: sealTagIds.length > 0 ? sealTagIds[0] : "",
+                    additionalBarcodes: sealTagIds.length > 1 ? sealTagIds.slice(1) : [],
+                  },
+                  sealTagData: {
+                    sealTagIds,
+                    sealTagMethods,
+                    sealTagTimestamps
                   }
                 }
               }
@@ -817,7 +821,7 @@ export const POST = withAuth(
             });
             console.log("Base64 image data stored successfully");
             
-            return { session: newSession, seal };
+            return { session: newSession };
           } catch (error) {
             console.error("Error in database transaction:", error);
             throw error; // Rethrow to trigger transaction rollback
