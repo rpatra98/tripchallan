@@ -1539,15 +1539,27 @@ export default function CreateSessionPage() {
                       buttonVariant="outlined"
                       buttonText="Scan"
                       scannerTitle="Scan GPS IMEI"
-                      onScan={(data) => {
+                      onScanWithImage={(data, imageFile) => {
                         setLoadingDetails(prev => ({
                           ...prev,
                           gpsImeiNumber: data,
+                          gpsImeiPicture: imageFile,
                           timestamps: {
                             ...prev.timestamps,
-                            gpsImeiNumber: new Date().toISOString()
+                            gpsImeiNumber: new Date().toISOString(),
+                            gpsImeiPicture: new Date().toISOString()
                           }
                         }));
+                        
+                        // Clear validation errors if any
+                        if (validationErrors.gpsImeiNumber || validationErrors.gpsImeiPicture) {
+                          setValidationErrors(prev => {
+                            const newErrors = {...prev};
+                            delete newErrors.gpsImeiNumber;
+                            delete newErrors.gpsImeiPicture;
+                            return newErrors;
+                          });
+                        }
                       }}
                     />
                   </Box>
@@ -1555,7 +1567,7 @@ export default function CreateSessionPage() {
                 
                 <Box sx={{ mt: 2 }}>
                   <Typography variant="subtitle1" gutterBottom>
-                    GPS IMEI Picture
+                    GPS IMEI Picture {loadingDetails.gpsImeiPicture ? '(Auto-captured from scan)' : '(Manual capture required)'}
                   </Typography>
                   <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2 }}>
                     <Button
@@ -1581,6 +1593,15 @@ export default function CreateSessionPage() {
                               gpsImeiPicture: new Date().toISOString()
                             }
                           }));
+                          
+                          // Clear validation errors
+                          if (validationErrors.gpsImeiPicture) {
+                            setValidationErrors(prev => {
+                              const newErrors = {...prev};
+                              delete newErrors.gpsImeiPicture;
+                              return newErrors;
+                            });
+                          }
                         }}
                       />
                     </Button>
