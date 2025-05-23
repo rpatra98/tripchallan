@@ -257,43 +257,74 @@ export const DELETE = withAuth(
         );
       }
 
-      // Delete the session and its related data in a transaction
-      const result = await prisma.$transaction(async (tx: typeof prisma) => {
-        // First delete the seal if it exists
-        if (existingSession.seal) {
-          await tx.seal.delete({ where: { sessionId } });
-        }
-        
-        // Delete any comments on the session
-        await tx.comment.deleteMany({ where: { sessionId } });
-        
-        // Delete activity logs related to the session
-        await tx.activityLog.deleteMany({
-          where: {
-            targetResourceId: sessionId,
-            targetResourceType: 'session'
+      try {
+        // Delete the session and its related data in a transaction
+        const result = await prisma.$transaction(async (tx: typeof prisma) => {
+          try {
+            // First delete the seal if it exists
+            if (existingSession.seal) {
+              await tx.seal.delete({ where: { sessionId } });
+            }
+            
+            // Delete any comments on the session
+            await tx.comment.deleteMany({ where: { sessionId } });
+            
+            // Delete activity logs related to the session
+            await tx.activityLog.deleteMany({
+              where: {
+                OR: [
+                  {
+                    targetResourceId: sessionId,
+                    targetResourceType: 'session'
+                  },
+                  {
+                    // Also delete logs where session details might be embedded in JSON
+                    details: {
+                      path: ['sessionId'],
+                      equals: sessionId
+                    }
+                  },
+                  {
+                    // Also delete logs where session ID appears in tripDetails
+                    details: {
+                      path: ['tripDetails', 'sessionId'],
+                      equals: sessionId
+                    }
+                  }
+                ]
+              }
+            });
+            
+            // Finally delete the session itself
+            await tx.session.delete({ where: { id: sessionId } });
+            
+            return { success: true };
+          } catch (txError) {
+            console.error("Transaction error details:", txError);
+            throw txError;
           }
         });
-        
-        // Finally delete the session itself
-        await tx.session.delete({ where: { id: sessionId } });
-        
-        return { success: true };
-      });
 
-      // Log the activity
-      await addActivityLog({
-        userId,
-        action: ActivityAction.DELETE,
-        details: {
-          entityType: "SESSION",
-          sessionId,
-          sessionData: existingSession
-        },
-        targetResourceType: "session_deleted"
-      });
+        // Log the activity
+        await addActivityLog({
+          userId,
+          action: ActivityAction.DELETE,
+          details: {
+            entityType: "SESSION",
+            sessionId,
+            sessionData: existingSession
+          },
+          targetResourceType: "session_deleted"
+        });
 
-      return NextResponse.json({ success: true, message: "Session deleted successfully" });
+        return NextResponse.json({ success: true, message: "Session deleted successfully" });
+      } catch (error) {
+        console.error("Error deleting session:", error);
+        return NextResponse.json(
+          { error: "Failed to delete session" },
+          { status: 500 }
+        );
+      }
     } catch (error) {
       console.error("Error deleting session:", error);
       return NextResponse.json(
