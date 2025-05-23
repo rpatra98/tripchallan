@@ -249,7 +249,7 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
     matched: [],
     mismatched: []
   });
-
+  
   // Check if user is a guard
   const isGuard = useMemo(() => 
     userRole === "EMPLOYEE" && userSubrole === EmployeeSubrole.GUARD, 
@@ -1201,7 +1201,7 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
                   </TableCell>
                   <TableCell>
                     <Box display="flex" flexDirection="column" alignItems="center">
-                      <IconButton
+                      <IconButton 
                         onClick={() => verifyField(field)}
                         color={data.isVerified ? "success" : "default"}
                         size="small"
@@ -1218,10 +1218,10 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
                         InputProps={{
                           endAdornment: data.comment ? (
                             <InputAdornment position="end">
-                              <IconButton
+                      <IconButton 
                                 onClick={() => handleCommentChange(field, '')}
                                 edge="end"
-                                size="small"
+                        size="small" 
                               >
                                 <Close fontSize="small" />
                               </IconButton>
@@ -1395,7 +1395,7 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
                     </IconButton>
                   </Box>
                 ) : (
-                  <Button
+          <Button
                     component="label"
                     variant="outlined"
                     startIcon={<CloudUpload />}
@@ -1408,7 +1408,7 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
                       accept="image/*"
                       onChange={(e) => handleImageUpload('driverPicture', e.target.files?.[0] || null)}
                     />
-                  </Button>
+          </Button>
                 )}
               </Box>
             </Box>
@@ -1773,9 +1773,9 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
 
         {/* Seal Scanner Section */}
         <Paper variant="outlined" sx={{ p: 2, mb: 4 }}>
-          <Typography variant="subtitle1" gutterBottom>
+              <Typography variant="subtitle1" gutterBottom>
             Scan Seal Tags
-          </Typography>
+              </Typography>
           
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
@@ -1808,12 +1808,12 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
                 {isScanning ? "Cancel Scan" : "Scan QR/Barcode"}
               </Button>
             </Box>
-            
+
             {isScanning && (
               <Box sx={{ p: 2, border: '1px dashed', borderColor: 'primary.main', borderRadius: 1, bgcolor: 'background.paper' }}>
                 <Typography variant="body2" gutterBottom>
                   Position the QR/barcode in front of your camera. Scanning will automatically complete when detected.
-                </Typography>
+              </Typography>
                 
                 {/* Here, you'd integrate an actual QR scanner component */}
                 {/* For this implementation, we'll simulate with a button */}
@@ -1830,22 +1830,22 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
                     Simulate Successful Scan
                   </Button>
                 </Box>
-              </Box>
+                </Box>
             )}
-          </Box>
+                </Box>
         </Paper>
 
         {/* Scanned Seals Table */}
         <Paper variant="outlined" sx={{ p: 2, mb: 4 }}>
-          <Typography variant="subtitle1" gutterBottom>
+                <Typography variant="subtitle1" gutterBottom>
             Scanned Seal Tags ({guardScannedSeals.length})
-          </Typography>
-          
+                </Typography>
+                
           {guardScannedSeals.length > 0 ? (
-            <TableContainer>
-              <Table size="small">
-                <TableHead>
-                  <TableRow>
+                    <TableContainer>
+                      <Table size="small">
+                        <TableHead>
+                          <TableRow>
                     <TableCell width="5%">#</TableCell>
                     <TableCell width="25%">Seal Tag ID</TableCell>
                     <TableCell width="15%">Method</TableCell>
@@ -1853,9 +1853,9 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
                     <TableCell width="20%">Image</TableCell>
                     <TableCell width="15%">Status</TableCell>
                     <TableCell width="10%">Actions</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
+                          </TableRow>
+                        </TableHead>
+                        <TableBody>
                   {guardScannedSeals.map((seal, index) => (
                     <TableRow key={index} sx={{
                       bgcolor: seal.verified ? 'transparent' : 'rgba(211, 47, 47, 0.1)'
@@ -1909,25 +1909,25 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
                           <Delete fontSize="small" />
                         </IconButton>
                       </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </TableContainer>
-          ) : (
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </TableContainer>
+                  ) : (
             <Box sx={{ py: 2, textAlign: 'center' }}>
-              <Typography variant="body2" color="text.secondary">
+                      <Typography variant="body2" color="text.secondary">
                 No seal tags scanned yet. Use the scanner above to add seal tags.
-              </Typography>
-            </Box>
-          )}
-        </Paper>
+                      </Typography>
+                    </Box>
+                  )}
+                </Paper>
 
         {/* Verification Summary */}
         <Paper variant="outlined" sx={{ p: 2, mb: 4 }}>
           <Typography variant="subtitle1" gutterBottom>
             Seal Tags Verification Summary
-          </Typography>
+                  </Typography>
           
           <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, mb: 3 }}>
             <Box sx={{ flex: '1 0 48%', minWidth: '250px' }}>
@@ -1953,9 +1953,9 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
             Detailed Comparison
           </Typography>
           
-          <TableContainer>
-            <Table size="small">
-              <TableHead>
+                    <TableContainer>
+                      <Table size="small">
+                        <TableHead>
                 <TableRow sx={{ bgcolor: 'background.paper' }}>
                   <TableCell colSpan={3} align="center" sx={{ borderRight: '1px solid rgba(224, 224, 224, 1)' }}>
                     <Typography variant="subtitle2">Operator Data</Typography>
@@ -1967,16 +1967,16 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
                     <Typography variant="subtitle2">Status</Typography>
                   </TableCell>
                 </TableRow>
-                <TableRow>
+                          <TableRow>
                   <TableCell>Seal Tag ID</TableCell>
                   <TableCell>Method</TableCell>
                   <TableCell sx={{ borderRight: '1px solid rgba(224, 224, 224, 1)' }}>Timestamp</TableCell>
                   <TableCell>Seal Tag ID</TableCell>
                   <TableCell>Method</TableCell>
                   <TableCell>Timestamp</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
+                          </TableRow>
+                        </TableHead>
+                        <TableBody>
                 {/* All operator seals */}
                 {operatorSeals.map((operatorSeal, index) => {
                   const matchingGuardSeal = guardScannedSeals.find(
@@ -1990,7 +1990,7 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
                       bgcolor: isMatched ? 'transparent' : 'rgba(211, 47, 47, 0.1)'
                     }}>
                       <TableCell>{operatorSeal.id}</TableCell>
-                      <TableCell>
+                              <TableCell>
                         <Chip 
                           size="small"
                           label={operatorSeal.method === 'digital' ? 'Scanned' : 'Manual'} 
@@ -2030,8 +2030,8 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
                           color={isMatched ? 'success' : 'error'}
                           icon={isMatched ? <CheckCircle fontSize="small" /> : <Warning fontSize="small" />}
                         />
-                      </TableCell>
-                    </TableRow>
+                              </TableCell>
+                            </TableRow>
                   );
                 })}
                 
@@ -2071,9 +2071,9 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
                     </TableRow>
                   ))
                 }
-              </TableBody>
-            </Table>
-          </TableContainer>
+                        </TableBody>
+                      </Table>
+                    </TableContainer>
         </Paper>
 
         {/* Side-by-side Image Comparison */}
@@ -2111,9 +2111,9 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
                               />
                             </Box>
                           ) : (
-                            <Typography variant="body2" color="text.secondary">
+                      <Typography variant="body2" color="text.secondary">
                               No image available
-                            </Typography>
+                      </Typography>
                           )}
                         </TableCell>
                         <TableCell>
@@ -2124,7 +2124,7 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
                                 alt={`Guard Seal ${matchingGuardSeal.id}`}
                                 style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '4px' }}
                               />
-                            </Box>
+                    </Box>
                           ) : (
                             <Typography variant="body2" color="text.secondary">
                               No image available
@@ -2141,14 +2141,14 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
             <Typography variant="body2" color="text.secondary">
               No seal images available for comparison.
             </Typography>
-          )}
-        </Paper>
-        
+                  )}
+                </Paper>
+
         {/* Final Detailed Comparison Table */}
         <Paper variant="outlined" sx={{ p: 2, mb: 4 }}>
           <Typography variant="subtitle1" gutterBottom>
             Complete Seal Verification Report
-          </Typography>
+                </Typography>
           
           <TableContainer>
             <Table size="small">
@@ -2201,7 +2201,7 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
                                   alt={`Operator Seal ${operatorSeal.id}`}
                                   style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '4px' }}
                                 />
-                              </Box>
+            </Box>
                             ) : (
                               <Typography variant="body2" color="text.secondary">
                                 N/A
@@ -2238,7 +2238,7 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
                                   alt={`Guard Seal ${guardSeal.id}`}
                                   style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '4px' }}
                                 />
-                              </Box>
+          </Box>
                             ) : (
                               <Typography variant="body2" color="text.secondary">
                                 N/A
@@ -2300,29 +2300,128 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
         {session.seal && (
           <Box sx={{ mt: 3, p: 2, border: '1px solid', borderColor: 'divider', borderRadius: 1 }}>
             <Typography variant="subtitle1" gutterBottom>Seal Information</Typography>
-            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
-              <Box sx={{ flex: '1 0 45%', minWidth: '250px' }}>
-                <Typography variant="body2">
-                  <strong>Seal Barcode:</strong> {session.seal.barcode}
-                </Typography>
+
+            {/* Check for seal tag details in the activity logs */}
+            {session.activityLogs && session.activityLogs.some(log => 
+              log.details && 
+              (log.details as any).tripDetails && 
+              (log.details as any).tripDetails.sealTagIds) ? (
+              <Box>
+                {/* Extract seal tag data from activity logs */}
+                {(() => {
+                  // Find the log with seal tag information
+                  const sealTagLog = session.activityLogs.find(log => 
+                    log.details && 
+                    (log.details as any).tripDetails && 
+                    (log.details as any).tripDetails.sealTagIds);
+                  
+                  if (sealTagLog) {
+                    const sealTagIds = (sealTagLog.details as any).tripDetails.sealTagIds || [];
+                    const sealTagMethods = (sealTagLog.details as any).tripDetails.sealTagMethods || {};
+                    
+                    return (
+                      <>
+                        <Typography variant="body2" sx={{ mb: 2 }}>
+                          Total Seal Tags: <strong>{sealTagIds.length}</strong>
+                        </Typography>
+                        
+                        <Box sx={{ 
+                          maxHeight: '400px',
+                          overflowY: 'auto',
+                          border: '1px solid',
+                          borderColor: 'divider',
+                          borderRadius: 1,
+                          p: 1
+                        }}>
+                          <Table size="small">
+                            <TableHead>
+                              <TableRow>
+                                <TableCell>No.</TableCell>
+                                <TableCell>Seal Tag ID</TableCell>
+                                <TableCell>Method</TableCell>
+                                <TableCell>Timestamp</TableCell>
+                                <TableCell>Image</TableCell>
+                              </TableRow>
+                            </TableHead>
+                            <TableBody>
+                              {sealTagIds.map((tagId: string, index: number) => (
+                                <TableRow key={tagId}>
+                                  <TableCell>{index + 1}</TableCell>
+                                  <TableCell>{tagId}</TableCell>
+                                  <TableCell>
+                                    <Chip 
+                                      label={sealTagMethods[tagId] === 'digitally scanned' ? 'Digitally Scanned' : 'Manually Entered'} 
+                                      color={sealTagMethods[tagId] === 'digitally scanned' ? 'primary' : 'secondary'} 
+                                      size="small"
+                                    />
+                                  </TableCell>
+                                  <TableCell>
+                                    {(sealTagLog.details as any).tripDetails.timestamps && 
+                                     (sealTagLog.details as any).tripDetails.timestamps[tagId] && (
+                                      <Typography variant="caption">
+                                        {new Date((sealTagLog.details as any).tripDetails.timestamps[tagId]).toLocaleString()}
+                                      </Typography>
+                                    )}
+                                  </TableCell>
+                                  <TableCell>
+                                    {session.images && session.images.sealingImages && session.images.sealingImages[index] && (
+                                      <Box 
+                                        component="img" 
+                                        src={session.images.sealingImages[index]} 
+                                        alt={`Seal tag ${tagId}`}
+                                        sx={{ 
+                                          width: 40, 
+                                          height: 40, 
+                                          objectFit: 'cover',
+                                          borderRadius: 1,
+                                          cursor: 'pointer'
+                                        }}
+                                        onClick={() => {
+                                          // Open image in new tab
+                                          window.open(session.images?.sealingImages?.[index], '_blank');
+                                        }}
+                                      />
+                                    )}
+                                  </TableCell>
+                                </TableRow>
+                              ))}
+                            </TableBody>
+                          </Table>
+                        </Box>
+                      </>
+                    );
+                  }
+                  
+                  return <Typography variant="body2">No seal tag information available.</Typography>;
+                })()}
               </Box>
-              {session.seal.verified && (
-                <>
+            ) : (
+              <>
+                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
                   <Box sx={{ flex: '1 0 45%', minWidth: '250px' }}>
                     <Typography variant="body2">
-                      <strong>Verification Date:</strong> {formatDate(session.seal.scannedAt || '')}
+                      <strong>Seal Barcode:</strong> {session.seal.barcode}
                     </Typography>
                   </Box>
-                  {session.seal.verifiedBy && (
-                    <Box sx={{ flex: '1 0 45%', minWidth: '250px' }}>
-                      <Typography variant="body2">
-                        <strong>Verified By:</strong> {session.seal.verifiedBy.name}
-                      </Typography>
-                    </Box>
+                  {session.seal.verified && (
+                    <>
+                      <Box sx={{ flex: '1 0 45%', minWidth: '250px' }}>
+                        <Typography variant="body2">
+                          <strong>Verification Date:</strong> {formatDate(session.seal.scannedAt || '')}
+                        </Typography>
+                      </Box>
+                      {session.seal.verifiedBy && (
+                        <Box sx={{ flex: '1 0 45%', minWidth: '250px' }}>
+                          <Typography variant="body2">
+                            <strong>Verified By:</strong> {session.seal.verifiedBy.name}
+                          </Typography>
+                        </Box>
+                      )}
+                    </>
                   )}
-                </>
-              )}
-            </Box>
+                </Box>
+              </>
+            )}
           </Box>
         )}
       </Paper>
