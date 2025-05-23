@@ -1623,136 +1623,288 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
       );
     }
 
+    // State for the scanner and related data
+    const [scanInput, setScanInput] = useState('');
+    const [scanMethod, setScanMethod] = useState('manual');
+    const [isScanning, setIsScanning] = useState(false);
+    const [scanError, setScanError] = useState('');
+    const [guardScannedSeals, setGuardScannedSeals] = useState<Array<{
+      id: string;
+      method: string;
+      image: File | null;
+      imagePreview: string | null;
+      timestamp: string;
+      verified: boolean;
+    }>>([]);
+    const [sealComparison, setSealComparison] = useState<{
+      matched: string[];
+      mismatched: string[];
+    }>({
+      matched: [],
+      mismatched: []
+    });
+
+    // Extract operator seals from session data
+    const operatorSeals = useMemo(() => {
+      const seals: Array<{
+        id: string;
+        method: string;
+        image: string | null;
+        timestamp: string;
+      }> = [];
+      
+      // Primary seal
+      if (session.seal?.barcode) {
+        seals.push({
+          id: session.seal.barcode,
+          method: 'digital',
+          image: session.images?.sealingImages?.[0] || null,
+          timestamp: session.createdAt
+        });
+      }
+      
+      // Additional seals
+      if (session.qrCodes?.additionalBarcodes) {
+        session.qrCodes.additionalBarcodes.forEach((barcode, index) => {
+          seals.push({
+            id: barcode,
+            method: 'digital',
+            image: session.images?.sealingImages?.[index + 1] || null,
+            timestamp: session.timestamps?.loadingDetails?.sealingTime || session.createdAt
+          });
+        });
+      }
+      
+      return seals;
+    }, [session]);
+
+    // Handle QR/barcode scanner input
+    const handleScanComplete = (sealId: string) => {
+      if (!sealId.trim()) {
+        setScanError('Please enter a valid Seal Tag ID');
+        return;
+      }
+      
+      // Check if already scanned by guard
+      if (guardScannedSeals.some(seal => seal.id === sealId)) {
+        setScanError('This seal has already been scanned');
+        return;
+      }
+      
+      // Add to scanned seals
+      const newSeal = {
+        id: sealId,
+        method: scanMethod,
+        image: null,
+        imagePreview: null,
+        timestamp: new Date().toISOString(),
+        verified: operatorSeals.some(seal => seal.id === sealId)
+      };
+      
+      setGuardScannedSeals(prev => [...prev, newSeal]);
+      setScanInput('');
+      setScanError('');
+      
+      // Update comparison
+      updateSealComparison([...guardScannedSeals, newSeal]);
+    };
+
+    // Update seal comparison data
+    const updateSealComparison = (scannedSeals: typeof guardScannedSeals) => {
+      const guardSealIds = scannedSeals.map(seal => seal.id);
+      const operatorSealIds = operatorSeals.map(seal => seal.id);
+      
+      const matched = guardSealIds.filter(id => operatorSealIds.includes(id));
+      const mismatched = [
+        ...guardSealIds.filter(id => !operatorSealIds.includes(id)),
+        ...operatorSealIds.filter(id => !guardSealIds.includes(id))
+      ];
+      
+      setSealComparison({ matched, mismatched });
+    };
+
+    // Handle image upload for a seal
+    const handleSealImageUpload = (index: number, file: File | null) => {
+      if (!file) return;
+      
+      const updatedSeals = [...guardScannedSeals];
+      updatedSeals[index].image = file;
+      updatedSeals[index].imagePreview = URL.createObjectURL(file);
+      setGuardScannedSeals(updatedSeals);
+    };
+
+    // Remove a scanned seal
+    const removeSealTag = (index: number) => {
+      const updatedSeals = [...guardScannedSeals];
+      
+      // Revoke object URL if exists to prevent memory leaks
+      if (updatedSeals[index].imagePreview) {
+        URL.revokeObjectURL(updatedSeals[index].imagePreview as string);
+      }
+      
+      updatedSeals.splice(index, 1);
+      setGuardScannedSeals(updatedSeals);
+      
+      // Update comparison
+      updateSealComparison(updatedSeals);
+    };
+
+    // Start/stop scanner
+    const toggleScanner = () => {
+      setIsScanning(!isScanning);
+      if (!isScanning) {
+        setScanMethod('digital');
+      } else {
+        setScanMethod('manual');
+      }
+    };
+
     return (
       <Box>
         <Typography variant="h6" gutterBottom>
           Seal Tags Verification
         </Typography>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-          Verify the seal tags by scanning or entering the tag IDs. Each tag should be checked for tampering.
+          Verify the seal tags by scanning each seal's barcode/QR code. Each tag should match with those applied by the operator.
         </Typography>
 
-        {/* Barcode/QR Scan Section */}
-        <Box sx={{ mb: 4 }}>
-          <Paper variant="outlined" sx={{ p: 2 }}>
-            <Typography variant="subtitle1" gutterBottom>
-              Scan or Enter Primary Seal Barcode
-            </Typography>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
+        {/* Seal Scanner Section */}
+        <Paper variant="outlined" sx={{ p: 2, mb: 4 }}>
+          <Typography variant="subtitle1" gutterBottom>
+            Scan Seal Tags
+          </Typography>
+          
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
               <TextField
                 fullWidth
                 size="small"
                 variant="outlined"
-                label="Seal Barcode/QR Code"
-                value={sealInput}
-                onChange={(e) => setSealInput(e.target.value)}
-                error={!!sealError}
-                helperText={sealError}
+                label="Seal Tag ID"
+                value={scanInput}
+                onChange={(e) => setScanInput(e.target.value)}
+                error={!!scanError}
+                helperText={scanError}
+                disabled={isScanning}
               />
+              
               <Button 
                 variant="contained" 
-                onClick={() => {
-                  if (sealInput !== session.seal?.barcode) {
-                    setSealError("Seal code does not match the recorded seal.");
-                  } else {
-                    setSealError("");
-                    // Mark this field as verified
-                    setVerificationFields(prev => ({
-                      ...prev,
-                      sealBarcode: {
-                        operatorValue: session.seal?.barcode,
-                        guardValue: sealInput,
-                        comment: "",
-                        isVerified: true
-                      }
-                    }));
-                  }
-                }}
+                onClick={() => handleScanComplete(scanInput)}
+                disabled={isScanning || !scanInput.trim()}
               >
-                Verify
+                Add Manually
               </Button>
-            </Box>
-
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <Typography variant="body2">
-                Expected seal code: <strong>{session.seal.barcode}</strong>
-              </Typography>
+              
               <Button 
-                variant="outlined" 
-                size="small" 
-                startIcon={<QrCode />}
-                onClick={() => {
-                  // Implementation for QR code scanning
-                  // For now, just populate with the correct value
-                  if(session.seal) {
-                    setSealInput(session.seal.barcode);
-                    setSealError("");
-                  }
-                }}
+                variant={isScanning ? "outlined" : "contained"}
+                color={isScanning ? "error" : "primary"}
+                onClick={toggleScanner}
+                startIcon={isScanning ? <Close /> : <QrCode />}
               >
-                Scan QR Code
+                {isScanning ? "Cancel Scan" : "Scan QR/Barcode"}
               </Button>
             </Box>
-          </Paper>
-        </Box>
+            
+            {isScanning && (
+              <Box sx={{ p: 2, border: '1px dashed', borderColor: 'primary.main', borderRadius: 1, bgcolor: 'background.paper' }}>
+                <Typography variant="body2" gutterBottom>
+                  Position the QR/barcode in front of your camera. Scanning will automatically complete when detected.
+                </Typography>
+                
+                {/* Here, you'd integrate an actual QR scanner component */}
+                {/* For this implementation, we'll simulate with a button */}
+                <Box sx={{ display: 'flex', justifyContent: 'center', my: 2 }}>
+                  <Button 
+                    variant="outlined" 
+                    onClick={() => {
+                      // Simulate a successful scan with a random ID
+                      const randomId = `SEAL${Math.floor(Math.random() * 10000).toString().padStart(4, '0')}`;
+                      handleScanComplete(randomId);
+                      setIsScanning(false);
+                    }}
+                  >
+                    Simulate Successful Scan
+                  </Button>
+                </Box>
+              </Box>
+            )}
+          </Box>
+        </Paper>
 
-        {/* Seal Tags List */}
-        <Box sx={{ mb: 4 }}>
+        {/* Scanned Seals Table */}
+        <Paper variant="outlined" sx={{ p: 2, mb: 4 }}>
           <Typography variant="subtitle1" gutterBottom>
-            Additional Seal Tags
+            Scanned Seal Tags ({guardScannedSeals.length})
           </Typography>
           
-          {session.qrCodes?.additionalBarcodes && session.qrCodes.additionalBarcodes.length > 0 ? (
-            <TableContainer component={Paper} variant="outlined">
+          {guardScannedSeals.length > 0 ? (
+            <TableContainer>
               <Table size="small">
                 <TableHead>
                   <TableRow>
                     <TableCell width="5%">#</TableCell>
-                    <TableCell width="40%">Seal Tag ID</TableCell>
-                    <TableCell width="40%">Status</TableCell>
-                    <TableCell width="15%">Action</TableCell>
+                    <TableCell width="25%">Seal Tag ID</TableCell>
+                    <TableCell width="15%">Method</TableCell>
+                    <TableCell width="20%">Timestamp</TableCell>
+                    <TableCell width="20%">Image</TableCell>
+                    <TableCell width="15%">Status</TableCell>
+                    <TableCell width="10%">Actions</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {session.qrCodes.additionalBarcodes.map((barcode, index) => (
-                    <TableRow key={index}>
+                  {guardScannedSeals.map((seal, index) => (
+                    <TableRow key={index} sx={{
+                      bgcolor: seal.verified ? 'transparent' : 'rgba(211, 47, 47, 0.1)'
+                    }}>
                       <TableCell>{index + 1}</TableCell>
-                      <TableCell>{barcode}</TableCell>
+                      <TableCell>{seal.id}</TableCell>
                       <TableCell>
-                        {verificationFields[`sealTag_${index}`]?.isVerified ? (
-                          <Chip 
-                            label="Verified" 
-                            color="success" 
-                            size="small" 
-                            icon={<CheckCircle fontSize="small" />} 
-                          />
+                        <Chip 
+                          size="small"
+                          label={seal.method === 'digital' ? 'Scanned' : 'Manual'} 
+                          color={seal.method === 'digital' ? 'info' : 'default'}
+                        />
+                      </TableCell>
+                      <TableCell>{new Date(seal.timestamp).toLocaleString()}</TableCell>
+                      <TableCell>
+                        {seal.imagePreview ? (
+                          <Box sx={{ position: 'relative', width: 60, height: 60 }}>
+                            <img 
+                              src={seal.imagePreview} 
+                              alt={`Seal ${index + 1}`}
+                              style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '4px' }}
+                            />
+                          </Box>
                         ) : (
-                          <Chip 
-                            label="Not Verified" 
-                            color="default" 
-                            size="small" 
-                            variant="outlined" 
-                          />
+                          <Button
+                            component="label"
+                            variant="outlined"
+                            size="small"
+                            startIcon={<CloudUpload />}
+                          >
+                            Upload
+                            <input
+                              type="file"
+                              hidden
+                              accept="image/*"
+                              onChange={(e) => handleSealImageUpload(index, e.target.files?.[0] || null)}
+                            />
+                          </Button>
                         )}
                       </TableCell>
                       <TableCell>
-                        <Button
+                        <Chip 
                           size="small"
-                          onClick={() => {
-                            setVerificationFields(prev => ({
-                              ...prev,
-                              [`sealTag_${index}`]: {
-                                operatorValue: barcode,
-                                guardValue: barcode,
-                                comment: "",
-                                isVerified: true
-                              }
-                            }));
-                          }}
-                          disabled={verificationFields[`sealTag_${index}`]?.isVerified}
-                        >
-                          {verificationFields[`sealTag_${index}`]?.isVerified ? 'Verified' : 'Verify'}
-                        </Button>
+                          label={seal.verified ? 'Matched' : 'Not Matched'} 
+                          color={seal.verified ? 'success' : 'error'}
+                          icon={seal.verified ? <CheckCircle fontSize="small" /> : <Warning fontSize="small" />}
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <IconButton size="small" color="error" onClick={() => removeSealTag(index)}>
+                          <Delete fontSize="small" />
+                        </IconButton>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -1760,112 +1912,363 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
               </Table>
             </TableContainer>
           ) : (
-            <Typography variant="body2" color="text.secondary">
-              No additional seal tags found.
-            </Typography>
+            <Box sx={{ py: 2, textAlign: 'center' }}>
+              <Typography variant="body2" color="text.secondary">
+                No seal tags scanned yet. Use the scanner above to add seal tags.
+              </Typography>
+            </Box>
           )}
-        </Box>
+        </Paper>
 
-        {/* Seal Images Verification */}
-        <Box sx={{ mb: 3 }}>
+        {/* Verification Summary */}
+        <Paper variant="outlined" sx={{ p: 2, mb: 4 }}>
           <Typography variant="subtitle1" gutterBottom>
-            Seal Images Verification
+            Seal Tags Verification Summary
           </Typography>
           
-          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
-            {/* Original seal images */}
-            {session.images?.sealingImages && session.images.sealingImages.length > 0 ? (
-              <Box sx={{ width: '100%' }}>
-                <Typography variant="body2" gutterBottom>
-                  Original seal images:
-                </Typography>
-                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
-                  {session.images.sealingImages.map((img, idx) => (
-                    <Box 
-                      key={idx} 
-                      sx={{ 
-                        width: 120, 
-                        height: 120, 
-                        border: '1px solid #ddd', 
-                        borderRadius: 1,
-                        overflow: 'hidden'
-                      }}
-                    >
-                      <img 
-                        src={img} 
-                        alt={`Seal ${idx + 1}`} 
-                        style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
-                      />
-                    </Box>
-                  ))}
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, mb: 3 }}>
+            <Box sx={{ flex: '1 0 48%', minWidth: '250px' }}>
+              <Paper sx={{ p: 2, bgcolor: 'success.light', color: 'success.contrastText' }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1 }}>
+                  <CheckCircle />
+                  <Typography variant="h6">{sealComparison.matched.length} Matched Seal Tags</Typography>
                 </Box>
-              </Box>
-            ) : (
-              <Typography variant="body2" color="text.secondary">
-                No original seal images available.
-              </Typography>
-            )}
-            
-            {/* Guard's verification seal images */}
-            <Box sx={{ width: '100%', mt: 3 }}>
-              <Typography variant="body2" gutterBottom>
-                Your verification images:
-              </Typography>
-              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, alignItems: 'center' }}>
-                {/* Display uploaded images */}
-                {(imagePreviews.sealingImages || []).map((preview, idx) => (
-                  <Box 
-                    key={idx} 
-                    sx={{ 
-                      width: 120, 
-                      height: 120, 
-                      border: '1px solid #ddd', 
-                      borderRadius: 1,
-                      overflow: 'hidden',
-                      position: 'relative'
-                    }}
-                  >
-                    <img 
-                      src={preview} 
-                      alt={`Seal Verification ${idx + 1}`}
-                      style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
-                    />
-                    <IconButton
-                      sx={{
-                        position: 'absolute',
-                        top: 0,
-                        right: 0,
-                        bgcolor: 'background.paper',
-                        '&:hover': { bgcolor: 'error.light' }
-                      }}
-                      size="small"
-                      onClick={() => removeUploadedImage('sealingImages', idx)}
-                    >
-                      <Delete fontSize="small" />
-                    </IconButton>
-                  </Box>
-                ))}
-                
-                {/* Upload button */}
-                <Button
-                  component="label"
-                  variant="outlined"
-                  startIcon={<CloudUpload />}
-                  sx={{ height: 120, width: 120 }}
-                >
-                  Add Image
-                  <input
-                    type="file"
-                    hidden
-                    accept="image/*"
-                    multiple
-                    onChange={(e) => handleImageUpload('sealingImages', e.target.files || null)}
-                  />
-                </Button>
-              </Box>
+              </Paper>
+            </Box>
+            <Box sx={{ flex: '1 0 48%', minWidth: '250px' }}>
+              <Paper sx={{ p: 2, bgcolor: 'error.light', color: 'error.contrastText' }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1 }}>
+                  <Warning />
+                  <Typography variant="h6">{sealComparison.mismatched.length} Mismatched Seal Tags</Typography>
+                </Box>
+              </Paper>
             </Box>
           </Box>
-        </Box>
+
+          {/* Comparison Table */}
+          <Typography variant="subtitle2" gutterBottom>
+            Detailed Comparison
+          </Typography>
+          
+          <TableContainer>
+            <Table size="small">
+              <TableHead>
+                <TableRow sx={{ bgcolor: 'background.paper' }}>
+                  <TableCell colSpan={3} align="center" sx={{ borderRight: '1px solid rgba(224, 224, 224, 1)' }}>
+                    <Typography variant="subtitle2">Operator Data</Typography>
+                  </TableCell>
+                  <TableCell colSpan={3} align="center">
+                    <Typography variant="subtitle2">Guard Data</Typography>
+                  </TableCell>
+                  <TableCell rowSpan={2} align="center">
+                    <Typography variant="subtitle2">Status</Typography>
+                  </TableCell>
+                </TableRow>
+                <TableRow>
+                  <TableCell>Seal Tag ID</TableCell>
+                  <TableCell>Method</TableCell>
+                  <TableCell sx={{ borderRight: '1px solid rgba(224, 224, 224, 1)' }}>Timestamp</TableCell>
+                  <TableCell>Seal Tag ID</TableCell>
+                  <TableCell>Method</TableCell>
+                  <TableCell>Timestamp</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {/* All operator seals */}
+                {operatorSeals.map((operatorSeal, index) => {
+                  const matchingGuardSeal = guardScannedSeals.find(
+                    guardSeal => guardSeal.id === operatorSeal.id
+                  );
+                  
+                  const isMatched = !!matchingGuardSeal;
+                  
+                  return (
+                    <TableRow key={`operator-${index}`} sx={{
+                      bgcolor: isMatched ? 'transparent' : 'rgba(211, 47, 47, 0.1)'
+                    }}>
+                      <TableCell>{operatorSeal.id}</TableCell>
+                      <TableCell>
+                        <Chip 
+                          size="small"
+                          label={operatorSeal.method === 'digital' ? 'Scanned' : 'Manual'} 
+                          color={operatorSeal.method === 'digital' ? 'info' : 'default'}
+                        />
+                      </TableCell>
+                      <TableCell sx={{ borderRight: '1px solid rgba(224, 224, 224, 1)' }}>
+                        {new Date(operatorSeal.timestamp).toLocaleString()}
+                      </TableCell>
+                      {matchingGuardSeal ? (
+                        <>
+                          <TableCell>{matchingGuardSeal.id}</TableCell>
+                          <TableCell>
+                            <Chip 
+                              size="small"
+                              label={matchingGuardSeal.method === 'digital' ? 'Scanned' : 'Manual'} 
+                              color={matchingGuardSeal.method === 'digital' ? 'info' : 'default'}
+                            />
+                          </TableCell>
+                          <TableCell>
+                            {new Date(matchingGuardSeal.timestamp).toLocaleString()}
+                          </TableCell>
+                        </>
+                      ) : (
+                        <>
+                          <TableCell colSpan={3} align="center">
+                            <Typography variant="body2" color="error">
+                              Not scanned by guard
+                            </Typography>
+                          </TableCell>
+                        </>
+                      )}
+                      <TableCell align="center">
+                        <Chip 
+                          size="small"
+                          label={isMatched ? 'Matched' : 'Missing'} 
+                          color={isMatched ? 'success' : 'error'}
+                          icon={isMatched ? <CheckCircle fontSize="small" /> : <Warning fontSize="small" />}
+                        />
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+                
+                {/* Guard seals not in operator list */}
+                {guardScannedSeals
+                  .filter(guardSeal => !operatorSeals.some(
+                    operatorSeal => operatorSeal.id === guardSeal.id
+                  ))
+                  .map((guardSeal, index) => (
+                    <TableRow key={`guard-only-${index}`} sx={{
+                      bgcolor: 'rgba(211, 47, 47, 0.1)'
+                    }}>
+                      <TableCell colSpan={3} align="center" sx={{ borderRight: '1px solid rgba(224, 224, 224, 1)' }}>
+                        <Typography variant="body2" color="error">
+                          Not found in operator records
+                        </Typography>
+                      </TableCell>
+                      <TableCell>{guardSeal.id}</TableCell>
+                      <TableCell>
+                        <Chip 
+                          size="small"
+                          label={guardSeal.method === 'digital' ? 'Scanned' : 'Manual'} 
+                          color={guardSeal.method === 'digital' ? 'info' : 'default'}
+                        />
+                      </TableCell>
+                      <TableCell>
+                        {new Date(guardSeal.timestamp).toLocaleString()}
+                      </TableCell>
+                      <TableCell align="center">
+                        <Chip 
+                          size="small"
+                          label="Extra" 
+                          color="error"
+                          icon={<Warning fontSize="small" />}
+                        />
+                      </TableCell>
+                    </TableRow>
+                  ))
+                }
+              </TableBody>
+            </Table>
+          </TableContainer>
+        </Paper>
+
+        {/* Side-by-side Image Comparison */}
+        <Paper variant="outlined" sx={{ p: 2, mb: 4 }}>
+          <Typography variant="subtitle1" gutterBottom>
+            Seal Images Comparison
+          </Typography>
+          
+          {operatorSeals.length > 0 ? (
+            <TableContainer>
+              <Table>
+                <TableHead>
+                  <TableRow>
+                    <TableCell>Seal Tag ID</TableCell>
+                    <TableCell>Operator Image</TableCell>
+                    <TableCell>Guard Image</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {operatorSeals.map((operatorSeal, index) => {
+                    const matchingGuardSeal = guardScannedSeals.find(
+                      guardSeal => guardSeal.id === operatorSeal.id
+                    );
+                    
+                    return (
+                      <TableRow key={`img-${index}`}>
+                        <TableCell>{operatorSeal.id}</TableCell>
+                        <TableCell>
+                          {operatorSeal.image ? (
+                            <Box sx={{ width: 120, height: 120 }}>
+                              <img 
+                                src={operatorSeal.image} 
+                                alt={`Operator Seal ${operatorSeal.id}`}
+                                style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '4px' }}
+                              />
+                            </Box>
+                          ) : (
+                            <Typography variant="body2" color="text.secondary">
+                              No image available
+                            </Typography>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {matchingGuardSeal?.imagePreview ? (
+                            <Box sx={{ width: 120, height: 120 }}>
+                              <img 
+                                src={matchingGuardSeal.imagePreview} 
+                                alt={`Guard Seal ${matchingGuardSeal.id}`}
+                                style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '4px' }}
+                              />
+                            </Box>
+                          ) : (
+                            <Typography variant="body2" color="text.secondary">
+                              No image available
+                            </Typography>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          ) : (
+            <Typography variant="body2" color="text.secondary">
+              No seal images available for comparison.
+            </Typography>
+          )}
+        </Paper>
+        
+        {/* Final Detailed Comparison Table */}
+        <Paper variant="outlined" sx={{ p: 2, mb: 4 }}>
+          <Typography variant="subtitle1" gutterBottom>
+            Complete Seal Verification Report
+          </Typography>
+          
+          <TableContainer>
+            <Table size="small">
+              <TableHead>
+                <TableRow>
+                  <TableCell rowSpan={2}>Seal Tag ID</TableCell>
+                  <TableCell colSpan={3} align="center">Operator</TableCell>
+                  <TableCell colSpan={3} align="center">Guard</TableCell>
+                  <TableCell rowSpan={2}>Status</TableCell>
+                </TableRow>
+                <TableRow>
+                  <TableCell>Method</TableCell>
+                  <TableCell>Image</TableCell>
+                  <TableCell>Timestamp</TableCell>
+                  <TableCell>Method</TableCell>
+                  <TableCell>Image</TableCell>
+                  <TableCell>Timestamp</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {/* Combine all seal IDs from both operator and guard */}
+                {[...new Set([
+                  ...operatorSeals.map(seal => seal.id),
+                  ...guardScannedSeals.map(seal => seal.id)
+                ])].map((sealId, index) => {
+                  const operatorSeal = operatorSeals.find(seal => seal.id === sealId);
+                  const guardSeal = guardScannedSeals.find(seal => seal.id === sealId);
+                  const isMatched = !!operatorSeal && !!guardSeal;
+                  
+                  return (
+                    <TableRow key={`final-${index}`} sx={{
+                      bgcolor: isMatched ? 'transparent' : 'rgba(211, 47, 47, 0.1)'
+                    }}>
+                      <TableCell>{sealId}</TableCell>
+                      {/* Operator columns */}
+                      {operatorSeal ? (
+                        <>
+                          <TableCell>
+                            <Chip 
+                              size="small"
+                              label={operatorSeal.method === 'digital' ? 'Scanned' : 'Manual'} 
+                              color={operatorSeal.method === 'digital' ? 'info' : 'default'}
+                            />
+                          </TableCell>
+                          <TableCell>
+                            {operatorSeal.image ? (
+                              <Box sx={{ width: 50, height: 50 }}>
+                                <img 
+                                  src={operatorSeal.image} 
+                                  alt={`Operator Seal ${operatorSeal.id}`}
+                                  style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '4px' }}
+                                />
+                              </Box>
+                            ) : (
+                              <Typography variant="body2" color="text.secondary">
+                                N/A
+                              </Typography>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {new Date(operatorSeal.timestamp).toLocaleString()}
+                          </TableCell>
+                        </>
+                      ) : (
+                        <TableCell colSpan={3} align="center">
+                          <Typography variant="body2" color="error">
+                            Not in operator records
+                          </Typography>
+                        </TableCell>
+                      )}
+                      
+                      {/* Guard columns */}
+                      {guardSeal ? (
+                        <>
+                          <TableCell>
+                            <Chip 
+                              size="small"
+                              label={guardSeal.method === 'digital' ? 'Scanned' : 'Manual'} 
+                              color={guardSeal.method === 'digital' ? 'info' : 'default'}
+                            />
+                          </TableCell>
+                          <TableCell>
+                            {guardSeal.imagePreview ? (
+                              <Box sx={{ width: 50, height: 50 }}>
+                                <img 
+                                  src={guardSeal.imagePreview} 
+                                  alt={`Guard Seal ${guardSeal.id}`}
+                                  style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '4px' }}
+                                />
+                              </Box>
+                            ) : (
+                              <Typography variant="body2" color="text.secondary">
+                                N/A
+                              </Typography>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {new Date(guardSeal.timestamp).toLocaleString()}
+                          </TableCell>
+                        </>
+                      ) : (
+                        <TableCell colSpan={3} align="center">
+                          <Typography variant="body2" color="error">
+                            Not scanned by guard
+                          </Typography>
+                        </TableCell>
+                      )}
+                      
+                      <TableCell align="center">
+                        <Chip 
+                          size="small"
+                          label={isMatched ? 'Matched' : operatorSeal ? 'Missing' : 'Extra'} 
+                          color={isMatched ? 'success' : 'error'}
+                          icon={isMatched ? <CheckCircle fontSize="small" /> : <Warning fontSize="small" />}
+                        />
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        </Paper>
       </Box>
     );
   };
