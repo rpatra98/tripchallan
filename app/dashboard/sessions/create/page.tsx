@@ -57,6 +57,7 @@ type LoadingDetailsForm = {
   registrationCertificate: string;
   registrationCertificateDoc: File | null;
   gpsImeiNumber: string;
+  gpsImeiPicture: File | null;
   cargoType: string;
   loadingSite: string;
   loaderName: string;
@@ -78,6 +79,7 @@ type DriverDetailsForm = {
   driverContactNumber: string;
   driverLicense: string;
   driverLicenseDoc: File | null;
+  driverPicture: File | null;
   timestamps: Record<string, string>;
 };
 
@@ -91,16 +93,9 @@ type SealTagsForm = {
 };
 
 type ImagesForm = {
-  gpsImeiPicture: File | null;
   vehicleNumberPlatePicture: File | null;
-  driverPicture: File | null;
-  sealingImages: File[];
   vehicleImages: File[];
   additionalImages: File[];
-  qrCodeData: string;
-  manualQrData: string;
-  scannedCodes: string[];
-  qrCodeImage: File | null;
   timestamps: Record<string, string>;
 };
 
@@ -261,6 +256,7 @@ export default function CreateSessionPage() {
     registrationCertificate: "",
     registrationCertificateDoc: null,
     gpsImeiNumber: "",
+    gpsImeiPicture: null,
     cargoType: "--Others--",
     loadingSite: "",
     loaderName: "",
@@ -283,6 +279,7 @@ export default function CreateSessionPage() {
     driverContactNumber: "",
     driverLicense: "",
     driverLicenseDoc: null,
+    driverPicture: null,
     timestamps: {}
   });
   
@@ -298,16 +295,9 @@ export default function CreateSessionPage() {
 
   // Step 4: Images & Verification
   const [imagesForm, setImagesForm] = useState<ImagesForm>({
-    gpsImeiPicture: null,
     vehicleNumberPlatePicture: null,
-    driverPicture: null,
-    sealingImages: [],
     vehicleImages: [],
     additionalImages: [],
-    qrCodeData: "",
-    manualQrData: "",
-    scannedCodes: [],
-    qrCodeImage: null,
     timestamps: {}
   });
 
@@ -583,7 +573,7 @@ export default function CreateSessionPage() {
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, fieldName: keyof ImagesForm | 'registrationCertificateDoc' | 'driverLicenseDoc') => {
     if (!e.target.files?.length) return;
     
-    if (fieldName === 'sealingImages' || fieldName === 'vehicleImages' || fieldName === 'additionalImages') {
+    if (fieldName === 'vehicleImages' || fieldName === 'additionalImages') {
       // Filter out files that are too large
       const filesArray = Array.from(e.target.files);
       
@@ -637,20 +627,6 @@ export default function CreateSessionPage() {
         delete newErrors[fieldName];
         return newErrors;
       });
-    }
-  };
-
-  const handleAddQrCode = () => {
-    if (imagesForm.manualQrData) {
-      setImagesForm(prev => ({
-        ...prev,
-        scannedCodes: [...prev.scannedCodes, prev.manualQrData],
-        manualQrData: "",
-        timestamps: {
-          ...prev.timestamps,
-          scannedCodes: new Date().toISOString()
-        }
-      }));
     }
   };
 
@@ -801,27 +777,6 @@ export default function CreateSessionPage() {
   // Update the validateStep function
   const validateStep = (step: number): boolean => {
     if (step === 0) {
-      // Validate Images & Verification
-      if (!imagesForm.gpsImeiPicture) setValidationErrors(prev => ({
-        ...prev,
-        gpsImeiPicture: "GPS IMEI picture is required"
-      }));
-      if (!imagesForm.vehicleNumberPlatePicture) setValidationErrors(prev => ({
-        ...prev,
-        vehicleNumberPlatePicture: "Vehicle number plate picture is required"
-      }));
-      if (!imagesForm.driverPicture) setValidationErrors(prev => ({
-        ...prev,
-        driverPicture: "Driver's picture is required"
-      }));
-      if (imagesForm.vehicleImages.length === 0) setValidationErrors(prev => ({
-        ...prev,
-        vehicleImages: "At least one vehicle image is required"
-      }));
-    } else if (step === 1) {
-      // Use the specialized validation for seal tags
-      return validateSealTagsStep();
-    } else if (step === 2) {
       // Validate Loading Details
       if (!loadingDetails.transporterName.trim()) {
         setValidationErrors(prev => ({
@@ -858,13 +813,24 @@ export default function CreateSessionPage() {
         }));
       }
       
+      // Add validation for GPS IMEI picture
+      if (!loadingDetails.gpsImeiPicture) {
+        setValidationErrors(prev => ({
+          ...prev,
+          gpsImeiPicture: "GPS IMEI picture is required"
+        }));
+      }
+      
       if (!loadingDetails.loadingSite.trim()) {
         setValidationErrors(prev => ({
           ...prev,
           loadingSite: "Loading site is required"
         }));
       }
-    } else if (step === 3) {
+    } else if (step === 1) {
+      // Use the specialized validation for seal tags
+      return validateSealTagsStep();
+    } else if (step === 2) {
       // Validate Driver Details
       if (!driverDetails.driverName.trim()) {
         setValidationErrors(prev => ({
@@ -891,6 +857,24 @@ export default function CreateSessionPage() {
           driverLicense: "Driver license is required"
         }));
       }
+      
+      // Add validation for driver picture
+      if (!driverDetails.driverPicture) {
+        setValidationErrors(prev => ({
+          ...prev,
+          driverPicture: "Driver's picture is required"
+        }));
+      }
+    } else if (step === 3) {
+      // Validate Images & Verification
+      if (!imagesForm.vehicleNumberPlatePicture) setValidationErrors(prev => ({
+        ...prev,
+        vehicleNumberPlatePicture: "Vehicle number plate picture is required"
+      }));
+      if (imagesForm.vehicleImages.length === 0) setValidationErrors(prev => ({
+        ...prev,
+        vehicleImages: "At least one vehicle image is required"
+      }));
     }
     
     return Object.keys(validationErrors).length === 0;
@@ -934,7 +918,7 @@ export default function CreateSessionPage() {
     document.body.removeChild(link);
   };
   
-  // Update handleSubmit to handle QR code generation
+  // Update handleSubmit to handle the new image fields
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -970,7 +954,7 @@ export default function CreateSessionPage() {
       
       // Add loading details
       Object.entries(loadingDetails).forEach(([key, value]) => {
-        if (key !== 'timestamps' && key !== 'registrationCertificateDoc') {
+        if (key !== 'timestamps' && key !== 'registrationCertificateDoc' && key !== 'gpsImeiPicture') {
           formData.append(key, String(value));
         }
       });
@@ -980,7 +964,7 @@ export default function CreateSessionPage() {
       
       // Add driver details
       Object.entries(driverDetails).forEach(([key, value]) => {
-        if (key !== 'timestamps' && key !== 'driverLicenseDoc') {
+        if (key !== 'timestamps' && key !== 'driverLicenseDoc' && key !== 'driverPicture') {
           formData.append(key, String(value));
         }
       });
@@ -1060,28 +1044,65 @@ export default function CreateSessionPage() {
         }
       }
       
-      // Convert individual images to base64
-      if (imagesForm.gpsImeiPicture) {
+      // Process GPS IMEI picture
+      if (loadingDetails.gpsImeiPicture) {
         try {
-          // Resize the image first
-          const resizedImage = await resizeImage(imagesForm.gpsImeiPicture, 1280, 1280, 0.8);
+          const resizedImage = await resizeImage(loadingDetails.gpsImeiPicture, 1280, 1280, 0.8);
           const base64Data = await fileToBase64(resizedImage);
           imageBase64Data.gpsImeiPicture = {
-            data: base64Data.split(',')[1], // Remove data URL prefix
+            data: base64Data.split(',')[1],
             contentType: resizedImage.type,
             name: resizedImage.name
           };
           formData.append('gpsImeiPicture', resizedImage);
         } catch (error) {
           console.error("Error processing GPS IMEI image:", error);
-          setError("Error processing GPS IMEI image. Please try again."); // Generic error
+          setError("Error processing GPS IMEI image. Please try again.");
+          setIsSubmitting(false);
+          return;
+        }
+      }
+      
+      // Process driver picture
+      if (driverDetails.driverPicture) {
+        try {
+          const resizedImage = await resizeImage(driverDetails.driverPicture, 1280, 1280, 0.8);
+          const base64Data = await fileToBase64(resizedImage);
+          imageBase64Data.driverPicture = {
+            data: base64Data.split(',')[1],
+            contentType: resizedImage.type,
+            name: resizedImage.name
+          };
+          formData.append('driverPicture', resizedImage);
+        } catch (error) {
+          console.error("Error processing driver picture:", error);
+          setError("Error processing driver picture. Please try again.");
+          setIsSubmitting(false);
+          return;
+        }
+      }
+      
+      // Convert vehicle number plate picture
+      if (imagesForm.vehicleNumberPlatePicture) {
+        try {
+          // Resize the image first
+          const resizedImage = await resizeImage(imagesForm.vehicleNumberPlatePicture, 1280, 1280, 0.8);
+          const base64Data = await fileToBase64(resizedImage);
+          imageBase64Data.vehicleNumberPlatePicture = {
+            data: base64Data.split(',')[1], // Remove data URL prefix
+            contentType: resizedImage.type,
+            name: resizedImage.name
+          };
+          formData.append('vehicleNumberPlatePicture', resizedImage);
+        } catch (error) {
+          console.error("Error processing vehicle number plate image:", error);
+          setError("Error processing vehicle number plate image. Please try again."); // Generic error
           setIsSubmitting(false);
           return;
         }
       }
       
       // Process array images
-      imageBase64Data.sealingImages = [];
       imageBase64Data.vehicleImages = [];
       imageBase64Data.additionalImages = [];
       
@@ -1110,9 +1131,6 @@ export default function CreateSessionPage() {
       
       // Add the base64 image data to the form
       formData.append('imageBase64Data', JSON.stringify(imageBase64Data));
-      
-      // Add QR code data
-      formData.append('scannedCodes', JSON.stringify(imagesForm.scannedCodes));
       
       // Add timestamps for images form
       formData.append('imagesFormTimestamps', JSON.stringify(imagesForm.timestamps));
@@ -1176,7 +1194,7 @@ export default function CreateSessionPage() {
     }
   };
 
-  const steps = ['Images', 'Seal Tags', 'Loading Details', 'Driver Details'];
+  const steps = ['Loading Details', 'Seal Tags', 'Driver Details', 'Images'];
   
   // Function to display a preview of an image
   const renderImagePreview = (file: File | null) => {
@@ -1332,370 +1350,6 @@ export default function CreateSessionPage() {
 
         <form onSubmit={handleSubmit}>
           {activeStep === 0 && (
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-              <Box sx={{ width: '100%' }}>
-                <Typography variant="h6" gutterBottom>
-                  Images
-                </Typography>
-                {/* <FileUploadHelp /> */}
-                <ImageProcessingInfo />
-              </Box>
-              
-              <Box sx={{ width: { xs: '100%', md: '47%' } }}>
-                <Typography variant="subtitle1" gutterBottom>
-                  Upload GPS IMEI Picture
-                </Typography>
-                <Button
-                  variant="outlined"
-                  component="label"
-                  startIcon={<PhotoCamera />}
-                  fullWidth
-                  sx={{ height: '56px' }}
-                >
-                  {imagesForm.gpsImeiPicture ? 'Change Image' : 'Upload Image'}
-                  <input
-                    type="file"
-                    hidden
-                    accept="image/*"
-                    onChange={(e) => handleFileChange(e, 'gpsImeiPicture')}
-                  />
-                </Button>
-                {imagesForm.gpsImeiPicture && (
-                  <Typography variant="body2" sx={{ mt: 1 }}>
-                    {imagesForm.gpsImeiPicture.name}
-                  </Typography>
-                )}
-                {validationErrors.gpsImeiPicture && (
-                  <FormHelperText error>{validationErrors.gpsImeiPicture}</FormHelperText>
-                )}
-              </Box>
-              
-              <Box sx={{ width: { xs: '100%', md: '47%' } }}>
-                <Typography variant="subtitle1" gutterBottom>
-                  Upload Vehicle Number Plate
-                </Typography>
-                <Button
-                  variant="outlined"
-                  component="label"
-                  startIcon={<PhotoCamera />}
-                  fullWidth
-                  sx={{ height: '56px' }}
-                >
-                  {imagesForm.vehicleNumberPlatePicture ? 'Change Image' : 'Upload Image'}
-                  <input
-                    type="file"
-                    hidden
-                    accept="image/*"
-                    onChange={(e) => handleFileChange(e, 'vehicleNumberPlatePicture')}
-                  />
-                </Button>
-                {imagesForm.vehicleNumberPlatePicture && (
-                  <Typography variant="body2" sx={{ mt: 1 }}>
-                    {imagesForm.vehicleNumberPlatePicture.name}
-                  </Typography>
-                )}
-                {validationErrors.vehicleNumberPlatePicture && (
-                  <FormHelperText error>{validationErrors.vehicleNumberPlatePicture}</FormHelperText>
-                )}
-              </Box>
-              
-              <Box sx={{ width: { xs: '100%', md: '47%' } }}>
-                <Typography variant="subtitle1" gutterBottom>
-                  Upload Driver's Picture
-                </Typography>
-                <Button
-                  variant="outlined"
-                  component="label"
-                  startIcon={<PhotoCamera />}
-                  fullWidth
-                  sx={{ height: '56px' }}
-                >
-                  {imagesForm.driverPicture ? 'Change Image' : 'Upload Image'}
-                  <input
-                    type="file"
-                    hidden
-                    accept="image/*"
-                    onChange={(e) => handleFileChange(e, 'driverPicture')}
-                  />
-                </Button>
-                {imagesForm.driverPicture && (
-                  <Typography variant="body2" sx={{ mt: 1 }}>
-                    {imagesForm.driverPicture.name}
-                  </Typography>
-                )}
-                {validationErrors.driverPicture && (
-                  <FormHelperText error>{validationErrors.driverPicture}</FormHelperText>
-                )}
-              </Box>
-              
-              <Box sx={{ width: { xs: '100%', md: '47%' } }}>
-                <Typography variant="subtitle1" gutterBottom>
-                  Upload Vehicle Images
-                </Typography>
-                <Button
-                  variant="outlined"
-                  component="label"
-                  startIcon={<PhotoCamera />}
-                  fullWidth
-                  sx={{ height: '56px' }}
-                >
-                  Upload Images (Multiple)
-                  <input
-                    type="file"
-                    hidden
-                    accept="image/*"
-                    multiple
-                    onChange={(e) => handleFileChange(e, 'vehicleImages')}
-                  />
-                </Button>
-                {imagesForm.vehicleImages.length > 0 && (
-                  <Typography variant="body2" sx={{ mt: 1 }}>
-                    {imagesForm.vehicleImages.length} image(s) selected
-                  </Typography>
-                )}
-                {validationErrors.vehicleImages && (
-                  <FormHelperText error>{validationErrors.vehicleImages}</FormHelperText>
-                )}
-              </Box>
-              
-              <Box sx={{ width: '100%', mt: 2, mb: 2 }}>
-                <Typography variant="h6">
-                  QR & Barcode Scanner
-                </Typography>
-              </Box>
-              
-              <Box sx={{ width: { xs: '100%', md: '47%' } }}>
-                <ClientSideQrScanner
-                  buttonVariant="outlined"
-                  buttonText="Scan QR Code via Camera"
-                  scannerTitle="Scan QR Code"
-                  onScan={(data) => {
-                    if (!imagesForm.scannedCodes.includes(data)) {
-                      setImagesForm(prev => ({
-                        ...prev,
-                        scannedCodes: [...prev.scannedCodes, data],
-                        timestamps: {
-                          ...prev.timestamps,
-                          scannedCodes: new Date().toISOString()
-                        }
-                      }));
-                    }
-                  }}
-                />
-              </Box>
-              
-              <Box sx={{ width: { xs: '100%', md: '47%' } }}>
-                <TextField
-                  fullWidth
-                  label="Manual QR/Barcode Entry"
-                  value={imagesForm.manualQrData}
-                  onChange={(e) => setImagesForm(prev => ({
-                    ...prev,
-                    manualQrData: e.target.value
-                  }))}
-                  InputProps={{
-                    endAdornment: (
-                      <InputAdornment position="end">
-                        <Button 
-                          onClick={handleAddQrCode} 
-                          disabled={!imagesForm.manualQrData}
-                        >
-                          Add
-                        </Button>
-                      </InputAdornment>
-                    ),
-                  }}
-                />
-              </Box>
-              
-              <Box sx={{ width: '100%' }}>
-                <Typography variant="subtitle1" gutterBottom>
-                  Scanned Codes: {imagesForm.scannedCodes.length}
-                </Typography>
-                {imagesForm.scannedCodes.length > 0 && (
-                  <Box sx={{ mt: 1, p: 2, bgcolor: 'background.paper', borderRadius: 1 }}>
-                    {imagesForm.scannedCodes.map((code, index) => (
-                      <Typography key={index} variant="body2" sx={{ mb: 0.5 }}>
-                        {index + 1}. {code}
-                      </Typography>
-                    ))}
-                  </Box>
-                )}
-              </Box>
-            </Box>
-          )}
-
-          {activeStep === 1 && (
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-              <Box sx={{ width: '100%' }}>
-                <Typography variant="h6" gutterBottom>
-                  Seal Tags
-                </Typography>
-                <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                  Scan or manually enter seal tags. A minimum of 20 seal tags is required. Each tag must be unique and have an associated image.
-                </Typography>
-                
-                {error && (
-                  <Alert severity="error" sx={{ mb: 2 }}>
-                    {error}
-                  </Alert>
-                )}
-              </Box>
-              
-              <Box sx={{ width: '100%', display: 'flex', flexWrap: 'wrap', gap: 2 }}>
-                <Box sx={{ width: { xs: '100%', md: '47%' } }}>
-                  <Typography variant="subtitle1" gutterBottom>
-                    Scan QR/Barcode
-                  </Typography>
-                  <ClientSideQrScanner
-                    onScanWithImage={(data, imageFile) => {
-                      // Check if already scanned
-                      if (sealTags.sealTagIds.includes(data)) {
-                        setError("Tag ID already used");
-                        setTimeout(() => setError(""), 3000);
-                        return;
-                      }
-                      
-                      handleAddSealTagWithImage(data, imageFile);
-                    }}
-                    buttonText="Scan QR Code"
-                    scannerTitle="Scan Seal Tag"
-                    buttonVariant="outlined"
-                  />
-                </Box>
-                
-                <Box sx={{ width: { xs: '100%', md: '47%' } }}>
-                  <Typography variant="subtitle1" gutterBottom>
-                    Manual Entry
-                  </Typography>
-                  <TextField
-                    fullWidth
-                    label="Seal Tag ID"
-                    value={sealTags.manualSealTagId}
-                    onChange={(e) => setSealTags(prev => ({
-                      ...prev,
-                      manualSealTagId: e.target.value
-                    }))}
-                    InputProps={{
-                      endAdornment: (
-                        <InputAdornment position="end">
-                          <Button 
-                            onClick={handleAddSealTag} 
-                            disabled={!sealTags.manualSealTagId || !manualEntryImage}
-                          >
-                            Add
-                          </Button>
-                        </InputAdornment>
-                      ),
-                    }}
-                    error={!!validationErrors.sealTagIds}
-                    helperText={validationErrors.sealTagIds}
-                    sx={{ mb: 2 }}
-                  />
-                  
-                  <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2 }}>
-                    <Button
-                      variant="outlined"
-                      component="label"
-                      startIcon={<PhotoCamera />}
-                      sx={{ height: '56px' }}
-                    >
-                      {manualEntryImage ? 'Change Image' : 'Upload Image'}
-                      <input
-                        type="file"
-                        hidden
-                        accept="image/*"
-                        onChange={handleManualSealTagImageChange}
-                      />
-                    </Button>
-                    
-                    {renderImagePreview(manualEntryImage)}
-                  </Box>
-                  
-                  {validationErrors.manualEntryImage && (
-                    <FormHelperText error>{validationErrors.manualEntryImage}</FormHelperText>
-                  )}
-                </Box>
-              </Box>
-              
-              <Box sx={{ width: '100%' }}>
-                <Typography variant="subtitle1" gutterBottom sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <span>Registered Seal Tags: {sealTags.sealTagIds.length}</span>
-                  {validationErrors.sealTagImages && (
-                    <Typography variant="caption" color="error">
-                      {validationErrors.sealTagImages}
-                    </Typography>
-                  )}
-                </Typography>
-                
-                {sealTags.sealTagIds.length > 0 ? (
-                  <Box sx={{ 
-                    mt: 1, 
-                    p: 2, 
-                    bgcolor: 'background.paper', 
-                    borderRadius: 1,
-                    maxHeight: '400px',
-                    overflowY: 'auto'
-                  }}>
-                    <Table size="small">
-                      <TableHead>
-                        <TableRow>
-                          <TableCell>No.</TableCell>
-                          <TableCell>Seal Tag ID</TableCell>
-                          <TableCell>Method</TableCell>
-                          <TableCell>Image</TableCell>
-                          <TableCell>Timestamp</TableCell>
-                          <TableCell>Action</TableCell>
-                        </TableRow>
-                      </TableHead>
-                      <TableBody>
-                        {sealTags.sealTagIds.map((tagId, index) => (
-                          <TableRow key={tagId}>
-                            <TableCell>{index + 1}</TableCell>
-                            <TableCell>{tagId}</TableCell>
-                            <TableCell>
-                              <Chip 
-                                label={sealTags.sealTagMethods[tagId] === 'digitally scanned' ? 'Digitally Scanned' : 'Manually Entered'} 
-                                color={sealTags.sealTagMethods[tagId] === 'digitally scanned' ? 'primary' : 'secondary'} 
-                                size="small"
-                              />
-                            </TableCell>
-                            <TableCell>
-                              {sealTags.sealTagImages[tagId] ? (
-                                <Box sx={{ width: 40, height: 40 }}>
-                                  {renderImagePreview(sealTags.sealTagImages[tagId])}
-                                </Box>
-                              ) : (
-                                <Typography variant="caption" color="error">No image</Typography>
-                              )}
-                            </TableCell>
-                            <TableCell>
-                              {sealTags.timestamps[tagId] && (
-                                <Typography variant="caption" color="text.secondary">
-                                  {new Date(sealTags.timestamps[tagId]).toLocaleString()}
-                                </Typography>
-                              )}
-                            </TableCell>
-                            <TableCell>
-                              <IconButton size="small" onClick={() => handleRemoveSealTag(tagId)}>
-                                <Close fontSize="small" />
-                              </IconButton>
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </Box>
-                ) : (
-                  <Typography variant="body2" color="text.secondary" sx={{ mt: 1, fontStyle: 'italic' }}>
-                    No seal tags registered yet. Scan or manually enter seal tags above.
-                  </Typography>
-                )}
-              </Box>
-            </Box>
-          )}
-
-          {activeStep === 2 && (
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
               <Box sx={{ width: '100%' }}>
                 <Typography variant="h6" gutterBottom>
@@ -1898,6 +1552,50 @@ export default function CreateSessionPage() {
                     />
                   </Box>
                 </Box>
+                
+                <Box sx={{ mt: 2 }}>
+                  <Typography variant="subtitle1" gutterBottom>
+                    GPS IMEI Picture
+                  </Typography>
+                  <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2 }}>
+                    <Button
+                      variant="outlined"
+                      component="label"
+                      startIcon={<PhotoCamera />}
+                      sx={{ height: '56px' }}
+                    >
+                      {loadingDetails.gpsImeiPicture ? 'Change Image' : 'Take Photo'}
+                      <input
+                        type="file"
+                        hidden
+                        accept="image/*"
+                        capture="environment"
+                        onChange={(e) => {
+                          if (!e.target.files?.length) return;
+                          const file = e.target.files[0];
+                          setLoadingDetails(prev => ({
+                            ...prev,
+                            gpsImeiPicture: file,
+                            timestamps: {
+                              ...prev.timestamps,
+                              gpsImeiPicture: new Date().toISOString()
+                            }
+                          }));
+                        }}
+                      />
+                    </Button>
+                    
+                    {/* Preview of GPS IMEI image */}
+                    {loadingDetails.gpsImeiPicture && (
+                      <Box sx={{ maxWidth: '150px', maxHeight: '150px', overflow: 'hidden' }}>
+                        {renderImagePreview(loadingDetails.gpsImeiPicture)}
+                      </Box>
+                    )}
+                  </Box>
+                  {validationErrors.gpsImeiPicture && (
+                    <FormHelperText error>{validationErrors.gpsImeiPicture}</FormHelperText>
+                  )}
+                </Box>
               </Box>
               
               <Box sx={{ width: { xs: '100%', md: '47%' } }}>
@@ -2039,7 +1737,171 @@ export default function CreateSessionPage() {
             </Box>
           )}
 
-          {activeStep === 3 && (
+          {activeStep === 1 && (
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+              <Box sx={{ width: '100%' }}>
+                <Typography variant="h6" gutterBottom>
+                  Seal Tags
+                </Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                  Scan or manually enter seal tags. A minimum of 20 seal tags is required. Each tag must be unique and have an associated image.
+                </Typography>
+                
+                {error && (
+                  <Alert severity="error" sx={{ mb: 2 }}>
+                    {error}
+                  </Alert>
+                )}
+              </Box>
+              
+              <Box sx={{ width: '100%', display: 'flex', flexWrap: 'wrap', gap: 2 }}>
+                <Box sx={{ width: { xs: '100%', md: '47%' } }}>
+                  <Typography variant="subtitle1" gutterBottom>
+                    Scan QR/Barcode
+                  </Typography>
+                  <ClientSideQrScanner
+                    onScanWithImage={(data, imageFile) => {
+                      // Check if already scanned
+                      if (sealTags.sealTagIds.includes(data)) {
+                        setError("Tag ID already used");
+                        setTimeout(() => setError(""), 3000);
+                        return;
+                      }
+                      
+                      handleAddSealTagWithImage(data, imageFile);
+                    }}
+                    buttonText="Scan QR Code"
+                    scannerTitle="Scan Seal Tag"
+                    buttonVariant="outlined"
+                  />
+                </Box>
+                
+                <Box sx={{ width: { xs: '100%', md: '47%' } }}>
+                  <Typography variant="subtitle1" gutterBottom>
+                    Manual Entry
+                  </Typography>
+                  <TextField
+                    fullWidth
+                    label="Seal Tag ID"
+                    value={sealTags.manualSealTagId}
+                    onChange={(e) => setSealTags(prev => ({
+                      ...prev,
+                      manualSealTagId: e.target.value
+                    }))}
+                    InputProps={{
+                      endAdornment: (
+                        <InputAdornment position="end">
+                          <Button 
+                            onClick={handleAddSealTag} 
+                            disabled={!sealTags.manualSealTagId || !manualEntryImage}
+                          >
+                            Add
+                          </Button>
+                        </InputAdornment>
+                      ),
+                    }}
+                    error={!!validationErrors.sealTagIds}
+                    helperText={validationErrors.sealTagIds}
+                    sx={{ mb: 2 }}
+                  />
+                  
+                  <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2 }}>
+                    <Button
+                      variant="outlined"
+                      component="label"
+                      startIcon={<PhotoCamera />}
+                      sx={{ height: '56px' }}
+                    >
+                      {manualEntryImage ? 'Change Image' : 'Upload Image'}
+                      <input
+                        type="file"
+                        hidden
+                        accept="image/*"
+                        onChange={handleManualSealTagImageChange}
+                      />
+                    </Button>
+                    
+                    {renderImagePreview(manualEntryImage)}
+                  </Box>
+                  
+                  {validationErrors.manualEntryImage && (
+                    <FormHelperText error>{validationErrors.manualEntryImage}</FormHelperText>
+                  )}
+                </Box>
+              </Box>
+              
+              <Box sx={{ width: '100%' }}>
+                <Typography variant="subtitle1" gutterBottom sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <span>Registered Seal Tags: {sealTags.sealTagIds.length}</span>
+                  {validationErrors.sealTagImages && (
+                    <Typography variant="caption" color="error">
+                      {validationErrors.sealTagImages}
+                    </Typography>
+                  )}
+                </Typography>
+                
+                {sealTags.sealTagIds.length > 0 ? (
+                  <Box sx={{ 
+                    mt: 1, 
+                    p: 2, 
+                    bgcolor: 'background.paper', 
+                    borderRadius: 1,
+                    maxHeight: '400px',
+                    overflowY: 'auto'
+                  }}>
+                    <Table size="small">
+                      <TableHead>
+                        <TableRow>
+                          <TableCell>No.</TableCell>
+                          <TableCell>Seal Tag ID</TableCell>
+                          <TableCell>Method</TableCell>
+                          <TableCell>Image</TableCell>
+                          <TableCell>Timestamp</TableCell>
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {sealTags.sealTagIds.map((tagId, index) => (
+                          <TableRow key={tagId}>
+                            <TableCell>{index + 1}</TableCell>
+                            <TableCell>{tagId}</TableCell>
+                            <TableCell>
+                              <Chip 
+                                label={sealTags.sealTagMethods[tagId] === 'digitally scanned' ? 'Digitally Scanned' : 'Manually Entered'} 
+                                color={sealTags.sealTagMethods[tagId] === 'digitally scanned' ? 'primary' : 'secondary'} 
+                                size="small"
+                              />
+                            </TableCell>
+                            <TableCell>
+                              {sealTags.sealTagImages[tagId] ? (
+                                <Box sx={{ width: 40, height: 40 }}>
+                                  {renderImagePreview(sealTags.sealTagImages[tagId])}
+                                </Box>
+                              ) : (
+                                <Typography variant="caption" color="error">No image</Typography>
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              {sealTags.timestamps[tagId] && (
+                                <Typography variant="caption" color="text.secondary">
+                                  {new Date(sealTags.timestamps[tagId]).toLocaleString()}
+                                </Typography>
+                              )}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </Box>
+                ) : (
+                  <Typography variant="body2" color="text.secondary" sx={{ mt: 1, fontStyle: 'italic' }}>
+                    No seal tags registered. Scan or manually enter seal tags above.
+                  </Typography>
+                )}
+              </Box>
+            </Box>
+          )}
+
+          {activeStep === 2 && (
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
               <Box sx={{ width: '100%' }}>
                 <Typography variant="h6" gutterBottom>
@@ -2053,6 +1915,50 @@ export default function CreateSessionPage() {
                   <Alert severity="error" sx={{ mb: 2 }}>
                     {error}
                   </Alert>
+                )}
+              </Box>
+              
+              <Box sx={{ width: { xs: '100%', md: '47%' } }}>
+                <Typography variant="subtitle1" gutterBottom>
+                  Driver's Photo
+                </Typography>
+                <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2 }}>
+                  <Button
+                    variant="outlined"
+                    component="label"
+                    startIcon={<PhotoCamera />}
+                    sx={{ height: '56px' }}
+                  >
+                    {driverDetails.driverPicture ? 'Change Photo' : 'Take Photo'}
+                    <input
+                      type="file"
+                      hidden
+                      accept="image/*"
+                      capture="user"
+                      onChange={(e) => {
+                        if (!e.target.files?.length) return;
+                        const file = e.target.files[0];
+                        setDriverDetails(prev => ({
+                          ...prev,
+                          driverPicture: file,
+                          timestamps: {
+                            ...prev.timestamps,
+                            driverPicture: new Date().toISOString()
+                          }
+                        }));
+                      }}
+                    />
+                  </Button>
+                  
+                  {/* Preview of driver image */}
+                  {driverDetails.driverPicture && (
+                    <Box sx={{ maxWidth: '150px', maxHeight: '150px', overflow: 'hidden', borderRadius: '4px' }}>
+                      {renderImagePreview(driverDetails.driverPicture)}
+                    </Box>
+                  )}
+                </Box>
+                {validationErrors.driverPicture && (
+                  <FormHelperText error>{validationErrors.driverPicture}</FormHelperText>
                 )}
               </Box>
               
@@ -2123,6 +2029,192 @@ export default function CreateSessionPage() {
                 )}
                 {validationErrors.driverLicenseDoc && (
                   <FormHelperText error>{validationErrors.driverLicenseDoc}</FormHelperText>
+                )}
+              </Box>
+            </Box>
+          )}
+
+          {activeStep === 3 && (
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+              <Box sx={{ width: '100%' }}>
+                <Typography variant="h6" gutterBottom>
+                  Images
+                </Typography>
+                <ImageProcessingInfo />
+              </Box>
+              
+              {/* Display GPS IMEI picture from Loading Details */}
+              {loadingDetails.gpsImeiPicture && (
+                <Box sx={{ width: '100%', mb: 3 }}>
+                  <Typography variant="subtitle1" gutterBottom>
+                    GPS IMEI Picture
+                  </Typography>
+                  <Box 
+                    sx={{ 
+                      display: 'flex', 
+                      flexDirection: 'column', 
+                      border: '1px solid #ddd', 
+                      borderRadius: 1, 
+                      p: 2, 
+                      maxWidth: '300px' 
+                    }}
+                  >
+                    <Typography variant="caption" color="text.secondary" gutterBottom>
+                      GPS IMEI Number: {loadingDetails.gpsImeiNumber}
+                    </Typography>
+                    <Box sx={{ maxWidth: '280px', mt: 1 }}>
+                      {renderImagePreview(loadingDetails.gpsImeiPicture)}
+                    </Box>
+                  </Box>
+                </Box>
+              )}
+              
+              {/* Display Driver picture from Driver Details */}
+              {driverDetails.driverPicture && (
+                <Box sx={{ width: '100%', mb: 3 }}>
+                  <Typography variant="subtitle1" gutterBottom>
+                    Driver Picture
+                  </Typography>
+                  <Box 
+                    sx={{ 
+                      display: 'flex', 
+                      flexDirection: 'column', 
+                      border: '1px solid #ddd', 
+                      borderRadius: 1, 
+                      p: 2, 
+                      maxWidth: '300px' 
+                    }}
+                  >
+                    <Typography variant="caption" color="text.secondary" gutterBottom>
+                      Driver Name: {driverDetails.driverName}
+                    </Typography>
+                    <Box sx={{ maxWidth: '280px', mt: 1 }}>
+                      {renderImagePreview(driverDetails.driverPicture)}
+                    </Box>
+                  </Box>
+                </Box>
+              )}
+              
+              {/* Display Seal Tags table read-only */}
+              <Box sx={{ width: '100%', mb: 3 }}>
+                <Typography variant="subtitle1" gutterBottom>
+                  Seal Tags
+                </Typography>
+                {sealTags.sealTagIds.length > 0 ? (
+                  <Box sx={{ 
+                    mt: 1, 
+                    p: 2, 
+                    bgcolor: 'background.paper', 
+                    borderRadius: 1,
+                    maxHeight: '400px',
+                    overflowY: 'auto'
+                  }}>
+                    <Table size="small">
+                      <TableHead>
+                        <TableRow>
+                          <TableCell>No.</TableCell>
+                          <TableCell>Seal Tag ID</TableCell>
+                          <TableCell>Method</TableCell>
+                          <TableCell>Image</TableCell>
+                          <TableCell>Timestamp</TableCell>
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {sealTags.sealTagIds.map((tagId, index) => (
+                          <TableRow key={tagId}>
+                            <TableCell>{index + 1}</TableCell>
+                            <TableCell>{tagId}</TableCell>
+                            <TableCell>
+                              <Chip 
+                                label={sealTags.sealTagMethods[tagId] === 'digitally scanned' ? 'Digitally Scanned' : 'Manually Entered'} 
+                                color={sealTags.sealTagMethods[tagId] === 'digitally scanned' ? 'primary' : 'secondary'} 
+                                size="small"
+                              />
+                            </TableCell>
+                            <TableCell>
+                              {sealTags.sealTagImages[tagId] ? (
+                                <Box sx={{ width: 40, height: 40 }}>
+                                  {renderImagePreview(sealTags.sealTagImages[tagId])}
+                                </Box>
+                              ) : (
+                                <Typography variant="caption" color="error">No image</Typography>
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              {sealTags.timestamps[tagId] && (
+                                <Typography variant="caption" color="text.secondary">
+                                  {new Date(sealTags.timestamps[tagId]).toLocaleString()}
+                                </Typography>
+                              )}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </Box>
+                ) : (
+                  <Typography variant="body2" color="text.secondary" sx={{ mt: 1, fontStyle: 'italic' }}>
+                    No seal tags registered. Please add seal tags in the Seal Tags section.
+                  </Typography>
+                )}
+              </Box>
+              
+              <Box sx={{ width: { xs: '100%', md: '47%' } }}>
+                <Typography variant="subtitle1" gutterBottom>
+                  Upload Vehicle Number Plate
+                </Typography>
+                <Button
+                  variant="outlined"
+                  component="label"
+                  startIcon={<PhotoCamera />}
+                  fullWidth
+                  sx={{ height: '56px' }}
+                >
+                  {imagesForm.vehicleNumberPlatePicture ? 'Change Image' : 'Upload Image'}
+                  <input
+                    type="file"
+                    hidden
+                    accept="image/*"
+                    onChange={(e) => handleFileChange(e, 'vehicleNumberPlatePicture')}
+                  />
+                </Button>
+                {imagesForm.vehicleNumberPlatePicture && (
+                  <Typography variant="body2" sx={{ mt: 1 }}>
+                    {imagesForm.vehicleNumberPlatePicture.name}
+                  </Typography>
+                )}
+                {validationErrors.vehicleNumberPlatePicture && (
+                  <FormHelperText error>{validationErrors.vehicleNumberPlatePicture}</FormHelperText>
+                )}
+              </Box>
+              
+              <Box sx={{ width: { xs: '100%', md: '47%' } }}>
+                <Typography variant="subtitle1" gutterBottom>
+                  Upload Vehicle Images
+                </Typography>
+                <Button
+                  variant="outlined"
+                  component="label"
+                  startIcon={<PhotoCamera />}
+                  fullWidth
+                  sx={{ height: '56px' }}
+                >
+                  Upload Images (Multiple)
+                  <input
+                    type="file"
+                    hidden
+                    accept="image/*"
+                    multiple
+                    onChange={(e) => handleFileChange(e, 'vehicleImages')}
+                  />
+                </Button>
+                {imagesForm.vehicleImages.length > 0 && (
+                  <Typography variant="body2" sx={{ mt: 1 }}>
+                    {imagesForm.vehicleImages.length} image(s) selected
+                  </Typography>
+                )}
+                {validationErrors.vehicleImages && (
+                  <FormHelperText error>{validationErrors.vehicleImages}</FormHelperText>
                 )}
               </Box>
             </Box>
