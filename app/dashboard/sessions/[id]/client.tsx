@@ -251,31 +251,69 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
     mismatched: []
   });
   
-  // Check if user is a guard
-  const isGuard = useMemo(() => 
-    userRole === "EMPLOYEE" && userSubrole === EmployeeSubrole.GUARD, 
-    [userRole, userSubrole]
-  );
-  
-  // Check if user can access reports (non-GUARD users)
-  const canAccessReports = useMemo(() => 
-    userRole === "SUPERADMIN" || 
-    userRole === "ADMIN" || 
-    userRole === "COMPANY", 
-    [userRole]
-  );
-  
-  // Check if the session can be verified
-  const canVerify = useMemo(() => 
-    isGuard && 
-    session?.status === SessionStatus.IN_PROGRESS && 
-    (operatorSeals.length > 0 || 
-     (session?.qrCodes && 
-      (session.qrCodes.primaryBarcode || 
-       (session.qrCodes.additionalBarcodes && session.qrCodes.additionalBarcodes.length > 0)))),
-    [isGuard, session, operatorSeals]
-  );
+  // Utility functions needed before other definitions
+  const getFieldLabel = useCallback((key: string): string => {
+    // Convert camelCase to Title Case with spaces
+    return key.replace(/([A-Z])/g, ' $1')
+      .replace(/^./, str => str.toUpperCase());
+  }, []);
 
+  // Define fetchSessionDetails function
+  const fetchSessionDetails = useCallback(async () => {
+    if (!sessionId) {
+      console.log("No session ID available yet, skipping fetch");
+      return;
+    }
+    
+    setLoading(true);
+    setError("");
+
+    try {
+      console.log("Fetching session details for ID:", sessionId);
+      
+      // Try both API endpoints to provide redundancy
+      const apiUrls = [
+        `/api/session/${sessionId}`,
+        `/api/sessions/${sessionId}`
+      ];
+      
+      let response;
+      let errorText = '';
+      
+      // Try each endpoint until one works
+      for (const url of apiUrls) {
+        console.log(`Attempting to fetch from ${url}`);
+        try {
+          response = await fetch(url);
+          if (response.ok) {
+            console.log(`Successfully fetched data from ${url}`);
+            break;
+          } else {
+            const error = await response.text();
+            errorText += `${url}: ${response.status} - ${error}\n`;
+            console.error(`API Error (${response.status}) from ${url}:`, error);
+          }
+        } catch (err) {
+          errorText += `${url}: ${err}\n`;
+          console.error(`Fetch error from ${url}:`, err);
+        }
+      }
+      
+      if (!response || !response.ok) {
+        throw new Error(`Failed to fetch session details: ${errorText}`);
+      }
+      
+      const data = await response.json();
+      console.log("Session data received:", !!data, data ? Object.keys(data) : 'no data');
+      setSession(data);
+    } catch (err) {
+      console.error("Error fetching session details:", err);
+      setError(err instanceof Error ? err.message : "An unknown error occurred");
+    } finally {
+      setLoading(false);
+    }
+  }, [sessionId]);
+   
   // Extract operator seals from session data - pulling from activity logs instead of using system-generated barcode
   const operatorSeals = useMemo(() => {
     if (!session) return [];
@@ -366,6 +404,147 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
     
     return seals;
   }, [session]);
+
+  // Update seal comparison data
+  const updateSealComparison = useCallback((scannedSeals: any[]) => {
+    const guardSealIds = scannedSeals.map(seal => seal.id);
+    const operatorSealIds = operatorSeals.map(seal => seal.id);
+    
+    const matched = guardSealIds.filter(id => operatorSealIds.includes(id));
+    const mismatched = [
+      ...guardSealIds.filter(id => !operatorSealIds.includes(id)),
+      ...operatorSealIds.filter(id => !guardSealIds.includes(id))
+    ];
+    
+    setSealComparison({ matched, mismatched });
+  }, [operatorSeals]);
+
+  // Input handlers
+  const handleInputChange = useCallback((field: string, value: any) => {
+    setVerificationFields(prev => ({
+      ...prev,
+      [field]: {
+        ...prev[field],
+        guardValue: value
+      }
+    }));
+  }, []);
+
+  const handleCommentChange = useCallback((field: string, comment: string) => {
+    setVerificationFields(prev => ({
+      ...prev,
+      [field]: {
+        ...prev[field],
+        comment
+      }
+    }));
+  }, []);
+
+  const verifyField = useCallback((field: string) => {
+    // Get field data but don't show operator value to GUARD
+    const fieldData = verificationFields[field];
+    
+    // Guard must enter a value
+    if (!fieldData.guardValue || fieldData.guardValue.trim() === '') {
+      alert('Please enter a value before verifying this field.');
+      return false;
+    }
+    
+    // Mark as verified without showing if it matches
+    setVerificationFields(prev => ({
+      ...prev,
+      [field]: {
+        ...prev[field],
+        isVerified: true
+      }
+    }));
+    
+    // Still check for match in background (for stats and verification results)
+    const match = String(fieldData.operatorValue).toLowerCase() === String(fieldData.guardValue).toLowerCase();
+    return match;
+  }, [verificationFields]);
+
+  // Handle QR/barcode scanner input
+  const handleScanComplete = useCallback((sealId: string) => {
+    if (!sealId.trim()) {
+      setScanError('Please enter a valid Seal Tag ID');
+      return;
+    }
+    
+    // Check if already scanned by guard
+    if (guardScannedSeals.some(seal => seal.id === sealId)) {
+      setScanError('This seal has already been scanned');
+      return;
+    }
+    
+    // Add to scanned seals
+    const newSeal = {
+      id: sealId,
+      method: scanMethod,
+      image: null,
+      imagePreview: null,
+      timestamp: new Date().toISOString(),
+      verified: operatorSeals.some(seal => seal.id === sealId)
+    };
+    
+    setGuardScannedSeals(prev => [...prev, newSeal]);
+    setScanInput('');
+    setScanError('');
+    
+    // Update comparison
+    updateSealComparison([...guardScannedSeals, newSeal]);
+  }, [guardScannedSeals, scanMethod, operatorSeals, updateSealComparison]);
+
+  // Handle image upload for a seal
+  const handleSealImageUpload = useCallback((index: number, file: File | null) => {
+    if (!file) return;
+    
+    const updatedSeals = [...guardScannedSeals];
+    updatedSeals[index].image = file;
+    updatedSeals[index].imagePreview = URL.createObjectURL(file);
+    setGuardScannedSeals(updatedSeals);
+  }, [guardScannedSeals]);
+
+  // Remove a scanned seal
+  const removeSealTag = useCallback((index: number) => {
+    const updatedSeals = [...guardScannedSeals];
+    
+    // Revoke object URL if exists to prevent memory leaks
+    if (updatedSeals[index].imagePreview) {
+      URL.revokeObjectURL(updatedSeals[index].imagePreview as string);
+    }
+    
+    updatedSeals.splice(index, 1);
+    setGuardScannedSeals(updatedSeals);
+    
+    // Update comparison
+    updateSealComparison(updatedSeals);
+  }, [guardScannedSeals, updateSealComparison]);
+  
+  // Check if user is a guard
+  const isGuard = useMemo(() => 
+    userRole === "EMPLOYEE" && userSubrole === EmployeeSubrole.GUARD, 
+    [userRole, userSubrole]
+  );
+  
+  // Check if user can access reports (non-GUARD users)
+  const canAccessReports = useMemo(() => 
+    userRole === "SUPERADMIN" || 
+    userRole === "ADMIN" || 
+    userRole === "COMPANY", 
+    [userRole]
+  );
+  
+  // Check if the session can be verified
+  const canVerify = useMemo(() => 
+    isGuard && 
+    session?.status === SessionStatus.IN_PROGRESS && 
+    (operatorSeals.length > 0 || 
+     (session?.qrCodes && 
+      (session.qrCodes.primaryBarcode || 
+       (session.qrCodes.additionalBarcodes && session.qrCodes.additionalBarcodes.length > 0)))),
+    [isGuard, session, operatorSeals]
+  );
   
   // Check if user has edit permission
   useEffect(() => {
@@ -2072,6 +2251,55 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
         )}
       </Paper>
     );
+  };
+
+  // Report download handlers
+  const handleDownloadReport = async (format: string) => {
+    if (!sessionId) return;
+    
+    try {
+      setReportLoading(format);
+      let endpoint = "";
+      
+      switch (format) {
+        case "pdf":
+          endpoint = `/api/reports/sessions/${sessionId}/pdf/simple`;
+          break;
+        case "excel":
+          endpoint = `/api/reports/sessions/${sessionId}/excel`;
+          break;
+        default:
+          throw new Error("Unsupported report format");
+      }
+      
+      // Get the report as a blob
+      const response = await fetch(endpoint);
+      
+      if (!response.ok) {
+        const errorData = await response.text();
+        throw new Error(errorData || `Failed to download ${format} report`);
+      }
+      
+      // Convert response to blob
+      const blob = await response.blob();
+      
+      // Create a link element to trigger the download
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `session-${sessionId}.${format === "excel" ? "xlsx" : "pdf"}`;
+      document.body.appendChild(link);
+      link.click();
+      
+      // Clean up
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(link);
+    } catch (err) {
+      console.error(`Error downloading ${format} report:`, err);
+      alert(`Failed to download ${format} report: ${err instanceof Error ? err.message : "Unknown error"}`);
+    } finally {
+      setReportLoading(null);
+    }
   };
 
   if (authStatus === "loading" || loading) {
