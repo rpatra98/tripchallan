@@ -778,7 +778,7 @@ export default function CreateSessionPage() {
     if (sealTags.sealTagIds.length === 0) {
       newErrors.sealTagIds = "At least one seal tag ID is required";
     }
-    
+      
     if (sealTags.sealTagIds.length > 40) {
       newErrors.sealTagIds = "Maximum of 40 seal tags allowed";
     }
@@ -787,7 +787,7 @@ export default function CreateSessionPage() {
     if (sealTags.sealTagIds.length < 20) {
       newErrors.sealTagIds = "Minimum of 20 seal tags required";
     }
-    
+        
     // Check if all seal tags have associated images
     const missingImages = sealTags.sealTagIds.filter(id => !sealTags.sealTagImages[id]);
     if (missingImages.length > 0) {
@@ -801,9 +801,27 @@ export default function CreateSessionPage() {
   // Update the validateStep function
   const validateStep = (step: number): boolean => {
     if (step === 0) {
+      // Validate Images & Verification
+      if (!imagesForm.gpsImeiPicture) setValidationErrors(prev => ({
+        ...prev,
+        gpsImeiPicture: "GPS IMEI picture is required"
+      }));
+      if (!imagesForm.vehicleNumberPlatePicture) setValidationErrors(prev => ({
+        ...prev,
+        vehicleNumberPlatePicture: "Vehicle number plate picture is required"
+      }));
+      if (!imagesForm.driverPicture) setValidationErrors(prev => ({
+        ...prev,
+        driverPicture: "Driver's picture is required"
+      }));
+      if (imagesForm.vehicleImages.length === 0) setValidationErrors(prev => ({
+        ...prev,
+        vehicleImages: "At least one vehicle image is required"
+      }));
+    } else if (step === 1) {
       // Use the specialized validation for seal tags
       return validateSealTagsStep();
-    } else if (step === 1) {
+    } else if (step === 2) {
       // Validate Loading Details
       if (!loadingDetails.transporterName.trim()) {
         setValidationErrors(prev => ({
@@ -846,7 +864,7 @@ export default function CreateSessionPage() {
           loadingSite: "Loading site is required"
         }));
       }
-    } else if (step === 2) {
+    } else if (step === 3) {
       // Validate Driver Details
       if (!driverDetails.driverName.trim()) {
         setValidationErrors(prev => ({
@@ -873,24 +891,6 @@ export default function CreateSessionPage() {
           driverLicense: "Driver license is required"
         }));
       }
-    } else if (step === 3) {
-      // Validate Images & Verification
-      if (!imagesForm.gpsImeiPicture) setValidationErrors(prev => ({
-        ...prev,
-        gpsImeiPicture: "GPS IMEI picture is required"
-      }));
-      if (!imagesForm.vehicleNumberPlatePicture) setValidationErrors(prev => ({
-        ...prev,
-        vehicleNumberPlatePicture: "Vehicle number plate picture is required"
-      }));
-      if (!imagesForm.driverPicture) setValidationErrors(prev => ({
-        ...prev,
-        driverPicture: "Driver's picture is required"
-      }));
-      if (imagesForm.vehicleImages.length === 0) setValidationErrors(prev => ({
-        ...prev,
-        vehicleImages: "At least one vehicle image is required"
-      }));
     }
     
     return Object.keys(validationErrors).length === 0;
@@ -1176,7 +1176,7 @@ export default function CreateSessionPage() {
     }
   };
 
-  const steps = ['Seal Tags', 'Loading Details', 'Driver Details', 'Images'];
+  const steps = ['Images', 'Seal Tags', 'Loading Details', 'Driver Details'];
   
   // Function to display a preview of an image
   const renderImagePreview = (file: File | null) => {
@@ -1199,7 +1199,7 @@ export default function CreateSessionPage() {
       </Box>
     );
   };
-  
+
   // Add a section to display QR code and loading ID after trip creation
   const renderSuccessView = () => {
     return (
@@ -1332,6 +1332,200 @@ export default function CreateSessionPage() {
 
         <form onSubmit={handleSubmit}>
           {activeStep === 0 && (
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+              <Box sx={{ width: '100%' }}>
+                <Typography variant="h6" gutterBottom>
+                  Images
+                </Typography>
+                {/* <FileUploadHelp /> */}
+                <ImageProcessingInfo />
+              </Box>
+              
+              <Box sx={{ width: { xs: '100%', md: '47%' } }}>
+                <Typography variant="subtitle1" gutterBottom>
+                  Upload GPS IMEI Picture
+                </Typography>
+                <Button
+                  variant="outlined"
+                  component="label"
+                  startIcon={<PhotoCamera />}
+                  fullWidth
+                  sx={{ height: '56px' }}
+                >
+                  {imagesForm.gpsImeiPicture ? 'Change Image' : 'Upload Image'}
+                  <input
+                    type="file"
+                    hidden
+                    accept="image/*"
+                    onChange={(e) => handleFileChange(e, 'gpsImeiPicture')}
+                  />
+                </Button>
+                {imagesForm.gpsImeiPicture && (
+                  <Typography variant="body2" sx={{ mt: 1 }}>
+                    {imagesForm.gpsImeiPicture.name}
+                  </Typography>
+                )}
+                {validationErrors.gpsImeiPicture && (
+                  <FormHelperText error>{validationErrors.gpsImeiPicture}</FormHelperText>
+                )}
+              </Box>
+              
+              <Box sx={{ width: { xs: '100%', md: '47%' } }}>
+                <Typography variant="subtitle1" gutterBottom>
+                  Upload Vehicle Number Plate
+                </Typography>
+                <Button
+                  variant="outlined"
+                  component="label"
+                  startIcon={<PhotoCamera />}
+                  fullWidth
+                  sx={{ height: '56px' }}
+                >
+                  {imagesForm.vehicleNumberPlatePicture ? 'Change Image' : 'Upload Image'}
+                  <input
+                    type="file"
+                    hidden
+                    accept="image/*"
+                    onChange={(e) => handleFileChange(e, 'vehicleNumberPlatePicture')}
+                  />
+                </Button>
+                {imagesForm.vehicleNumberPlatePicture && (
+                  <Typography variant="body2" sx={{ mt: 1 }}>
+                    {imagesForm.vehicleNumberPlatePicture.name}
+                  </Typography>
+                )}
+                {validationErrors.vehicleNumberPlatePicture && (
+                  <FormHelperText error>{validationErrors.vehicleNumberPlatePicture}</FormHelperText>
+                )}
+              </Box>
+              
+              <Box sx={{ width: { xs: '100%', md: '47%' } }}>
+                <Typography variant="subtitle1" gutterBottom>
+                  Upload Driver's Picture
+                </Typography>
+                <Button
+                  variant="outlined"
+                  component="label"
+                  startIcon={<PhotoCamera />}
+                  fullWidth
+                  sx={{ height: '56px' }}
+                >
+                  {imagesForm.driverPicture ? 'Change Image' : 'Upload Image'}
+                  <input
+                    type="file"
+                    hidden
+                    accept="image/*"
+                    onChange={(e) => handleFileChange(e, 'driverPicture')}
+                  />
+                </Button>
+                {imagesForm.driverPicture && (
+                  <Typography variant="body2" sx={{ mt: 1 }}>
+                    {imagesForm.driverPicture.name}
+                  </Typography>
+                )}
+                {validationErrors.driverPicture && (
+                  <FormHelperText error>{validationErrors.driverPicture}</FormHelperText>
+                )}
+              </Box>
+              
+              <Box sx={{ width: { xs: '100%', md: '47%' } }}>
+                <Typography variant="subtitle1" gutterBottom>
+                  Upload Vehicle Images
+                </Typography>
+                <Button
+                  variant="outlined"
+                  component="label"
+                  startIcon={<PhotoCamera />}
+                  fullWidth
+                  sx={{ height: '56px' }}
+                >
+                  Upload Images (Multiple)
+                  <input
+                    type="file"
+                    hidden
+                    accept="image/*"
+                    multiple
+                    onChange={(e) => handleFileChange(e, 'vehicleImages')}
+                  />
+                </Button>
+                {imagesForm.vehicleImages.length > 0 && (
+                  <Typography variant="body2" sx={{ mt: 1 }}>
+                    {imagesForm.vehicleImages.length} image(s) selected
+                  </Typography>
+                )}
+                {validationErrors.vehicleImages && (
+                  <FormHelperText error>{validationErrors.vehicleImages}</FormHelperText>
+                )}
+              </Box>
+              
+              <Box sx={{ width: '100%', mt: 2, mb: 2 }}>
+                <Typography variant="h6">
+                  QR & Barcode Scanner
+                </Typography>
+              </Box>
+              
+              <Box sx={{ width: { xs: '100%', md: '47%' } }}>
+                <ClientSideQrScanner
+                  buttonVariant="outlined"
+                  buttonText="Scan QR Code via Camera"
+                  scannerTitle="Scan QR Code"
+                  onScan={(data) => {
+                    if (!imagesForm.scannedCodes.includes(data)) {
+                      setImagesForm(prev => ({
+                        ...prev,
+                        scannedCodes: [...prev.scannedCodes, data],
+                        timestamps: {
+                          ...prev.timestamps,
+                          scannedCodes: new Date().toISOString()
+                        }
+                      }));
+                    }
+                  }}
+                />
+              </Box>
+              
+              <Box sx={{ width: { xs: '100%', md: '47%' } }}>
+                <TextField
+                  fullWidth
+                  label="Manual QR/Barcode Entry"
+                  value={imagesForm.manualQrData}
+                  onChange={(e) => setImagesForm(prev => ({
+                    ...prev,
+                    manualQrData: e.target.value
+                  }))}
+                  InputProps={{
+                    endAdornment: (
+                      <InputAdornment position="end">
+                        <Button 
+                          onClick={handleAddQrCode} 
+                          disabled={!imagesForm.manualQrData}
+                        >
+                          Add
+                        </Button>
+                      </InputAdornment>
+                    ),
+                  }}
+                />
+              </Box>
+              
+              <Box sx={{ width: '100%' }}>
+                <Typography variant="subtitle1" gutterBottom>
+                  Scanned Codes: {imagesForm.scannedCodes.length}
+                </Typography>
+                {imagesForm.scannedCodes.length > 0 && (
+                  <Box sx={{ mt: 1, p: 2, bgcolor: 'background.paper', borderRadius: 1 }}>
+                    {imagesForm.scannedCodes.map((code, index) => (
+                      <Typography key={index} variant="body2" sx={{ mb: 0.5 }}>
+                        {index + 1}. {code}
+                      </Typography>
+                    ))}
+                  </Box>
+                )}
+              </Box>
+            </Box>
+          )}
+
+          {activeStep === 1 && (
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
               <Box sx={{ width: '100%' }}>
                 <Typography variant="h6" gutterBottom>
@@ -1501,7 +1695,7 @@ export default function CreateSessionPage() {
             </Box>
           )}
 
-          {activeStep === 1 && (
+          {activeStep === 2 && (
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
               <Box sx={{ width: '100%' }}>
                 <Typography variant="h6" gutterBottom>
@@ -1845,7 +2039,7 @@ export default function CreateSessionPage() {
             </Box>
           )}
 
-          {activeStep === 2 && (
+          {activeStep === 3 && (
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
               <Box sx={{ width: '100%' }}>
                 <Typography variant="h6" gutterBottom>
@@ -1929,200 +2123,6 @@ export default function CreateSessionPage() {
                 )}
                 {validationErrors.driverLicenseDoc && (
                   <FormHelperText error>{validationErrors.driverLicenseDoc}</FormHelperText>
-                )}
-              </Box>
-            </Box>
-          )}
-
-          {activeStep === 3 && (
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-              <Box sx={{ width: '100%' }}>
-                <Typography variant="h6" gutterBottom>
-                  Images
-                </Typography>
-                {/* <FileUploadHelp /> */}
-                <ImageProcessingInfo />
-              </Box>
-              
-              <Box sx={{ width: { xs: '100%', md: '47%' } }}>
-                <Typography variant="subtitle1" gutterBottom>
-                  Upload GPS IMEI Picture
-                </Typography>
-                <Button
-                  variant="outlined"
-                  component="label"
-                  startIcon={<PhotoCamera />}
-                  fullWidth
-                  sx={{ height: '56px' }}
-                >
-                  {imagesForm.gpsImeiPicture ? 'Change Image' : 'Upload Image'}
-                  <input
-                    type="file"
-                    hidden
-                    accept="image/*"
-                    onChange={(e) => handleFileChange(e, 'gpsImeiPicture')}
-                  />
-                </Button>
-                {imagesForm.gpsImeiPicture && (
-                  <Typography variant="body2" sx={{ mt: 1 }}>
-                    {imagesForm.gpsImeiPicture.name}
-                  </Typography>
-                )}
-                {validationErrors.gpsImeiPicture && (
-                  <FormHelperText error>{validationErrors.gpsImeiPicture}</FormHelperText>
-                )}
-              </Box>
-              
-              <Box sx={{ width: { xs: '100%', md: '47%' } }}>
-                <Typography variant="subtitle1" gutterBottom>
-                  Upload Vehicle Number Plate
-                </Typography>
-                <Button
-                  variant="outlined"
-                  component="label"
-                  startIcon={<PhotoCamera />}
-                  fullWidth
-                  sx={{ height: '56px' }}
-                >
-                  {imagesForm.vehicleNumberPlatePicture ? 'Change Image' : 'Upload Image'}
-                  <input
-                    type="file"
-                    hidden
-                    accept="image/*"
-                    onChange={(e) => handleFileChange(e, 'vehicleNumberPlatePicture')}
-                  />
-                </Button>
-                {imagesForm.vehicleNumberPlatePicture && (
-                  <Typography variant="body2" sx={{ mt: 1 }}>
-                    {imagesForm.vehicleNumberPlatePicture.name}
-                  </Typography>
-                )}
-                {validationErrors.vehicleNumberPlatePicture && (
-                  <FormHelperText error>{validationErrors.vehicleNumberPlatePicture}</FormHelperText>
-                )}
-              </Box>
-              
-              <Box sx={{ width: { xs: '100%', md: '47%' } }}>
-                <Typography variant="subtitle1" gutterBottom>
-                  Upload Driver's Picture
-                </Typography>
-                <Button
-                  variant="outlined"
-                  component="label"
-                  startIcon={<PhotoCamera />}
-                  fullWidth
-                  sx={{ height: '56px' }}
-                >
-                  {imagesForm.driverPicture ? 'Change Image' : 'Upload Image'}
-                  <input
-                    type="file"
-                    hidden
-                    accept="image/*"
-                    onChange={(e) => handleFileChange(e, 'driverPicture')}
-                  />
-                </Button>
-                {imagesForm.driverPicture && (
-                  <Typography variant="body2" sx={{ mt: 1 }}>
-                    {imagesForm.driverPicture.name}
-                  </Typography>
-                )}
-                {validationErrors.driverPicture && (
-                  <FormHelperText error>{validationErrors.driverPicture}</FormHelperText>
-                )}
-              </Box>
-              
-              <Box sx={{ width: { xs: '100%', md: '47%' } }}>
-                <Typography variant="subtitle1" gutterBottom>
-                  Upload Vehicle Images
-                </Typography>
-                <Button
-                  variant="outlined"
-                  component="label"
-                  startIcon={<PhotoCamera />}
-                  fullWidth
-                  sx={{ height: '56px' }}
-                >
-                  Upload Images (Multiple)
-                  <input
-                    type="file"
-                    hidden
-                    accept="image/*"
-                    multiple
-                    onChange={(e) => handleFileChange(e, 'vehicleImages')}
-                  />
-                </Button>
-                {imagesForm.vehicleImages.length > 0 && (
-                  <Typography variant="body2" sx={{ mt: 1 }}>
-                    {imagesForm.vehicleImages.length} image(s) selected
-                  </Typography>
-                )}
-                {validationErrors.vehicleImages && (
-                  <FormHelperText error>{validationErrors.vehicleImages}</FormHelperText>
-                )}
-              </Box>
-              
-              <Box sx={{ width: '100%', mt: 2, mb: 2 }}>
-                <Typography variant="h6">
-                  QR & Barcode Scanner
-                </Typography>
-              </Box>
-              
-              <Box sx={{ width: { xs: '100%', md: '47%' } }}>
-                <ClientSideQrScanner
-                  buttonVariant="outlined"
-                  buttonText="Scan QR Code via Camera"
-                  scannerTitle="Scan QR Code"
-                  onScan={(data) => {
-                    if (!imagesForm.scannedCodes.includes(data)) {
-                      setImagesForm(prev => ({
-                        ...prev,
-                        scannedCodes: [...prev.scannedCodes, data],
-                        timestamps: {
-                          ...prev.timestamps,
-                          scannedCodes: new Date().toISOString()
-                        }
-                      }));
-                    }
-                  }}
-                />
-              </Box>
-              
-              <Box sx={{ width: { xs: '100%', md: '47%' } }}>
-                <TextField
-                  fullWidth
-                  label="Manual QR/Barcode Entry"
-                  value={imagesForm.manualQrData}
-                  onChange={(e) => setImagesForm(prev => ({
-                    ...prev,
-                    manualQrData: e.target.value
-                  }))}
-                  InputProps={{
-                    endAdornment: (
-                      <InputAdornment position="end">
-                        <Button 
-                          onClick={handleAddQrCode} 
-                          disabled={!imagesForm.manualQrData}
-                        >
-                          Add
-                        </Button>
-                      </InputAdornment>
-                    ),
-                  }}
-                />
-              </Box>
-              
-              <Box sx={{ width: '100%' }}>
-                <Typography variant="subtitle1" gutterBottom>
-                  Scanned Codes: {imagesForm.scannedCodes.length}
-                </Typography>
-                {imagesForm.scannedCodes.length > 0 && (
-                  <Box sx={{ mt: 1, p: 2, bgcolor: 'background.paper', borderRadius: 1 }}>
-                    {imagesForm.scannedCodes.map((code, index) => (
-                      <Typography key={index} variant="body2" sx={{ mb: 0.5 }}>
-                        {index + 1}. {code}
-                      </Typography>
-                    ))}
-                  </Box>
                 )}
               </Box>
             </Box>
