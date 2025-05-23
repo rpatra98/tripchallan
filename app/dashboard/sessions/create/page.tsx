@@ -640,7 +640,7 @@ export default function CreateSessionPage() {
     }
     
     setSealTags(prev => ({
-      ...prev,
+        ...prev,
       sealTagIds: [...prev.sealTagIds, tagId],
       sealTagImages: {
         ...prev.sealTagImages,
@@ -650,11 +650,11 @@ export default function CreateSessionPage() {
         ...prev.sealTagMethods,
         [tagId]: 'digitally scanned'
       },
-      timestamps: {
-        ...prev.timestamps,
+        timestamps: {
+          ...prev.timestamps,
         [tagId]: new Date().toISOString()
-      }
-    }));
+        }
+      }));
   };
 
   // Update handleAddSealTag for manual entries to require an image
@@ -1570,41 +1570,65 @@ export default function CreateSessionPage() {
                     GPS IMEI Picture {loadingDetails.gpsImeiPicture ? '(Auto-captured from scan)' : '(Manual capture required)'}
                   </Typography>
                   <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2 }}>
-                    <Button
-                      variant="outlined"
-                      component="label"
-                      startIcon={<PhotoCamera />}
-                      sx={{ height: '56px' }}
-                    >
-                      {loadingDetails.gpsImeiPicture ? 'Change Image' : 'Take Photo'}
-                      <input
-                        type="file"
-                        hidden
-                        accept="image/*"
-                        capture="environment"
-                        onChange={(e) => {
-                          if (!e.target.files?.length) return;
-                          const file = e.target.files[0];
+                    {!loadingDetails.gpsImeiPicture ? (
+                      <Button
+                        variant="outlined"
+                        component="label"
+                        startIcon={<PhotoCamera />}
+                        sx={{ height: '56px' }}
+                      >
+                        Take Photo
+                        <input
+                          type="file"
+                          hidden
+                          accept="image/*"
+                          capture="environment"
+                          onChange={(e) => {
+                            if (!e.target.files?.length) return;
+                            const file = e.target.files[0];
+                            setLoadingDetails(prev => ({
+                              ...prev,
+                              gpsImeiPicture: file,
+                              timestamps: {
+                                ...prev.timestamps,
+                                gpsImeiPicture: new Date().toISOString()
+                              }
+                            }));
+                            
+                            // Clear validation errors
+                            if (validationErrors.gpsImeiPicture) {
+                              setValidationErrors(prev => {
+                                const newErrors = {...prev};
+                                delete newErrors.gpsImeiPicture;
+                                return newErrors;
+                              });
+                            }
+                          }}
+                        />
+                      </Button>
+                    ) : (
+                      <Button
+                        variant="outlined"
+                        color="error"
+                        startIcon={<Close />}
+                        sx={{ height: '56px' }}
+                        onClick={() => {
                           setLoadingDetails(prev => ({
                             ...prev,
-                            gpsImeiPicture: file,
+                            gpsImeiPicture: null,
+                            // Clear GPS IMEI number if it was captured by scanning
+                            ...(prev.timestamps.gpsImeiNumber === prev.timestamps.gpsImeiPicture ? { gpsImeiNumber: '' } : {}),
                             timestamps: {
                               ...prev.timestamps,
-                              gpsImeiPicture: new Date().toISOString()
+                              gpsImeiPicture: new Date().toISOString(),
+                              ...(prev.timestamps.gpsImeiNumber === prev.timestamps.gpsImeiPicture ? { gpsImeiNumber: new Date().toISOString() } : {})
                             }
                           }));
-                          
-                          // Clear validation errors
-                          if (validationErrors.gpsImeiPicture) {
-                            setValidationErrors(prev => {
-                              const newErrors = {...prev};
-                              delete newErrors.gpsImeiPicture;
-                              return newErrors;
-                            });
-                          }
                         }}
-                      />
-                    </Button>
+                      >
+                        Remove
+                      </Button>
+                    )}
                     
                     {/* Preview of GPS IMEI image */}
                     {loadingDetails.gpsImeiPicture && (
@@ -1881,12 +1905,12 @@ export default function CreateSessionPage() {
                         </TableRow>
                       </TableHead>
                       <TableBody>
-                        {sealTags.sealTagIds.map((tagId, index) => (
+                    {sealTags.sealTagIds.map((tagId, index) => (
                           <TableRow key={tagId}>
                             <TableCell>{index + 1}</TableCell>
                             <TableCell>{tagId}</TableCell>
                             <TableCell>
-                              <Chip 
+                          <Chip
                                 label={sealTags.sealTagMethods[tagId] === 'digitally scanned' ? 'Digitally Scanned' : 'Manually Entered'} 
                                 color={sealTags.sealTagMethods[tagId] === 'digitally scanned' ? 'primary' : 'secondary'} 
                                 size="small"
@@ -1902,14 +1926,14 @@ export default function CreateSessionPage() {
                               )}
                             </TableCell>
                             <TableCell>
-                              {sealTags.timestamps[tagId] && (
-                                <Typography variant="caption" color="text.secondary">
-                                  {new Date(sealTags.timestamps[tagId]).toLocaleString()}
-                                </Typography>
-                              )}
+                          {sealTags.timestamps[tagId] && (
+                            <Typography variant="caption" color="text.secondary">
+                              {new Date(sealTags.timestamps[tagId]).toLocaleString()}
+                            </Typography>
+                          )}
                             </TableCell>
                           </TableRow>
-                        ))}
+                    ))}
                       </TableBody>
                     </Table>
                   </Box>
@@ -1944,17 +1968,17 @@ export default function CreateSessionPage() {
                   Driver's Photo
                 </Typography>
                 <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2 }}>
-                  <Button
-                    variant="outlined"
-                    component="label"
-                    startIcon={<PhotoCamera />}
-                    sx={{ height: '56px' }}
-                  >
+                <Button
+                  variant="outlined"
+                  component="label"
+                  startIcon={<PhotoCamera />}
+                  sx={{ height: '56px' }}
+                >
                     {driverDetails.driverPicture ? 'Change Photo' : 'Take Photo'}
-                    <input
-                      type="file"
-                      hidden
-                      accept="image/*"
+                  <input
+                    type="file"
+                    hidden
+                    accept="image/*"
                       capture="user"
                       onChange={(e) => {
                         if (!e.target.files?.length) return;
@@ -1968,8 +1992,8 @@ export default function CreateSessionPage() {
                           }
                         }));
                       }}
-                    />
-                  </Button>
+                  />
+                </Button>
                   
                   {/* Preview of driver image */}
                   {driverDetails.driverPicture && (
