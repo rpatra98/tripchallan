@@ -777,108 +777,94 @@ export default function CreateSessionPage() {
 
   // Update the validateStep function
   const validateStep = (step: number): boolean => {
+    // First, clear any existing validation errors
+    const newErrors: Record<string, string> = {};
+    
     if (step === 0) {
       // Validate Loading Details
       if (!loadingDetails.transporterName.trim()) {
-        setValidationErrors(prev => ({
-          ...prev,
-          transporterName: "Transporter name is required"
-        }));
+        newErrors.transporterName = "Transporter name is required";
       }
       
       if (!loadingDetails.materialName.trim()) {
-        setValidationErrors(prev => ({
-          ...prev,
-          materialName: "Material name is required"
-        }));
+        newErrors.materialName = "Material name is required";
       }
       
       if (!loadingDetails.receiverPartyName.trim()) {
-        setValidationErrors(prev => ({
-          ...prev,
-          receiverPartyName: "Receiver party name is required"
-        }));
+        newErrors.receiverPartyName = "Receiver party name is required";
       }
       
       if (!loadingDetails.vehicleNumber.trim()) {
-        setValidationErrors(prev => ({
-          ...prev,
-          vehicleNumber: "Vehicle number is required"
-        }));
+        newErrors.vehicleNumber = "Vehicle number is required";
       }
       
       if (!loadingDetails.gpsImeiNumber.trim()) {
-        setValidationErrors(prev => ({
-          ...prev,
-          gpsImeiNumber: "GPS IMEI number is required"
-        }));
+        newErrors.gpsImeiNumber = "GPS IMEI number is required";
       }
       
       // Add validation for GPS IMEI picture
       if (!loadingDetails.gpsImeiPicture) {
-        setValidationErrors(prev => ({
-          ...prev,
-          gpsImeiPicture: "GPS IMEI picture is required"
-        }));
+        newErrors.gpsImeiPicture = "GPS IMEI picture is required";
       }
       
       if (!loadingDetails.loadingSite.trim()) {
-        setValidationErrors(prev => ({
-          ...prev,
-          loadingSite: "Loading site is required"
-        }));
+        newErrors.loadingSite = "Loading site is required";
       }
     } else if (step === 1) {
       // Use the specialized validation for seal tags
-      return validateSealTagsStep();
+      if (sealTags.sealTagIds.length === 0) {
+        newErrors.sealTagIds = "At least one seal tag ID is required";
+      }
+      
+      if (sealTags.sealTagIds.length > 40) {
+        newErrors.sealTagIds = "Maximum of 40 seal tags allowed";
+      }
+      
+      // Check for minimum number of tags (minimum 20 required)
+      if (sealTags.sealTagIds.length < 20) {
+        newErrors.sealTagIds = "Minimum of 20 seal tags required";
+      }
+      
+      // Check if all seal tags have associated images
+      const missingImages = sealTags.sealTagIds.filter(id => !sealTags.sealTagImages[id]);
+      if (missingImages.length > 0) {
+        newErrors.sealTagImages = `${missingImages.length} seal tag(s) are missing images`;
+      }
     } else if (step === 2) {
       // Validate Driver Details
       if (!driverDetails.driverName.trim()) {
-        setValidationErrors(prev => ({
-          ...prev,
-          driverName: "Driver name is required"
-        }));
+        newErrors.driverName = "Driver name is required";
       }
       
       if (!driverDetails.driverContactNumber.trim()) {
-        setValidationErrors(prev => ({
-          ...prev,
-          driverContactNumber: "Driver contact number is required"
-        }));
+        newErrors.driverContactNumber = "Driver contact number is required";
       } else if (!/^\d{10}$/.test(driverDetails.driverContactNumber)) {
-        setValidationErrors(prev => ({
-          ...prev,
-          driverContactNumber: "Contact number must be 10 digits"
-        }));
+        newErrors.driverContactNumber = "Contact number must be 10 digits";
       }
       
       if (!driverDetails.driverLicense.trim()) {
-        setValidationErrors(prev => ({
-          ...prev,
-          driverLicense: "Driver license is required"
-        }));
+        newErrors.driverLicense = "Driver license is required";
       }
       
       // Add validation for driver picture
       if (!driverDetails.driverPicture) {
-        setValidationErrors(prev => ({
-          ...prev,
-          driverPicture: "Driver's picture is required"
-        }));
+        newErrors.driverPicture = "Driver's picture is required";
       }
     } else if (step === 3) {
       // Validate Images & Verification
-      if (!imagesForm.vehicleNumberPlatePicture) setValidationErrors(prev => ({
-        ...prev,
-        vehicleNumberPlatePicture: "Vehicle number plate picture is required"
-      }));
-      if (imagesForm.vehicleImages.length === 0) setValidationErrors(prev => ({
-        ...prev,
-        vehicleImages: "At least one vehicle image is required"
-      }));
+      if (!imagesForm.vehicleNumberPlatePicture) {
+        newErrors.vehicleNumberPlatePicture = "Vehicle number plate picture is required";
+      }
+      if (imagesForm.vehicleImages.length === 0) {
+        newErrors.vehicleImages = "At least one vehicle image is required";
+      }
     }
     
-    return Object.keys(validationErrors).length === 0;
+    // Set all validation errors at once
+    setValidationErrors(newErrors);
+    
+    // Return true if there are no errors
+    return Object.keys(newErrors).length === 0;
   };
 
   const handleNext = () => {
@@ -919,14 +905,17 @@ export default function CreateSessionPage() {
     document.body.removeChild(link);
   };
   
-  // Update handleSubmit to handle the new image fields
+  // Update handleSubmit to fix form submission issues
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    console.log("Form submission started");
     
     // Immediately set isSubmitting to true to disable the submit button
     setIsSubmitting(true);
     
+    // Validate the current step (final step)
     if (!validateStep(activeStep)) {
+      console.log("Validation failed on final step", validationErrors);
       setIsSubmitting(false);
       return;
     }
@@ -935,6 +924,7 @@ export default function CreateSessionPage() {
     setErrorDetails("");
 
     try {
+      console.log("Starting trip creation process");
       // Check if we need to create a new vehicle record
       const vehicleNumber = loadingDetails.vehicleNumber.trim();
       if (vehicleNumber) {
@@ -978,11 +968,14 @@ export default function CreateSessionPage() {
       formData.append('sealTagMethods', JSON.stringify(sealTags.sealTagMethods));
       formData.append('sealTagTimestamps', JSON.stringify(sealTags.timestamps));
       
+      console.log("Form data basic fields added");
+      
       // Prepare base64 image data
       const imageBase64Data: Record<string, any> = {};
       
       // Add seal tag images to the imageBase64Data and formData
       imageBase64Data.sealTagImages = {};
+      console.log(`Processing ${sealTags.sealTagIds.length} seal tag images`);
       for (const tagId of sealTags.sealTagIds) {
         const image = sealTags.sealTagImages[tagId];
         if (image) {
@@ -1136,6 +1129,8 @@ export default function CreateSessionPage() {
       // Add timestamps for images form
       formData.append('imagesFormTimestamps', JSON.stringify(imagesForm.timestamps));
 
+      console.log("All form data prepared, sending to server");
+      
       // Send the request without Content-Type header to allow browser to set correct boundary for FormData
       const response = await fetch("/api/sessions", {
         method: "POST",
@@ -1143,12 +1138,16 @@ export default function CreateSessionPage() {
         // Do not set Content-Type header as browser will set it automatically for FormData
       });
 
+      console.log("API response status:", response.status);
+      
       // Handle different error response types
       if (!response.ok) {
-        // Error handling code...
+        // Try to parse error as JSON first
         let errorData;
         try {
           errorData = await response.json();
+          console.error("API error response:", errorData);
+          
           let mainError = errorData.error || "Failed to create trip";
           let detailsError = "";
           
@@ -1162,6 +1161,8 @@ export default function CreateSessionPage() {
           throw new Error(mainError, { cause: detailsError });
         } catch (jsonError) {
           // If we can't parse JSON, use the status text
+          console.error("Failed to parse error response:", jsonError);
+          
           if (response.status === 500) {
             throw new Error("Server error: Could not process the request.", 
               { cause: "An unexpected error occurred on the server. Please check server logs for details or try again later." });
@@ -1173,12 +1174,17 @@ export default function CreateSessionPage() {
       }
       
       const data = await response.json();
+      console.log("API response data:", data);
 
       // Generate QR code for the loading ID
       if (data.session && data.session.id) {
         setLoadingId(data.session.id);
         generateQRCode(data.session.id);
         setTripCreated(true);
+        console.log("Trip created successfully with ID:", data.session.id);
+      } else {
+        console.error("API response missing session ID:", data);
+        throw new Error("Invalid response from server. Session ID not found.");
       }
 
       // Refresh the user session to update coin balance
@@ -1190,7 +1196,12 @@ export default function CreateSessionPage() {
       const error = err as Error;
       console.error("Error submitting form:", error);
       setError(error.message || "An unknown error occurred");
+      setErrorDetails(error.cause as string || "");
+      // Make sure the button is re-enabled
+      setIsSubmitting(false);
     } finally {
+      // Ensure isSubmitting is always set to false after API call completes
+      // This was missing in the original code and might cause the button to stay disabled
       setIsSubmitting(false);
     }
   };
