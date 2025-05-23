@@ -2300,195 +2300,91 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
         {session.seal && (
           <Box sx={{ mt: 3, p: 2, border: '1px solid', borderColor: 'divider', borderRadius: 1 }}>
             <Typography variant="subtitle1" gutterBottom>Seal Information</Typography>
-
-            {/* Check for seal tag details in the activity logs */}
-            {session.activityLogs && session.activityLogs.length > 0 ? (
-              <Box>
-                {(() => {
-                  // Find the log with seal tag information
-                  const sealTagLog = session.activityLogs.find(log => {
-                    // Try various possible paths for seal tag data
-                    if (log.details) {
-                      // Check direct path
-                      if ((log.details as any).sealTagIds) {
-                        return true;
-                      }
-                      
-                      // Check in tripDetails
-                      if ((log.details as any).tripDetails && (log.details as any).tripDetails.sealTagIds) {
-                        return true;
-                      }
-                      
-                      // Check in imageBase64Data
-                      if ((log.details as any).imageBase64Data && (log.details as any).imageBase64Data.sealTagImages) {
-                        return true;
-                      }
-                      
-                      // Check if details itself is the container
-                      if (Array.isArray((log.details as any).sealTagIds)) {
-                        return true;
-                      }
-                    }
-                    return false;
-                  });
-                  
-                  if (sealTagLog) {
-                    // Extract seal tag data from wherever it's found
-                    let sealTagIds: string[] = [];
-                    let sealTagMethods: any = {};
-                    let sealTagTimestamps: any = {};
-                    
-                    const details = sealTagLog.details as any;
-                    
-                    // Try various possible locations
-                    if (details.sealTagIds) {
-                      sealTagIds = details.sealTagIds;
-                      sealTagMethods = details.sealTagMethods || {};
-                      sealTagTimestamps = details.sealTagTimestamps || details.timestamps || {};
-                    } else if (details.tripDetails && details.tripDetails.sealTagIds) {
-                      sealTagIds = details.tripDetails.sealTagIds;
-                      sealTagMethods = details.tripDetails.sealTagMethods || {};
-                      sealTagTimestamps = details.tripDetails.timestamps || {};
-                    } else if (details.imageBase64Data && details.imageBase64Data.sealTagImages) {
-                      sealTagIds = Object.keys(details.imageBase64Data.sealTagImages);
-                      // Extract methods if available
-                      sealTagMethods = Object.keys(details.imageBase64Data.sealTagImages).reduce((acc: Record<string, string>, key) => {
-                        acc[key] = details.imageBase64Data.sealTagImages[key].method || 'unknown';
-                        return acc;
-                      }, {});
-                    }
-                    
-                    // Parse JSON strings if needed
-                    if (typeof sealTagIds === 'string') {
-                      try {
-                        sealTagIds = JSON.parse(sealTagIds);
-                      } catch (e) {
-                        console.error("Failed to parse sealTagIds:", e);
-                      }
-                    }
-                    
-                    if (typeof sealTagMethods === 'string') {
-                      try {
-                        sealTagMethods = JSON.parse(sealTagMethods);
-                      } catch (e) {
-                        console.error("Failed to parse sealTagMethods:", e);
-                      }
-                    }
-                    
-                    if (typeof sealTagTimestamps === 'string') {
-                      try {
-                        sealTagTimestamps = JSON.parse(sealTagTimestamps);
-                      } catch (e) {
-                        console.error("Failed to parse sealTagTimestamps:", e);
-                      }
-                    }
-                    
-                    // Skip if we couldn't find any seal tags
-                    if (!sealTagIds || sealTagIds.length === 0) {
-                      return <Typography variant="body2">No seal tag information available in the logs.</Typography>;
-                    }
-                    
-                    return (
-                      <>
-                        <Typography variant="body2" sx={{ mb: 2 }}>
-                          Total Seal Tags: <strong>{sealTagIds.length}</strong>
-                        </Typography>
-                        
-                        <Box sx={{ 
-                          maxHeight: '400px',
-                          overflowY: 'auto',
-                          border: '1px solid',
-                          borderColor: 'divider',
-                          borderRadius: 1,
-                          p: 1
-                        }}>
-                          <Table size="small">
-                            <TableHead>
-                              <TableRow>
-                                <TableCell>No.</TableCell>
-                                <TableCell>Seal Tag ID</TableCell>
-                                <TableCell>Method</TableCell>
-                                <TableCell>Timestamp</TableCell>
-                                <TableCell>Image</TableCell>
-                              </TableRow>
-                            </TableHead>
-                            <TableBody>
-                              {sealTagIds.map((tagId: string, index: number) => (
-                                <TableRow key={tagId}>
-                                  <TableCell>{index + 1}</TableCell>
-                                  <TableCell>{tagId}</TableCell>
-                                  <TableCell>
-                                    <Chip 
-                                      label={sealTagMethods[tagId] === 'digitally scanned' ? 'Digitally Scanned' : 'Manually Entered'} 
-                                      color={sealTagMethods[tagId] === 'digitally scanned' ? 'primary' : 'secondary'} 
-                                      size="small"
-                                    />
-                                  </TableCell>
-                                  <TableCell>
-                                    {sealTagTimestamps && sealTagTimestamps[tagId] && (
-                                      <Typography variant="caption">
-                                        {new Date(sealTagTimestamps[tagId]).toLocaleString()}
-                                      </Typography>
-                                    )}
-                                  </TableCell>
-                                  <TableCell>
-                                    {session.images && session.images.sealingImages && session.images.sealingImages[index] && (
-                                      <Box 
-                                        component="img" 
-                                        src={session.images.sealingImages[index]} 
-                                        alt={`Seal tag ${tagId}`}
-                                        sx={{ 
-                                          width: 40, 
-                                          height: 40, 
-                                          objectFit: 'cover',
-                                          borderRadius: 1,
-                                          cursor: 'pointer'
-                                        }}
-                                        onClick={() => {
-                                          // Open image in new tab
-                                          window.open(session.images?.sealingImages?.[index], '_blank');
-                                        }}
-                                      />
-                                    )}
-                                  </TableCell>
-                                </TableRow>
-                              ))}
-                            </TableBody>
-                          </Table>
-                        </Box>
-                      </>
-                    );
-                  }
-                  
-                  return <Typography variant="body2">No seal tag information available.</Typography>;
-                })()}
-              </Box>
-            ) : (
+            
+            {/* Simple approach: Check if there are sealing images, and if so, display them in a table */}
+            {session.images && session.images.sealingImages && session.images.sealingImages.length > 0 ? (
               <>
-                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
-                  <Box sx={{ flex: '1 0 45%', minWidth: '250px' }}>
-                    <Typography variant="body2">
-                      <strong>Seal Barcode:</strong> {session.seal.barcode}
-                    </Typography>
-                  </Box>
-                  {session.seal.verified && (
-                    <>
-                      <Box sx={{ flex: '1 0 45%', minWidth: '250px' }}>
-                        <Typography variant="body2">
-                          <strong>Verification Date:</strong> {formatDate(session.seal.scannedAt || '')}
-                        </Typography>
-                      </Box>
-                      {session.seal.verifiedBy && (
-                        <Box sx={{ flex: '1 0 45%', minWidth: '250px' }}>
-                          <Typography variant="body2">
-                            <strong>Verified By:</strong> {session.seal.verifiedBy.name}
-                          </Typography>
-                        </Box>
-                      )}
-                    </>
-                  )}
+                <Typography variant="body2" sx={{ mb: 2 }}>
+                  Total Seal Tags: <strong>{session.images.sealingImages.length}</strong>
+                </Typography>
+                
+                <Box sx={{ 
+                  maxHeight: '400px', 
+                  overflowY: 'auto',
+                  border: '1px solid',
+                  borderColor: 'divider',
+                  borderRadius: 1,
+                  p: 1
+                }}>
+                  <Table size="small">
+                    <TableHead>
+                      <TableRow>
+                        <TableCell>No.</TableCell>
+                        <TableCell>Seal Tag ID</TableCell>
+                        <TableCell>Method</TableCell>
+                        <TableCell>Image</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {session.images.sealingImages.map((imageUrl, index) => (
+                        <TableRow key={index}>
+                          <TableCell>{index + 1}</TableCell>
+                          <TableCell>{session.seal?.barcode ? `${session.seal.barcode}-${index+1}` : `Seal Tag ${index+1}`}</TableCell>
+                          <TableCell>
+                            <Chip 
+                              label="Operator Entered" 
+                              color="primary" 
+                              size="small"
+                            />
+                          </TableCell>
+                          <TableCell>
+                            <Box 
+                              component="img" 
+                              src={imageUrl} 
+                              alt={`Seal tag ${index+1}`}
+                              sx={{ 
+                                width: 40, 
+                                height: 40, 
+                                objectFit: 'cover',
+                                borderRadius: 1,
+                                cursor: 'pointer'
+                              }}
+                              onClick={() => {
+                                // Open image in new tab
+                                window.open(imageUrl, '_blank');
+                              }}
+                            />
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
                 </Box>
               </>
+            ) : (
+              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
+                <Box sx={{ flex: '1 0 45%', minWidth: '250px' }}>
+                  <Typography variant="body2">
+                    <strong>Seal Barcode:</strong> {session.seal.barcode}
+                  </Typography>
+                </Box>
+                {session.seal.verified && (
+                  <>
+                    <Box sx={{ flex: '1 0 45%', minWidth: '250px' }}>
+                      <Typography variant="body2">
+                        <strong>Verification Date:</strong> {formatDate(session.seal.scannedAt || '')}
+                      </Typography>
+                    </Box>
+                    {session.seal.verifiedBy && (
+                      <Box sx={{ flex: '1 0 45%', minWidth: '250px' }}>
+                        <Typography variant="body2">
+                          <strong>Verified By:</strong> {session.seal.verifiedBy.name}
+                        </Typography>
+                      </Box>
+                    )}
+                  </>
+                )}
+              </Box>
             )}
           </Box>
         )}
