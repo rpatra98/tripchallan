@@ -2302,22 +2302,91 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
             <Typography variant="subtitle1" gutterBottom>Seal Information</Typography>
 
             {/* Check for seal tag details in the activity logs */}
-            {session.activityLogs && session.activityLogs.some(log => 
-              log.details && 
-              (log.details as any).tripDetails && 
-              (log.details as any).tripDetails.sealTagIds) ? (
+            {session.activityLogs && session.activityLogs.length > 0 ? (
               <Box>
-                {/* Extract seal tag data from activity logs */}
                 {(() => {
                   // Find the log with seal tag information
-                  const sealTagLog = session.activityLogs.find(log => 
-                    log.details && 
-                    (log.details as any).tripDetails && 
-                    (log.details as any).tripDetails.sealTagIds);
+                  const sealTagLog = session.activityLogs.find(log => {
+                    // Try various possible paths for seal tag data
+                    if (log.details) {
+                      // Check direct path
+                      if ((log.details as any).sealTagIds) {
+                        return true;
+                      }
+                      
+                      // Check in tripDetails
+                      if ((log.details as any).tripDetails && (log.details as any).tripDetails.sealTagIds) {
+                        return true;
+                      }
+                      
+                      // Check in imageBase64Data
+                      if ((log.details as any).imageBase64Data && (log.details as any).imageBase64Data.sealTagImages) {
+                        return true;
+                      }
+                      
+                      // Check if details itself is the container
+                      if (Array.isArray((log.details as any).sealTagIds)) {
+                        return true;
+                      }
+                    }
+                    return false;
+                  });
                   
                   if (sealTagLog) {
-                    const sealTagIds = (sealTagLog.details as any).tripDetails.sealTagIds || [];
-                    const sealTagMethods = (sealTagLog.details as any).tripDetails.sealTagMethods || {};
+                    // Extract seal tag data from wherever it's found
+                    let sealTagIds: string[] = [];
+                    let sealTagMethods: any = {};
+                    let sealTagTimestamps: any = {};
+                    
+                    const details = sealTagLog.details as any;
+                    
+                    // Try various possible locations
+                    if (details.sealTagIds) {
+                      sealTagIds = details.sealTagIds;
+                      sealTagMethods = details.sealTagMethods || {};
+                      sealTagTimestamps = details.sealTagTimestamps || details.timestamps || {};
+                    } else if (details.tripDetails && details.tripDetails.sealTagIds) {
+                      sealTagIds = details.tripDetails.sealTagIds;
+                      sealTagMethods = details.tripDetails.sealTagMethods || {};
+                      sealTagTimestamps = details.tripDetails.timestamps || {};
+                    } else if (details.imageBase64Data && details.imageBase64Data.sealTagImages) {
+                      sealTagIds = Object.keys(details.imageBase64Data.sealTagImages);
+                      // Extract methods if available
+                      sealTagMethods = Object.keys(details.imageBase64Data.sealTagImages).reduce((acc: Record<string, string>, key) => {
+                        acc[key] = details.imageBase64Data.sealTagImages[key].method || 'unknown';
+                        return acc;
+                      }, {});
+                    }
+                    
+                    // Parse JSON strings if needed
+                    if (typeof sealTagIds === 'string') {
+                      try {
+                        sealTagIds = JSON.parse(sealTagIds);
+                      } catch (e) {
+                        console.error("Failed to parse sealTagIds:", e);
+                      }
+                    }
+                    
+                    if (typeof sealTagMethods === 'string') {
+                      try {
+                        sealTagMethods = JSON.parse(sealTagMethods);
+                      } catch (e) {
+                        console.error("Failed to parse sealTagMethods:", e);
+                      }
+                    }
+                    
+                    if (typeof sealTagTimestamps === 'string') {
+                      try {
+                        sealTagTimestamps = JSON.parse(sealTagTimestamps);
+                      } catch (e) {
+                        console.error("Failed to parse sealTagTimestamps:", e);
+                      }
+                    }
+                    
+                    // Skip if we couldn't find any seal tags
+                    if (!sealTagIds || sealTagIds.length === 0) {
+                      return <Typography variant="body2">No seal tag information available in the logs.</Typography>;
+                    }
                     
                     return (
                       <>
@@ -2356,10 +2425,9 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
                                     />
                                   </TableCell>
                                   <TableCell>
-                                    {(sealTagLog.details as any).tripDetails.timestamps && 
-                                     (sealTagLog.details as any).tripDetails.timestamps[tagId] && (
+                                    {sealTagTimestamps && sealTagTimestamps[tagId] && (
                                       <Typography variant="caption">
-                                        {new Date((sealTagLog.details as any).tripDetails.timestamps[tagId]).toLocaleString()}
+                                        {new Date(sealTagTimestamps[tagId]).toLocaleString()}
                                       </Typography>
                                     )}
                                   </TableCell>
