@@ -140,6 +140,7 @@ type SessionType = {
   activityLogs?: {
     id: string;
     action: string;
+    createdAt?: string;
     details?: {
       verification?: {
         fieldVerifications?: Record<string, any>;
@@ -273,7 +274,7 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
     [isGuard, session]
   );
 
-  // Extract operator seals from session data
+  // Extract operator seals from session data - pulling from activity logs instead of using system-generated barcode
   const operatorSeals = useMemo(() => {
     if (!session) return [];
     
@@ -284,25 +285,80 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
       timestamp: string;
     }> = [];
     
-    // Primary seal
+    // Check for seal tag information in activity logs first
+    if (session.activityLogs && session.activityLogs.length > 0) {
+      // Find the activity log that contains the seal tag information - usually from session creation
+      const sealTagLog = session.activityLogs.find(log => {
+        if (!log.details) return false;
+        
+        const details = log.details as any;
+        // Check different possible paths to find seal tag data
+        return (
+          details.imageBase64Data?.sealTagImages || 
+          details.sealTagIds || 
+          details.tripDetails?.sealTagIds
+        );
+      });
+      
+      if (sealTagLog && sealTagLog.details) {
+        const details = sealTagLog.details as any;
+        let sealTagIds: string[] = [];
+        let sealTagMethods: Record<string, string> = {};
+        let sealTagImages: Record<string, string> = {};
+        
+        // Find sealTagIds from different possible locations in the data structure
+        if (details.sealTagIds) {
+          sealTagIds = JSON.parse(details.sealTagIds);
+        } else if (details.tripDetails?.sealTagIds) {
+          sealTagIds = details.tripDetails.sealTagIds;
+        } else if (details.imageBase64Data?.sealTagImages) {
+          sealTagIds = Object.keys(details.imageBase64Data.sealTagImages);
+        }
+        
+        // Get methods information if available
+        if (details.sealTagMethods) {
+          sealTagMethods = JSON.parse(details.sealTagMethods);
+        } else if (details.tripDetails?.sealTagMethods) {
+          sealTagMethods = details.tripDetails.sealTagMethods;
+        } else if (details.imageBase64Data?.sealTagImages) {
+          // Extract methods from the image data
+          Object.entries(details.imageBase64Data.sealTagImages).forEach(([id, data]: [string, any]) => {
+            sealTagMethods[id] = data.method || 'unknown';
+          });
+        }
+        
+        // Get images from the session data if possible
+        if (session.images?.sealingImages && session.images.sealingImages.length > 0) {
+          // Associate images with seal tags if possible
+          sealTagIds.forEach((id, index) => {
+            if (index < session.images!.sealingImages!.length) {
+              sealTagImages[id] = session.images!.sealingImages![index];
+            }
+          });
+        }
+        
+        // Create the seals array from the collected data
+        sealTagIds.forEach(id => {
+          seals.push({
+            id,
+            method: sealTagMethods[id] || 'unknown',
+            image: sealTagImages[id] || null,
+            timestamp: sealTagLog.createdAt || session.createdAt
+          });
+        });
+        
+        return seals;
+      }
+    }
+    
+    // Fallback: If we couldn't find seal tag info in activity logs, create a single entry from system barcode
+    // This should only happen for sessions created before the seal tag functionality was added
     if (session.seal?.barcode) {
       seals.push({
         id: session.seal.barcode,
         method: 'digital',
         image: session.images?.sealingImages?.[0] || null,
         timestamp: session.createdAt
-      });
-    }
-    
-    // Additional seals
-    if (session.qrCodes?.additionalBarcodes) {
-      session.qrCodes.additionalBarcodes.forEach((barcode, index) => {
-        seals.push({
-          id: barcode,
-          method: 'digital',
-          image: session.images?.sealingImages?.[index + 1] || null,
-          timestamp: session.timestamps?.loadingDetails?.sealingTime || session.createdAt
-        });
       });
     }
     
