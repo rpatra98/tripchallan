@@ -190,7 +190,10 @@ export const DELETE = withAuth(
       // Get the session to verify ownership
       const existingSession = await prisma.session.findUnique({
         where: { id: sessionId },
-        include: { company: true }
+        include: { 
+          company: true,
+          seal: true
+        }
       });
 
       if (!existingSession) {
@@ -257,78 +260,81 @@ export const DELETE = withAuth(
         );
       }
 
+      // Perform deletion with a simpler approach
       try {
-        // Delete the session and its related data in a transaction
-        const result = await prisma.$transaction(async (tx: typeof prisma) => {
-          try {
-            // First delete the seal if it exists
-            if (existingSession.seal) {
-              await tx.seal.delete({ where: { sessionId } });
-            }
-            
-            // Delete any comments on the session
-            await tx.comment.deleteMany({ where: { sessionId } });
-            
-            // Delete activity logs related to the session
-            await tx.activityLog.deleteMany({
-              where: {
-                OR: [
-                  {
-                    targetResourceId: sessionId,
-                    targetResourceType: 'session'
-                  },
-                  {
-                    // Also delete logs where session details might be embedded in JSON
-                    details: {
-                      path: ['sessionId'],
-                      equals: sessionId
-                    }
-                  },
-                  {
-                    // Also delete logs where session ID appears in tripDetails
-                    details: {
-                      path: ['tripDetails', 'sessionId'],
-                      equals: sessionId
-                    }
-                  }
-                ]
-              }
-            });
-            
-            // Finally delete the session itself
-            await tx.session.delete({ where: { id: sessionId } });
-            
-            return { success: true };
-          } catch (txError) {
-            console.error("Transaction error details:", txError);
-            throw txError;
+        // Step 1: Delete related comments first since they directly reference the session
+        await prisma.comment.deleteMany({ 
+          where: { sessionId } 
+        });
+        console.log(`Deleted comments for session ${sessionId}`);
+        
+        // Step 2: Delete the seal if it exists (it has a foreign key constraint)
+        if (existingSession.seal) {
+          await prisma.seal.delete({ 
+            where: { sessionId } 
+          });
+          console.log(`Deleted seal for session ${sessionId}`);
+        }
+        
+        // Step 3: Delete activity logs - use a simpler query
+        await prisma.activityLog.deleteMany({
+          where: {
+            targetResourceId: sessionId,
+            targetResourceType: 'session'
           }
         });
+        console.log(`Deleted activity logs for session ${sessionId}`);
+        
+        // Step 4: Finally delete the session itself
+        await prisma.session.delete({ 
+          where: { id: sessionId } 
+        });
+        console.log(`Deleted session ${sessionId}`);
 
-        // Log the activity
+        // Log the activity for the deletion
         await addActivityLog({
           userId,
           action: ActivityAction.DELETE,
           details: {
             entityType: "SESSION",
             sessionId,
-            sessionData: existingSession
+            sessionData: {
+              id: existingSession.id,
+              source: existingSession.source,
+              destination: existingSession.destination,
+              status: existingSession.status
+            }
           },
           targetResourceType: "session_deleted"
         });
+        console.log(`Added deletion activity log for session ${sessionId}`);
 
         return NextResponse.json({ success: true, message: "Session deleted successfully" });
       } catch (error) {
         console.error("Error deleting session:", error);
+        
+        // Add more specific error information for debugging
+        let errorMessage = "Failed to delete session";
+        if (error instanceof Error) {
+          errorMessage += `: ${error.message}`;
+          console.error("Error stack:", error.stack);
+        }
+        
         return NextResponse.json(
-          { error: "Failed to delete session" },
+          { error: errorMessage },
           { status: 500 }
         );
       }
     } catch (error) {
-      console.error("Error deleting session:", error);
+      console.error("Error in authentication/authorization:", error);
+      
+      let errorMessage = "Failed to authenticate or authorize deletion";
+      if (error instanceof Error) {
+        errorMessage += `: ${error.message}`;
+      }
+      
       return NextResponse.json(
-        { error: "Failed to delete session" },
+        { error: errorMessage },
         { status: 500 }
       );
     }
