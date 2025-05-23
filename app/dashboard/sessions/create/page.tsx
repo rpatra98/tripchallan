@@ -684,6 +684,20 @@ export default function CreateSessionPage() {
     const newErrors: Record<string, string> = {};
     
     if (step === 0) {
+      // Validate Seal Tags
+      if (sealTags.sealTagIds.length === 0) {
+        newErrors.sealTagIds = "At least one seal tag ID is required";
+      }
+      
+      if (sealTags.sealTagIds.length > 40) {
+        newErrors.sealTagIds = "Maximum of 40 seal tags allowed";
+      }
+      
+      // Check for minimum number of tags (minimum 20 required)
+      if (sealTags.sealTagIds.length < 20) {
+        newErrors.sealTagIds = "Minimum of 20 seal tags required";
+      }
+    } else if (step === 1) {
       // Validate Loading Details
       if (!loadingDetails.transporterName.trim()) {
         newErrors.transporterName = "Transporter name is required";
@@ -699,70 +713,16 @@ export default function CreateSessionPage() {
       
       if (!loadingDetails.vehicleNumber.trim()) {
         newErrors.vehicleNumber = "Vehicle number is required";
-      } else {
-        // Check if the vehicle is inactive
-        const vehicleNumber = loadingDetails.vehicleNumber.trim();
-        const existingVehicle = vehicles.find(v => v.numberPlate === vehicleNumber);
-        
-        if (existingVehicle && existingVehicle.status === "INACTIVE") {
-          newErrors.vehicleNumber = "The entered Vehicle number is not Active. Please select an active vehicle.";
-        }
-        
-        // Check if vehicle number matches required format
-        const standardFormat = /^[A-Z]{2}[0-9]{2}[A-Z]{1,2}[0-9]{1,4}$/;
-        const tempFormat = /^TEMP\/[0-9]{2}\/[A-Z]{2}\/[0-9]{2}\/[0-9]{1,4}$/;
-        
-        if (!standardFormat.test(vehicleNumber) && !tempFormat.test(vehicleNumber)) {
-          newErrors.vehicleNumber = "Vehicle number must be in format: MH02AB1234 (Standard) or TEMP/25/OD/02/1234 (Temporary)";
-        }
       }
       
-      if (!loadingDetails.registrationCertificate.trim()) {
-        newErrors.registrationCertificate = "Registration Certificate is required";
-      }
-      
-      if (!loadingDetails.gpsImeiNumber) {
+      if (!loadingDetails.gpsImeiNumber.trim()) {
         newErrors.gpsImeiNumber = "GPS IMEI number is required";
       }
       
       if (!loadingDetails.loadingSite.trim()) {
         newErrors.loadingSite = "Loading site is required";
       }
-      
-      if (!loadingDetails.loaderName.trim()) {
-        newErrors.loaderName = "Loader name is required";
-      }
-      
-      if (!loadingDetails.challanRoyaltyNumber.trim()) {
-        newErrors.challanRoyaltyNumber = "Challan royalty number is required";
-      }
-      
-      if (!loadingDetails.doNumber.trim()) {
-        newErrors.doNumber = "DO number is required";
-      }
-      
-      if (loadingDetails.freight <= 0) {
-        newErrors.freight = "Freight must be greater than zero";
-      }
-      
-      if (!loadingDetails.tpNumber.trim()) {
-        newErrors.tpNumber = "TP number is required";
-      }
-      
-      if (loadingDetails.grossWeight <= 0) {
-        newErrors.grossWeight = "Gross weight must be greater than zero";
-      }
-      
-      if (loadingDetails.tareWeight <= 0) {
-        newErrors.tareWeight = "Tare weight must be greater than zero";
-      }
-      
-      if (!loadingDetails.loaderMobileNumber.trim()) {
-        newErrors.loaderMobileNumber = "Loader mobile number is required";
-      } else if (!/^\d{10}$/.test(loadingDetails.loaderMobileNumber)) {
-        newErrors.loaderMobileNumber = "Mobile number must be 10 digits";
-      }
-    } else if (step === 1) {
+    } else if (step === 2) {
       // Validate Driver Details
       if (!driverDetails.driverName.trim()) {
         newErrors.driverName = "Driver name is required";
@@ -776,20 +736,6 @@ export default function CreateSessionPage() {
       
       if (!driverDetails.driverLicense.trim()) {
         newErrors.driverLicense = "Driver license is required";
-      }
-    } else if (step === 2) {
-      // Validate Seal Tags
-      if (sealTags.sealTagIds.length === 0) {
-        newErrors.sealTagIds = "At least one seal tag ID is required";
-      }
-      
-      if (sealTags.sealTagIds.length > 40) {
-        newErrors.sealTagIds = "Maximum of 40 seal tags allowed";
-      }
-      
-      // Check for minimum number of tags (minimum 20 required)
-      if (sealTags.sealTagIds.length < 20) {
-        newErrors.sealTagIds = "Minimum of 20 seal tags required";
       }
     } else if (step === 3) {
       // Validate Images & Verification
@@ -1054,7 +1000,7 @@ export default function CreateSessionPage() {
     }
   };
 
-  const steps = ['Loading Details', 'Driver Details', 'Seal Tags', 'Images'];
+  const steps = ['Seal Tags', 'Loading Details', 'Driver Details', 'Images'];
 
   // Steps for the form
 
@@ -1190,6 +1136,139 @@ export default function CreateSessionPage() {
 
         <form onSubmit={handleSubmit}>
           {activeStep === 0 && (
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+              <Box sx={{ width: '100%' }}>
+                <Typography variant="h6" gutterBottom>
+                  Seal Tags
+                </Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                  Scan or manually enter seal tags. A minimum of 20 seal tags is required. Each tag must be unique and will be registered to this session.
+                </Typography>
+                
+                {error && (
+                  <Alert severity="error" sx={{ mb: 2 }}>
+                    {error}
+                  </Alert>
+                )}
+              </Box>
+              
+              <Box sx={{ width: '100%', display: 'flex', flexWrap: 'wrap', gap: 2 }}>
+                <Box sx={{ width: { xs: '100%', md: '47%' } }}>
+                  <Typography variant="subtitle1" gutterBottom>
+                    Scan QR/Barcode
+                  </Typography>
+                  <ClientSideQrScanner
+                    onScan={(data) => {
+                      // Check if already scanned
+                      if (sealTags.sealTagIds.includes(data)) {
+                        setError("Tag ID already used");
+                        setTimeout(() => setError(""), 3000);
+                        return;
+                      }
+                      
+                      setSealTags(prev => ({
+                        ...prev,
+                        sealTagIds: [...prev.sealTagIds, data],
+                        timestamps: {
+                          ...prev.timestamps,
+                          [data]: new Date().toISOString()
+                        }
+                      }));
+                    }}
+                    buttonText="Scan QR Code"
+                    scannerTitle="Scan Seal Tag"
+                    buttonVariant="outlined"
+                  />
+                </Box>
+                
+                <Box sx={{ width: { xs: '100%', md: '47%' } }}>
+                  <Typography variant="subtitle1" gutterBottom>
+                    Manual Entry
+                  </Typography>
+                  <TextField
+                    fullWidth
+                    label="Seal Tag ID"
+                    value={sealTags.manualSealTagId}
+                    onChange={(e) => setSealTags(prev => ({
+                      ...prev,
+                      manualSealTagId: e.target.value
+                    }))}
+                    InputProps={{
+                      endAdornment: (
+                        <InputAdornment position="end">
+                          <Button 
+                            onClick={handleAddSealTag} 
+                            disabled={!sealTags.manualSealTagId}
+                          >
+                            Add
+                          </Button>
+                        </InputAdornment>
+                      ),
+                    }}
+                    error={!!validationErrors.sealTagIds}
+                    helperText={validationErrors.sealTagIds}
+                  />
+                </Box>
+              </Box>
+              
+              <Box sx={{ width: '100%' }}>
+                <Typography variant="subtitle1" gutterBottom sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <span>Registered Seal Tags: {sealTags.sealTagIds.length}</span>
+                  {validationErrors.sealTagMinCount && (
+                    <Typography variant="caption" color="warning.main">
+                      {validationErrors.sealTagMinCount}
+                    </Typography>
+                  )}
+                </Typography>
+                
+                {sealTags.sealTagIds.length > 0 ? (
+                  <Box sx={{ 
+                    mt: 1, 
+                    p: 2, 
+                    bgcolor: 'background.paper', 
+                    borderRadius: 1,
+                    maxHeight: '300px',
+                    overflowY: 'auto',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 1
+                  }}>
+                    {sealTags.sealTagIds.map((tagId, index) => (
+                      <Box 
+                        key={tagId}
+                        sx={{
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          borderBottom: '1px solid #eee',
+                          pb: 1
+                        }}
+                      >
+                        <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                          <Chip
+                            label={`${index + 1}. ${tagId}`}
+                            onDelete={() => handleRemoveSealTag(tagId)}
+                            sx={{ mr: 2 }}
+                          />
+                          {sealTags.timestamps[tagId] && (
+                            <Typography variant="caption" color="text.secondary">
+                              {new Date(sealTags.timestamps[tagId]).toLocaleString()}
+                            </Typography>
+                          )}
+                        </Box>
+                      </Box>
+                    ))}
+                  </Box>
+                ) : (
+                  <Typography variant="body2" color="text.secondary" sx={{ mt: 1, fontStyle: 'italic' }}>
+                    No seal tags registered yet. Scan or manually enter seal tags above.
+                  </Typography>
+                )}
+              </Box>
+            </Box>
+          )}
+
+          {activeStep === 1 && (
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
               <Box sx={{ width: '100%' }}>
                 <Typography variant="h6" gutterBottom>
@@ -1533,7 +1612,7 @@ export default function CreateSessionPage() {
             </Box>
           )}
 
-          {activeStep === 1 && (
+          {activeStep === 2 && (
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
               <Box sx={{ width: '100%' }}>
                 <Typography variant="h6" gutterBottom>
@@ -1617,139 +1696,6 @@ export default function CreateSessionPage() {
                 )}
                 {validationErrors.driverLicenseDoc && (
                   <FormHelperText error>{validationErrors.driverLicenseDoc}</FormHelperText>
-                )}
-              </Box>
-            </Box>
-          )}
-
-          {activeStep === 2 && (
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-              <Box sx={{ width: '100%' }}>
-                <Typography variant="h6" gutterBottom>
-                  Seal Tags
-                </Typography>
-                <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                  Scan or manually enter seal tags. A minimum of 20 seal tags is required. Each tag must be unique and will be registered to this session.
-                </Typography>
-                
-                {error && (
-                  <Alert severity="error" sx={{ mb: 2 }}>
-                    {error}
-                  </Alert>
-                )}
-              </Box>
-              
-              <Box sx={{ width: '100%', display: 'flex', flexWrap: 'wrap', gap: 2 }}>
-                <Box sx={{ width: { xs: '100%', md: '47%' } }}>
-                  <Typography variant="subtitle1" gutterBottom>
-                    Scan QR/Barcode
-                  </Typography>
-                  <ClientSideQrScanner
-                    onScan={(data) => {
-                      // Check if already scanned
-                      if (sealTags.sealTagIds.includes(data)) {
-                        setError("Tag ID already used");
-                        setTimeout(() => setError(""), 3000);
-                        return;
-                      }
-                      
-                      setSealTags(prev => ({
-                        ...prev,
-                        sealTagIds: [...prev.sealTagIds, data],
-                        timestamps: {
-                          ...prev.timestamps,
-                          [data]: new Date().toISOString()
-                        }
-                      }));
-                    }}
-                    buttonText="Scan QR Code"
-                    scannerTitle="Scan Seal Tag"
-                    buttonVariant="outlined"
-                  />
-                </Box>
-                
-                <Box sx={{ width: { xs: '100%', md: '47%' } }}>
-                  <Typography variant="subtitle1" gutterBottom>
-                    Manual Entry
-                  </Typography>
-                  <TextField
-                    fullWidth
-                    label="Seal Tag ID"
-                    value={sealTags.manualSealTagId}
-                    onChange={(e) => setSealTags(prev => ({
-                      ...prev,
-                      manualSealTagId: e.target.value
-                    }))}
-                    InputProps={{
-                      endAdornment: (
-                        <InputAdornment position="end">
-                          <Button 
-                            onClick={handleAddSealTag} 
-                            disabled={!sealTags.manualSealTagId}
-                          >
-                            Add
-                          </Button>
-                        </InputAdornment>
-                      ),
-                    }}
-                    error={!!validationErrors.sealTagIds}
-                    helperText={validationErrors.sealTagIds}
-                  />
-                </Box>
-              </Box>
-              
-              <Box sx={{ width: '100%' }}>
-                <Typography variant="subtitle1" gutterBottom sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <span>Registered Seal Tags: {sealTags.sealTagIds.length}</span>
-                  {validationErrors.sealTagMinCount && (
-                    <Typography variant="caption" color="warning.main">
-                      {validationErrors.sealTagMinCount}
-                    </Typography>
-                  )}
-                </Typography>
-                
-                {sealTags.sealTagIds.length > 0 ? (
-                  <Box sx={{ 
-                    mt: 1, 
-                    p: 2, 
-                    bgcolor: 'background.paper', 
-                    borderRadius: 1,
-                    maxHeight: '300px',
-                    overflowY: 'auto',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: 1
-                  }}>
-                    {sealTags.sealTagIds.map((tagId, index) => (
-                      <Box 
-                        key={tagId}
-                        sx={{
-                          display: 'flex',
-                          justifyContent: 'space-between',
-                          alignItems: 'center',
-                          borderBottom: '1px solid #eee',
-                          pb: 1
-                        }}
-                      >
-                        <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                          <Chip
-                            label={`${index + 1}. ${tagId}`}
-                            onDelete={() => handleRemoveSealTag(tagId)}
-                            sx={{ mr: 2 }}
-                          />
-                          {sealTags.timestamps[tagId] && (
-                            <Typography variant="caption" color="text.secondary">
-                              {new Date(sealTags.timestamps[tagId]).toLocaleString()}
-                            </Typography>
-                          )}
-                        </Box>
-                      </Box>
-                    ))}
-                  </Box>
-                ) : (
-                  <Typography variant="body2" color="text.secondary" sx={{ mt: 1, fontStyle: 'italic' }}>
-                    No seal tags registered yet. Scan or manually enter seal tags above.
-                  </Typography>
                 )}
               </Box>
             </Box>
