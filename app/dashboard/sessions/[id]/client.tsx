@@ -392,21 +392,11 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
             timestamp: sealTagLog.createdAt || session.createdAt
           });
         });
-        
-        return seals;
       }
     }
     
-    // Fallback: If we couldn't find seal tag info in activity logs, create a single entry from system barcode
-    // This should only happen for sessions created before the seal tag functionality was added
-    if (session.seal?.barcode) {
-      seals.push({
-        id: session.seal.barcode,
-        method: 'digital',
-        image: session.images?.sealingImages?.[0] || null,
-        timestamp: session.createdAt
-      });
-    }
+    // REMOVED: The fallback to system-generated barcode
+    // We don't want to show system-generated seal IDs
     
     return seals;
   }, [session]);
@@ -541,14 +531,11 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
     [userRole]
   );
   
-  // Check if the session can be verified
+  // Check if the session can be verified - only using operator-entered seal tags
   const canVerify = useMemo(() => 
     isGuard && 
     session?.status === SessionStatus.IN_PROGRESS && 
-    (operatorSeals.length > 0 || 
-     (session?.qrCodes && 
-      (session.qrCodes.primaryBarcode || 
-       (session.qrCodes.additionalBarcodes && session.qrCodes.additionalBarcodes.length > 0)))),
+    operatorSeals.length > 0,
     [isGuard, session, operatorSeals]
   );
   
@@ -2160,114 +2147,63 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
         </Alert>
         
         {/* Seal verification information */}
-        {session.seal && (
+        {session.seal && operatorSeals && operatorSeals.length > 0 && (
           <Box sx={{ mt: 3, p: 2, border: '1px solid', borderColor: 'divider', borderRadius: 1 }}>
             <Typography variant="subtitle1" gutterBottom>Seal Information</Typography>
             
-            {/* Display seal tags if operator seals are available */}
-            {operatorSeals && operatorSeals.length > 0 ? (
-              <>
-                <Typography variant="body2" sx={{ mb: 2 }}>
-                  Total Seal Tags: <strong>{operatorSeals.length}</strong>
-                </Typography>
-                
-                <TableContainer component={Paper} variant="outlined" sx={{ mb: 2 }}>
-                  <Table size="small">
-                    <TableHead>
-                      <TableRow>
-                        <TableCell>No.</TableCell>
-                        <TableCell>Seal Tag ID</TableCell>
-                        <TableCell>Method</TableCell>
-                        <TableCell>Image</TableCell>
-                      </TableRow>
-                    </TableHead>
-                    <TableBody>
-                      {operatorSeals.map((seal, index) => (
-                        <TableRow key={index}>
-                          <TableCell>{index + 1}</TableCell>
-                          <TableCell>{seal.id}</TableCell>
-                          <TableCell>
-                            <Chip 
-                              label={seal.method === 'digital' ? "Scanned" : "Manual Entry"}
-                              color="primary" 
-                              size="small"
-                            />
-                          </TableCell>
-                          <TableCell>
-                            {seal.image ? (
-                              <Box 
-                                component="img" 
-                                src={seal.image} 
-                                alt={`Seal tag ${index+1}`}
-                                sx={{ 
-                                  width: 60, 
-                                  height: 60, 
-                                  objectFit: 'cover',
-                                  borderRadius: 1,
-                                  cursor: 'pointer'
-                                }}
-                                onClick={() => {
-                                  // Open image in new tab
-                                  window.open(seal.image!, '_blank');
-                                }}
-                              />
-                            ) : (
-                              <Typography variant="caption">No image</Typography>
-                            )}
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </TableContainer>
-              </>
-            ) : (
-            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
-              <Box sx={{ flex: '1 0 45%', minWidth: '250px' }}>
-                <Typography variant="body2">
-                    <strong>Seal Tags:</strong> {session.qrCodes?.primaryBarcode || "No seal tag scanned"}
-                    {session.qrCodes?.additionalBarcodes && session.qrCodes.additionalBarcodes.length > 0 && (
-                      <Box mt={1}>
-                        <Typography variant="caption">Additional Tags:</Typography>
-                        <ul style={{ margin: '4px 0', paddingLeft: '20px' }}>
-                          {session.qrCodes.additionalBarcodes.map((code, idx) => (
-                            <li key={idx}><Typography variant="caption">{code}</Typography></li>
-                          ))}
-                        </ul>
-                      </Box>
-                    )}
-                </Typography>
-              </Box>
-                  <Box sx={{ flex: '1 0 45%', minWidth: '250px' }}>
-                    <Typography variant="body2">
-                    <strong>Status:</strong>{" "}
-                    {session.seal?.verified ? (
-                      <Box component="span" sx={{ display: "inline-flex", alignItems: "center" }}>
-                        Verified <CheckCircle color="success" sx={{ ml: 0.5 }} />
-                      </Box>
-                    ) : (
-                      <Box component="span" sx={{ display: "inline-flex", alignItems: "center" }}>
-                        Unverified <Warning color="warning" sx={{ ml: 0.5 }} />
-                      </Box>
-                    )}
-                    </Typography>
-                  </Box>
-                {session.seal?.verified && session.seal?.verifiedBy && (
-                    <Box sx={{ flex: '1 0 45%', minWidth: '250px' }}>
-                      <Typography variant="body2">
-                      <strong>Verified By:</strong> {session.seal?.verifiedBy?.name}
-                      </Typography>
-                    </Box>
-                  )}
-                {session.seal?.verified && session.seal?.scannedAt && (
-                  <Box sx={{ flex: '1 0 45%', minWidth: '250px' }}>
-                    <Typography variant="body2">
-                      <strong>Verified At:</strong> {formatDate(session.seal?.scannedAt)}
-                    </Typography>
-                  </Box>
-              )}
-            </Box>
-            )}
+            <Typography variant="body2" sx={{ mb: 2 }}>
+              Total Seal Tags: <strong>{operatorSeals.length}</strong>
+            </Typography>
+            
+            <TableContainer component={Paper} variant="outlined" sx={{ mb: 2 }}>
+              <Table size="small">
+                <TableHead>
+                  <TableRow>
+                    <TableCell>No.</TableCell>
+                    <TableCell>Seal Tag ID</TableCell>
+                    <TableCell>Method</TableCell>
+                    <TableCell>Image</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {operatorSeals.map((seal, index) => (
+                    <TableRow key={index}>
+                      <TableCell>{index + 1}</TableCell>
+                      <TableCell>{seal.id}</TableCell>
+                      <TableCell>
+                        <Chip 
+                          label={seal.method === 'digital' ? "Scanned" : "Manual Entry"}
+                          color="primary" 
+                          size="small"
+                        />
+                      </TableCell>
+                      <TableCell>
+                        {seal.image ? (
+                          <Box 
+                            component="img" 
+                            src={seal.image} 
+                            alt={`Seal tag ${index+1}`}
+                            sx={{ 
+                              width: 60, 
+                              height: 60, 
+                              objectFit: 'cover',
+                              borderRadius: 1,
+                              cursor: 'pointer'
+                            }}
+                            onClick={() => {
+                              // Open image in new tab
+                              window.open(seal.image!, '_blank');
+                            }}
+                          />
+                        ) : (
+                          <Typography variant="caption">No image</Typography>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
           </Box>
         )}
       </Paper>
@@ -2689,178 +2625,67 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
           </Box>
         )}
 
-        {/* Show seal information if either seal tags or sealing images are available */}
-        {((session.qrCodes && (session.qrCodes.primaryBarcode || (session.qrCodes.additionalBarcodes && session.qrCodes.additionalBarcodes.length > 0))) ||
-          (session.images && session.images.sealingImages && session.images.sealingImages.length > 0) ||
-          (operatorSeals && operatorSeals.length > 0)) && (
+                {/* Show seal information only if operator-entered seal tags are available */}
+        {operatorSeals && operatorSeals.length > 0 && (
           <Box mb={3}>
             <Typography variant="h6" gutterBottom>
               Seal Information
             </Typography>
             <Divider sx={{ mb: 2 }} />
             
-            {/* Display operator entered seal tags with images in a table */}
-            {operatorSeals && operatorSeals.length > 0 ? (
-              <>
-                <Typography variant="body2" sx={{ mb: 2 }}>
-                  Total Seal Tags: <strong>{operatorSeals.length}</strong>
-                </Typography>
-                
-                <TableContainer component={Paper} variant="outlined" sx={{ mb: 2 }}>
-                  <Table size="small">
-                    <TableHead>
-                      <TableRow>
-                        <TableCell>No.</TableCell>
-                        <TableCell>Seal Tag ID</TableCell>
-                        <TableCell>Method</TableCell>
-                        <TableCell>Image</TableCell>
-                      </TableRow>
-                    </TableHead>
-                    <TableBody>
-                      {operatorSeals.map((seal, index) => (
-                        <TableRow key={index}>
-                          <TableCell>{index + 1}</TableCell>
-                          <TableCell>{seal.id}</TableCell>
-                          <TableCell>
-                            <Chip 
-                              label={seal.method === 'digital' ? "Scanned" : "Manual Entry"}
-                              color="primary" 
-                              size="small"
-                            />
-                          </TableCell>
-                          <TableCell>
-                            {seal.image ? (
-                              <Box 
-                                component="img" 
-                                src={seal.image} 
-                                alt={`Seal tag ${index+1}`}
-                                sx={{ 
-                                  width: 60, 
-                                  height: 60, 
-                                  objectFit: 'cover',
-                                  borderRadius: 1,
-                                  cursor: 'pointer'
-                                }}
-                                onClick={() => {
-                                  // Open image in new tab
-                                  window.open(seal.image!, '_blank');
-                                }}
-                              />
-                            ) : (
-                              <Typography variant="caption">No image</Typography>
-                            )}
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </TableContainer>
-              </>
-            ) : session.images && session.images.sealingImages && session.images.sealingImages.length > 0 ? (
-              <>
-                <Typography variant="body2" sx={{ mb: 2 }}>
-                  Total Seal Tags: <strong>{session.images.sealingImages.length}</strong>
-                </Typography>
-                
-                <TableContainer component={Paper} variant="outlined" sx={{ mb: 2 }}>
-                  <Table size="small">
-                    <TableHead>
-                      <TableRow>
-                        <TableCell>No.</TableCell>
-                        <TableCell>Seal Tag ID</TableCell>
-                        <TableCell>Method</TableCell>
-                        <TableCell>Image</TableCell>
-                      </TableRow>
-                    </TableHead>
-                    <TableBody>
-                      {session.images.sealingImages.map((imageUrl, index) => (
-                        <TableRow key={index}>
-                          <TableCell>{index + 1}</TableCell>
-                          <TableCell>
-                            {session.qrCodes && session.qrCodes.primaryBarcode && index === 0 
-                              ? session.qrCodes.primaryBarcode
-                              : session.qrCodes && session.qrCodes.additionalBarcodes && session.qrCodes.additionalBarcodes[index - 1] 
-                                ? session.qrCodes.additionalBarcodes[index - 1]
-                                : `Seal Tag ${index + 1}`}
-                          </TableCell>
-                          <TableCell>
-                            <Chip 
-                              label="Operator Entered" 
-                              color="primary" 
-                              size="small"
-                            />
-                          </TableCell>
-                          <TableCell>
-                            <Box 
-                              component="img" 
-                              src={imageUrl} 
-                              alt={`Seal tag ${index+1}`}
-                              sx={{ 
-                                width: 60, 
-                                height: 60, 
-                                objectFit: 'cover',
-                                borderRadius: 1,
-                                cursor: 'pointer'
-                              }}
-                              onClick={() => {
-                                // Open image in new tab
-                                window.open(imageUrl, '_blank');
-                              }}
-                            />
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </TableContainer>
-              </>
-            ) : (
-            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
-              <Box sx={{ flex: '1 0 45%', minWidth: '250px' }}>
-                  <Typography variant="body2">
-                    <strong>Seal Tags:</strong> {session.qrCodes?.primaryBarcode || "No seal tag scanned"}
-                    {session.qrCodes?.additionalBarcodes && session.qrCodes.additionalBarcodes.length > 0 && (
-                      <Box mt={1}>
-                        <Typography variant="caption">Additional Tags:</Typography>
-                        <ul style={{ margin: '4px 0', paddingLeft: '20px' }}>
-                          {session.qrCodes.additionalBarcodes.map((code, idx) => (
-                            <li key={idx}><Typography variant="caption">{code}</Typography></li>
-                          ))}
-                        </ul>
-                      </Box>
-                    )}
-                </Typography>
-              </Box>
-              <Box sx={{ flex: '1 0 45%', minWidth: '250px' }}>
-                  <Typography variant="body2">
-                    <strong>Status:</strong>{" "}
-                    {session.seal?.verified ? (
-                      <Box component="span" sx={{ display: "inline-flex", alignItems: "center" }}>
-                        Verified <CheckCircle color="success" sx={{ ml: 0.5 }} />
-                      </Box>
-                    ) : (
-                      <Box component="span" sx={{ display: "inline-flex", alignItems: "center" }}>
-                        Unverified <Warning color="warning" sx={{ ml: 0.5 }} />
-                      </Box>
-                    )}
-                  </Typography>
-                </Box>
-              {session.seal?.verified && session.seal?.verifiedBy && (
-                <Box sx={{ flex: '1 0 45%', minWidth: '250px' }}>
-                  <Typography variant="body2">
-                    <strong>Verified By:</strong> {session.seal?.verifiedBy?.name}
-                  </Typography>
-                </Box>
-              )}
-              {session.seal?.verified && session.seal?.scannedAt && (
-                <Box sx={{ flex: '1 0 45%', minWidth: '250px' }}>
-                  <Typography variant="body2">
-                    <strong>Verified At:</strong> {formatDate(session.seal?.scannedAt)}
-                  </Typography>
-                </Box>
-              )}
-            </Box>
-            )}
+            <Typography variant="body2" sx={{ mb: 2 }}>
+              Total Seal Tags: <strong>{operatorSeals.length}</strong>
+            </Typography>
+            
+            <TableContainer component={Paper} variant="outlined" sx={{ mb: 2 }}>
+              <Table size="small">
+                <TableHead>
+                  <TableRow>
+                    <TableCell>No.</TableCell>
+                    <TableCell>Seal Tag ID</TableCell>
+                    <TableCell>Method</TableCell>
+                    <TableCell>Image</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {operatorSeals.map((seal, index) => (
+                    <TableRow key={index}>
+                      <TableCell>{index + 1}</TableCell>
+                      <TableCell>{seal.id}</TableCell>
+                      <TableCell>
+                        <Chip 
+                          label={seal.method === 'digital' ? "Scanned" : "Manual Entry"}
+                          color="primary" 
+                          size="small"
+                        />
+                      </TableCell>
+                      <TableCell>
+                        {seal.image ? (
+                          <Box 
+                            component="img" 
+                            src={seal.image} 
+                            alt={`Seal tag ${index+1}`}
+                            sx={{ 
+                              width: 60, 
+                              height: 60, 
+                              objectFit: 'cover',
+                              borderRadius: 1,
+                              cursor: 'pointer'
+                            }}
+                            onClick={() => {
+                              // Open image in new tab
+                              window.open(seal.image!, '_blank');
+                            }}
+                          />
+                        ) : (
+                          <Typography variant="caption">No image</Typography>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
           </Box>
         )}
 
