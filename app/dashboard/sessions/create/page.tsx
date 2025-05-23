@@ -631,17 +631,52 @@ export default function CreateSessionPage() {
     }
   };
 
+  // First, add a new function to check if a seal tag has been used before
+  // Add this after the createNewVehicle function
+  
+  // Function to check if a seal tag has been used before
+  const checkSealTagExistence = async (tagId: string): Promise<boolean> => {
+    try {
+      const response = await fetch(`/api/sessions/seal-tags/check?tagId=${encodeURIComponent(tagId)}`);
+      
+      // If response is not ok, assume there's a server error and allow the tag (fail open)
+      if (!response.ok) {
+        console.error(`Error checking seal tag existence: ${response.status} ${response.statusText}`);
+        return false;
+      }
+      
+      const data = await response.json();
+      return data.exists; // Return true if tag exists, false otherwise
+    } catch (error) {
+      console.error("Error checking seal tag existence:", error);
+      return false; // In case of error, fail open to allow submission
+    }
+  };
+
+  // Now update the handleAddSealTagWithImage function to use this check
   // Add a handler for adding seal tags with images
-  const handleAddSealTagWithImage = (tagId: string, imageFile: File) => {
+  const handleAddSealTagWithImage = async (tagId: string, imageFile: File) => {
     // Check if tag is already in the list
     if (sealTags.sealTagIds.includes(tagId)) {
-      setError("Tag ID already used");
+      setError("Tag ID already used in this session");
       setTimeout(() => setError(""), 3000);
       return;
     }
     
+    // Check if tag has been used in any other session
+    setError("Verifying seal tag...");
+    const exists = await checkSealTagExistence(tagId);
+    if (exists) {
+      setError("Invalid Seal Tag scanned - this tag has already been used in another session");
+      setTimeout(() => setError(""), 5000);
+      return;
+    }
+    
+    // Clear any previous error
+    setError("");
+    
     setSealTags(prev => ({
-        ...prev,
+      ...prev,
       sealTagIds: [...prev.sealTagIds, tagId],
       sealTagImages: {
         ...prev.sealTagImages,
@@ -651,20 +686,20 @@ export default function CreateSessionPage() {
         ...prev.sealTagMethods,
         [tagId]: 'digitally scanned'
       },
-        timestamps: {
-          ...prev.timestamps,
+      timestamps: {
+        ...prev.timestamps,
         [tagId]: new Date().toISOString()
-        }
-      }));
+      }
+    }));
   };
 
-  // Update handleAddSealTag for manual entries to require an image
-  const handleAddSealTag = () => {
+  // Update handleAddSealTag for manual entries to require an image and check for existence
+  const handleAddSealTag = async () => {
     if (!sealTags.manualSealTagId) return;
     
     // Check if tag is already in the list
     if (sealTags.sealTagIds.includes(sealTags.manualSealTagId)) {
-      setError("Tag ID already used");
+      setError("Tag ID already used in this session");
       setTimeout(() => setError(""), 3000);
       return;
     }
@@ -677,6 +712,18 @@ export default function CreateSessionPage() {
       }));
       return;
     }
+    
+    // Check if tag has been used in any other session
+    setError("Verifying seal tag...");
+    const exists = await checkSealTagExistence(sealTags.manualSealTagId);
+    if (exists) {
+      setError("Invalid Seal Tag entered - this tag has already been used in another session");
+      setTimeout(() => setError(""), 5000);
+      return;
+    }
+    
+    // Clear any previous error
+    setError("");
     
     setSealTags(prev => ({
       ...prev,
