@@ -51,6 +51,12 @@ function getCompanyLinkId(company: CompanyData) {
   return company.companyUserId || company.id;
 }
 
+// Helper function to check company active status - matches the details page logic
+function isCompanyActive(company: CompanyData): boolean {
+  // This precisely matches the condition in the company details page
+  return company.isActive === true;
+}
+
 export default function AdminDashboard({ user }: AdminDashboardProps) {
   const [activeTab, setActiveTab] = useState("companies");
   const [companies, setCompanies] = useState<CompanyData[]>([]);
@@ -100,12 +106,9 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
       
       const data = await response.json();
       console.log("Fetched company data:", data);
-      // Make sure isActive is explicitly a boolean
-      const enhancedData = data.map((company: CompanyData) => ({
-        ...company,
-        isActive: Boolean(company.isActive)
-      }));
-      setCompanies(enhancedData);
+      
+      // Don't process isActive here - use it as-is to match details page
+      setCompanies(data);
     } catch (err) {
       console.error("Error fetching companies:", err);
       setError(err instanceof Error ? err.message : "Failed to load companies");
@@ -408,9 +411,9 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
                             {company.name}
                           </Typography>
                           <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                            company.isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                            isCompanyActive(company) ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
                           }`}>
-                            {company.isActive ? 'Active' : 'Inactive'}
+                            {isCompanyActive(company) ? 'Active' : 'Inactive'}
                           </span>
                         </Box>
                         <Typography variant="body2" color="text.secondary" gutterBottom>
