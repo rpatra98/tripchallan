@@ -2301,21 +2301,14 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
           <Box sx={{ mt: 3, p: 2, border: '1px solid', borderColor: 'divider', borderRadius: 1 }}>
             <Typography variant="subtitle1" gutterBottom>Seal Information</Typography>
             
-            {/* Simple approach: Check if there are sealing images, and if so, display them in a table */}
+            {/* Display seal tags with images in a table */}
             {session.images && session.images.sealingImages && session.images.sealingImages.length > 0 ? (
               <>
                 <Typography variant="body2" sx={{ mb: 2 }}>
                   Total Seal Tags: <strong>{session.images.sealingImages.length}</strong>
                 </Typography>
                 
-                <Box sx={{ 
-                  maxHeight: '400px', 
-                  overflowY: 'auto',
-                  border: '1px solid',
-                  borderColor: 'divider',
-                  borderRadius: 1,
-                  p: 1
-                }}>
+                <TableContainer component={Paper} variant="outlined" sx={{ mb: 2 }}>
                   <Table size="small">
                     <TableHead>
                       <TableRow>
@@ -2343,8 +2336,8 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
                               src={imageUrl} 
                               alt={`Seal tag ${index+1}`}
                               sx={{ 
-                                width: 40, 
-                                height: 40, 
+                                width: 60, 
+                                height: 60, 
                                 objectFit: 'cover',
                                 borderRadius: 1,
                                 cursor: 'pointer'
@@ -2359,7 +2352,7 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
                       ))}
                     </TableBody>
                   </Table>
-                </Box>
+                </TableContainer>
               </>
             ) : (
               <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
@@ -2368,21 +2361,33 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
                     <strong>Seal Barcode:</strong> {session.seal.barcode}
                   </Typography>
                 </Box>
-                {session.seal.verified && (
-                  <>
-                    <Box sx={{ flex: '1 0 45%', minWidth: '250px' }}>
-                      <Typography variant="body2">
-                        <strong>Verification Date:</strong> {formatDate(session.seal.scannedAt || '')}
-                      </Typography>
-                    </Box>
-                    {session.seal.verifiedBy && (
-                      <Box sx={{ flex: '1 0 45%', minWidth: '250px' }}>
-                        <Typography variant="body2">
-                          <strong>Verified By:</strong> {session.seal.verifiedBy.name}
-                        </Typography>
+                <Box sx={{ flex: '1 0 45%', minWidth: '250px' }}>
+                  <Typography variant="body2">
+                    <strong>Status:</strong>{" "}
+                    {session.seal.verified ? (
+                      <Box component="span" sx={{ display: "inline-flex", alignItems: "center" }}>
+                        Verified <CheckCircle color="success" sx={{ ml: 0.5 }} />
+                      </Box>
+                    ) : (
+                      <Box component="span" sx={{ display: "inline-flex", alignItems: "center" }}>
+                        Unverified <Warning color="warning" sx={{ ml: 0.5 }} />
                       </Box>
                     )}
-                  </>
+                  </Typography>
+                </Box>
+                {session.seal.verified && session.seal.verifiedBy && (
+                  <Box sx={{ flex: '1 0 45%', minWidth: '250px' }}>
+                    <Typography variant="body2">
+                      <strong>Verified By:</strong> {session.seal.verifiedBy.name}
+                    </Typography>
+                  </Box>
+                )}
+                {session.seal.verified && session.seal.scannedAt && (
+                  <Box sx={{ flex: '1 0 45%', minWidth: '250px' }}>
+                    <Typography variant="body2">
+                      <strong>Verified At:</strong> {formatDate(session.seal.scannedAt)}
+                    </Typography>
+                  </Box>
                 )}
               </Box>
             )}
@@ -2764,41 +2769,97 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
               Seal Information
             </Typography>
             <Divider sx={{ mb: 2 }} />
-            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
-              <Box sx={{ flex: '1 0 45%', minWidth: '250px' }}>
-                <Typography variant="body1">
-                  <strong>Barcode:</strong> {session.seal.barcode}
+            
+            {/* Display seal tags with images in a table */}
+            {session.images && session.images.sealingImages && session.images.sealingImages.length > 0 ? (
+              <>
+                <Typography variant="body1" sx={{ mb: 2 }}>
+                  Total Seal Tags: <strong>{session.images.sealingImages.length}</strong>
                 </Typography>
-              </Box>
-              <Box sx={{ flex: '1 0 45%', minWidth: '250px' }}>
-                <Typography variant="body1">
-                  <strong>Status:</strong>{" "}
-                  {session.seal.verified ? (
-                    <Box component="span" sx={{ display: "inline-flex", alignItems: "center" }}>
-                      Verified <CheckCircle color="success" sx={{ ml: 0.5 }} />
-                    </Box>
-                  ) : (
-                    <Box component="span" sx={{ display: "inline-flex", alignItems: "center" }}>
-                      Unverified <Warning color="warning" sx={{ ml: 0.5 }} />
-                    </Box>
-                  )}
-                </Typography>
-              </Box>
-              {session.seal.verified && session.seal.verifiedBy && (
+                
+                <TableContainer component={Paper} variant="outlined" sx={{ mb: 2 }}>
+                  <Table size="small">
+                    <TableHead>
+                      <TableRow>
+                        <TableCell>No.</TableCell>
+                        <TableCell>Seal Tag ID</TableCell>
+                        <TableCell>Method</TableCell>
+                        <TableCell>Image</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {session.images.sealingImages.map((imageUrl, index) => (
+                        <TableRow key={index}>
+                          <TableCell>{index + 1}</TableCell>
+                          <TableCell>{session.seal?.barcode ? `${session.seal.barcode}-${index+1}` : `Seal Tag ${index+1}`}</TableCell>
+                          <TableCell>
+                            <Chip 
+                              label="Operator Entered" 
+                              color="primary" 
+                              size="small"
+                            />
+                          </TableCell>
+                          <TableCell>
+                            <Box 
+                              component="img" 
+                              src={imageUrl} 
+                              alt={`Seal tag ${index+1}`}
+                              sx={{ 
+                                width: 60, 
+                                height: 60, 
+                                objectFit: 'cover',
+                                borderRadius: 1,
+                                cursor: 'pointer'
+                              }}
+                              onClick={() => {
+                                // Open image in new tab
+                                window.open(imageUrl, '_blank');
+                              }}
+                            />
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              </>
+            ) : (
+              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
                 <Box sx={{ flex: '1 0 45%', minWidth: '250px' }}>
                   <Typography variant="body1">
-                    <strong>Verified By:</strong> {session.seal.verifiedBy.name}
+                    <strong>Barcode:</strong> {session.seal.barcode}
                   </Typography>
                 </Box>
-              )}
-              {session.seal.verified && session.seal.scannedAt && (
                 <Box sx={{ flex: '1 0 45%', minWidth: '250px' }}>
                   <Typography variant="body1">
-                    <strong>Verified At:</strong> {formatDate(session.seal.scannedAt)}
+                    <strong>Status:</strong>{" "}
+                    {session.seal.verified ? (
+                      <Box component="span" sx={{ display: "inline-flex", alignItems: "center" }}>
+                        Verified <CheckCircle color="success" sx={{ ml: 0.5 }} />
+                      </Box>
+                    ) : (
+                      <Box component="span" sx={{ display: "inline-flex", alignItems: "center" }}>
+                        Unverified <Warning color="warning" sx={{ ml: 0.5 }} />
+                      </Box>
+                    )}
                   </Typography>
                 </Box>
-              )}
-            </Box>
+                {session.seal.verified && session.seal.verifiedBy && (
+                  <Box sx={{ flex: '1 0 45%', minWidth: '250px' }}>
+                    <Typography variant="body1">
+                      <strong>Verified By:</strong> {session.seal.verifiedBy.name}
+                    </Typography>
+                  </Box>
+                )}
+                {session.seal.verified && session.seal.scannedAt && (
+                  <Box sx={{ flex: '1 0 45%', minWidth: '250px' }}>
+                    <Typography variant="body1">
+                      <strong>Verified At:</strong> {formatDate(session.seal.scannedAt)}
+                    </Typography>
+                  </Box>
+                )}
+              </Box>
+            )}
           </Box>
         )}
 
