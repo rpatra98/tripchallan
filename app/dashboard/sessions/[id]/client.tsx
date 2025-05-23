@@ -269,9 +269,11 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
   const canVerify = useMemo(() => 
     isGuard && 
     session?.status === SessionStatus.IN_PROGRESS && 
-    session?.seal && 
-    !session.seal.verified,
-    [isGuard, session]
+    (operatorSeals.length > 0 || 
+     (session?.qrCodes && 
+      (session.qrCodes.primaryBarcode || 
+       (session.qrCodes.additionalBarcodes && session.qrCodes.additionalBarcodes.length > 0)))),
+    [isGuard, session, operatorSeals]
   );
 
   // Extract operator seals from session data - pulling from activity logs instead of using system-generated barcode
@@ -364,402 +366,6 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
     
     return seals;
   }, [session]);
-
-  // Utility functions  
-  const getFieldLabel = useCallback((key: string): string => {
-    // Convert camelCase to Title Case with spaces
-    return key.replace(/([A-Z])/g, ' $1')
-      .replace(/^./, str => str.toUpperCase());
-  }, []);
-
-  const handleInputChange = useCallback((field: string, value: any) => {
-    setVerificationFields(prev => ({
-      ...prev,
-      [field]: {
-        ...prev[field],
-        guardValue: value
-      }
-    }));
-  }, []);
-
-  const handleCommentChange = useCallback((field: string, comment: string) => {
-    setVerificationFields(prev => ({
-      ...prev,
-      [field]: {
-        ...prev[field],
-        comment
-      }
-    }));
-  }, []);
-
-  const verifyField = useCallback((field: string) => {
-    // Get field data but don't show operator value to GUARD
-    const fieldData = verificationFields[field];
-    
-    // Guard must enter a value
-    if (!fieldData.guardValue || fieldData.guardValue.trim() === '') {
-      alert('Please enter a value before verifying this field.');
-      return false;
-    }
-    
-    // Mark as verified without showing if it matches
-    setVerificationFields(prev => ({
-      ...prev,
-      [field]: {
-        ...prev[field],
-        isVerified: true
-      }
-    }));
-    
-    // Still check for match in background (for stats and verification results)
-    const match = String(fieldData.operatorValue).toLowerCase() === String(fieldData.guardValue).toLowerCase();
-    return match;
-  }, [verificationFields]);
-
-  // Handle QR/barcode scanner input
-  const handleScanComplete = useCallback((sealId: string) => {
-    if (!sealId.trim()) {
-      setScanError('Please enter a valid Seal Tag ID');
-      return;
-    }
-    
-    // Check if already scanned by guard
-    if (guardScannedSeals.some(seal => seal.id === sealId)) {
-      setScanError('This seal has already been scanned');
-      return;
-    }
-    
-    // Add to scanned seals
-    const newSeal = {
-      id: sealId,
-      method: scanMethod,
-      image: null,
-      imagePreview: null,
-      timestamp: new Date().toISOString(),
-      verified: operatorSeals.some(seal => seal.id === sealId)
-    };
-    
-    setGuardScannedSeals(prev => [...prev, newSeal]);
-    setScanInput('');
-    setScanError('');
-    
-    // Update comparison
-    updateSealComparison([...guardScannedSeals, newSeal]);
-  }, [guardScannedSeals, scanMethod, operatorSeals]);
-
-  // Update seal comparison data
-  const updateSealComparison = useCallback((scannedSeals: typeof guardScannedSeals) => {
-    const guardSealIds = scannedSeals.map(seal => seal.id);
-    const operatorSealIds = operatorSeals.map(seal => seal.id);
-    
-    const matched = guardSealIds.filter(id => operatorSealIds.includes(id));
-    const mismatched = [
-      ...guardSealIds.filter(id => !operatorSealIds.includes(id)),
-      ...operatorSealIds.filter(id => !guardSealIds.includes(id))
-    ];
-    
-    setSealComparison({ matched, mismatched });
-  }, [operatorSeals]);
-
-  // Handle image upload for a seal
-  const handleSealImageUpload = useCallback((index: number, file: File | null) => {
-    if (!file) return;
-    
-    const updatedSeals = [...guardScannedSeals];
-    updatedSeals[index].image = file;
-    updatedSeals[index].imagePreview = URL.createObjectURL(file);
-    setGuardScannedSeals(updatedSeals);
-  }, [guardScannedSeals]);
-
-  // Remove a scanned seal
-  const removeSealTag = useCallback((index: number) => {
-    const updatedSeals = [...guardScannedSeals];
-    
-    // Revoke object URL if exists to prevent memory leaks
-    if (updatedSeals[index].imagePreview) {
-      URL.revokeObjectURL(updatedSeals[index].imagePreview as string);
-    }
-    
-    updatedSeals.splice(index, 1);
-    setGuardScannedSeals(updatedSeals);
-    
-    // Update comparison
-    updateSealComparison(updatedSeals);
-  }, [guardScannedSeals, updateSealComparison]);
-
-  // Report download handlers
-  const handleDownloadReport = async (format: string) => {
-    if (!sessionId) return;
-    
-    try {
-      setReportLoading(format);
-      let endpoint = "";
-      
-      switch (format) {
-        case "pdf":
-          endpoint = `/api/reports/sessions/${sessionId}/pdf/simple`;
-          break;
-        case "excel":
-          endpoint = `/api/reports/sessions/${sessionId}/excel`;
-          break;
-        default:
-          throw new Error("Unsupported report format");
-      }
-      
-      // Get the report as a blob
-      const response = await fetch(endpoint);
-      
-      if (!response.ok) {
-        const errorData = await response.text();
-        throw new Error(errorData || `Failed to download ${format} report`);
-      }
-      
-      // Convert response to blob
-      const blob = await response.blob();
-      
-      // Create a link element to trigger the download
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = `session-${sessionId}.${format === "excel" ? "xlsx" : "pdf"}`;
-      document.body.appendChild(link);
-      link.click();
-      
-      // Clean up
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(link);
-    } catch (err) {
-      console.error(`Error downloading ${format} report:`, err);
-      alert(`Failed to download ${format} report: ${err instanceof Error ? err.message : "Unknown error"}`);
-    } finally {
-      setReportLoading(null);
-    }
-  };
-
-  // Define fetchSessionDetails function
-  const fetchSessionDetails = useCallback(async () => {
-    if (!sessionId) {
-      console.log("No session ID available yet, skipping fetch");
-      return;
-    }
-    
-    setLoading(true);
-    setError("");
-
-    try {
-      console.log("Fetching session details for ID:", sessionId);
-      
-      // Try both API endpoints to provide redundancy
-      const apiUrls = [
-        `/api/session/${sessionId}`,
-        `/api/sessions/${sessionId}`
-      ];
-      
-      let response;
-      let errorText = '';
-      
-      // Try each endpoint until one works
-      for (const url of apiUrls) {
-        console.log(`Attempting to fetch from ${url}`);
-        try {
-          response = await fetch(url);
-          if (response.ok) {
-            console.log(`Successfully fetched data from ${url}`);
-            break;
-          } else {
-            const error = await response.text();
-            errorText += `${url}: ${response.status} - ${error}\n`;
-            console.error(`API Error (${response.status}) from ${url}:`, error);
-          }
-        } catch (err) {
-          errorText += `${url}: ${err}\n`;
-          console.error(`Fetch error from ${url}:`, err);
-        }
-      }
-      
-      if (!response || !response.ok) {
-        throw new Error(`Failed to fetch session details: ${errorText}`);
-      }
-      
-      const data = await response.json();
-      console.log("Session data received:", !!data, data ? Object.keys(data) : 'no data');
-      setSession(data);
-    } catch (err) {
-      console.error("Error fetching session details:", err);
-      setError(err instanceof Error ? err.message : "An unknown error occurred");
-    } finally {
-      setLoading(false);
-    }
-  }, [sessionId]);
-
-  useEffect(() => {
-    if (authStatus === "authenticated" && authSession?.user && sessionId) {
-      setUserRole(authSession.user.role as string);
-      setUserSubrole(authSession.user.subrole as string);
-      fetchSessionDetails();
-    }
-  }, [authStatus, authSession, sessionId, fetchSessionDetails]);
-
-  // Helper function to extract and set verification results
-  const extractAndSetVerificationResults = useCallback((fieldVerifications: Record<string, any>) => {
-    console.log("Extracting verification results from data:", Object.keys(fieldVerifications).length, "fields");
-    
-    // Extract matched, mismatched and unverified fields
-    const matches: string[] = [];
-    const mismatches: string[] = [];
-    const unverified: string[] = [];
-    
-    Object.entries(fieldVerifications).forEach(([field, data]: [string, any]) => {
-      console.log(`Field ${field}:`, data);
-      
-      // Handle different verification data structures
-      const isVerified = data.isVerified ?? false;
-      const matchesField = typeof data.matches === 'boolean' 
-        ? data.matches 
-        : (String(data.operatorValue || '').toLowerCase() === String(data.guardValue || '').toLowerCase());
-      
-      if (isVerified) {
-        if (matchesField) {
-          matches.push(field);
-        } else {
-          mismatches.push(field);
-        }
-      } else {
-        unverified.push(field);
-      }
-    });
-    
-    console.log("Verification summary:", {
-      matches: matches.length,
-      mismatches: mismatches.length,
-      unverified: unverified.length
-    });
-    
-    // Set verification results for displaying
-    setVerificationResults({
-      matches,
-      mismatches,
-      unverified,
-      allFields: fieldVerifications,
-      timestamp: session?.seal?.scannedAt || new Date().toISOString()
-    });
-  }, [session]);
-
-  // Extract verification results from session data for completed trips
-  useEffect(() => {
-    // Only process for completed sessions with seal verification data
-    if (session?.status === SessionStatus.COMPLETED && 
-        session?.seal?.verified) {
-      
-      console.log("Processing completed session for verification data:", session.id);
-      console.log("Session seal data:", session.seal);
-      
-      // First, check if verification data is directly in the seal object
-      if (session.seal.verificationData?.fieldVerifications) {
-        console.log("Found verification data directly in seal.verificationData");
-        extractAndSetVerificationResults(session.seal.verificationData.fieldVerifications);
-        return;
-      }
-      
-      // Then check activity logs if available
-      if (session.activityLogs?.length) {
-        console.log("Activity logs found:", session.activityLogs.length);
-        
-        // Look for verification logs with multiple possible action types
-        const verificationActions = ["SEAL_VERIFIED", "VERIFY_SEAL", "SEAL_VERIFICATION"];
-        
-        // Search for logs with verification data and log what we find
-        console.log("Searching logs for verification data");
-        for (const log of session.activityLogs) {
-          console.log(`Log action: ${log.action}, has details: ${!!log.details}`);
-          
-          if (log.details) {
-            console.log("Log details keys:", Object.keys(log.details));
-            
-            // Check verification property
-            if (log.details.verification) {
-              console.log("Found verification details in log");
-              
-              if (log.details.verification.fieldVerifications) {
-                console.log("Found fieldVerifications in log.details.verification");
-                extractAndSetVerificationResults(log.details.verification.fieldVerifications);
-                return;
-              }
-            }
-          }
-        }
-        
-        // If we didn't find structured verification data, look for any log with the right action
-        const verificationLog = session.activityLogs.find(log => 
-          verificationActions.includes(log.action)
-        );
-        
-        if (verificationLog?.details) {
-          console.log("Found verification log with action:", verificationLog.action);
-          
-          // Try different possible paths for verification data
-          // Use optional chaining to safely access nested properties that might not exist
-          if (verificationLog.details.verification?.fieldVerifications) {
-            console.log("Found fieldVerifications in verification property");
-            extractAndSetVerificationResults(verificationLog.details.verification.fieldVerifications);
-            return;
-          }
-          
-          // Check for other possible locations
-          const detailsObj = verificationLog.details as any; // Type assertion to avoid TS errors
-          
-          if (detailsObj.fieldVerifications) {
-            console.log("Found fieldVerifications directly in details");
-            extractAndSetVerificationResults(detailsObj.fieldVerifications);
-            return;
-          }
-          
-          if (detailsObj.verificationData?.fieldVerifications) {
-            console.log("Found fieldVerifications in verificationData");
-            extractAndSetVerificationResults(detailsObj.verificationData.fieldVerifications);
-            return;
-          }
-          
-          if (detailsObj.data?.fieldVerifications) {
-            console.log("Found fieldVerifications in data property");
-            extractAndSetVerificationResults(detailsObj.data.fieldVerifications);
-            return;
-          }
-          
-          if (detailsObj.data?.verification?.fieldVerifications) {
-            console.log("Found fieldVerifications in data.verification");
-            extractAndSetVerificationResults(detailsObj.data.verification.fieldVerifications);
-            return;
-          }
-        }
-      }
-      
-      // If we still don't have verification data, create a basic placeholder
-      console.log("No verification data found, creating placeholder");
-      
-      // Create basic verification results with just the seal data
-      if (session.seal) {
-        const placeholderResults = {
-          matches: ["sealVerification"],
-          mismatches: [],
-          unverified: [],
-          allFields: {
-            sealVerification: {
-              operatorValue: session.seal.barcode,
-              guardValue: "Verified",
-              matches: true,
-              comment: "Seal verified without detailed field data",
-              isVerified: true
-            }
-          },
-          timestamp: session.seal.scannedAt || new Date().toISOString()
-        };
-        
-        console.log("Setting placeholder verification results");
-        setVerificationResults(placeholderResults);
-      }
-    }
-  }, [session, extractAndSetVerificationResults]);
   
   // Check if user has edit permission
   useEffect(() => {
@@ -1798,11 +1404,24 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
 
   // Seal Verification Component
   const renderSealVerification = () => {
-    if (!session || !session.seal) {
+    if (!session) {
       return (
         <Box sx={{ py: 3, textAlign: 'center' }}>
           <Typography variant="body1" color="text.secondary">
-            No seal information available for verification.
+            Loading session data...
+          </Typography>
+        </Box>
+      );
+    }
+    
+    // Check if no operator seals or QR codes are available
+    if (operatorSeals.length === 0 && 
+        (!session.qrCodes || (!session.qrCodes.primaryBarcode && 
+         (!session.qrCodes.additionalBarcodes || session.qrCodes.additionalBarcodes.length === 0)))) {
+      return (
+        <Box sx={{ py: 3, textAlign: 'center' }}>
+          <Typography variant="body1" color="text.secondary">
+            No seal tag information available for verification. This session may have been created before seal tag scanning was implemented.
           </Typography>
         </Box>
       );
@@ -2364,7 +1983,13 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
                       {session.images.sealingImages.map((imageUrl, index) => (
                         <TableRow key={index}>
                           <TableCell>{index + 1}</TableCell>
-                          <TableCell>{session.seal?.barcode ? `${session.seal.barcode}-${index+1}` : `Seal Tag ${index+1}`}</TableCell>
+                          <TableCell>
+                            {session.qrCodes && session.qrCodes.primaryBarcode && index === 0 
+                              ? session.qrCodes.primaryBarcode
+                              : session.qrCodes && session.qrCodes.additionalBarcodes && session.qrCodes.additionalBarcodes[index - 1] 
+                                ? session.qrCodes.additionalBarcodes[index - 1]
+                                : `Seal Tag ${index + 1}`}
+                          </TableCell>
                           <TableCell>
                             <Chip 
                               label="Operator Entered" 
@@ -2400,13 +2025,23 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
               <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
                 <Box sx={{ flex: '1 0 45%', minWidth: '250px' }}>
                   <Typography variant="body2">
-                    <strong>Seal Barcode:</strong> {session.seal.barcode}
+                    <strong>Seal Tags:</strong> {session.qrCodes?.primaryBarcode || "No seal tag scanned"}
+                    {session.qrCodes?.additionalBarcodes && session.qrCodes.additionalBarcodes.length > 0 && (
+                      <Box mt={1}>
+                        <Typography variant="caption">Additional Tags:</Typography>
+                        <ul style={{ margin: '4px 0', paddingLeft: '20px' }}>
+                          {session.qrCodes.additionalBarcodes.map((code, idx) => (
+                            <li key={idx}><Typography variant="caption">{code}</Typography></li>
+                          ))}
+                        </ul>
+                      </Box>
+                    )}
                   </Typography>
                 </Box>
                 <Box sx={{ flex: '1 0 45%', minWidth: '250px' }}>
                   <Typography variant="body2">
                     <strong>Status:</strong>{" "}
-                    {session.seal.verified ? (
+                    {session.seal?.verified ? (
                       <Box component="span" sx={{ display: "inline-flex", alignItems: "center" }}>
                         Verified <CheckCircle color="success" sx={{ ml: 0.5 }} />
                       </Box>
@@ -2417,17 +2052,17 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
                     )}
                   </Typography>
                 </Box>
-                {session.seal.verified && session.seal.verifiedBy && (
+                {session.seal?.verified && session.seal?.verifiedBy && (
                   <Box sx={{ flex: '1 0 45%', minWidth: '250px' }}>
                     <Typography variant="body2">
-                      <strong>Verified By:</strong> {session.seal.verifiedBy.name}
+                      <strong>Verified By:</strong> {session.seal?.verifiedBy?.name}
                     </Typography>
                   </Box>
                 )}
-                {session.seal.verified && session.seal.scannedAt && (
+                {session.seal?.verified && session.seal?.scannedAt && (
                   <Box sx={{ flex: '1 0 45%', minWidth: '250px' }}>
                     <Typography variant="body2">
-                      <strong>Verified At:</strong> {formatDate(session.seal.scannedAt)}
+                      <strong>Verified At:</strong> {formatDate(session.seal?.scannedAt)}
                     </Typography>
                   </Box>
                 )}
@@ -2805,7 +2440,9 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
           </Box>
         )}
 
-        {session.seal && (
+        {/* Show seal information if either seal tags or sealing images are available */}
+        {((session.qrCodes && (session.qrCodes.primaryBarcode || (session.qrCodes.additionalBarcodes && session.qrCodes.additionalBarcodes.length > 0))) ||
+          (session.images && session.images.sealingImages && session.images.sealingImages.length > 0)) && (
           <Box mb={3}>
             <Typography variant="h6" gutterBottom>
               Seal Information
@@ -2815,7 +2452,7 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
             {/* Display seal tags with images in a table */}
             {session.images && session.images.sealingImages && session.images.sealingImages.length > 0 ? (
               <>
-                <Typography variant="body1" sx={{ mb: 2 }}>
+                <Typography variant="body2" sx={{ mb: 2 }}>
                   Total Seal Tags: <strong>{session.images.sealingImages.length}</strong>
                 </Typography>
                 
@@ -2833,7 +2470,13 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
                       {session.images.sealingImages.map((imageUrl, index) => (
                         <TableRow key={index}>
                           <TableCell>{index + 1}</TableCell>
-                          <TableCell>{session.seal?.barcode ? `${session.seal.barcode}-${index+1}` : `Seal Tag ${index+1}`}</TableCell>
+                          <TableCell>
+                            {session.qrCodes && session.qrCodes.primaryBarcode && index === 0 
+                              ? session.qrCodes.primaryBarcode
+                              : session.qrCodes && session.qrCodes.additionalBarcodes && session.qrCodes.additionalBarcodes[index - 1] 
+                                ? session.qrCodes.additionalBarcodes[index - 1]
+                                : `Seal Tag ${index + 1}`}
+                          </TableCell>
                           <TableCell>
                             <Chip 
                               label="Operator Entered" 
@@ -2868,14 +2511,24 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
             ) : (
               <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
                 <Box sx={{ flex: '1 0 45%', minWidth: '250px' }}>
-                  <Typography variant="body1">
-                    <strong>Barcode:</strong> {session.seal.barcode}
+                  <Typography variant="body2">
+                    <strong>Seal Tags:</strong> {session.qrCodes?.primaryBarcode || "No seal tag scanned"}
+                    {session.qrCodes?.additionalBarcodes && session.qrCodes.additionalBarcodes.length > 0 && (
+                      <Box mt={1}>
+                        <Typography variant="caption">Additional Tags:</Typography>
+                        <ul style={{ margin: '4px 0', paddingLeft: '20px' }}>
+                          {session.qrCodes.additionalBarcodes.map((code, idx) => (
+                            <li key={idx}><Typography variant="caption">{code}</Typography></li>
+                          ))}
+                        </ul>
+                      </Box>
+                    )}
                   </Typography>
                 </Box>
                 <Box sx={{ flex: '1 0 45%', minWidth: '250px' }}>
-                  <Typography variant="body1">
+                  <Typography variant="body2">
                     <strong>Status:</strong>{" "}
-                    {session.seal.verified ? (
+                    {session.seal?.verified ? (
                       <Box component="span" sx={{ display: "inline-flex", alignItems: "center" }}>
                         Verified <CheckCircle color="success" sx={{ ml: 0.5 }} />
                       </Box>
@@ -2886,17 +2539,17 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
                     )}
                   </Typography>
                 </Box>
-                {session.seal.verified && session.seal.verifiedBy && (
+                {session.seal?.verified && session.seal?.verifiedBy && (
                   <Box sx={{ flex: '1 0 45%', minWidth: '250px' }}>
-                    <Typography variant="body1">
-                      <strong>Verified By:</strong> {session.seal.verifiedBy.name}
+                    <Typography variant="body2">
+                      <strong>Verified By:</strong> {session.seal?.verifiedBy?.name}
                     </Typography>
                   </Box>
                 )}
-                {session.seal.verified && session.seal.scannedAt && (
+                {session.seal?.verified && session.seal?.scannedAt && (
                   <Box sx={{ flex: '1 0 45%', minWidth: '250px' }}>
-                    <Typography variant="body1">
-                      <strong>Verified At:</strong> {formatDate(session.seal.scannedAt)}
+                    <Typography variant="body2">
+                      <strong>Verified At:</strong> {formatDate(session.seal?.scannedAt)}
                     </Typography>
                   </Box>
                 )}
@@ -3026,8 +2679,8 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
           </Box>
         )}
 
-        {/* Field Verification Summary - Always show for completed sessions with verified seal */}
-        {session.status === SessionStatus.COMPLETED && session.seal?.verified && (
+        {/* Field Verification Summary - Show for completed sessions */}
+        {session.status === SessionStatus.COMPLETED && (
           <Box mb={3}>
             <Typography variant="h6" gutterBottom sx={{ color: 'primary.main', fontWeight: 'bold' }}>
               Field Verification Summary
