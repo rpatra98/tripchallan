@@ -23,14 +23,20 @@ import {
   FormControl,
   InputLabel,
   Select,
-  MenuItem
+  MenuItem,
+  Table,
+  TableHead,
+  TableBody,
+  TableRow,
+  TableCell
 } from "@mui/material";
 import { 
   ArrowBack, 
   ArrowForward, 
   PhotoCamera, 
   QrCode,
-  Download
+  Download,
+  Close
 } from "@mui/icons-material";
 import Link from "next/link";
 import { EmployeeSubrole } from "@/prisma/enums";
@@ -79,6 +85,8 @@ type SealTagsForm = {
   sealTagIds: string[];
   sealTagScanned: boolean;
   manualSealTagId: string;
+  sealTagImages: Record<string, File | null>;
+  sealTagMethods: Record<string, 'digitally scanned' | 'manually entered'>;
   timestamps: Record<string, string>;
 };
 
@@ -283,6 +291,8 @@ export default function CreateSessionPage() {
     sealTagIds: [],
     sealTagScanned: false,
     manualSealTagId: "",
+    sealTagImages: {},
+    sealTagMethods: {},
     timestamps: {}
   });
 
@@ -644,7 +654,34 @@ export default function CreateSessionPage() {
     }
   };
 
-  // Add a handler for adding seal tags
+  // Add a handler for adding seal tags with images
+  const handleAddSealTagWithImage = (tagId: string, imageFile: File) => {
+    // Check if tag is already in the list
+    if (sealTags.sealTagIds.includes(tagId)) {
+      setError("Tag ID already used");
+      setTimeout(() => setError(""), 3000);
+      return;
+    }
+    
+    setSealTags(prev => ({
+      ...prev,
+      sealTagIds: [...prev.sealTagIds, tagId],
+      sealTagImages: {
+        ...prev.sealTagImages,
+        [tagId]: imageFile
+      },
+      sealTagMethods: {
+        ...prev.sealTagMethods,
+        [tagId]: 'digitally scanned'
+      },
+      timestamps: {
+        ...prev.timestamps,
+        [tagId]: new Date().toISOString()
+      }
+    }));
+  };
+
+  // Update handleAddSealTag for manual entries to require an image
   const handleAddSealTag = () => {
     if (!sealTags.manualSealTagId) return;
     
@@ -654,99 +691,209 @@ export default function CreateSessionPage() {
       setTimeout(() => setError(""), 3000);
       return;
     }
+
+    // Create validation error if no image is provided for manual entry
+    if (!manualEntryImage) {
+      setValidationErrors(prev => ({
+        ...prev,
+        manualEntryImage: "An image is required for manually entered seal tags"
+      }));
+      return;
+    }
     
     setSealTags(prev => ({
       ...prev,
       sealTagIds: [...prev.sealTagIds, prev.manualSealTagId],
+      sealTagImages: {
+        ...prev.sealTagImages,
+        [prev.manualSealTagId]: manualEntryImage
+      },
+      sealTagMethods: {
+        ...prev.sealTagMethods,
+        [prev.manualSealTagId]: 'manually entered'
+      },
       manualSealTagId: "",
       timestamps: {
         ...prev.timestamps,
         [prev.manualSealTagId]: new Date().toISOString()
       }
     }));
+
+    // Clear the manual entry image
+    setManualEntryImage(null);
+    // Clear validation errors
+    if (validationErrors.manualEntryImage) {
+      setValidationErrors(prev => {
+        const newErrors = {...prev};
+        delete newErrors.manualEntryImage;
+        return newErrors;
+      });
+    }
   };
 
   // Handle removing a seal tag
   const handleRemoveSealTag = (tagId: string) => {
     setSealTags(prev => {
       const updatedSealTagIds = prev.sealTagIds.filter(id => id !== tagId);
+      
+      // Also remove the image and method for this tag
+      const { [tagId]: removedImage, ...updatedImages } = prev.sealTagImages;
+      const { [tagId]: removedMethod, ...updatedMethods } = prev.sealTagMethods;
       const { [tagId]: _, ...updatedTimestamps } = prev.timestamps;
       
       return {
         ...prev,
         sealTagIds: updatedSealTagIds,
+        sealTagImages: updatedImages,
+        sealTagMethods: updatedMethods,
         timestamps: updatedTimestamps
       };
     });
   };
 
-  const validateStep = (step: number): boolean => {
+  // State for storing the image for manual seal tag entries
+  const [manualEntryImage, setManualEntryImage] = useState<File | null>(null);
+
+  // Handle image upload for manual seal tag entries
+  const handleManualSealTagImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files?.length) return;
+    
+    const file = e.target.files[0];
+    setManualEntryImage(file);
+    
+    // Clear validation error when file is uploaded
+    if (validationErrors.manualEntryImage) {
+      setValidationErrors(prev => {
+        const newErrors = {...prev};
+        delete newErrors.manualEntryImage;
+        return newErrors;
+      });
+    }
+  };
+
+  // Add validation for ensuring all seal tags have images
+  const validateSealTagsStep = (): boolean => {
     const newErrors: Record<string, string> = {};
     
-    if (step === 0) {
-      // Validate Seal Tags
-      if (sealTags.sealTagIds.length === 0) {
-        newErrors.sealTagIds = "At least one seal tag ID is required";
-      }
-      
-      if (sealTags.sealTagIds.length > 40) {
-        newErrors.sealTagIds = "Maximum of 40 seal tags allowed";
-      }
-      
-      // Check for minimum number of tags (minimum 20 required)
-      if (sealTags.sealTagIds.length < 20) {
-        newErrors.sealTagIds = "Minimum of 20 seal tags required";
-      }
-    } else if (step === 1) {
-      // Validate Loading Details
-      if (!loadingDetails.transporterName.trim()) {
-        newErrors.transporterName = "Transporter name is required";
-      }
-      
-      if (!loadingDetails.materialName.trim()) {
-        newErrors.materialName = "Material name is required";
-      }
-      
-      if (!loadingDetails.receiverPartyName.trim()) {
-        newErrors.receiverPartyName = "Receiver party name is required";
-      }
-      
-      if (!loadingDetails.vehicleNumber.trim()) {
-        newErrors.vehicleNumber = "Vehicle number is required";
-      }
-      
-      if (!loadingDetails.gpsImeiNumber.trim()) {
-        newErrors.gpsImeiNumber = "GPS IMEI number is required";
-      }
-      
-      if (!loadingDetails.loadingSite.trim()) {
-        newErrors.loadingSite = "Loading site is required";
-      }
-    } else if (step === 2) {
-      // Validate Driver Details
-      if (!driverDetails.driverName.trim()) {
-        newErrors.driverName = "Driver name is required";
-      }
-      
-      if (!driverDetails.driverContactNumber.trim()) {
-        newErrors.driverContactNumber = "Driver contact number is required";
-      } else if (!/^\d{10}$/.test(driverDetails.driverContactNumber)) {
-        newErrors.driverContactNumber = "Contact number must be 10 digits";
-      }
-      
-      if (!driverDetails.driverLicense.trim()) {
-        newErrors.driverLicense = "Driver license is required";
-      }
-    } else if (step === 3) {
-      // Validate Images & Verification
-      if (!imagesForm.gpsImeiPicture) newErrors.gpsImeiPicture = "GPS IMEI picture is required";
-      if (!imagesForm.vehicleNumberPlatePicture) newErrors.vehicleNumberPlatePicture = "Vehicle number plate picture is required";
-      if (!imagesForm.driverPicture) newErrors.driverPicture = "Driver's picture is required";
-      if (imagesForm.vehicleImages.length === 0) newErrors.vehicleImages = "At least one vehicle image is required";
+    if (sealTags.sealTagIds.length === 0) {
+      newErrors.sealTagIds = "At least one seal tag ID is required";
+    }
+    
+    if (sealTags.sealTagIds.length > 40) {
+      newErrors.sealTagIds = "Maximum of 40 seal tags allowed";
+    }
+    
+    // Check for minimum number of tags (minimum 20 required)
+    if (sealTags.sealTagIds.length < 20) {
+      newErrors.sealTagIds = "Minimum of 20 seal tags required";
+    }
+    
+    // Check if all seal tags have associated images
+    const missingImages = sealTags.sealTagIds.filter(id => !sealTags.sealTagImages[id]);
+    if (missingImages.length > 0) {
+      newErrors.sealTagImages = `${missingImages.length} seal tag(s) are missing images`;
     }
     
     setValidationErrors(newErrors);
     return Object.keys(newErrors).length === 0;
+  };
+
+  // Update the validateStep function
+  const validateStep = (step: number): boolean => {
+    if (step === 0) {
+      // Use the specialized validation for seal tags
+      return validateSealTagsStep();
+    } else if (step === 1) {
+      // Validate Loading Details
+      if (!loadingDetails.transporterName.trim()) {
+        setValidationErrors(prev => ({
+          ...prev,
+          transporterName: "Transporter name is required"
+        }));
+      }
+      
+      if (!loadingDetails.materialName.trim()) {
+        setValidationErrors(prev => ({
+          ...prev,
+          materialName: "Material name is required"
+        }));
+      }
+      
+      if (!loadingDetails.receiverPartyName.trim()) {
+        setValidationErrors(prev => ({
+          ...prev,
+          receiverPartyName: "Receiver party name is required"
+        }));
+      }
+      
+      if (!loadingDetails.vehicleNumber.trim()) {
+        setValidationErrors(prev => ({
+          ...prev,
+          vehicleNumber: "Vehicle number is required"
+        }));
+      }
+      
+      if (!loadingDetails.gpsImeiNumber.trim()) {
+        setValidationErrors(prev => ({
+          ...prev,
+          gpsImeiNumber: "GPS IMEI number is required"
+        }));
+      }
+      
+      if (!loadingDetails.loadingSite.trim()) {
+        setValidationErrors(prev => ({
+          ...prev,
+          loadingSite: "Loading site is required"
+        }));
+      }
+    } else if (step === 2) {
+      // Validate Driver Details
+      if (!driverDetails.driverName.trim()) {
+        setValidationErrors(prev => ({
+          ...prev,
+          driverName: "Driver name is required"
+        }));
+      }
+      
+      if (!driverDetails.driverContactNumber.trim()) {
+        setValidationErrors(prev => ({
+          ...prev,
+          driverContactNumber: "Driver contact number is required"
+        }));
+      } else if (!/^\d{10}$/.test(driverDetails.driverContactNumber)) {
+        setValidationErrors(prev => ({
+          ...prev,
+          driverContactNumber: "Contact number must be 10 digits"
+        }));
+      }
+      
+      if (!driverDetails.driverLicense.trim()) {
+        setValidationErrors(prev => ({
+          ...prev,
+          driverLicense: "Driver license is required"
+        }));
+      }
+    } else if (step === 3) {
+      // Validate Images & Verification
+      if (!imagesForm.gpsImeiPicture) setValidationErrors(prev => ({
+        ...prev,
+        gpsImeiPicture: "GPS IMEI picture is required"
+      }));
+      if (!imagesForm.vehicleNumberPlatePicture) setValidationErrors(prev => ({
+        ...prev,
+        vehicleNumberPlatePicture: "Vehicle number plate picture is required"
+      }));
+      if (!imagesForm.driverPicture) setValidationErrors(prev => ({
+        ...prev,
+        driverPicture: "Driver's picture is required"
+      }));
+      if (imagesForm.vehicleImages.length === 0) setValidationErrors(prev => ({
+        ...prev,
+        vehicleImages: "At least one vehicle image is required"
+      }));
+    }
+    
+    return Object.keys(validationErrors).length === 0;
   };
 
   const handleNext = () => {
@@ -843,10 +990,39 @@ export default function CreateSessionPage() {
       
       // Add seal tags data
       formData.append('sealTagIds', JSON.stringify(sealTags.sealTagIds));
+      formData.append('sealTagMethods', JSON.stringify(sealTags.sealTagMethods));
       formData.append('sealTagTimestamps', JSON.stringify(sealTags.timestamps));
       
       // Prepare base64 image data
       const imageBase64Data: Record<string, any> = {};
+      
+      // Add seal tag images to the imageBase64Data and formData
+      imageBase64Data.sealTagImages = {};
+      for (const tagId of sealTags.sealTagIds) {
+        const image = sealTags.sealTagImages[tagId];
+        if (image) {
+          try {
+            const resizedImage = await resizeImage(image, 1280, 1280, 0.8);
+            const base64Data = await fileToBase64(resizedImage);
+            
+            // Add to base64 data
+            imageBase64Data.sealTagImages[tagId] = {
+              data: base64Data.split(',')[1],
+              contentType: resizedImage.type,
+              name: resizedImage.name,
+              method: sealTags.sealTagMethods[tagId] || 'unknown'
+            };
+            
+            // Add to form data
+            formData.append(`sealTagImages[${tagId}]`, resizedImage);
+          } catch (error) {
+            console.error(`Error processing seal tag image for ${tagId}:`, error);
+            setError(`Error processing image for seal tag ${tagId}. Please try again.`);
+            setIsSubmitting(false);
+            return;
+          }
+        }
+      }
       
       // Convert registration certificate document to base64 if available
       if (loadingDetails.registrationCertificateDoc) {
@@ -888,7 +1064,7 @@ export default function CreateSessionPage() {
       if (imagesForm.gpsImeiPicture) {
         try {
           // Resize the image first
-          const resizedImage = await resizeImage(imagesForm.gpsImeiPicture, 1280, 1280, 0.8/*, 2*/);
+          const resizedImage = await resizeImage(imagesForm.gpsImeiPicture, 1280, 1280, 0.8);
           const base64Data = await fileToBase64(resizedImage);
           imageBase64Data.gpsImeiPicture = {
             data: base64Data.split(',')[1], // Remove data URL prefix
@@ -916,7 +1092,7 @@ export default function CreateSessionPage() {
       for (let i = 0; i < Math.min(imagesForm.vehicleImages.length, maxImagesPerCategory); i++) {
         try {
           const file = imagesForm.vehicleImages[i];
-          const resizedImage = await resizeImage(file, 1280, 1280, 0.8/*, 2*/);
+          const resizedImage = await resizeImage(file, 1280, 1280, 0.8);
           const base64Data = await fileToBase64(resizedImage);
           imageBase64Data.vehicleImages.push({
             data: base64Data.split(',')[1],
@@ -1001,9 +1177,29 @@ export default function CreateSessionPage() {
   };
 
   const steps = ['Seal Tags', 'Loading Details', 'Driver Details', 'Images'];
-
-  // Steps for the form
-
+  
+  // Function to display a preview of an image
+  const renderImagePreview = (file: File | null) => {
+    if (!file) return null;
+    
+    const imageUrl = URL.createObjectURL(file);
+    return (
+      <Box sx={{ mt: 1, position: 'relative', width: '100%', height: '100%' }}>
+        <img
+          src={imageUrl}
+          alt="Preview"
+          style={{ 
+            width: '100%', 
+            height: '100%', 
+            objectFit: 'cover',
+            borderRadius: '4px'
+          }}
+          onLoad={() => URL.revokeObjectURL(imageUrl)}
+        />
+      </Box>
+    );
+  };
+  
   // Add a section to display QR code and loading ID after trip creation
   const renderSuccessView = () => {
     return (
@@ -1142,7 +1338,7 @@ export default function CreateSessionPage() {
                   Seal Tags
                 </Typography>
                 <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                  Scan or manually enter seal tags. A minimum of 20 seal tags is required. Each tag must be unique and will be registered to this session.
+                  Scan or manually enter seal tags. A minimum of 20 seal tags is required. Each tag must be unique and have an associated image.
                 </Typography>
                 
                 {error && (
@@ -1158,7 +1354,7 @@ export default function CreateSessionPage() {
                     Scan QR/Barcode
                   </Typography>
                   <ClientSideQrScanner
-                    onScan={(data) => {
+                    onScanWithImage={(data, imageFile) => {
                       // Check if already scanned
                       if (sealTags.sealTagIds.includes(data)) {
                         setError("Tag ID already used");
@@ -1166,14 +1362,7 @@ export default function CreateSessionPage() {
                         return;
                       }
                       
-                      setSealTags(prev => ({
-                        ...prev,
-                        sealTagIds: [...prev.sealTagIds, data],
-                        timestamps: {
-                          ...prev.timestamps,
-                          [data]: new Date().toISOString()
-                        }
-                      }));
+                      handleAddSealTagWithImage(data, imageFile);
                     }}
                     buttonText="Scan QR Code"
                     scannerTitle="Scan Seal Tag"
@@ -1198,7 +1387,7 @@ export default function CreateSessionPage() {
                         <InputAdornment position="end">
                           <Button 
                             onClick={handleAddSealTag} 
-                            disabled={!sealTags.manualSealTagId}
+                            disabled={!sealTags.manualSealTagId || !manualEntryImage}
                           >
                             Add
                           </Button>
@@ -1207,16 +1396,40 @@ export default function CreateSessionPage() {
                     }}
                     error={!!validationErrors.sealTagIds}
                     helperText={validationErrors.sealTagIds}
+                    sx={{ mb: 2 }}
                   />
+                  
+                  <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2 }}>
+                    <Button
+                      variant="outlined"
+                      component="label"
+                      startIcon={<PhotoCamera />}
+                      sx={{ height: '56px' }}
+                    >
+                      {manualEntryImage ? 'Change Image' : 'Upload Image'}
+                      <input
+                        type="file"
+                        hidden
+                        accept="image/*"
+                        onChange={handleManualSealTagImageChange}
+                      />
+                    </Button>
+                    
+                    {renderImagePreview(manualEntryImage)}
+                  </Box>
+                  
+                  {validationErrors.manualEntryImage && (
+                    <FormHelperText error>{validationErrors.manualEntryImage}</FormHelperText>
+                  )}
                 </Box>
               </Box>
               
               <Box sx={{ width: '100%' }}>
                 <Typography variant="subtitle1" gutterBottom sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                   <span>Registered Seal Tags: {sealTags.sealTagIds.length}</span>
-                  {validationErrors.sealTagMinCount && (
-                    <Typography variant="caption" color="warning.main">
-                      {validationErrors.sealTagMinCount}
+                  {validationErrors.sealTagImages && (
+                    <Typography variant="caption" color="error">
+                      {validationErrors.sealTagImages}
                     </Typography>
                   )}
                 </Typography>
@@ -1227,37 +1440,57 @@ export default function CreateSessionPage() {
                     p: 2, 
                     bgcolor: 'background.paper', 
                     borderRadius: 1,
-                    maxHeight: '300px',
-                    overflowY: 'auto',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: 1
+                    maxHeight: '400px',
+                    overflowY: 'auto'
                   }}>
-                    {sealTags.sealTagIds.map((tagId, index) => (
-                      <Box 
-                        key={tagId}
-                        sx={{
-                          display: 'flex',
-                          justifyContent: 'space-between',
-                          alignItems: 'center',
-                          borderBottom: '1px solid #eee',
-                          pb: 1
-                        }}
-                      >
-                        <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                          <Chip
-                            label={`${index + 1}. ${tagId}`}
-                            onDelete={() => handleRemoveSealTag(tagId)}
-                            sx={{ mr: 2 }}
-                          />
-                          {sealTags.timestamps[tagId] && (
-                            <Typography variant="caption" color="text.secondary">
-                              {new Date(sealTags.timestamps[tagId]).toLocaleString()}
-                            </Typography>
-                          )}
-                        </Box>
-                      </Box>
-                    ))}
+                    <Table size="small">
+                      <TableHead>
+                        <TableRow>
+                          <TableCell>No.</TableCell>
+                          <TableCell>Seal Tag ID</TableCell>
+                          <TableCell>Method</TableCell>
+                          <TableCell>Image</TableCell>
+                          <TableCell>Timestamp</TableCell>
+                          <TableCell>Action</TableCell>
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {sealTags.sealTagIds.map((tagId, index) => (
+                          <TableRow key={tagId}>
+                            <TableCell>{index + 1}</TableCell>
+                            <TableCell>{tagId}</TableCell>
+                            <TableCell>
+                              <Chip 
+                                label={sealTags.sealTagMethods[tagId] === 'digitally scanned' ? 'Digitally Scanned' : 'Manually Entered'} 
+                                color={sealTags.sealTagMethods[tagId] === 'digitally scanned' ? 'primary' : 'secondary'} 
+                                size="small"
+                              />
+                            </TableCell>
+                            <TableCell>
+                              {sealTags.sealTagImages[tagId] ? (
+                                <Box sx={{ width: 40, height: 40 }}>
+                                  {renderImagePreview(sealTags.sealTagImages[tagId])}
+                                </Box>
+                              ) : (
+                                <Typography variant="caption" color="error">No image</Typography>
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              {sealTags.timestamps[tagId] && (
+                                <Typography variant="caption" color="text.secondary">
+                                  {new Date(sealTags.timestamps[tagId]).toLocaleString()}
+                                </Typography>
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              <IconButton size="small" onClick={() => handleRemoveSealTag(tagId)}>
+                                <Close fontSize="small" />
+                              </IconButton>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
                   </Box>
                 ) : (
                   <Typography variant="body2" color="text.secondary" sx={{ mt: 1, fontStyle: 'italic' }}>

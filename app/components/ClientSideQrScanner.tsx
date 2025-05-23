@@ -9,7 +9,12 @@ interface ClientSideQrScannerProps {
   /**
    * Callback function when a QR code is scanned
    */
-  onScan: (data: string) => void;
+  onScan?: (data: string) => void;
+  
+  /**
+   * Callback function when a QR code is scanned with image
+   */
+  onScanWithImage?: (data: string, imageFile: File) => void;
   
   /**
    * Text to display on the scan button
@@ -33,6 +38,7 @@ interface ClientSideQrScannerProps {
  */
 const ClientSideQrScanner: React.FC<ClientSideQrScannerProps> = ({
   onScan,
+  onScanWithImage,
   buttonText = 'Scan QR Code',
   scannerTitle = 'Scan QR/Barcode',
   buttonVariant = 'contained',
@@ -45,9 +51,14 @@ const ClientSideQrScanner: React.FC<ClientSideQrScannerProps> = ({
   }, []);
   
   const handleScan = useCallback((data: string) => {
-    onScan(data);
+    if (onScan) onScan(data);
     setOpen(false);
   }, [onScan]);
+
+  const handleScanWithImage = useCallback((data: string, imageFile: File) => {
+    if (onScanWithImage) onScanWithImage(data, imageFile);
+    setOpen(false);
+  }, [onScanWithImage]);
 
   return (
     <>
@@ -64,7 +75,8 @@ const ClientSideQrScanner: React.FC<ClientSideQrScannerProps> = ({
         <QrScannerDialog 
           open={open}
           onClose={handleClose}
-          onScan={handleScan}
+          onScan={onScan ? handleScan : undefined}
+          onScanWithImage={onScanWithImage ? handleScanWithImage : undefined}
           title={scannerTitle}
         />
       )}
@@ -75,7 +87,8 @@ const ClientSideQrScanner: React.FC<ClientSideQrScannerProps> = ({
 interface QrScannerDialogProps {
   open: boolean;
   onClose: () => void;
-  onScan: (data: string) => void;
+  onScan?: (data: string) => void;
+  onScanWithImage?: (data: string, imageFile: File) => void;
   title: string;
 }
 
@@ -83,6 +96,7 @@ const QrScannerDialog: React.FC<QrScannerDialogProps> = ({
   open,
   onClose,
   onScan,
+  onScanWithImage,
   title
 }) => {
   const [error, setError] = useState<string | null>(null);
@@ -91,6 +105,8 @@ const QrScannerDialog: React.FC<QrScannerDialogProps> = ({
   const [isScanning, setIsScanning] = useState(false);
   
   const scannerRef = React.useRef<any>(null);
+  const videoRef = React.useRef<HTMLVideoElement | null>(null);
+  const canvasRef = React.useRef<HTMLCanvasElement | null>(null);
   const scannerContainerId = "html5-qrcode-scanner";
   
   React.useEffect(() => {
@@ -157,14 +173,82 @@ const QrScannerDialog: React.FC<QrScannerDialogProps> = ({
             qrbox: { width: 250, height: 250 }
           },
           (decodedText: string) => {
-            onScan(decodedText);
+            // Capture the image from the video feed
+            if (onScanWithImage) {
+              captureFrame(decodedText);
+            } else if (onScan) {
+              onScan(decodedText);
+            }
           },
           () => {}
         );
+
+        // Get reference to the video element created by the scanner
+        setTimeout(() => {
+          const videoElement = document.querySelector('#' + scannerContainerId + ' video') as HTMLVideoElement;
+          if (videoElement) {
+            videoRef.current = videoElement;
+          }
+        }, 1000); // Give the scanner time to set up the video
       } catch (err) {
         console.error('Error starting scanner:', err);
         setError("Failed to start scanner. Please try again.");
         setIsScanning(false);
+      }
+    };
+
+    // Function to capture a frame from the video as an image
+    const captureFrame = (decodedText: string) => {
+      try {
+        if (!videoRef.current) {
+          // Try to find the video element if not already set
+          const videoElement = document.querySelector('#' + scannerContainerId + ' video') as HTMLVideoElement;
+          if (!videoElement) {
+            console.error('Video element not found');
+            if (onScan) {
+              onScan(decodedText);
+            }
+            return;
+          }
+          videoRef.current = videoElement;
+        }
+
+        // Create a canvas element if it doesn't exist
+        if (!canvasRef.current) {
+          const canvas = document.createElement('canvas');
+          canvasRef.current = canvas;
+        }
+
+        const video = videoRef.current;
+        const canvas = canvasRef.current;
+        
+        // Set canvas dimensions to match video
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        
+        // Draw the current video frame to the canvas
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+          
+          // Convert canvas to blob
+          canvas.toBlob((blob) => {
+            if (blob && onScanWithImage) {
+              // Create a file from the blob
+              const imageFile = new File([blob], `qr-scan-${Date.now()}.jpg`, { type: 'image/jpeg' });
+              onScanWithImage(decodedText, imageFile);
+            } else if (onScan) {
+              onScan(decodedText);
+            }
+          }, 'image/jpeg', 0.8);
+        } else if (onScan) {
+          onScan(decodedText);
+        }
+      } catch (error) {
+        console.error('Error capturing frame:', error);
+        if (onScan) {
+          onScan(decodedText);
+        }
       }
     };
     
@@ -189,7 +273,7 @@ const QrScannerDialog: React.FC<QrScannerDialogProps> = ({
     }
     
     return undefined;
-  }, [open, onScan]);
+  }, [open, onScan, onScanWithImage]);
   
   const handleRetry = () => {
     if (scannerRef.current) {
