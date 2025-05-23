@@ -61,6 +61,7 @@ import Link from "next/link";
 import { SessionStatus, EmployeeSubrole } from "@/prisma/enums";
 import CommentSection from "@/app/components/sessions/CommentSection";
 import { jsPDF } from 'jspdf';
+import ClientSideQrScanner from "@/app/components/ClientSideQrScanner";
 
 // Types
 type SealType = {
@@ -232,7 +233,6 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
   // New state for seal tag verification
   const [scanInput, setScanInput] = useState('');
   const [scanMethod, setScanMethod] = useState('manual');
-  const [isScanning, setIsScanning] = useState(false);
   const [scanError, setScanError] = useState('');
   const [guardScannedSeals, setGuardScannedSeals] = useState<Array<{
     id: string;
@@ -430,16 +430,6 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
     // Update comparison
     updateSealComparison(updatedSeals);
   }, [guardScannedSeals, updateSealComparison]);
-
-  // Start/stop scanner
-  const toggleScanner = useCallback(() => {
-    setIsScanning(!isScanning);
-    if (!isScanning) {
-      setScanMethod('digital');
-    } else {
-      setScanMethod('manual');
-    }
-  }, [isScanning]);
 
   // Report download handlers
   const handleDownloadReport = async (format: string) => {
@@ -1788,51 +1778,47 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
                 onChange={(e) => setScanInput(e.target.value)}
                 error={!!scanError}
                 helperText={scanError}
-                disabled={isScanning}
               />
               
               <Button 
                 variant="contained" 
                 onClick={() => handleScanComplete(scanInput)}
-                disabled={isScanning || !scanInput.trim()}
+                disabled={!scanInput.trim()}
               >
                 Add Manually
               </Button>
               
-              <Button 
-                variant={isScanning ? "outlined" : "contained"}
-                color={isScanning ? "error" : "primary"}
-                onClick={toggleScanner}
-                startIcon={isScanning ? <Close /> : <QrCode />}
-              >
-                {isScanning ? "Cancel Scan" : "Scan QR/Barcode"}
-              </Button>
+              <ClientSideQrScanner
+                onScanWithImage={(data, imageFile) => {
+                  // Set method to digital since this was scanned
+                  setScanMethod('digital');
+                  
+                  // Add the seal with the scanned data and captured image
+                  const newSeal = {
+                    id: data,
+                    method: 'digital',
+                    image: imageFile,
+                    imagePreview: URL.createObjectURL(imageFile),
+                    timestamp: new Date().toISOString(),
+                    verified: operatorSeals.some(seal => seal.id === data)
+                  };
+                  
+                  // Check if already scanned
+                  if (guardScannedSeals.some(seal => seal.id === data)) {
+                    setScanError('This seal has already been scanned');
+                    setTimeout(() => setScanError(''), 3000);
+                    return;
+                  }
+                  
+                  setGuardScannedSeals(prev => [...prev, newSeal]);
+                  updateSealComparison([...guardScannedSeals, newSeal]);
+                }}
+                buttonText="Scan QR/Barcode"
+                scannerTitle="Scan Seal Tag"
+                buttonVariant="contained"
+              />
             </Box>
-
-            {isScanning && (
-              <Box sx={{ p: 2, border: '1px dashed', borderColor: 'primary.main', borderRadius: 1, bgcolor: 'background.paper' }}>
-                <Typography variant="body2" gutterBottom>
-                  Position the QR/barcode in front of your camera. Scanning will automatically complete when detected.
-              </Typography>
-                
-                {/* Here, you'd integrate an actual QR scanner component */}
-                {/* For this implementation, we'll simulate with a button */}
-                <Box sx={{ display: 'flex', justifyContent: 'center', my: 2 }}>
-                  <Button 
-                    variant="outlined" 
-                    onClick={() => {
-                      // Simulate a successful scan with a random ID
-                      const randomId = `SEAL${Math.floor(Math.random() * 10000).toString().padStart(4, '0')}`;
-                      handleScanComplete(randomId);
-                      setIsScanning(false);
-                    }}
-                  >
-                    Simulate Successful Scan
-                  </Button>
-                </Box>
-                </Box>
-            )}
-                </Box>
+          </Box>
         </Paper>
 
         {/* Scanned Seals Table */}
