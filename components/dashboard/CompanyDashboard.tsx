@@ -55,6 +55,10 @@ interface SessionData {
       email: string;
     } | null;
   } | null;
+  tripDetails?: {
+    vehicleNumber?: string;
+    // Other trip details...
+  };
 }
 
 export default function CompanyDashboard({ user, initialTab }: CompanyDashboardProps) {
@@ -503,6 +507,13 @@ export default function CompanyDashboard({ user, initialTab }: CompanyDashboardP
                           <Person color="action" sx={{ mr: 1 }} />
                           <Typography variant="body2" color="text.secondary">
                             Created by: {session.createdBy.name}
+                          </Typography>
+                        </Box>
+
+                        <Box sx={{ display: "flex", alignItems: "center", mb: 2 }}>
+                          <DirectionsCar color="action" sx={{ mr: 1 }} />
+                          <Typography variant="body2" color="text.secondary">
+                            Vehicle Number: {session.tripDetails?.vehicleNumber || "N/A"}
                           </Typography>
                         </Box>
 

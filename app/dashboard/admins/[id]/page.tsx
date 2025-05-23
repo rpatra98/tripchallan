@@ -96,6 +96,10 @@ interface SessionEntity {
     verified: boolean;
     scannedAt: string | null;
   };
+  tripDetails?: {
+    vehicleNumber?: string;
+    // Other trip details...
+  };
 }
 
 interface Session {
@@ -755,6 +759,7 @@ export default function AdminDetailsPage({ params }: AdminDetailsPageProps) {
                     <TableCell>Destination</TableCell>
                     <TableCell>Company</TableCell>
                     <TableCell>Created By</TableCell>
+                    <TableCell>Vehicle Number</TableCell>
                     <TableCell>Status</TableCell>
                     <TableCell>Created On</TableCell>
                     <TableCell>Actions</TableCell>
@@ -763,7 +768,7 @@ export default function AdminDetailsPage({ params }: AdminDetailsPageProps) {
                 <TableBody>
                   {sessions.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={8} align="center">
+                      <TableCell colSpan={9} align="center">
                         <Box p={3} display="flex" flexDirection="column" alignItems="center" gap={2}>
                           <Typography variant="body1">
                             No sessions found for companies managed by this admin
@@ -791,6 +796,7 @@ export default function AdminDetailsPage({ params }: AdminDetailsPageProps) {
                         <TableCell>{session.destination}</TableCell>
                         <TableCell>{session.company.name}</TableCell>
                         <TableCell>{session.createdBy.name}</TableCell>
+                        <TableCell>{session.tripDetails?.vehicleNumber || "N/A"}</TableCell>
                         <TableCell>
                           <Chip 
                             label={session.status} 

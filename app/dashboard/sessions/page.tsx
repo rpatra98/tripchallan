@@ -49,6 +49,10 @@ interface Session {
     verified: boolean;
     scannedAt: string | null;
   };
+  tripDetails?: {
+    vehicleNumber?: string;
+    // Other trip details...
+  };
 }
 
 interface SessionError {
@@ -160,6 +164,14 @@ export default function SessionsPage() {
     {
       accessorKey: "createdBy.name",
       header: "Created By",
+      searchable: true,
+    },
+    {
+      accessorKey: "tripDetails.vehicleNumber",
+      header: "Vehicle Number",
+      cell: ({ row }: { row: any }) => (
+        <span>{row.tripDetails?.vehicleNumber || "N/A"}</span>
+      ),
       searchable: true,
     },
     {
