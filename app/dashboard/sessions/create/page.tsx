@@ -1182,16 +1182,16 @@ export default function CreateSessionPage() {
         generateQRCode(data.session.id);
         setTripCreated(true);
         console.log("Trip created successfully with ID:", data.session.id);
+        
+        // Refresh the user session to update coin balance
+        await refreshUserSession();
+        
+        // Redirect to sessions page after successful creation
+        router.push("/dashboard/sessions");
       } else {
         console.error("API response missing session ID:", data);
         throw new Error("Invalid response from server. Session ID not found.");
       }
-
-      // Refresh the user session to update coin balance
-      await refreshUserSession();
-
-      // Instead of redirecting immediately, show the QR code and loading ID
-      // router.push("/dashboard/sessions");
     } catch (err) {
       const error = err as Error;
       console.error("Error submitting form:", error);
@@ -1279,27 +1279,6 @@ export default function CreateSessionPage() {
       <Box display="flex" justifyContent="center" alignItems="center" minHeight="50vh">
         <CircularProgress />
       </Box>
-    );
-  }
-
-  // Display the success view after trip creation
-  if (tripCreated) {
-    return (
-      <Container maxWidth="lg">
-        <Box mb={3}>
-          <Button
-            component={Link}
-            href="/dashboard/sessions"
-            startIcon={<ArrowBack />}
-          >
-            Back to Sessions
-          </Button>
-        </Box>
-
-        <Paper elevation={2} sx={{ p: 3 }}>
-          {renderSuccessView()}
-        </Paper>
-      </Container>
     );
   }
 
