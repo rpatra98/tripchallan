@@ -97,6 +97,18 @@ export default async function CompanyDetailPage({ params }: { params: { id: stri
         if (company && !company.employees) {
           company.employees = [];
         }
+        
+        // Ensure company has all required fields
+        if (company) {
+          company = {
+            ...company,
+            isActive: company.isActive !== undefined ? company.isActive : true,
+            employees: company.employees || [],
+            coins: company.coins || 0,
+            createdAt: company.createdAt || new Date().toISOString(),
+            updatedAt: company.updatedAt || new Date().toISOString()
+          };
+        }
       }
     } catch (fetchError) {
       console.error("Fetch error:", fetchError);
@@ -223,9 +235,12 @@ export default async function CompanyDetailPage({ params }: { params: { id: stri
           <h1 className="text-2xl font-bold text-red-700">Company Not Found</h1>
           <p className="mt-2">The company with ID: {companyId} was not found or could not be accessed.</p>
           {error && <p className="mt-2 text-red-600">Error details: {error}</p>}
-          <div className="mt-4">
+          <div className="mt-4 flex space-x-4">
             <Link href="/dashboard" className="text-blue-600 hover:underline">
               &larr; Go back to Dashboard
+            </Link>
+            <Link href="/dashboard/companies" className="text-blue-600 hover:underline">
+              View All Companies
             </Link>
           </div>
         </div>
@@ -424,9 +439,18 @@ export default async function CompanyDetailPage({ params }: { params: { id: stri
         <h1 className="text-2xl font-bold text-red-700">Error</h1>
         <p className="mt-2">An error occurred while trying to fetch company details.</p>
         <p className="mt-2 text-red-500">{error instanceof Error ? error.message : String(error)}</p>
-        <div className="mt-4">
+        <div className="mt-4 flex space-x-4">
           <Link href="/dashboard" className="text-blue-600 hover:underline">
             &larr; Go back to Dashboard
+          </Link>
+          <Link href="/dashboard/companies" className="text-blue-600 hover:underline">
+            View All Companies
+          </Link>
+          <Link 
+            href={`/dashboard/companies/${companyId}`}
+            className="text-blue-600 hover:underline"
+          >
+            Try Again
           </Link>
         </div>
       </div>

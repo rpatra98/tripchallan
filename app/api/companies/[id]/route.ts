@@ -39,6 +39,7 @@ export async function GET(
             id: true,
             name: true,
             email: true,
+            role: true,
             subrole: true,
             coins: true,
             createdAt: true
@@ -67,7 +68,7 @@ export async function GET(
         }
       });
 
-      console.log(`API: Company user lookup result:`, companyUser ? `Found with companyId: ${companyUser.companyId}` : "Not Found");
+      console.log(`API: Company user lookup result:`, companyUser ? `Found with companyId: ${companyUser?.companyId || 'null'}` : "Not Found");
 
       // If we found a company user, get the actual company data if it has a companyId
       if (companyUser) {
@@ -81,6 +82,7 @@ export async function GET(
                   id: true,
                   name: true,
                   email: true,
+                  role: true,
                   subrole: true,
                   coins: true,
                   createdAt: true
@@ -106,6 +108,7 @@ export async function GET(
               id: true,
               name: true,
               email: true,
+              role: true,
               subrole: true,
               coins: true,
               createdAt: true
@@ -119,10 +122,11 @@ export async function GET(
             companyId: companyUser.companyId,
             name: companyUser.name,
             email: companyUser.email,
-            coins: companyUser.coins,
+            coins: companyUser.coins || 0,
             createdAt: companyUser.createdAt,
             updatedAt: companyUser.updatedAt,
             employees: employees || [],
+            isActive: true, // Default to active
             _synthetic: true
           });
         }
@@ -137,8 +141,16 @@ export async function GET(
       );
     }
 
+    // Ensure the company object has the expected structure
+    const sanitizedCompany = {
+      ...company,
+      employees: company.employees || [],
+      isActive: company.isActive !== undefined ? company.isActive : true,
+      coins: company.coins || 0
+    };
+
     console.log(`API: Successfully returning company data for ID: ${id}`);
-    return NextResponse.json(company);
+    return NextResponse.json(sanitizedCompany);
   } catch (error) {
     console.error("Error fetching company:", error);
     return NextResponse.json(
