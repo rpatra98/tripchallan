@@ -457,14 +457,17 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
   const handleScanComplete = useCallback((sealId: string) => {
     if (!sealId.trim()) {
       setScanError('Please enter a valid Seal Tag ID');
-            return;
-          }
+      return;
+    }
           
     // Check if already scanned by guard
     if (guardScannedSeals.some(seal => seal.id === sealId)) {
       setScanError('This seal has already been scanned');
-            return;
-          }
+      return;
+    }
+    
+    // Check if this seal matches an operator seal
+    const isVerified = operatorSeals.some(seal => seal.id === sealId);
           
     // Add to scanned seals
     const newSeal = {
@@ -473,15 +476,24 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
       image: null,
       imagePreview: null,
       timestamp: new Date().toISOString(),
-      verified: operatorSeals.some(seal => seal.id === sealId)
+      verified: isVerified
     };
     
-    setGuardScannedSeals(prev => [...prev, newSeal]);
+    // Update state with the new seal
+    const updatedSeals = [...guardScannedSeals, newSeal];
+    setGuardScannedSeals(updatedSeals);
     setScanInput('');
     setScanError('');
     
-    // Update comparison
-    updateSealComparison([...guardScannedSeals, newSeal]);
+    // Update comparison with the updated list
+    updateSealComparison(updatedSeals);
+    
+    // Show success or warning message based on match
+    if (isVerified) {
+      console.log("Seal tag matched with operator seals");
+    } else {
+      console.log("Seal tag does not match any operator seals");
+    }
   }, [guardScannedSeals, scanMethod, operatorSeals, updateSealComparison]);
 
   // Handle image upload for a seal
@@ -1531,6 +1543,16 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
                   // Set method to digital since this was scanned
                   setScanMethod('digital');
                   
+                  // Check if already scanned by guard
+                  if (guardScannedSeals.some(seal => seal.id === data)) {
+                    setScanError('This seal has already been scanned');
+                    setTimeout(() => setScanError(''), 3000);
+                    return;
+                  }
+                  
+                  // Check if this seal matches an operator seal
+                  const isVerified = operatorSeals.some(seal => seal.id === data);
+                  
                   // Add the seal with the scanned data and captured image
                   const newSeal = {
                     id: data,
@@ -1538,18 +1560,22 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
                     image: imageFile,
                     imagePreview: URL.createObjectURL(imageFile),
                     timestamp: new Date().toISOString(),
-                    verified: operatorSeals.some(seal => seal.id === data)
+                    verified: isVerified
                   };
                   
-                  // Check if already scanned
-                  if (guardScannedSeals.some(seal => seal.id === data)) {
-                    setScanError('This seal has already been scanned');
-                    setTimeout(() => setScanError(''), 3000);
-                    return;
-                  }
+                  // Update state with the new seal
+                  const updatedSeals = [...guardScannedSeals, newSeal];
+                  setGuardScannedSeals(updatedSeals);
                   
-                  setGuardScannedSeals(prev => [...prev, newSeal]);
-                  updateSealComparison([...guardScannedSeals, newSeal]);
+                  // Update comparison with the updated list
+                  updateSealComparison(updatedSeals);
+                  
+                  // Show success or warning message based on match
+                  if (isVerified) {
+                    console.log("Seal tag matched with operator seals");
+                  } else {
+                    console.log("Seal tag does not match any operator seals");
+                  }
                 }}
                 buttonText="Scan QR/Barcode"
                 scannerTitle="Scan Seal Tag"
