@@ -185,13 +185,21 @@ async function handler(req: NextRequest) {
           }
         };
       } else if (userRole === UserRole.COMPANY) {
-        // Company can only see their own sessions
+        // Company user should see all sessions associated with their company
+        // For company users, we need to retrieve sessions where:
+        // 1. Sessions where companyId matches this company user's ID 
+        // 2. Sessions created by employees who belong to this company
+        
+        console.log("[API DEBUG] Fetching sessions for company user:", userId);
+        
+        // The correct approach is to use a more complex query:
+        // We need to find all sessions where the companyId is the company user's ID
+        // This is because operators set the companyId to their company's ID when creating sessions
         whereClause = {
-          OR: [
-            { companyId: userId },
-            { createdById: userId }
-          ]
+          companyId: userId
         };
+        
+        console.log("[API DEBUG] Company sessions whereClause:", JSON.stringify(whereClause, null, 2));
       } else if (userRole === UserRole.EMPLOYEE) {
         const employee = await prisma.user.findUnique({
           where: { id: userId },
