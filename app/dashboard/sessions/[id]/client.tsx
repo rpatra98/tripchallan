@@ -313,11 +313,11 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
       setLoading(false);
     }
   }, [sessionId]);
-   
+
   // Add useEffect to fetch session details when component mounts
   useEffect(() => {
     console.log("Component mounted, fetching session details...");
-    fetchSessionDetails();
+      fetchSessionDetails();
   }, [fetchSessionDetails]);
    
   // Extract operator seals from session data - pulling from activity logs instead of using system-generated barcode
@@ -464,15 +464,15 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
   const handleScanComplete = useCallback((sealId: string) => {
     if (!sealId.trim()) {
       setScanError('Please enter a valid Seal Tag ID');
-      return;
-    }
-    
+            return;
+          }
+          
     // Check if already scanned by guard
     if (guardScannedSeals.some(seal => seal.id === sealId)) {
       setScanError('This seal has already been scanned');
-      return;
-    }
-    
+            return;
+          }
+          
     // Add to scanned seals
     const newSeal = {
       id: sealId,
@@ -532,12 +532,21 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
   );
   
   // Check if the session can be verified - only using operator-entered seal tags
-  const canVerify = useMemo(() => 
-    isGuard && 
-    session?.status === SessionStatus.IN_PROGRESS && 
-    operatorSeals.length > 0,
-    [isGuard, session, operatorSeals]
-  );
+  const canVerify = useMemo(() => {
+    console.log("Calculating canVerify:");
+    console.log("- isGuard:", isGuard);
+    console.log("- session status:", session?.status);
+    console.log("- operator seals:", operatorSeals?.length || 0);
+    
+    // For debugging: log the raw values
+    console.log("- userRole:", userRole);
+    console.log("- userSubrole:", userSubrole);
+    console.log("- EmployeeSubrole.GUARD:", EmployeeSubrole.GUARD);
+    
+    return isGuard && 
+      session?.status === SessionStatus.IN_PROGRESS && 
+      (operatorSeals.length > 0 || session?.seal?.barcode);
+  }, [isGuard, session, operatorSeals]);
   
   // Check if user has edit permission
   useEffect(() => {
@@ -616,9 +625,26 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
     if (authStatus === "authenticated" && authSession?.user?.id) {
       // Fetch user role and subrole
       console.log("Fetching user role for user ID:", authSession.user.id);
+      
+      // First try to use the role directly from the auth session if available
+      if (authSession.user.role) {
+        console.log("Using role from auth session:", authSession.user.role);
+        setUserRole(authSession.user.role);
+        
+        // Also set subrole if available
+        if (authSession.user.subrole) {
+          console.log("Using subrole from auth session:", authSession.user.subrole);
+          setUserSubrole(authSession.user.subrole);
+        }
+      }
+      
+      // Always fetch from API as well to ensure we have the latest data
       fetch(`/api/users/${authSession.user.id}/role`)
         .then(response => {
           console.log("Role API response status:", response.status);
+          if (!response.ok) {
+            throw new Error(`Failed to fetch role: ${response.status}`);
+          }
           return response.json();
         })
         .then(data => {
@@ -638,12 +664,16 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
           // Calculate canVerify manually for debugging
           const shouldCanVerify = isThisGuard && 
             session?.status === SessionStatus.IN_PROGRESS && 
-            operatorSeals.length > 0;
+            (operatorSeals.length > 0 || session?.seal?.barcode);
           console.log("Should canVerify be true?", shouldCanVerify);
         })
         .catch(error => {
           console.error("Error fetching user role:", error);
         });
+    } else if (authStatus === "unauthenticated") {
+      console.log("User is not authenticated");
+      setUserRole("");
+      setUserSubrole("");
     }
   }, [authStatus, authSession?.user?.id, session, operatorSeals]);
 
@@ -823,21 +853,21 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
       // If session has a seal, update it, otherwise create a new one
       if (session.seal?.id) {
         response = await fetch("/api/seals", {
-          method: "PATCH",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ 
-            sealId: session.seal.id,
-            verificationData: {
-              fieldVerifications: fieldVerificationResults,
-              guardImages: uploadedImageUrls,
-              sealBarcode: sealInput || null,
-              allMatch: Object.values(fieldVerificationResults).every(v => v.matches && v.isVerified),
-              verificationTimestamp: new Date().toISOString()
-            }
-          }),
-        });
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ 
+          sealId: session.seal.id,
+          verificationData: {
+            fieldVerifications: fieldVerificationResults,
+            guardImages: uploadedImageUrls,
+            sealBarcode: sealInput || null,
+            allMatch: Object.values(fieldVerificationResults).every(v => v.matches && v.isVerified),
+            verificationTimestamp: new Date().toISOString()
+          }
+        }),
+      });
       } else {
         // Create a new seal for this session
         response = await fetch("/api/seals", {
@@ -1639,7 +1669,7 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
         </Box>
       );
     }
-    
+
     // Check if no operator seals or QR codes are available
     if (operatorSeals.length === 0 && 
         (!session.qrCodes || (!session.qrCodes.primaryBarcode && 
@@ -1718,9 +1748,9 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
                 scannerTitle="Scan Seal Tag"
                 buttonVariant="contained"
               />
-            </Box>
-          </Box>
-        </Paper>
+                </Box>
+                </Box>
+                  </Paper>
 
         {/* Scanned Seals Table */}
         <Paper variant="outlined" sx={{ p: 2, mb: 4 }}>
@@ -2190,7 +2220,7 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
             
             <Typography variant="body2" sx={{ mb: 2 }}>
               Total Seal Tags: <strong>{operatorSeals.length}</strong>
-            </Typography>
+                </Typography>
             
             <TableContainer component={Paper} variant="outlined" sx={{ mb: 2 }}>
               <Table size="small">
@@ -2672,7 +2702,7 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
             
             <Typography variant="body2" sx={{ mb: 2 }}>
               Total Seal Tags: <strong>{operatorSeals.length}</strong>
-            </Typography>
+                </Typography>
             
             <TableContainer component={Paper} variant="outlined" sx={{ mb: 2 }}>
               <Table size="small">
@@ -2976,6 +3006,21 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
 
       {/* Verification Results */}
       {renderVerificationResults()}
+
+      {/* GUARD Verification Button - Show for GUARD users with IN_PROGRESS sessions */}
+      {isGuard && session.status === SessionStatus.IN_PROGRESS && !verificationFormOpen && (
+        <Box sx={{ display: "flex", justifyContent: "center", mt: 3 }}>
+          <Button
+            variant="contained"
+            color="primary"
+            size="large"
+            startIcon={<Lock />}
+            onClick={startVerification}
+          >
+            Start Trip Verification
+          </Button>
+        </Box>
+      )}
 
       {/* Comment section - moved after verification results */}
       <CommentSection sessionId={sessionId} />
