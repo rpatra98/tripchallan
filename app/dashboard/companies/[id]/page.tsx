@@ -93,7 +93,7 @@ export default async function CompanyDetailPage({ params }: { params: { id: stri
         console.log("Company data structure:", JSON.stringify(company, null, 2));
         
         // Ensure employees is an array
-        if (!company.employees) {
+        if (company && !company.employees) {
           company.employees = [];
         }
       }
