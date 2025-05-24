@@ -51,11 +51,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { sessionId, barcode } = await req.json();
+    const body = await req.json();
+    const { sessionId, barcode, verificationData } = body;
 
-    if (!sessionId || !barcode) {
+    if (!sessionId) {
       return NextResponse.json(
-        { error: "Session ID and barcode are required" },
+        { error: "Session ID is required" },
         { status: 400 }
       );
     }
@@ -83,22 +84,79 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       );
     }
+    
+    const user = await prisma.user.findUnique({
+      where: { email: session.user.email },
+    });
+
+    if (!user) {
+      return NextResponse.json({ error: "User not found" }, { status: 404 });
+    }
 
     // Create the seal
-    const seal = await prisma.seal.create({
-      data: {
-        sessionId,
-        barcode,
-      },
-    });
-
-    // Update session status to IN_PROGRESS
-    await prisma.session.update({
-      where: { id: sessionId },
-      data: { status: "IN_PROGRESS" },
-    });
-
-    return NextResponse.json(seal);
+    const sealData: any = {
+      sessionId,
+      barcode: barcode || `GENERATED-${Date.now()}`,
+    };
+    
+    // If this is a verification request from a guard
+    if (verificationData && user.role === UserRole.EMPLOYEE && user.subrole === EmployeeSubrole.GUARD) {
+      // Set the seal as verified immediately
+      sealData.verified = true;
+      sealData.verifiedById = user.id;
+      sealData.scannedAt = new Date();
+      
+      // Create the seal with verification
+      const seal = await prisma.seal.create({
+        data: sealData,
+      });
+      
+      // Update session status to COMPLETED
+      await prisma.session.update({
+        where: { id: sessionId },
+        data: { status: "COMPLETED" },
+      });
+      
+      // Store verification data in activity log
+      await prisma.activityLog.create({
+        data: {
+          userId: user.id,
+          action: "UPDATE",
+          targetResourceId: sessionId,
+          targetResourceType: "session",
+          details: {
+            verification: {
+              timestamp: new Date().toISOString(),
+              sealId: seal.id,
+              fieldVerifications: verificationData.fieldVerifications,
+              imageVerifications: verificationData.imageVerifications,
+              allMatch: verificationData.allMatch
+            }
+          }
+        }
+      });
+      
+      return NextResponse.json({
+        ...seal,
+        verificationDetails: {
+          allMatch: verificationData.allMatch,
+          fieldVerifications: verificationData.fieldVerifications
+        }
+      });
+    } else {
+      // Create a regular seal
+      const seal = await prisma.seal.create({
+        data: sealData,
+      });
+  
+      // Update session status to IN_PROGRESS
+      await prisma.session.update({
+        where: { id: sessionId },
+        data: { status: "IN_PROGRESS" },
+      });
+  
+      return NextResponse.json(seal);
+    }
   } catch (error) {
     console.error("Error creating seal:", error);
     return NextResponse.json(

@@ -615,18 +615,37 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
   useEffect(() => {
     if (authStatus === "authenticated" && authSession?.user?.id) {
       // Fetch user role and subrole
+      console.log("Fetching user role for user ID:", authSession.user.id);
       fetch(`/api/users/${authSession.user.id}/role`)
-        .then(response => response.json())
+        .then(response => {
+          console.log("Role API response status:", response.status);
+          return response.json();
+        })
         .then(data => {
-          console.log("User role data:", data);
+          console.log("User role data received:", data);
           setUserRole(data.role || "");
           setUserSubrole(data.subrole || "");
+          
+          // Log if this is a guard for debugging
+          const isThisGuard = data.role === "EMPLOYEE" && data.subrole === EmployeeSubrole.GUARD;
+          console.log("Is this user a GUARD?", isThisGuard);
+          console.log("EmployeeSubrole.GUARD value:", EmployeeSubrole.GUARD);
+          
+          // Check if operator seals exist
+          console.log("Operator seals count:", operatorSeals.length);
+          console.log("Session status:", session?.status);
+          
+          // Calculate canVerify manually for debugging
+          const shouldCanVerify = isThisGuard && 
+            session?.status === SessionStatus.IN_PROGRESS && 
+            operatorSeals.length > 0;
+          console.log("Should canVerify be true?", shouldCanVerify);
         })
         .catch(error => {
           console.error("Error fetching user role:", error);
         });
     }
-  }, [authStatus, authSession?.user?.id]);
+  }, [authStatus, authSession?.user?.id, session, operatorSeals]);
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleString();
@@ -703,13 +722,8 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
   
   // Modified version of handleVerifySeal to allow completion without a seal barcode
   const handleVerifySeal = async () => {
-    if (!session?.seal) return;
-    
-    // Validate seal input only if provided
-    if (sealInput && sealInput !== session.seal.barcode) {
-      setSealError("The seal barcode you entered does not match the expected seal. Please verify and try again.");
-      return;
-    }
+    // We'll create a seal if one doesn't exist
+    if (!session) return;
     
     setVerifying(true);
     setError("");
@@ -804,22 +818,45 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
         {} as Record<string, any>
       );
       
-      const response = await fetch("/api/seals", {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ 
-          sealId: session.seal.id,
-          verificationData: {
-            fieldVerifications: fieldVerificationResults,
-            guardImages: uploadedImageUrls,
-            sealBarcode: sealInput || null,
-            allMatch: Object.values(fieldVerificationResults).every(v => v.matches && v.isVerified),
-            verificationTimestamp: new Date().toISOString()
-          }
-        }),
-      });
+      let response;
+
+      // If session has a seal, update it, otherwise create a new one
+      if (session.seal?.id) {
+        response = await fetch("/api/seals", {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ 
+            sealId: session.seal.id,
+            verificationData: {
+              fieldVerifications: fieldVerificationResults,
+              guardImages: uploadedImageUrls,
+              sealBarcode: sealInput || null,
+              allMatch: Object.values(fieldVerificationResults).every(v => v.matches && v.isVerified),
+              verificationTimestamp: new Date().toISOString()
+            }
+          }),
+        });
+      } else {
+        // Create a new seal for this session
+        response = await fetch("/api/seals", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ 
+            sessionId: session.id,
+            verificationData: {
+              fieldVerifications: fieldVerificationResults,
+              guardImages: uploadedImageUrls,
+              sealBarcode: sealInput || null,
+              allMatch: Object.values(fieldVerificationResults).every(v => v.matches && v.isVerified),
+              verificationTimestamp: new Date().toISOString()
+            }
+          }),
+        });
+      }
       
       if (!response.ok) {
         const errorData = await response.json();
