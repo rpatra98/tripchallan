@@ -33,7 +33,8 @@ import {
   TextField,
   IconButton,
   Grid as MuiGrid,
-  InputAdornment
+  InputAdornment,
+  Tooltip
 } from "@mui/material";
 import { 
   LocationOn, 
@@ -55,7 +56,9 @@ import {
   Delete,
   CloudUpload,
   Close,
-  QrCode
+  QrCode,
+  InfoOutlined,
+  Refresh
 } from "@mui/icons-material";
 import Link from "next/link";
 import { SessionStatus, EmployeeSubrole } from "@/prisma/enums";
@@ -2343,9 +2346,9 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
       const response = await fetch(`/api/sessions/${sessionId}/seals`);
       
       if (!response.ok) {
-        const errorText = await response.text();
-        console.error(`API Error (${response.status}):`, errorText);
-        throw new Error(`Failed to fetch session seals: ${response.status}`);
+        const errorData = await response.json().catch(() => ({}));
+        console.error(`API Error (${response.status}):`, errorData);
+        throw new Error(`Failed to fetch session seals: ${response.status} - ${errorData.error || 'Unknown error'}`);
       }
       
       const data = await response.json();
@@ -2379,7 +2382,16 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
     if (sealsError) {
       return (
         <Alert severity="error" sx={{ mb: 2 }}>
+          <AlertTitle>Error Loading Seals</AlertTitle>
           {sealsError}
+          <Button 
+            size="small" 
+            onClick={fetchSessionSeals} 
+            sx={{ mt: 1 }}
+            startIcon={<Refresh />}
+          >
+            Retry
+          </Button>
         </Alert>
       );
     }
@@ -2395,45 +2407,141 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
     }
     
     return (
-      <TableContainer component={Paper} variant="outlined" sx={{ mb: 2 }}>
-        <Table size="small">
-          <TableHead>
-            <TableRow>
-              <TableCell>No.</TableCell>
-              <TableCell>Barcode/ID</TableCell>
-              <TableCell>Created At</TableCell>
-              <TableCell>Status</TableCell>
-              <TableCell>Verified By</TableCell>
-              <TableCell>Verified At</TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {sessionSeals.map((seal, index) => (
-              <TableRow key={seal.id}>
-                <TableCell>{index + 1}</TableCell>
-                <TableCell>{seal.barcode}</TableCell>
-                <TableCell>{formatDate(seal.createdAt)}</TableCell>
-                <TableCell>
-                  <Chip 
-                    label={seal.verified ? "Verified" : "Unverified"} 
-                    color={seal.verified ? "success" : "default"}
-                    size="small"
-                    icon={seal.verified ? <CheckCircle fontSize="small" /> : <RadioButtonUnchecked fontSize="small" />}
-                  />
-                </TableCell>
-                <TableCell>
-                  {seal.verifiedBy ? 
-                    `${seal.verifiedBy.name || 'Unknown'} (${seal.verifiedBy.subrole || seal.verifiedBy.role || 'User'})` : 
-                    'Not verified yet'}
-                </TableCell>
-                <TableCell>
-                  {seal.scannedAt ? formatDate(seal.scannedAt) : 'N/A'}
-                </TableCell>
+      <>
+        <Typography variant="body2" sx={{ mb: 2 }}>
+          Total Verification Seals: <strong>{sessionSeals.length}</strong>
+        </Typography>
+        
+        <TableContainer component={Paper} variant="outlined" sx={{ mb: 2 }}>
+          <Table size="small">
+            <TableHead>
+              <TableRow sx={{ bgcolor: 'background.paper' }}>
+                <TableCell>No.</TableCell>
+                <TableCell>Barcode/ID</TableCell>
+                <TableCell>Created At</TableCell>
+                <TableCell>Status</TableCell>
+                <TableCell>Verified By</TableCell>
+                <TableCell>Verified At</TableCell>
+                <TableCell>Details</TableCell>
               </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </TableContainer>
+            </TableHead>
+            <TableBody>
+              {sessionSeals.map((seal, index) => {
+                // Determine if all fields match from verification data
+                const allMatch = seal.verificationDetails?.allMatch;
+                let statusColor = seal.verified ? "success" : "default";
+                
+                // If verified but fields don't match, use warning color
+                if (seal.verified && allMatch === false) {
+                  statusColor = "warning";
+                }
+                
+                return (
+                  <TableRow key={seal.id} hover sx={{
+                    bgcolor: seal.verified ? 
+                      (allMatch === false ? 'rgba(255, 152, 0, 0.08)' : 'rgba(46, 125, 50, 0.08)') : 
+                      'inherit'
+                  }}>
+                    <TableCell>{index + 1}</TableCell>
+                    <TableCell>
+                      <Tooltip title="Seal ID">
+                        <Typography variant="body2" sx={{ fontFamily: 'monospace' }}>
+                          {seal.barcode}
+                        </Typography>
+                      </Tooltip>
+                    </TableCell>
+                    <TableCell>{formatDate(seal.createdAt)}</TableCell>
+                    <TableCell>
+                      <Chip 
+                        label={
+                          seal.verified 
+                            ? (allMatch === false 
+                                ? "Verified with Issues" 
+                                : "Verified")
+                            : "Unverified"
+                        } 
+                        color={statusColor as "success" | "warning" | "default"}
+                        size="small"
+                        icon={
+                          seal.verified 
+                            ? (allMatch === false 
+                                ? <Warning fontSize="small" /> 
+                                : <CheckCircle fontSize="small" />)
+                            : <RadioButtonUnchecked fontSize="small" />
+                        }
+                      />
+                    </TableCell>
+                    <TableCell>
+                      {seal.verifiedBy ? (
+                        <Tooltip title={`User ID: ${seal.verifiedBy.id}`}>
+                          <Typography variant="body2">
+                            {seal.verifiedBy.name || 'Unknown'} 
+                            <Typography variant="caption" component="span" color="text.secondary">
+                              {' '}({seal.verifiedBy.subrole || seal.verifiedBy.role || 'User'})
+                            </Typography>
+                          </Typography>
+                        </Tooltip>
+                      ) : (
+                        <Typography variant="body2" color="text.secondary">
+                          Not verified yet
+                        </Typography>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {seal.scannedAt ? (
+                        <Tooltip title={new Date(seal.scannedAt).toLocaleString()}>
+                          <Typography variant="body2">
+                            {formatDate(seal.scannedAt)}
+                          </Typography>
+                        </Tooltip>
+                      ) : (
+                        <Typography variant="body2" color="text.secondary">
+                          N/A
+                        </Typography>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {seal.verified && (
+                        <Tooltip title="View verification details">
+                          <IconButton 
+                            size="small"
+                            onClick={() => {
+                              // You could expand this to show a dialog with detailed verification info
+                              console.log("Verification details:", seal);
+                              alert(`
+                                Verification Details for Seal ${seal.barcode}:
+                                
+                                - Verified: ${seal.verified ? 'Yes' : 'No'}
+                                - Verified At: ${seal.scannedAt ? new Date(seal.scannedAt).toLocaleString() : 'N/A'}
+                                - Verified By: ${seal.verifiedBy?.name || 'Unknown'}
+                                - All Fields Match: ${allMatch === true ? 'Yes' : (allMatch === false ? 'No' : 'Not specified')}
+                                
+                                Verification Data: ${JSON.stringify(seal.verificationDetails || {}, null, 2)}
+                              `);
+                            }}
+                          >
+                            <InfoOutlined fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+        </TableContainer>
+        
+        <Box display="flex" justifyContent="flex-end">
+          <Button
+            size="small"
+            startIcon={<Refresh />}
+            onClick={fetchSessionSeals}
+          >
+            Refresh Seals
+          </Button>
+        </Box>
+      </>
     );
   };
 
