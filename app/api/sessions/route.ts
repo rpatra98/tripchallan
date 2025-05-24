@@ -411,6 +411,48 @@ async function handler(req: NextRequest) {
       };
     });
     
+    // Check if no sessions were found with a seal, check for employees to see if guard and operators belong to same company
+    if (sessions.length === 0 && userRole === UserRole.EMPLOYEE && session.user.subrole === EmployeeSubrole.GUARD) {
+      console.log("[API DEBUG] Checking company employees to verify guard-operator relationship...");
+      
+      // Get company ID
+      const guardCompanyId = whereClause.companyId;
+      
+      // Look up all employees in this company
+      prisma.user.findMany({
+        where: {
+          companyId: guardCompanyId,
+          role: UserRole.EMPLOYEE
+        },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          role: true,
+          subrole: true,
+          companyId: true
+        }
+      }).then((employees: any[]) => {
+        console.log(`[API DEBUG] Found ${employees.length} employees in company ${guardCompanyId}`);
+        
+        // Count how many operators and guards
+        const operators = employees.filter(emp => emp.subrole === EmployeeSubrole.OPERATOR);
+        const guards = employees.filter(emp => emp.subrole === EmployeeSubrole.GUARD);
+        
+        console.log(`[API DEBUG] Company has ${operators.length} operators and ${guards.length} guards`);
+        
+        if (operators.length > 0) {
+          console.log("[API DEBUG] Operators in this company:", operators.map(op => ({
+            id: op.id,
+            name: op.name,
+            email: op.email
+          })));
+        }
+      }).catch((error: Error) => {
+        console.error("[API DEBUG] Error checking company employees:", error);
+      });
+    }
+    
     return NextResponse.json({
       sessions: enhancedSessions,
       pagination: {
@@ -773,7 +815,7 @@ export const POST = withAuth(
                 seal: {
                   create: {
                     barcode: sealTagIds.length > 0 ? sealTagIds[0] : `GENERATED-${Date.now()}`,
-                    verified: false,
+                    verified: false, // Explicitly set to false to ensure it shows up for guards
                     scannedAt: null
                   }
                 }
@@ -785,8 +827,28 @@ export const POST = withAuth(
               console.error("Error creating session:", error);
               throw new Error(`Session creation failed: ${error.message}`);
             });
+            
             console.log(`Session created with ID: ${newSession.id}`);
-            console.log(`Seal created with ID: ${newSession.seal?.id}, barcode: ${newSession.seal?.barcode}`);
+            console.log(`Seal created with ID: ${newSession.seal?.id}, barcode: ${newSession.seal?.barcode}, verified: ${newSession.seal?.verified}`);
+            
+            // Double-check that the seal was created correctly
+            if (!newSession.seal) {
+              console.error("[API ERROR] Seal was not created with session! This will cause issues for guard verification.");
+              
+              // Create the seal explicitly if it doesn't exist
+              try {
+                const seal = await tx.seal.create({
+                  data: {
+                    sessionId: newSession.id,
+                    barcode: sealTagIds.length > 0 ? sealTagIds[0] : `FALLBACK-${Date.now()}`,
+                    verified: false
+                  }
+                });
+                console.log(`[API RECOVERY] Created fallback seal: ${seal.id}, barcode: ${seal.barcode}`);
+              } catch (sealError) {
+                console.error("[API ERROR] Failed to create fallback seal:", sealError);
+              }
+            }
             
             console.log(`Using ${sealTagIds.length} seal tags from operator.`);
 

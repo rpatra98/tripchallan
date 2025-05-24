@@ -604,6 +604,69 @@ export default function EmployeeDashboard({ user }: EmployeeDashboardProps) {
     }
   };
 
+  // Add a direct check for sessions that need verification, bypassing filters
+  const checkAllSessionsForVerification = useCallback(async () => {
+    if (!isGuard || !user.companyId) return;
+    
+    try {
+      console.log("[GUARD DEBUG] Performing direct check for ALL sessions in the company");
+      
+      // Use a direct API call without filters
+      const response = await fetch(`/api/sessions?companyId=${user.companyId}`);
+      
+      if (!response.ok) {
+        console.error("[GUARD DEBUG] Direct API check failed:", response.status);
+        return;
+      }
+      
+      const data = await response.json();
+      console.log("[GUARD DEBUG] Direct API check found sessions:", data);
+      
+      if (data.sessions && Array.isArray(data.sessions)) {
+        console.log(`[GUARD DEBUG] Total sessions for company: ${data.sessions.length}`);
+        
+        // Find sessions that SHOULD be verifiable
+        const potentialVerifiableSessions = data.sessions.filter((session: any) => {
+          return session.status === "IN_PROGRESS";
+        });
+        
+        console.log(`[GUARD DEBUG] IN_PROGRESS sessions: ${potentialVerifiableSessions.length}`);
+        
+        // Check how many have seals
+        const sessionsWithSeals = potentialVerifiableSessions.filter((session: any) => session.seal);
+        console.log(`[GUARD DEBUG] IN_PROGRESS sessions with seals: ${sessionsWithSeals.length}`);
+        
+        // Check how many have unverified seals
+        const sessionsWithUnverifiedSeals = sessionsWithSeals.filter((session: any) => 
+          session.seal && !session.seal.verified
+        );
+        
+        console.log(`[GUARD DEBUG] IN_PROGRESS sessions with unverified seals: ${sessionsWithUnverifiedSeals.length}`);
+        console.log("[GUARD DEBUG] These sessions SHOULD appear for verification:", sessionsWithUnverifiedSeals);
+        
+        // Force update the verification sessions if we found some that should be displayed
+        if (sessionsWithUnverifiedSeals.length > 0) {
+          console.log("[GUARD DEBUG] Manually updating verification sessions list with direct results");
+          setVerificationSessions(sessionsWithUnverifiedSeals);
+        }
+      }
+    } catch (error) {
+      console.error("[GUARD DEBUG] Error in direct session check:", error);
+    }
+  }, [isGuard, user.companyId]);
+  
+  // Call this check when guard dashboard loads if no sessions are found
+  useEffect(() => {
+    if (isGuard && verificationSessions.length === 0 && !loadingVerifications) {
+      // Wait a bit to ensure the normal fetch has completed
+      const timer = setTimeout(() => {
+        checkAllSessionsForVerification();
+      }, 2000);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [isGuard, verificationSessions.length, loadingVerifications, checkAllSessionsForVerification]);
+
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="flex flex-col md:flex-row md:space-x-6">
@@ -1210,12 +1273,20 @@ export default function EmployeeDashboard({ user }: EmployeeDashboardProps) {
                         Verify trip details and seals to complete transport trips
                       </p>
                     </div>
-                    <button 
-                      onClick={fetchVerificationSessions}
-                      className="px-4 py-2 bg-blue-500 text-white rounded-md text-sm hover:bg-blue-600"
-                    >
-                      Refresh
-                    </button>
+                    <div className="flex gap-2">
+                      <button 
+                        onClick={checkAllSessionsForVerification}
+                        className="px-4 py-2 border border-blue-500 text-blue-600 rounded-md text-sm hover:bg-blue-50"
+                      >
+                        Check All Sessions
+                      </button>
+                      <button 
+                        onClick={fetchVerificationSessions}
+                        className="px-4 py-2 bg-blue-500 text-white rounded-md text-sm hover:bg-blue-600"
+                      >
+                        Refresh
+                      </button>
+                    </div>
                   </div>
                 </div>
                 
