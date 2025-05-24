@@ -223,7 +223,15 @@ async function handler(req: NextRequest) {
         // Specific case for guards: add needsVerification filter
         if (employee.subrole === EmployeeSubrole.GUARD) {
           const needsVerification = searchParams.get('needsVerification') === 'true';
+          console.log("[API DEBUG] GUARD query. needsVerification param:", needsVerification);
+          console.log("[API DEBUG] GUARD employee:", {
+            id: employee.id,
+            companyId: employee.companyId,
+            subrole: employee.subrole
+          });
+          
           if (needsVerification) {
+            console.log("[API DEBUG] Original whereClause for GUARD:", JSON.stringify(whereClause, null, 2));
             whereClause = {
               ...whereClause,
               status: "IN_PROGRESS",
@@ -232,6 +240,7 @@ async function handler(req: NextRequest) {
                 verified: false
               }
             };
+            console.log("[API DEBUG] Modified whereClause for GUARD with needsVerification=true:", JSON.stringify(whereClause, null, 2));
           }
         }
       }
@@ -325,6 +334,44 @@ async function handler(req: NextRequest) {
       console.error("Error fetching sessions:", error);
       return [];
     });
+    
+    // Log the results for debugging
+    if (userRole === UserRole.EMPLOYEE && session.user.subrole === EmployeeSubrole.GUARD) {
+      console.log(`[API DEBUG] Found ${sessions.length} sessions for GUARD with filters`);
+      
+      if (sessions.length > 0) {
+        sessions.forEach((session: any) => {
+          console.log(`[API DEBUG] Session ${session.id}:`, {
+            status: session.status,
+            companyId: session.companyId,
+            hasSeal: !!session.seal,
+            sealVerified: session.seal?.verified
+          });
+        });
+      } else {
+        // If no sessions were found, check without the seal filter to see if that's the issue
+        console.log("[API DEBUG] No sessions found with current filter. Checking DB for any IN_PROGRESS sessions for this company...");
+        
+        prisma.session.findMany({
+          where: {
+            companyId: whereClause.companyId,
+            status: "IN_PROGRESS"
+          },
+          include: { seal: true },
+          take: 5
+        }).then((checkSessions: any[]) => {
+          console.log(`[API DEBUG] Found ${checkSessions.length} IN_PROGRESS sessions for company without seal filter`);
+          checkSessions.forEach((checkSession: any) => {
+            console.log(`[API DEBUG] Check session ${checkSession.id}:`, {
+              hasSeal: !!checkSession.seal,
+              sealVerified: checkSession.seal?.verified
+            });
+          });
+        }).catch((error: Error) => {
+          console.error("[API DEBUG] Error checking sessions without seal filter:", error);
+        });
+      }
+    }
     
     if (sessions.length === 0) {
       return NextResponse.json({

@@ -208,7 +208,10 @@ export default function EmployeeDashboard({ user }: EmployeeDashboardProps) {
       });
       
       // Use a specific query to get only sessions needing verification
-      const response = await fetch(`/api/sessions?needsVerification=true&companyId=${user.companyId}`);
+      const url = `/api/sessions?needsVerification=true&companyId=${user.companyId}`;
+      console.log("[GUARD DEBUG] Fetch URL:", url);
+      
+      const response = await fetch(url);
       
       if (!response.ok) {
         const errorText = await response.text();
@@ -234,21 +237,39 @@ export default function EmployeeDashboard({ user }: EmployeeDashboardProps) {
       
       const data = await response.json();
       console.log("[GUARD DEBUG] API response:", data);
+      console.log("[GUARD DEBUG] API response.sessions:", data.sessions);
       
       if (data.sessions && Array.isArray(data.sessions)) {
         console.log(`[GUARD DEBUG] Found ${data.sessions.length} sessions needing verification`);
         
+        // Check for any sessions without seals
+        const sessionsWithoutSeals = data.sessions.filter((session: any) => !session.seal);
+        if (sessionsWithoutSeals.length > 0) {
+          console.log(`[GUARD DEBUG] Found ${sessionsWithoutSeals.length} sessions without seals:`, sessionsWithoutSeals);
+        }
+        
         // Double-check on client side to ensure we only show valid sessions
         const sessionsNeedingVerification = data.sessions.filter((session: any) => {
-          return (
-            session.seal && 
-            !session.seal.verified && 
-            session.status === "IN_PROGRESS" &&
-            String(session.companyId) === String(user.companyId)
-          );
+          const hasValidSeal = session.seal && !session.seal.verified;
+          const isInProgress = session.status === "IN_PROGRESS";
+          const isSameCompany = String(session.companyId) === String(user.companyId);
+          
+          console.log(`[GUARD DEBUG] Session ${session.id} validation:`, {
+            hasValidSeal,
+            isInProgress,
+            isSameCompany,
+            sealInfo: session.seal,
+            companyId: session.companyId,
+            userCompanyId: user.companyId
+          });
+          
+          return hasValidSeal && isInProgress && isSameCompany;
         });
         
         console.log(`[GUARD DEBUG] After client filtering: ${sessionsNeedingVerification.length} sessions`);
+        if (sessionsNeedingVerification.length > 0) {
+          console.log("[GUARD DEBUG] Verification sessions:", sessionsNeedingVerification);
+        }
         
         setVerificationSessions(sessionsNeedingVerification);
       } else {
