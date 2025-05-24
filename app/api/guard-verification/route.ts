@@ -68,80 +68,88 @@ async function handler(req: NextRequest) {
       companyId: guardCompanyId
     });
 
-    // Directly query for sessions that need verification
-    // Criteria: IN_PROGRESS status, same company, has a seal, seal not verified
-    const sessions = await prisma.session.findMany({
-      where: {
-        companyId: guardCompanyId,
-        status: SessionStatus.IN_PROGRESS,
-        seal: {
-          verified: false
-        }
-      },
-      include: {
-        createdBy: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            subrole: true,
-          },
-        },
-        company: {
-          select: {
-            id: true,
-            name: true,
-          },
-        },
-        seal: true,
-      },
-      orderBy: { createdAt: "desc" }
-    });
-    
-    console.log(`[API DEBUG] Found ${sessions.length} sessions needing verification for guard ${guard.id} in company ${guardCompanyId}`);
-    
-    if (sessions.length > 0) {
-      // Log the first few sessions for debugging
-      sessions.slice(0, 3).forEach((session: any) => {
-        console.log(`[API DEBUG] Session ${session.id}:`, {
-          status: session.status,
-          hasSeal: !!session.seal,
-          sealVerified: session.seal?.verified,
-          createdBy: session.createdBy?.name
-        });
-      });
-    } else {
-      // If no sessions found, check if there are any sessions at all for this company
-      const allCompanySessions = await prisma.session.count({
-        where: { companyId: guardCompanyId }
-      });
-      
-      console.log(`[API DEBUG] Company ${guardCompanyId} has ${allCompanySessions} total sessions`);
-      
-      // Also check for sessions without the seal filter
-      const inProgressSessions = await prisma.session.count({
-        where: { 
+    try {
+      // First approach: Try to find sessions with seal = {verified: false}
+      const sessions = await prisma.session.findMany({
+        where: {
           companyId: guardCompanyId,
-          status: SessionStatus.IN_PROGRESS
-        }
-      });
-      
-      console.log(`[API DEBUG] Company ${guardCompanyId} has ${inProgressSessions} IN_PROGRESS sessions`);
-      
-      // Check how many sessions have seals
-      const sessionsWithSeals = await prisma.session.count({
-        where: { 
-          companyId: guardCompanyId,
+          status: SessionStatus.IN_PROGRESS,
           seal: {
-            some: {}
+            verified: false
           }
-        }
+        },
+        include: {
+          createdBy: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              subrole: true,
+            },
+          },
+          company: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
+          seal: true,
+        },
+        orderBy: { createdAt: "desc" }
       });
       
-      console.log(`[API DEBUG] Company ${guardCompanyId} has ${sessionsWithSeals} sessions with seals`);
+      console.log(`[API DEBUG] Found ${sessions.length} sessions needing verification (approach 1)`);
+      
+      if (sessions.length > 0) {
+        return NextResponse.json({ sessions });
+      }
+    } catch (error) {
+      console.error("[API DEBUG] Error in first approach:", error);
+      // Continue to fallback approach
     }
 
-    return NextResponse.json({ sessions });
+    try {
+      // Fallback approach: Get all IN_PROGRESS sessions and filter them manually
+      const allInProgressSessions = await prisma.session.findMany({
+        where: {
+          companyId: guardCompanyId,
+          status: SessionStatus.IN_PROGRESS,
+        },
+        include: {
+          createdBy: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              subrole: true,
+            },
+          },
+          company: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
+          seal: true,
+        },
+        orderBy: { createdAt: "desc" }
+      });
+      
+      console.log(`[API DEBUG] Found ${allInProgressSessions.length} IN_PROGRESS sessions (approach 2)`);
+      
+      // Filter manually for sessions with unverified seals
+      const sessionsNeedingVerification = allInProgressSessions.filter(
+        (session: any) => session.seal && session.seal.verified === false
+      );
+      
+      console.log(`[API DEBUG] After filtering: ${sessionsNeedingVerification.length} sessions need verification`);
+      
+      return NextResponse.json({ sessions: sessionsNeedingVerification });
+      
+    } catch (error) {
+      console.error("[API DEBUG] Error in fallback approach:", error);
+      throw error; // Re-throw to be caught by the outer catch block
+    }
 
   } catch (error) {
     console.error("[API ERROR] Error fetching guard verification sessions:", error);
