@@ -28,7 +28,8 @@ interface Company {
   name: string;
   email: string;
   coins?: number;
-  createdAt: Date;
+  createdAt: Date | string;
+  updatedAt?: Date | string;
   isActive?: boolean;
   companyType?: string;
   gstin?: string;
@@ -71,19 +72,108 @@ export default async function CompanyDetailPage({ params }: { params: { id: stri
 
     // Get full company details from the API which will include more data
     const cookieStore = cookies();
-    const response = await fetch(`${process.env.NEXTAUTH_URL}/api/companies/${companyId}`, {
-      headers: {
-        cookie: cookieStore.toString(),
-      },
-      next: { revalidate: 0 },
-    });
+    let company: Company | null = null;
+    let error = null;
 
-    if (!response.ok) {
-      console.error("API error:", response.status, response.statusText);
+    try {
+      const response = await fetch(`${process.env.NEXTAUTH_URL}/api/companies/${companyId}`, {
+        headers: {
+          cookie: cookieStore.toString(),
+        },
+        next: { revalidate: 0 },
+      });
+
+      if (!response.ok) {
+        console.error("API error:", response.status, response.statusText);
+        error = `API error: ${response.status} ${response.statusText}`;
+      } else {
+        company = await response.json();
+        
+        // Debug the company data structure
+        console.log("Company data structure:", JSON.stringify(company, null, 2));
+        
+        // Ensure employees is an array
+        if (!company.employees) {
+          company.employees = [];
+        }
+      }
+    } catch (fetchError) {
+      console.error("Fetch error:", fetchError);
+      error = fetchError instanceof Error ? fetchError.message : String(fetchError);
+    }
+
+    // If we couldn't get the company data from the API, try to get it directly from the database
+    if (!company) {
+      try {
+        console.log("Fetching company directly from database as API failed");
+        
+        // Try to get the company directly from the database
+        const dbCompany = await prisma.company.findUnique({
+          where: { id: companyId },
+          include: {
+            employees: {
+              where: { role: UserRole.EMPLOYEE },
+              select: {
+                id: true,
+                name: true,
+                email: true,
+                role: true,
+                subrole: true,
+                coins: true,
+              }
+            }
+          }
+        });
+        
+        if (dbCompany) {
+          company = {
+            ...dbCompany,
+            createdAt: dbCompany.createdAt.toISOString(),
+            updatedAt: dbCompany.updatedAt.toISOString(),
+            employees: dbCompany.employees,
+          };
+        } else {
+          // Check if this might be a COMPANY user instead of a company record
+          const companyUser = await prisma.user.findFirst({
+            where: {
+              id: companyId,
+              role: UserRole.COMPANY
+            },
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              companyId: true,
+              createdAt: true,
+              updatedAt: true
+            }
+          });
+          
+          if (companyUser) {
+            company = {
+              id: companyUser.id,
+              name: companyUser.name,
+              email: companyUser.email,
+              createdAt: companyUser.createdAt.toISOString(),
+              updatedAt: companyUser.updatedAt.toISOString(),
+              employees: [],
+              _synthetic: true
+            };
+          }
+        }
+      } catch (dbError) {
+        console.error("Database error:", dbError);
+        error = (dbError instanceof Error) ? dbError.message : String(dbError);
+      }
+    }
+
+    // If we still don't have company data, show an error
+    if (!company) {
       return (
         <div className="container mx-auto px-4 py-8 bg-red-50 p-6 rounded-lg">
           <h1 className="text-2xl font-bold text-red-700">Company Not Found</h1>
           <p className="mt-2">The company with ID: {companyId} was not found or could not be accessed.</p>
+          {error && <p className="mt-2 text-red-600">Error details: {error}</p>}
           <div className="mt-4">
             <Link href="/dashboard" className="text-blue-600 hover:underline">
               &larr; Go back to Dashboard
@@ -92,12 +182,6 @@ export default async function CompanyDetailPage({ params }: { params: { id: stri
         </div>
       );
     }
-
-    // Parse the company data
-    const company = await response.json() as Company;
-    
-    // Debug the company data structure
-    console.log("Company data structure:", JSON.stringify(company, null, 2));
     
     // Get employees for this company
     const employees = Array.isArray(company.employees) ? company.employees : [];
@@ -195,7 +279,7 @@ export default async function CompanyDetailPage({ params }: { params: { id: stri
             </div>
           )}
 
-          {company?.documents && company.documents.length > 0 && (
+          {company?.documents && Array.isArray(company.documents) && company.documents.length > 0 && (
             <div className="mt-4">
               <p className="text-gray-600 mb-2">Documents</p>
               <div className="flex flex-wrap gap-2">
@@ -238,9 +322,9 @@ export default async function CompanyDetailPage({ params }: { params: { id: stri
             </Link>
           </div>
 
-          {employees && employees.length === 0 ? (
+          {employees.length === 0 ? (
             <p className="text-gray-500 text-center py-4">No employees found for this company.</p>
-          ) : employees && employees.length > 0 ? (
+          ) : (
             <div className="overflow-x-auto">
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
@@ -265,11 +349,11 @@ export default async function CompanyDetailPage({ params }: { params: { id: stri
                         {employee.subrole ? String(employee.subrole).toLowerCase().replace("_", " ") : "Employee"}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {employee.coins}
+                        {employee.coins ?? 'N/A'}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                         <Link 
-                          href={`/dashboard/employees/${employee.id}`}
+                          href={`/dashboard/employees/${employee.id}?source=company&companyId=${company.id}`}
                           className="text-blue-600 hover:text-blue-900"
                         >
                           View Details
@@ -280,8 +364,6 @@ export default async function CompanyDetailPage({ params }: { params: { id: stri
                 </tbody>
               </table>
             </div>
-          ) : (
-            <p className="text-gray-500 text-center py-4">No employees found for this company.</p>
           )}
         </div>
       </div>

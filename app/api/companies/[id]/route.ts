@@ -27,6 +27,8 @@ export async function GET(
       );
     }
 
+    console.log(`API: Fetching company with ID: ${id}`);
+
     // First, check if this is a direct company ID
     let company = await prisma.company.findUnique({
       where: { id },
@@ -45,6 +47,8 @@ export async function GET(
       }
     });
 
+    console.log(`API: Direct company lookup result:`, company ? "Found" : "Not Found");
+
     // If not found, this might be a User ID with role=COMPANY, so look it up that way
     if (!company) {
       const companyUser = await prisma.user.findFirst({
@@ -57,53 +61,83 @@ export async function GET(
           name: true,
           email: true,
           companyId: true,
+          coins: true,
           createdAt: true,
           updatedAt: true
         }
       });
 
-      // If we found a company user, get the actual company data
-      if (companyUser?.companyId) {
-        company = await prisma.company.findUnique({
-          where: { id: companyUser.companyId },
-          include: {
-            employees: {
-              where: { role: UserRole.EMPLOYEE },
-              select: {
-                id: true,
-                name: true,
-                email: true,
-                subrole: true,
-                coins: true,
-                createdAt: true
+      console.log(`API: Company user lookup result:`, companyUser ? `Found with companyId: ${companyUser.companyId}` : "Not Found");
+
+      // If we found a company user, get the actual company data if it has a companyId
+      if (companyUser) {
+        if (companyUser.companyId) {
+          company = await prisma.company.findUnique({
+            where: { id: companyUser.companyId },
+            include: {
+              employees: {
+                where: { role: UserRole.EMPLOYEE },
+                select: {
+                  id: true,
+                  name: true,
+                  email: true,
+                  subrole: true,
+                  coins: true,
+                  createdAt: true
+                }
               }
             }
-          }
-        });
-      }
+          });
+          
+          console.log(`API: Related company lookup result:`, company ? "Found" : "Not Found");
+        }
 
-      // If we found a company user but no company, create a synthetic company object
-      if (companyUser && !company) {
-        return NextResponse.json({
-          id: companyUser.id,
-          companyId: companyUser.companyId,
-          name: companyUser.name,
-          email: companyUser.email,
-          createdAt: companyUser.createdAt,
-          updatedAt: companyUser.updatedAt,
-          employees: [],
-          _synthetic: true
-        });
+        // If we found a company user but no related company record, create a synthetic company object
+        if (!company) {
+          console.log(`API: Creating synthetic company from user data`);
+          
+          // Get employees related to this company user
+          const employees = await prisma.user.findMany({
+            where: { 
+              companyId: companyUser.id,
+              role: UserRole.EMPLOYEE
+            },
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              subrole: true,
+              coins: true,
+              createdAt: true
+            }
+          });
+          
+          console.log(`API: Found ${employees.length} employees for synthetic company`);
+          
+          return NextResponse.json({
+            id: companyUser.id,
+            companyId: companyUser.companyId,
+            name: companyUser.name,
+            email: companyUser.email,
+            coins: companyUser.coins,
+            createdAt: companyUser.createdAt,
+            updatedAt: companyUser.updatedAt,
+            employees: employees || [],
+            _synthetic: true
+          });
+        }
       }
     }
 
     if (!company) {
+      console.log(`API: No company found for ID: ${id}`);
       return NextResponse.json(
         { error: "Company not found" },
         { status: 404 }
       );
     }
 
+    console.log(`API: Successfully returning company data for ID: ${id}`);
     return NextResponse.json(company);
   } catch (error) {
     console.error("Error fetching company:", error);
