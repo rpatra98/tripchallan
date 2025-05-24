@@ -110,6 +110,7 @@ export default async function CompanyDetailPage({ params }: { params: { id: stri
           };
         }
       }
+      
     } catch (fetchError) {
       console.error("Fetch error:", fetchError);
       error = fetchError instanceof Error ? fetchError.message : String(fetchError);
