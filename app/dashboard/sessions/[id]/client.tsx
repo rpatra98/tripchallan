@@ -251,6 +251,11 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
     mismatched: []
   });
   
+  // Add new state for session seals
+  const [sessionSeals, setSessionSeals] = useState<any[]>([]);
+  const [loadingSeals, setLoadingSeals] = useState(false);
+  const [sealsError, setSealsError] = useState("");
+  
   // Utility functions needed before other definitions
   const getFieldLabel = useCallback((key: string): string => {
     // Convert camelCase to Title Case with spaces
@@ -2326,6 +2331,112 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
     }
   };
 
+  // Add a function to fetch all seals for this session
+  const fetchSessionSeals = useCallback(async () => {
+    if (!sessionId) return;
+    
+    setLoadingSeals(true);
+    setSealsError("");
+    
+    try {
+      console.log("Fetching seals for session ID:", sessionId);
+      const response = await fetch(`/api/sessions/${sessionId}/seals`);
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`API Error (${response.status}):`, errorText);
+        throw new Error(`Failed to fetch session seals: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      console.log("Session seals received:", data);
+      setSessionSeals(data);
+    } catch (err) {
+      console.error("Error fetching session seals:", err);
+      setSealsError(err instanceof Error ? err.message : "Failed to fetch seals");
+    } finally {
+      setLoadingSeals(false);
+    }
+  }, [sessionId]);
+  
+  // Add useEffect to fetch seals when session details are loaded
+  useEffect(() => {
+    if (session) {
+      fetchSessionSeals();
+    }
+  }, [session, fetchSessionSeals]);
+  
+  // Add a function to render the all seals section
+  const renderAllSeals = () => {
+    if (loadingSeals) {
+      return (
+        <Box display="flex" justifyContent="center" p={2}>
+          <CircularProgress size={24} />
+        </Box>
+      );
+    }
+    
+    if (sealsError) {
+      return (
+        <Alert severity="error" sx={{ mb: 2 }}>
+          {sealsError}
+        </Alert>
+      );
+    }
+    
+    if (!sessionSeals || sessionSeals.length === 0) {
+      return (
+        <Box sx={{ p: 2, textAlign: 'center' }}>
+          <Typography variant="body2" color="text.secondary">
+            No seals found for this session.
+          </Typography>
+        </Box>
+      );
+    }
+    
+    return (
+      <TableContainer component={Paper} variant="outlined" sx={{ mb: 2 }}>
+        <Table size="small">
+          <TableHead>
+            <TableRow>
+              <TableCell>No.</TableCell>
+              <TableCell>Barcode/ID</TableCell>
+              <TableCell>Created At</TableCell>
+              <TableCell>Status</TableCell>
+              <TableCell>Verified By</TableCell>
+              <TableCell>Verified At</TableCell>
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {sessionSeals.map((seal, index) => (
+              <TableRow key={seal.id}>
+                <TableCell>{index + 1}</TableCell>
+                <TableCell>{seal.barcode}</TableCell>
+                <TableCell>{formatDate(seal.createdAt)}</TableCell>
+                <TableCell>
+                  <Chip 
+                    label={seal.verified ? "Verified" : "Unverified"} 
+                    color={seal.verified ? "success" : "default"}
+                    size="small"
+                    icon={seal.verified ? <CheckCircle fontSize="small" /> : <RadioButtonUnchecked fontSize="small" />}
+                  />
+                </TableCell>
+                <TableCell>
+                  {seal.verifiedBy ? 
+                    `${seal.verifiedBy.name || 'Unknown'} (${seal.verifiedBy.subrole || seal.verifiedBy.role || 'User'})` : 
+                    'Not verified yet'}
+                </TableCell>
+                <TableCell>
+                  {seal.scannedAt ? formatDate(seal.scannedAt) : 'N/A'}
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </TableContainer>
+    );
+  };
+
   if (authStatus === "loading" || loading) {
     return (
       <Box display="flex" justifyContent="center" alignItems="center" minHeight="50vh">
@@ -2755,6 +2866,15 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
             </TableContainer>
           </Box>
         )}
+
+        {/* Add All Verification Seals section */}
+        <Box mb={3}>
+          <Typography variant="h6" gutterBottom>
+            All Verification Seals
+          </Typography>
+          <Divider sx={{ mb: 2 }} />
+          {renderAllSeals()}
+        </Box>
 
         {/* Images section - moved before Reports section */}
         {session.images && Object.keys(session.images).some(key => {
