@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-options";
 import prisma from "@/lib/prisma";
 import { EmployeeSubrole, UserRole } from "@/prisma/enums";
+import { sendVerificationEmail } from "@/lib/email";
 
 export async function GET(req: NextRequest) {
   try {
@@ -64,6 +65,11 @@ export async function POST(req: NextRequest) {
     // Check if the session exists
     const existingSession = await prisma.session.findUnique({
       where: { id: sessionId },
+      include: {
+        company: true,
+        createdBy: true,
+        tripDetails: true,
+      },
     });
 
     if (!existingSession) {
@@ -109,6 +115,9 @@ export async function POST(req: NextRequest) {
       // Create the seal with verification
       const seal = await prisma.seal.create({
         data: sealData,
+        include: {
+          verifiedBy: true,
+        },
       });
       
       // Update session status to COMPLETED
@@ -135,6 +144,40 @@ export async function POST(req: NextRequest) {
           }
         }
       });
+      
+      // Get company email to send notification
+      let companyEmail = existingSession.company?.email;
+      
+      if (!companyEmail && existingSession.company?.id) {
+        const company = await prisma.company.findUnique({
+          where: { id: existingSession.company.id },
+          select: { email: true },
+        });
+        
+        companyEmail = company?.email;
+      }
+      
+      // Send email notification if company email is available
+      if (companyEmail) {
+        try {
+          await sendVerificationEmail({
+            sessionId,
+            sessionDetails: existingSession,
+            companyEmail,
+            guardName: user.name || 'Guard',
+            verificationDetails: verificationData,
+            sealDetails: seal,
+            timestamp: new Date().toISOString(),
+          });
+          
+          console.log(`[API] Verification email sent to ${companyEmail}`);
+        } catch (emailError) {
+          console.error("[API] Failed to send verification email:", emailError);
+          // Continue execution even if email fails
+        }
+      } else {
+        console.log("[API] No company email found, skipping verification email");
+      }
       
       return NextResponse.json({
         ...seal,
@@ -211,7 +254,15 @@ export async function PATCH(req: NextRequest) {
     // Check if the seal exists
     const existingSeal = await prisma.seal.findUnique({
       where: { id: sealId },
-      include: { session: true }
+      include: { 
+        session: {
+          include: {
+            company: true,
+            createdBy: true,
+            tripDetails: true,
+          }
+        }
+      }
     });
 
     if (!existingSeal) {
@@ -238,7 +289,14 @@ export async function PATCH(req: NextRequest) {
         scannedAt: new Date(),
       },
       include: {
-        session: true,
+        verifiedBy: true,
+        session: {
+          include: {
+            company: true,
+            createdBy: true,
+            tripDetails: true,
+          }
+        },
       },
     });
 
@@ -268,6 +326,40 @@ export async function PATCH(req: NextRequest) {
         }
       }
     });
+
+    // Get company email to send notification
+    let companyEmail = updatedSeal.session?.company?.email;
+    
+    if (!companyEmail && updatedSeal.session?.company?.id) {
+      const company = await prisma.company.findUnique({
+        where: { id: updatedSeal.session.company.id },
+        select: { email: true },
+      });
+      
+      companyEmail = company?.email;
+    }
+    
+    // Send email notification if company email is available
+    if (companyEmail) {
+      try {
+        await sendVerificationEmail({
+          sessionId: updatedSeal.sessionId,
+          sessionDetails: updatedSeal.session,
+          companyEmail,
+          guardName: user.name || 'Guard',
+          verificationDetails: verificationData,
+          sealDetails: updatedSeal,
+          timestamp: new Date().toISOString(),
+        });
+        
+        console.log(`[API] Verification email sent to ${companyEmail}`);
+      } catch (emailError) {
+        console.error("[API] Failed to send verification email:", emailError);
+        // Continue execution even if email fails
+      }
+    } else {
+      console.log("[API] No company email found, skipping verification email");
+    }
 
     return NextResponse.json({
       ...updatedSeal,
