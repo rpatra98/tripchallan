@@ -415,10 +415,7 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
     const operatorSealIds = operatorSeals.map(seal => seal.id);
     
     const matched = guardSealIds.filter(id => operatorSealIds.includes(id));
-    const mismatched = [
-      ...guardSealIds.filter(id => !operatorSealIds.includes(id)),
-      ...operatorSealIds.filter(id => !guardSealIds.includes(id))
-    ];
+    const mismatched = guardSealIds.filter(id => !operatorSealIds.includes(id));
     
     setSealComparison({ matched, mismatched });
   }, [operatorSeals]);

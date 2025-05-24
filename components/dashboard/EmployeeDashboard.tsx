@@ -1321,10 +1321,10 @@ export default function EmployeeDashboard({ user }: EmployeeDashboardProps) {
                     </div>
                     <div className="flex gap-2">
                       <button 
-                        onClick={checkAllSessionsForVerification}
+                        onClick={fetchVerificationSessions}
                         className="px-4 py-2 border border-blue-500 text-blue-600 rounded-md text-sm hover:bg-blue-50"
                       >
-                        Check All Sessions
+                        Refresh
                       </button>
                     </div>
                   </div>
