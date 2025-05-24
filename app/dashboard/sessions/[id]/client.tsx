@@ -328,7 +328,7 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
       fetchSessionDetails();
   }, [fetchSessionDetails]);
    
-  // Extract operator seals from session data - pulling from activity logs instead of using system-generated barcode
+  // Extract operator seals from session data - pulling from activity logs and sessionSeals
   const operatorSeals = useMemo(() => {
     if (!session) return [];
     
@@ -339,8 +339,27 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
       timestamp: string;
     }> = [];
     
-    // Check for seal tag information in activity logs first
-    if (session.activityLogs && session.activityLogs.length > 0) {
+    // First try to get seals from the sessionSeals array (preferred source)
+    if (sessionSeals && sessionSeals.length > 0) {
+      // Use only tag type seals
+      const tagSeals = sessionSeals.filter(seal => seal.type === 'tag');
+      
+      console.log("Found tag seals in sessionSeals:", tagSeals.length);
+      
+      tagSeals.forEach(seal => {
+        seals.push({
+          id: seal.barcode,
+          method: seal.method || 'manual',
+          image: null, // Images not available in this data structure
+          timestamp: seal.createdAt
+        });
+      });
+    }
+    
+    // If we couldn't find any seals in sessionSeals, try activity logs as fallback
+    if (seals.length === 0 && session.activityLogs && session.activityLogs.length > 0) {
+      console.log("No seals found in sessionSeals, trying activity logs");
+      
       // Find the activity log that contains the seal tag information - usually from session creation
       const sealTagLog = session.activityLogs.find(log => {
         if (!log.details) return false;
@@ -362,7 +381,8 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
         
         // Find sealTagIds from different possible locations in the data structure
         if (details.sealTagIds) {
-          sealTagIds = JSON.parse(details.sealTagIds);
+          sealTagIds = typeof details.sealTagIds === 'string' ? 
+            JSON.parse(details.sealTagIds) : details.sealTagIds;
         } else if (details.tripDetails?.sealTagIds) {
           sealTagIds = details.tripDetails.sealTagIds;
         } else if (details.imageBase64Data?.sealTagImages) {
@@ -371,7 +391,8 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
         
         // Get methods information if available
         if (details.sealTagMethods) {
-          sealTagMethods = JSON.parse(details.sealTagMethods);
+          sealTagMethods = typeof details.sealTagMethods === 'string' ? 
+            JSON.parse(details.sealTagMethods) : details.sealTagMethods;
         } else if (details.tripDetails?.sealTagMethods) {
           sealTagMethods = details.tripDetails.sealTagMethods;
         } else if (details.imageBase64Data?.sealTagImages) {
@@ -403,11 +424,36 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
       }
     }
     
-    // REMOVED: The fallback to system-generated barcode
-    // We don't want to show system-generated seal IDs
+    // If we couldn't find any seals, check if session.tripDetails has seal tag information
+    if (seals.length === 0 && session.tripDetails) {
+      console.log("Checking tripDetails for seal tag information");
+      
+      // Access tripDetails and try to extract seal tag information if it exists
+      const tripDetails = session.tripDetails as any;
+      
+      if (tripDetails.sealTagIds) {
+        // If sealTagIds is available directly in tripDetails
+        const sealTagIds = Array.isArray(tripDetails.sealTagIds) ? 
+          tripDetails.sealTagIds : 
+          (typeof tripDetails.sealTagIds === 'string' ? 
+            JSON.parse(tripDetails.sealTagIds) : []);
+        
+        sealTagIds.forEach((id: string) => {
+          seals.push({
+            id,
+            method: 'manual',
+            image: null,
+            timestamp: session.createdAt
+          });
+        });
+      }
+    }
+    
+    // Add console log to help debug the issue
+    console.log("Extracted operator seals:", seals.length, seals);
     
     return seals;
-  }, [session]);
+  }, [session, sessionSeals]);
 
   // Update seal comparison data
   const updateSealComparison = useCallback((scannedSeals: any[]) => {
