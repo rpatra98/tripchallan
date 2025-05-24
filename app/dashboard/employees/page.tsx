@@ -24,9 +24,14 @@ import {
   InputLabel,
   Select,
   MenuItem,
-  Stack
+  Stack,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogContentText,
+  DialogTitle
 } from "@mui/material";
-import { Add, Person, Search } from "@mui/icons-material";
+import { Add, Person, Search, Delete } from "@mui/icons-material";
 import { UserRole } from "@/prisma/enums";
 
 interface Employee {
@@ -50,6 +55,10 @@ export default function EmployeesPage() {
   const [searchColumn, setSearchColumn] = useState<SearchColumn>('all');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [employeeToDelete, setEmployeeToDelete] = useState<Employee | null>(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   useEffect(() => {
     // Only fetch if we have a valid session
@@ -130,6 +139,54 @@ export default function EmployeesPage() {
 
   const handleColumnChange = (event: any) => {
     setSearchColumn(event.target.value as SearchColumn);
+  };
+
+  const handleDeleteClick = (employee: Employee) => {
+    setEmployeeToDelete(employee);
+    setDeleteDialogOpen(true);
+    setDeleteError(null);
+  };
+  
+  const handleCloseDeleteDialog = () => {
+    if (!deleteLoading) {
+      setDeleteDialogOpen(false);
+      setEmployeeToDelete(null);
+      setDeleteError(null);
+    }
+  };
+  
+  const confirmDeleteEmployee = async () => {
+    if (!employeeToDelete) return;
+    
+    setDeleteLoading(true);
+    
+    try {
+      const response = await fetch(`/api/employees/${employeeToDelete.id}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to delete employee');
+      }
+      
+      // Success - update UI
+      setEmployees(employees.filter(emp => emp.id !== employeeToDelete.id));
+      setDeleteDialogOpen(false);
+      setEmployeeToDelete(null);
+      
+      // Show success message
+      alert('Employee deleted successfully');
+    } catch (error) {
+      console.error('Error deleting employee:', error);
+      setDeleteError(error instanceof Error ? error.message : 'An unknown error occurred');
+    } finally {
+      setDeleteLoading(false);
+    }
   };
 
   if (!session) {
@@ -242,18 +299,31 @@ export default function EmployeesPage() {
                         {new Date(employee.createdAt).toLocaleDateString()}
                       </TableCell>
                       <TableCell align="right">
-                        <a 
-                          href={`/dashboard/employees/${employee.id}`}
-                          style={{ textDecoration: 'none' }}
-                        >
-                          <Button
-                            variant="outlined"
-                            size="small"
-                            startIcon={<Person />}
+                        <Stack direction="row" spacing={1} justifyContent="flex-end">
+                          <a 
+                            href={`/dashboard/employees/${employee.id}`}
+                            style={{ textDecoration: 'none' }}
                           >
-                            View Details
-                          </Button>
-                        </a>
+                            <Button
+                              variant="outlined"
+                              size="small"
+                              startIcon={<Person />}
+                            >
+                              View Details
+                            </Button>
+                          </a>
+                          {session.user?.role === UserRole.ADMIN && (
+                            <Button
+                              variant="outlined"
+                              color="error"
+                              size="small"
+                              startIcon={<Delete />}
+                              onClick={() => handleDeleteClick(employee)}
+                            >
+                              Delete
+                            </Button>
+                          )}
+                        </Stack>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -263,6 +333,40 @@ export default function EmployeesPage() {
           )}
         </>
       )}
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog
+        open={deleteDialogOpen}
+        onClose={handleCloseDeleteDialog}
+      >
+        <DialogTitle>Confirm Employee Deletion</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            Are you sure you want to delete employee {employeeToDelete?.name}? This action cannot be undone.
+          </DialogContentText>
+          {deleteError && (
+            <Alert severity="error" sx={{ mt: 2 }}>
+              {deleteError}
+            </Alert>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button 
+            onClick={handleCloseDeleteDialog} 
+            disabled={deleteLoading}
+          >
+            Cancel
+          </Button>
+          <Button 
+            onClick={confirmDeleteEmployee} 
+            color="error" 
+            disabled={deleteLoading}
+            variant="contained"
+          >
+            {deleteLoading ? 'Deleting...' : 'Delete'}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </div>
   );
 } 

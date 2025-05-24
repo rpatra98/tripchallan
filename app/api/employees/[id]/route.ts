@@ -214,4 +214,105 @@ export async function PUT(
     console.error("Error updating employee:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
+}
+
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  try {
+    console.log(`Attempting to delete employee with ID: ${params.id}`);
+    
+    // Get the authenticated user's session
+    const session = await getServerSession(authOptions);
+    
+    if (!session?.user) {
+      console.log('Unauthorized: No session or user');
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    
+    console.log(`User attempting delete: ${session.user.id}, role: ${session.user.role}`);
+    
+    // Only ADMIN and SUPERADMIN can delete employees
+    if (session.user.role !== UserRole.ADMIN && session.user.role !== UserRole.SUPERADMIN) {
+      return NextResponse.json(
+        { error: "Only administrators can delete employees" }, 
+        { status: 403 }
+      );
+    }
+    
+    // Check if employee exists
+    const employee = await prisma.user.findUnique({
+      where: { 
+        id: params.id, 
+        role: UserRole.EMPLOYEE 
+      },
+      include: {
+        company: {
+          select: {
+            id: true,
+            name: true
+          }
+        },
+        // Check for associated sessions
+        createdSessions: {
+          select: { id: true },
+          take: 1
+        },
+        // Check for any other important relationships
+        operatorPermissions: true
+      }
+    });
+    
+    if (!employee) {
+      console.log('Employee not found');
+      return NextResponse.json({ error: "Employee not found" }, { status: 404 });
+    }
+    
+    console.log('Employee found:', {
+      id: employee.id,
+      name: employee.name,
+      email: employee.email,
+      companyId: employee.companyId,
+      company: employee.company,
+      hasCreatedSessions: employee.createdSessions.length > 0
+    });
+    
+    // Check if there are associated resources that would prevent deletion
+    if (employee.createdSessions.length > 0) {
+      return NextResponse.json(
+        { 
+          error: "Cannot delete employee with associated sessions. Transfer or delete their sessions first.",
+          resourceCount: employee.createdSessions.length 
+        },
+        { status: 400 }
+      );
+    }
+    
+    // Delete associated data first
+    if (employee.operatorPermissions) {
+      await prisma.operatorPermissions.delete({
+        where: { userId: employee.id }
+      });
+    }
+    
+    // Delete the employee
+    await prisma.user.delete({
+      where: { id: params.id }
+    });
+    
+    console.log(`Successfully deleted employee ${employee.name} (${employee.id})`);
+    
+    return NextResponse.json({ 
+      success: true,
+      message: "Employee deleted successfully" 
+    });
+    
+  } catch (error) {
+    console.error("Error deleting employee:", error);
+    return NextResponse.json(
+      { error: "Failed to delete employee", details: error instanceof Error ? error.message : String(error) },
+      { status: 500 }
+    );
+  }
 } 

@@ -1,8 +1,14 @@
-import { redirect } from "next/navigation";
+"use client";
+
+import { useState, useEffect } from "react";
+import { useSession } from "next-auth/react";
+import { redirect, notFound, useRouter } from "next/navigation";
+import Link from "next/link";
+import { Alert, Button, Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle } from "@mui/material";
+import { UserRole } from "@/prisma/enums";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-options";
 import prisma from "@/lib/prisma";
-import Link from "next/link";
 import CompanyActions from "./company-actions";
 
 // Force dynamic rendering to bypass caching issues
@@ -10,453 +16,172 @@ export const dynamic = 'force-dynamic';
 export const fetchCache = 'force-no-store';
 export const revalidate = 0;
 
-export default async function CompanyDetailPage({ params }) {
+export default function CompanyDetailPage({ params }) {
   const companyId = params.id;
-  console.log("CompanyDetailPage - Looking up company ID:", companyId);
+  const router = useRouter();
+  const { data: session, status } = useSession({
+    required: true,
+    onUnauthenticated() {
+      redirect("/login");
+    },
+  });
   
-  try {
-    const session = await getServerSession(authOptions);
+  const [company, setCompany] = useState(null);
+  const [employees, setEmployees] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+  const [deleteError, setDeleteError] = useState(null);
 
-    if (!session) {
-      redirect("/");
-    }
-
-    // Load the company data via our improved API endpoint
-    const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/companies/${companyId}`, {
-      headers: {
-        Cookie: `next-auth.session-token=${session.user.token}`,
-      },
-      cache: 'no-store',
-    });
-
-    if (!response.ok) {
-      console.error("Failed to fetch company:", response.status, response.statusText);
-      
-      // If we can't find the company via the API, try to look it up directly
-      let company = null;
-      
+  useEffect(() => {
+    if (status === "loading") return;
+    
+    const fetchCompanyDetails = async () => {
       try {
-        // Try as a direct company ID first
-        company = await prisma.company.findUnique({
-          where: { id: companyId },
-        });
+        setLoading(true);
+        const res = await fetch(`/api/companies/${companyId}`);
         
-        // If not found, try as a company user
-        if (!company) {
-          const companyUser = await prisma.user.findFirst({
-            where: {
-              id: companyId,
-              role: "COMPANY",
-            },
-            select: {
-              id: true,
-              name: true,
-              email: true,
-              companyId: true,
-              coins: true,
-              createdAt: true,
-            },
-          });
-          
-          // If we found a company user, check if it has an associated company
-          if (companyUser?.companyId) {
-            company = await prisma.company.findUnique({
-              where: { id: companyUser.companyId },
-            });
-          }
-          
-          // If no company record but we have a company user, use that data
-          if (!company && companyUser) {
-            company = {
-              id: companyUser.id,
-              name: companyUser.name,
-              email: companyUser.email,
-              createdAt: companyUser.createdAt,
-              coins: companyUser.coins,
-              companyId: companyUser.companyId,
-              isActive: true, // Default to true for legacy data
-              _synthetic: true,
-            };
+        if (!res.ok) {
+          if (res.status === 404) {
+            notFound();
+          } else {
+            throw new Error("Failed to fetch company");
           }
         }
-      } catch (lookupError) {
-        console.error("Error during fallback company lookup:", lookupError);
-        // Continue with the null company, the rest of the code will handle it
+        
+        const data = await res.json();
+        setCompany(data);
+        
+        // Fetch employees for this company
+        const empRes = await fetch(`/api/companies/${companyId}/employees`);
+        if (empRes.ok) {
+          const empData = await empRes.json();
+          setEmployees(empData);
+        }
+      } catch (err) {
+        console.error("Error fetching company:", err);
+        setError(err.message);
+      } finally {
+        setLoading(false);
       }
-      
-      // If we still couldn't find the company, show available companies
-      if (!company) {
-        // Find up to 5 valid companies to suggest
-        const availableCompanies = await prisma.user.findMany({
-          where: {
-            role: "COMPANY",
-          },
-          take: 5,
-          orderBy: {
-            name: 'asc'
-          }
-        });
-
-        return (
-          <div className="container mx-auto px-4 py-8 bg-red-50 p-6 rounded-lg">
-            <h1 className="text-2xl font-bold text-red-700">Company Not Found</h1>
-            <p className="mt-2">The company with ID: {companyId} was not found in the database.</p>
-            
-            {availableCompanies.length > 0 ? (
-              <div className="mt-4 mb-4">
-                <h2 className="text-lg font-semibold text-gray-800">Available Companies:</h2>
-                <ul className="mt-2 list-disc pl-5">
-                  {availableCompanies.map(company => (
-                    <li key={company.id} className="mt-1">
-                      <Link href={`/dashboard/companies/${company.id}`} className="text-blue-600 hover:underline">
-                        {company.name} ({company.email})
-                      </Link>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ) : (
-              <div className="mt-4 p-3 bg-yellow-100 text-yellow-800 rounded">
-                <p>There are no companies in the database yet.</p>
-                <p className="mt-2">You can create one by visiting the dashboard.</p>
-              </div>
-            )}
-            
-            <div className="mt-4 flex space-x-4">
-              <Link href="/dashboard" className="text-blue-600 hover:underline">
-                &larr; Go back to Dashboard
-              </Link>
-              <Link href="/dashboard/companies/list-all" className="text-blue-600 hover:underline">
-                View All Companies
-              </Link>
-            </div>
-          </div>
-        );
-      }
-      
-      // If we found the company directly, get its employees
-      const employees = await prisma.user.findMany({
-        where: {
-          companyId: company._synthetic ? company.id : company.id,
-          role: "EMPLOYEE",
-        },
-        orderBy: {
-          name: "asc",
-        },
-      }) || [];
-      
-      // Debug the direct prisma company data
-      console.log("Direct company data structure:", JSON.stringify(company, null, 2));
-      
-      return (
-        <div className="container mx-auto px-4 py-8">
-          <div className="mb-6">
-            <Link href="/dashboard" className="text-blue-600 hover:underline mb-4 inline-block">
-              &larr; Back to Dashboard
-            </Link>
-            <div className="flex justify-between items-center">
-              <div>
-                <h1 className="text-2xl font-bold">{company.name}</h1>
-                <p className="text-gray-600">{company.email}</p>
-                {company._synthetic && (
-                  <p className="text-amber-600 text-sm mt-1">
-                    Note: Using company user data, actual company record may be missing
-                  </p>
-                )}
-              </div>
-              <div className="flex items-center">
-                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                  company.isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                }`}>
-                  {company.isActive ? 'Active' : 'Inactive'}
-                </span>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white shadow-md rounded-lg p-6 mb-8">
-            <h2 className="text-xl font-semibold mb-4">Company Details</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <p className="text-gray-600">ID</p>
-                <p className="font-mono text-sm">{company?.id || 'N/A'}</p>
-              </div>
-              <div>
-                <p className="text-gray-600">Company Type</p>
-                <p>{company?.companyType || "--Others--"}</p>
-              </div>
-              <div>
-                <p className="text-gray-600">Created On</p>
-                <p>{company?.createdAt ? new Date(company.createdAt).toLocaleString('en-US', {
-                  year: 'numeric',
-                  month: 'short',
-                  day: 'numeric',
-                  hour: '2-digit',
-                  minute: '2-digit',
-                  second: '2-digit',
-                  hour12: true
-                }) : 'N/A'}</p>
-              </div>
-              {company?.gstin && (
-                <div>
-                  <p className="text-gray-600">GSTIN</p>
-                  <p>{company.gstin}</p>
-                </div>
-              )}
-              {company?.phone && (
-                <div>
-                  <p className="text-gray-600">Phone Number</p>
-                  <p>{company.phone}</p>
-                </div>
-              )}
-              {company?.address && (
-                <div>
-                  <p className="text-gray-600">Address</p>
-                  <p>{company.address}</p>
-                </div>
-              )}
-            </div>
-
-            {company?.logo && (
-              <div className="mt-4">
-                <p className="text-gray-600 mb-2">Company Logo</p>
-                <div className="w-40 h-40 border rounded-md overflow-hidden">
-                  <img 
-                    src={company.logo} 
-                    alt={`${company.name} logo`} 
-                    className="w-full h-full object-contain"
-                    onError={(e) => {
-                      e.target.onerror = null;
-                      e.target.src = '/placeholder-logo.png'; // Fallback image
-                    }}
-                  />
-                </div>
-              </div>
-            )}
-
-            {company?.documents && company.documents.length > 0 && (
-              <div className="mt-4">
-                <p className="text-gray-600 mb-2">Documents</p>
-                <div className="flex flex-wrap gap-2">
-                  {company.documents.map((doc, index) => (
-                    <a 
-                      href={doc} 
-                      key={index}
-                      download
-                      target="_blank"
-                      rel="noopener noreferrer" 
-                      className="inline-flex items-center px-3 py-1 bg-blue-100 text-blue-700 rounded hover:bg-blue-200"
-                    >
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                      </svg>
-                      Document {index + 1}
-                    </a>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            <div className="mt-6">
-              <CompanyActions 
-                companyId={company?.id || companyId} 
-                companyName={company?.name || 'Company'} 
-                isActive={company?.isActive !== undefined ? company.isActive : true}
-              />
-            </div>
-          </div>
-
-          <div className="bg-white shadow-md rounded-lg p-6">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-semibold">Employees</h2>
-              <Link 
-                href={`/dashboard/employees/create?companyId=${company.id}`}
-                className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
-              >
-                Add Employee
-              </Link>
-            </div>
-
-            {employees && employees.length === 0 ? (
-              <p className="text-gray-500 text-center py-4">No employees found for this company.</p>
-            ) : employees && employees.length > 0 ? (
-              <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Role</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Coins</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
-                    {employees.map((employee) => (
-                      <tr key={employee.id}>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                          {employee.name}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                          {employee.email}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                          {employee.subrole ? String(employee.subrole).toLowerCase().replace("_", " ") : "Employee"}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                          {employee.coins}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                          <Link 
-                            href={`/dashboard/employees/${employee.id}`}
-                            className="text-blue-600 hover:text-blue-900"
-                          >
-                            View Details
-                          </Link>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            ) : (
-              <p className="text-gray-500 text-center py-4">No employees found for this company.</p>
-            )}
-          </div>
-        </div>
-      );
+    };
+    
+    fetchCompanyDetails();
+  }, [companyId, status]);
+  
+  const handleDeleteClick = () => {
+    setDeleteDialogOpen(true);
+    setDeleteError(null);
+  };
+  
+  const handleCloseDeleteDialog = () => {
+    if (!deleteLoading) {
+      setDeleteDialogOpen(false);
+      setDeleteError(null);
     }
-
-    // If the API request was successful, parse the company data
-    const company = await response.json();
+  };
+  
+  const confirmDeleteCompany = async () => {
+    setDeleteLoading(true);
     
-    // Debug the company data structure
-    console.log("Company data structure:", JSON.stringify(company, null, 2));
-    
-    // Get employees for this company
-    const employees = Array.isArray(company.employees) ? company.employees : [];
+    try {
+      const response = await fetch(`/api/companies/${companyId}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ confirmed: true })
+      });
+      
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to delete company');
+      }
+      
+      // Success - redirect to dashboard
+      alert('Company deleted successfully');
+      router.push('/dashboard?tab=companies');
+    } catch (error) {
+      console.error('Error deleting company:', error);
+      setDeleteError(error.message || 'An unknown error occurred');
+    } finally {
+      setDeleteLoading(false);
+    }
+  };
 
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center min-h-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900"></div>
+      </div>
+    );
+  }
+
+  if (error) {
     return (
       <div className="container mx-auto px-4 py-8">
-        <div className="mb-6">
-          <Link href="/dashboard" className="text-blue-600 hover:underline mb-4 inline-block">
-            &larr; Back to Dashboard
-          </Link>
+        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
+          {error}
+        </div>
+      </div>
+    );
+  }
+
+  if (!company) {
+    return notFound();
+  }
+
+  return (
+    <div className="container mx-auto px-4 py-8">
+      <nav className="mb-6">
+        <Link href="/dashboard?tab=companies" className="text-blue-500 hover:underline">
+          ← Back to Companies
+        </Link>
+      </nav>
+
+      <div className="bg-white shadow rounded-lg mb-6">
+        <div className="p-6 border-b">
           <div className="flex justify-between items-center">
+            <h1 className="text-2xl font-bold text-gray-900">{company.name}</h1>
+            
+            {session?.user?.role === UserRole.ADMIN && (
+              <div className="flex space-x-2">
+                <Link 
+                  href={`/dashboard/companies/${companyId}/edit`}
+                  className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
+                >
+                  Edit Company
+                </Link>
+                <Button
+                  variant="contained"
+                  color="error"
+                  onClick={handleDeleteClick}
+                >
+                  Delete Company
+                </Button>
+              </div>
+            )}
+          </div>
+          
+          <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <h1 className="text-2xl font-bold">{company.name}</h1>
-              <p className="text-gray-600">{company.email}</p>
-              {company._synthetic && (
-                <p className="text-amber-600 text-sm mt-1">
-                  Note: Using company user data, actual company record may be missing
-                </p>
-              )}
+              <h3 className="text-sm font-medium text-gray-500">Email</h3>
+              <p className="mt-1">{company.email}</p>
             </div>
-            <div className="flex items-center">
-              <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                company.isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-              }`}>
-                {company.isActive ? 'Active' : 'Inactive'}
-              </span>
+            <div>
+              <h3 className="text-sm font-medium text-gray-500">Created</h3>
+              <p className="mt-1">{new Date(company.createdAt).toLocaleDateString()}</p>
             </div>
           </div>
         </div>
+      </div>
 
-        <div className="bg-white shadow-md rounded-lg p-6 mb-8">
-          <h2 className="text-xl font-semibold mb-4">Company Details</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <p className="text-gray-600">ID</p>
-              <p className="font-mono text-sm">{company?.id || 'N/A'}</p>
-            </div>
-            <div>
-              <p className="text-gray-600">Company Type</p>
-              <p>{company?.companyType || "--Others--"}</p>
-            </div>
-            <div>
-              <p className="text-gray-600">Created On</p>
-              <p>{company?.createdAt ? new Date(company.createdAt).toLocaleString('en-US', {
-                year: 'numeric',
-                month: 'short',
-                day: 'numeric',
-                hour: '2-digit',
-                minute: '2-digit',
-                second: '2-digit',
-                hour12: true
-              }) : 'N/A'}</p>
-            </div>
-            {company?.gstin && (
-              <div>
-                <p className="text-gray-600">GSTIN</p>
-                <p>{company.gstin}</p>
-              </div>
-            )}
-            {company?.phone && (
-              <div>
-                <p className="text-gray-600">Phone Number</p>
-                <p>{company.phone}</p>
-              </div>
-            )}
-            {company?.address && (
-              <div>
-                <p className="text-gray-600">Address</p>
-                <p>{company.address}</p>
-              </div>
-            )}
-          </div>
-
-          {company?.logo && (
-            <div className="mt-4">
-              <p className="text-gray-600 mb-2">Company Logo</p>
-              <div className="w-40 h-40 border rounded-md overflow-hidden">
-                <img 
-                  src={company.logo} 
-                  alt={`${company.name} logo`} 
-                  className="w-full h-full object-contain"
-                  onError={(e) => {
-                    e.target.onerror = null;
-                    e.target.src = '/placeholder-logo.png'; // Fallback image
-                  }}
-                />
-              </div>
-            </div>
-          )}
-
-          {company?.documents && company.documents.length > 0 && (
-            <div className="mt-4">
-              <p className="text-gray-600 mb-2">Documents</p>
-              <div className="flex flex-wrap gap-2">
-                {company.documents.map((doc, index) => (
-                  <a 
-                    href={doc} 
-                    key={index}
-                    download
-                    target="_blank"
-                    rel="noopener noreferrer" 
-                    className="inline-flex items-center px-3 py-1 bg-blue-100 text-blue-700 rounded hover:bg-blue-200"
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                    </svg>
-                    Document {index + 1}
-                  </a>
-                ))}
-              </div>
-            </div>
-          )}
-
-          <div className="mt-6">
-            <CompanyActions 
-              companyId={company?.id || companyId} 
-              companyName={company?.name || 'Company'} 
-              isActive={company?.isActive !== undefined ? company.isActive : true}
-            />
-          </div>
-        </div>
-
-        <div className="bg-white shadow-md rounded-lg p-6">
+      <div className="bg-white shadow rounded-lg">
+        <div className="p-6 border-b">
           <div className="flex justify-between items-center mb-4">
-            <h2 className="text-xl font-semibold">Employees</h2>
+            <h2 className="text-xl font-bold text-gray-900">Employees</h2>
             <Link 
               href={`/dashboard/employees/create?companyId=${company.id}`}
               className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
@@ -465,9 +190,7 @@ export default async function CompanyDetailPage({ params }) {
             </Link>
           </div>
 
-          {employees && employees.length === 0 ? (
-            <p className="text-gray-500 text-center py-4">No employees found for this company.</p>
-          ) : employees && employees.length > 0 ? (
+          {employees.length > 0 ? (
             <div className="overflow-x-auto">
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
@@ -495,12 +218,14 @@ export default async function CompanyDetailPage({ params }) {
                         {employee.coins}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        <Link 
-                          href={`/dashboard/employees/${employee.id}`}
-                          className="text-blue-600 hover:text-blue-900"
-                        >
-                          View Details
-                        </Link>
+                        <div className="flex space-x-2">
+                          <Link 
+                            href={`/dashboard/employees/${employee.id}`}
+                            className="text-blue-600 hover:text-blue-900"
+                          >
+                            View Details
+                          </Link>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -512,21 +237,40 @@ export default async function CompanyDetailPage({ params }) {
           )}
         </div>
       </div>
-    );
-  } catch (error) {
-    console.error("Error in CompanyDetailPage:", error);
-    console.error("Error details:", JSON.stringify(error, Object.getOwnPropertyNames(error)));
-    return (
-      <div className="container mx-auto px-4 py-8 bg-red-50 p-6 rounded-lg">
-        <h1 className="text-2xl font-bold text-red-700">Error</h1>
-        <p className="mt-2">An error occurred while fetching the company details.</p>
-        <p className="mt-2 text-red-500">{error instanceof Error ? error.message : String(error)}</p>
-        <div className="mt-4">
-          <Link href="/dashboard" className="text-blue-600 hover:underline">
-            &larr; Go back to Dashboard
-          </Link>
-        </div>
-      </div>
-    );
-  }
+      
+      {/* Delete Confirmation Dialog */}
+      <Dialog
+        open={deleteDialogOpen}
+        onClose={handleCloseDeleteDialog}
+      >
+        <DialogTitle>Confirm Company Deletion</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            Are you sure you want to delete {company?.name}? This action will delete the company and all associated employees. This cannot be undone.
+          </DialogContentText>
+          {deleteError && (
+            <Alert severity="error" sx={{ mt: 2 }}>
+              {deleteError}
+            </Alert>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button 
+            onClick={handleCloseDeleteDialog} 
+            disabled={deleteLoading}
+          >
+            Cancel
+          </Button>
+          <Button 
+            onClick={confirmDeleteCompany} 
+            color="error" 
+            disabled={deleteLoading}
+            variant="contained"
+          >
+            {deleteLoading ? 'Deleting...' : 'Delete Company'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+    </div>
+  );
 } 
