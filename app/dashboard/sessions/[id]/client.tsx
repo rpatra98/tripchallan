@@ -172,17 +172,13 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
   
   // New state for guard verification
   const [verificationFormOpen, setVerificationFormOpen] = useState(false);
-  const [verificationFields, setVerificationFields] = useState<{[key: string]: {
-    operatorValue: any;
-    guardValue: any;
-    comment: string;
-    isVerified: boolean;
-  }}>({});
+  const [verificationFields, setVerificationFields] = useState<Record<string, any>>({});
   const [verificationStep, setVerificationStep] = useState(0);
   const [verificationProgress, setVerificationProgress] = useState(0);
   const [sealInput, setSealInput] = useState("");
   const [sealError, setSealError] = useState("");
-  const [imageVerificationStatus, setImageVerificationStatus] = useState<{[key: string]: boolean}>({});
+  const [imageVerificationStatus, setImageVerificationStatus] = useState<Record<string, boolean>>({});
+  const [imageComments, setImageComments] = useState<Record<string, string>>({});
   
   // Add new state for verification tabs
   const [activeTab, setActiveTab] = useState(0);
@@ -711,10 +707,11 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
     setVerificationStep(0);
   };
   
+  // Handle image verification status toggle
   const verifyImage = (imageKey: string) => {
     setImageVerificationStatus(prev => ({
       ...prev,
-      [imageKey]: true
+      [imageKey]: !prev[imageKey]
     }));
   };
   
@@ -1086,7 +1083,7 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
             <TableHead>
               <TableRow sx={{ backgroundColor: 'background.paper' }}>
                 <TableCell width="40%"><strong>Field</strong></TableCell>
-                <TableCell width="45%"><strong>Your Verification</strong></TableCell>
+                <TableCell width="45%"><strong>Operator Value</strong></TableCell>
                 <TableCell width="15%"><strong>Status</strong></TableCell>
               </TableRow>
             </TableHead>
@@ -1100,59 +1097,47 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
                   'tareWeight', 'netMaterialWeight', 'loaderMobileNumber'
                 ].includes(field))
                 .map(([field, data]) => (
-                <TableRow key={field} sx={{ '&:last-child td, &:last-child th': { border: 0 } }}>
-                  <TableCell component="th" scope="row">
-                    {getFieldLabel(field)}
-                  </TableCell>
-                  <TableCell>
-                    <TextField 
-                      size="small"
-                      fullWidth
-                      variant="outlined"
-                      value={data.guardValue || ''}
-                      onChange={(e) => handleInputChange(field, e.target.value)}
-                      placeholder="Enter verified value"
-                    />
-                    {data.comment && (
-                      <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
-                        Comment: {data.comment}
-                      </Typography>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    <Box display="flex" flexDirection="column" alignItems="center">
-                      <IconButton 
-                        onClick={() => verifyField(field)}
-                        color={data.isVerified ? "success" : "default"}
-                        size="small"
-                      >
-                        {data.isVerified ? <CheckCircle /> : <RadioButtonUnchecked />}
-                      </IconButton>
-                      <TextField
-                        size="small"
-                        placeholder="Add comment"
-                        value={data.comment}
-                        onChange={(e) => handleCommentChange(field, e.target.value)}
-                        variant="standard"
-                        sx={{ mt: 1, width: '100%' }}
-                        InputProps={{
-                          endAdornment: data.comment ? (
-                            <InputAdornment position="end">
-                      <IconButton 
-                                onClick={() => handleCommentChange(field, '')}
-                                edge="end"
-                        size="small" 
-                              >
-                                <Close fontSize="small" />
-                              </IconButton>
-                            </InputAdornment>
-                          ) : null,
-                        }}
-                      />
-                    </Box>
-                  </TableCell>
-                </TableRow>
-              ))}
+                  <TableRow key={field} sx={{ '&:last-child td, &:last-child th': { border: 0 } }}>
+                    <TableCell component="th" scope="row">
+                      {getFieldLabel(field)}
+                    </TableCell>
+                    <TableCell>
+                      {data.operatorValue}
+                    </TableCell>
+                    <TableCell>
+                      <Box display="flex" flexDirection="column" alignItems="center">
+                        <IconButton 
+                          onClick={() => verifyField(field)}
+                          color={data.isVerified ? "success" : "default"}
+                          size="small"
+                        >
+                          {data.isVerified ? <CheckCircle /> : <RadioButtonUnchecked />}
+                        </IconButton>
+                        <TextField
+                          size="small"
+                          placeholder="Add comment"
+                          value={data.comment}
+                          onChange={(e) => handleCommentChange(field, e.target.value)}
+                          variant="standard"
+                          sx={{ mt: 1, width: '100%' }}
+                          InputProps={{
+                            endAdornment: data.comment ? (
+                              <InputAdornment position="end">
+                                <IconButton 
+                                  onClick={() => handleCommentChange(field, '')}
+                                  edge="end"
+                                  size="small" 
+                                >
+                                  <Close fontSize="small" />
+                                </IconButton>
+                              </InputAdornment>
+                            ) : null,
+                          }}
+                        />
+                      </Box>
+                    </TableCell>
+                  </TableRow>
+                ))}
             </TableBody>
           </Table>
         </TableContainer>
@@ -1186,69 +1171,58 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
             <TableHead>
               <TableRow sx={{ backgroundColor: 'background.paper' }}>
                 <TableCell width="40%"><strong>Field</strong></TableCell>
-                <TableCell width="45%"><strong>Your Verification</strong></TableCell>
+                <TableCell width="45%"><strong>Operator Value</strong></TableCell>
                 <TableCell width="15%"><strong>Status</strong></TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
               {Object.entries(verificationFields)
                 .filter(([field, _]) => [
-                  'driverName', 'driverContactNumber', 'driverLicense'
+                  'driverName', 'driverMobileNumber', 'driverLicenseNumber',
+                  'driverLicenseExpiryDate', 'driverAddress', 'driverExperience'
                 ].includes(field))
                 .map(([field, data]) => (
-                <TableRow key={field} sx={{ '&:last-child td, &:last-child th': { border: 0 } }}>
-                  <TableCell component="th" scope="row">
-                    {getFieldLabel(field)}
-                  </TableCell>
-                  <TableCell>
-                    <TextField 
-                      size="small"
-                      fullWidth
-                      variant="outlined"
-                      value={data.guardValue || ''}
-                      onChange={(e) => handleInputChange(field, e.target.value)}
-                      placeholder="Enter verified value"
-                    />
-                    {data.comment && (
-                      <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
-                        Comment: {data.comment}
-                      </Typography>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    <Box display="flex" flexDirection="column" alignItems="center">
-                      <IconButton
-                        onClick={() => verifyField(field)}
-                        color={data.isVerified ? "success" : "default"}
-                        size="small"
-                      >
-                        {data.isVerified ? <CheckCircle /> : <RadioButtonUnchecked />}
-                      </IconButton>
-                      <TextField
-                        size="small"
-                        placeholder="Add comment"
-                        value={data.comment}
-                        onChange={(e) => handleCommentChange(field, e.target.value)}
-                        variant="standard"
-                        sx={{ mt: 1, width: '100%' }}
-                        InputProps={{
-                          endAdornment: data.comment ? (
-                            <InputAdornment position="end">
-                              <IconButton
-                                onClick={() => handleCommentChange(field, '')}
-                                edge="end"
-                                size="small"
-                              >
-                                <Close fontSize="small" />
-                              </IconButton>
-                            </InputAdornment>
-                          ) : null,
-                        }}
-                      />
-                    </Box>
-                  </TableCell>
-                </TableRow>
-              ))}
+                  <TableRow key={field} sx={{ '&:last-child td, &:last-child th': { border: 0 } }}>
+                    <TableCell component="th" scope="row">
+                      {getFieldLabel(field)}
+                    </TableCell>
+                    <TableCell>
+                      {data.operatorValue}
+                    </TableCell>
+                    <TableCell>
+                      <Box display="flex" flexDirection="column" alignItems="center">
+                        <IconButton 
+                          onClick={() => verifyField(field)}
+                          color={data.isVerified ? "success" : "default"}
+                          size="small"
+                        >
+                          {data.isVerified ? <CheckCircle /> : <RadioButtonUnchecked />}
+                        </IconButton>
+                        <TextField
+                          size="small"
+                          placeholder="Add comment"
+                          value={data.comment}
+                          onChange={(e) => handleCommentChange(field, e.target.value)}
+                          variant="standard"
+                          sx={{ mt: 1, width: '100%' }}
+                          InputProps={{
+                            endAdornment: data.comment ? (
+                              <InputAdornment position="end">
+                                <IconButton 
+                                  onClick={() => handleCommentChange(field, '')}
+                                  edge="end"
+                                  size="small" 
+                                >
+                                  <Close fontSize="small" />
+                                </IconButton>
+                              </InputAdornment>
+                            ) : null,
+                          }}
+                        />
+                      </Box>
+                    </TableCell>
+                  </TableRow>
+                ))}
             </TableBody>
           </Table>
         </TableContainer>
@@ -1343,327 +1317,294 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
     return (
       <Box>
         <Typography variant="h6" gutterBottom>
-          Image Upload
+          Image Verification
         </Typography>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-          Please upload your images taken at the destination. These images will be compared with the ones taken by the operator at source.
+          Please verify the images taken by the operator at source.
         </Typography>
 
-        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
-          {/* Driver Photo Upload */}
-          <Box sx={{ flex: '1 0 45%', minWidth: '300px' }}>
-            <Paper variant="outlined" sx={{ p: 2, height: '100%' }}>
-              <Typography variant="subtitle1" gutterBottom>Driver Photo</Typography>
-              
-              {imagePreviews.driverPicture ? (
-                // Preview with delete option
-                <Box sx={{ position: 'relative', mb: 2 }}>
-                  <img 
-                    src={imagePreviews.driverPicture} 
-                    alt="Driver Preview" 
-                    style={{ width: '100%', maxHeight: '200px', objectFit: 'cover', borderRadius: '4px' }} 
-                  />
-                  <IconButton 
-                    onClick={() => removeUploadedImage('driverPicture')}
-                    sx={{ 
-                      position: 'absolute', 
-                      top: 5, 
-                      right: 5, 
-                      bgcolor: 'rgba(0,0,0,0.5)', 
-                      color: 'white',
-                      '&:hover': { bgcolor: 'rgba(0,0,0,0.7)' }
-                    }}
-                    size="small"
-                  >
-                    <Delete fontSize="small" />
-                  </IconButton>
-                </Box>
-              ) : (
-                // Upload interface
-                <Box
-                  sx={{
-                    border: '2px dashed',
-                    borderColor: 'divider',
-                    p: 2,
-                    mb: 2,
-                    borderRadius: 1,
-                    textAlign: 'center',
-                    bgcolor: 'background.paper'
-                  }}
-                >
-                  <input
-                    type="file"
-                    id="driverPicture-upload"
-                    accept="image/*"
-                    style={{ display: 'none' }}
-                    onChange={(e) => handleImageUpload('driverPicture', e.target.files?.[0] || null)}
-                  />
-                  <label htmlFor="driverPicture-upload">
-                    <Button
-                      variant="outlined"
-                      component="span"
-                      startIcon={<CloudUpload />}
-                      sx={{ mb: 1 }}
-                    >
-                      Upload Driver Photo
-                    </Button>
-                  </label>
-                  <Typography variant="caption" display="block" color="text.secondary">
-                    Take a clear photo of the driver
-                  </Typography>
-                </Box>
-              )}
-              
-              <Box display="flex" justifyContent="space-between" alignItems="center">
-                <Typography variant="body2">
-                  {guardImages.driverPicture ? 'Photo Uploaded' : 'No Photo Uploaded'}
-                </Typography>
-              </Box>
-            </Paper>
-          </Box>
-
-          {/* Vehicle Number Plate Upload */}
-          <Box sx={{ flex: '1 0 45%', minWidth: '300px' }}>
-            <Paper variant="outlined" sx={{ p: 2, height: '100%' }}>
-              <Typography variant="subtitle1" gutterBottom>Vehicle Number Plate</Typography>
-              
-              {imagePreviews.vehicleNumberPlatePicture ? (
-                // Preview with delete option
-                <Box sx={{ position: 'relative', mb: 2 }}>
-                  <img 
-                    src={imagePreviews.vehicleNumberPlatePicture} 
-                    alt="Number Plate Preview" 
-                    style={{ width: '100%', maxHeight: '200px', objectFit: 'cover', borderRadius: '4px' }} 
-                  />
-                  <IconButton 
-                    onClick={() => removeUploadedImage('vehicleNumberPlatePicture')}
-                    sx={{ 
-                      position: 'absolute', 
-                      top: 5, 
-                      right: 5, 
-                      bgcolor: 'rgba(0,0,0,0.5)', 
-                      color: 'white',
-                      '&:hover': { bgcolor: 'rgba(0,0,0,0.7)' }
-                    }}
-                    size="small"
-                  >
-                    <Delete fontSize="small" />
-                  </IconButton>
-                </Box>
-              ) : (
-                // Upload interface
-                <Box
-                  sx={{
-                    border: '2px dashed',
-                    borderColor: 'divider',
-                    p: 2,
-                    mb: 2,
-                    borderRadius: 1,
-                    textAlign: 'center',
-                    bgcolor: 'background.paper'
-                  }}
-                >
-                  <input
-                    type="file"
-                    id="numberPlate-upload"
-                    accept="image/*"
-                    style={{ display: 'none' }}
-                    onChange={(e) => handleImageUpload('vehicleNumberPlatePicture', e.target.files?.[0] || null)}
-                  />
-                  <label htmlFor="numberPlate-upload">
-                    <Button
-                      variant="outlined"
-                      component="span"
-                      startIcon={<CloudUpload />}
-                      sx={{ mb: 1 }}
-                    >
-                      Upload Number Plate
-                    </Button>
-                  </label>
-                  <Typography variant="caption" display="block" color="text.secondary">
-                    Take a clear photo of the vehicle's number plate
-                  </Typography>
-                </Box>
-              )}
-              
-              <Box display="flex" justifyContent="space-between" alignItems="center">
-                <Typography variant="body2">
-                  {guardImages.vehicleNumberPlatePicture ? 'Photo Uploaded' : 'No Photo Uploaded'}
-                </Typography>
-              </Box>
-            </Paper>
-          </Box>
-
-          {/* GPS/IMEI Upload */}
-          <Box sx={{ flex: '1 0 45%', minWidth: '300px' }}>
-            <Paper variant="outlined" sx={{ p: 2, height: '100%' }}>
-              <Typography variant="subtitle1" gutterBottom>GPS/IMEI</Typography>
-              
-              {imagePreviews.gpsImeiPicture ? (
-                // Preview with delete option
-                <Box sx={{ position: 'relative', mb: 2 }}>
-                  <img 
-                    src={imagePreviews.gpsImeiPicture} 
-                    alt="GPS/IMEI Preview" 
-                    style={{ width: '100%', maxHeight: '200px', objectFit: 'cover', borderRadius: '4px' }} 
-                  />
-                  <IconButton 
-                    onClick={() => removeUploadedImage('gpsImeiPicture')}
-                    sx={{ 
-                      position: 'absolute', 
-                      top: 5, 
-                      right: 5, 
-                      bgcolor: 'rgba(0,0,0,0.5)', 
-                      color: 'white',
-                      '&:hover': { bgcolor: 'rgba(0,0,0,0.7)' }
-                    }}
-                    size="small"
-                  >
-                    <Delete fontSize="small" />
-                  </IconButton>
-                </Box>
-              ) : (
-                // Upload interface
-                <Box
-                  sx={{
-                    border: '2px dashed',
-                    borderColor: 'divider',
-                    p: 2,
-                    mb: 2,
-                    borderRadius: 1,
-                    textAlign: 'center',
-                    bgcolor: 'background.paper'
-                  }}
-                >
-                  <input
-                    type="file"
-                    id="gpsImei-upload"
-                    accept="image/*"
-                    style={{ display: 'none' }}
-                    onChange={(e) => handleImageUpload('gpsImeiPicture', e.target.files?.[0] || null)}
-                  />
-                  <label htmlFor="gpsImei-upload">
-                    <Button
-                      variant="outlined"
-                      component="span"
-                      startIcon={<CloudUpload />}
-                      sx={{ mb: 1 }}
-                    >
-                      Upload GPS/IMEI Photo
-                    </Button>
-                  </label>
-                  <Typography variant="caption" display="block" color="text.secondary">
-                    Take a clear photo of the GPS/IMEI number
-                  </Typography>
-                </Box>
-              )}
-              
-              <Box display="flex" justifyContent="space-between" alignItems="center">
-                <Typography variant="body2">
-                  {guardImages.gpsImeiPicture ? 'Photo Uploaded' : 'No Photo Uploaded'}
-                </Typography>
-              </Box>
-            </Paper>
-          </Box>
-
-          {/* Sealing Images Upload */}
-          <Box sx={{ width: '100%' }}>
-            <Paper variant="outlined" sx={{ p: 2 }}>
-              <Typography variant="subtitle1" gutterBottom>Sealing Images</Typography>
-              
-              {/* Preview uploaded images */}
-              {imagePreviews.sealingImages && imagePreviews.sealingImages.length > 0 && (
-                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, mb: 2 }}>
-                  {imagePreviews.sealingImages.map((preview, index) => (
-                    <Box key={`sealing-preview-${index}`} sx={{ position: 'relative', flex: '1 0 30%', minWidth: '200px' }}>
-                      <img 
-                        src={preview} 
-                        alt={`Sealing Preview ${index + 1}`} 
-                        style={{ width: '100%', maxHeight: '150px', objectFit: 'cover', borderRadius: '4px' }} 
-                      />
-                      <IconButton 
-                        onClick={() => removeUploadedImage('sealingImages', index)}
-                        sx={{ 
-                          position: 'absolute', 
-                          top: 5, 
-                          right: 5, 
-                          bgcolor: 'rgba(0,0,0,0.5)', 
-                          color: 'white',
-                          '&:hover': { bgcolor: 'rgba(0,0,0,0.7)' }
-                        }}
-                        size="small"
-                      >
-                        <Delete fontSize="small" />
-                      </IconButton>
-                    </Box>
-                  ))}
-                </Box>
-              )}
-              
-              {/* Upload interface */}
-              <Box
-                sx={{
-                  border: '2px dashed',
-                  borderColor: 'divider',
-                  p: 2,
-                  borderRadius: 1,
-                  textAlign: 'center',
-                  bgcolor: 'background.paper'
-                }}
-              >
-                <input
-                  type="file"
-                  id="sealing-upload"
-                  accept="image/*"
-                  multiple
-                  style={{ display: 'none' }}
-                  onChange={(e) => handleImageUpload('sealingImages', e.target.files || null)}
+        {/* Driver's Photo Verification */}
+        {session?.images?.driverPicture && (
+          <Paper variant="outlined" sx={{ p: 2, mb: 3 }}>
+            <Typography variant="subtitle1" gutterBottom>
+              Driver's Photo
+            </Typography>
+            <Box sx={{ display: 'flex', gap: 2, alignItems: 'flex-start' }}>
+              <Box sx={{ width: '150px' }}>
+                <img 
+                  src={session.images.driverPicture} 
+                  alt="Driver" 
+                  style={{ width: '100%', height: 'auto', display: 'block', border: '1px solid #ddd', borderRadius: '4px' }}
                 />
-                <label htmlFor="sealing-upload">
-                  <Button
-                    variant="outlined"
-                    component="span"
-                    startIcon={<CloudUpload />}
-                    sx={{ mb: 1 }}
+              </Box>
+              <Box sx={{ flex: 1 }}>
+                <Box display="flex" alignItems="center">
+                  <IconButton 
+                    onClick={() => verifyImage('driverPicture')}
+                    color={imageVerificationStatus.driverPicture ? "success" : "default"}
+                    size="small"
                   >
-                    Upload Sealing Images
-                  </Button>
-                </label>
-                <Typography variant="caption" display="block" color="text.secondary">
-                  Take clear photos of all seals applied to the vehicle
-                </Typography>
+                    {imageVerificationStatus.driverPicture ? <CheckCircle /> : <RadioButtonUnchecked />}
+                  </IconButton>
+                  <Typography variant="body2" sx={{ ml: 1 }}>
+                    Mark as verified
+                  </Typography>
+                </Box>
+                <TextField
+                  fullWidth
+                  size="small"
+                  placeholder="Add comment"
+                  value={imageComments.driverPicture || ''}
+                  onChange={(e) => handleImageCommentChange('driverPicture', e.target.value)}
+                  variant="outlined"
+                  multiline
+                  rows={2}
+                  sx={{ mt: 2 }}
+                />
               </Box>
-              
-              <Box display="flex" justifyContent="space-between" alignItems="center" mt={2}>
-                <Typography variant="body2">
-                  {imagePreviews.sealingImages && imagePreviews.sealingImages.length > 0 ? 
-                    `${imagePreviews.sealingImages.length} image(s) uploaded` : 
-                    'No images uploaded'}
-                </Typography>
-              </Box>
-            </Paper>
-          </Box>
-
-          {/* Navigation Buttons */}
-          <Box sx={{ width: '100%', mt: 3 }}>
-            <Box display="flex" justifyContent="space-between">
-              <Button
-                variant="outlined"
-                color="primary"
-                onClick={() => setVerificationStep(0)}
-                startIcon={<ArrowBack />}
-              >
-                Back to Trip Details
-              </Button>
-              <Button
-                variant="contained"
-                color="primary"
-                onClick={() => setVerificationStep(2)}
-                endIcon={<ArrowForward />}
-              >
-                Next: Seal Verification
-              </Button>
             </Box>
+          </Paper>
+        )}
+
+        {/* Vehicle Number Plate Verification */}
+        {session?.images?.vehicleNumberPlatePicture && (
+          <Paper variant="outlined" sx={{ p: 2, mb: 3 }}>
+            <Typography variant="subtitle1" gutterBottom>
+              Vehicle Number Plate
+            </Typography>
+            <Box sx={{ display: 'flex', gap: 2, alignItems: 'flex-start' }}>
+              <Box sx={{ width: '150px' }}>
+                <img 
+                  src={session.images.vehicleNumberPlatePicture} 
+                  alt="Vehicle Number Plate" 
+                  style={{ width: '100%', height: 'auto', display: 'block', border: '1px solid #ddd', borderRadius: '4px' }}
+                />
+              </Box>
+              <Box sx={{ flex: 1 }}>
+                <Box display="flex" alignItems="center">
+                  <IconButton 
+                    onClick={() => verifyImage('vehicleNumberPlatePicture')}
+                    color={imageVerificationStatus.vehicleNumberPlatePicture ? "success" : "default"}
+                    size="small"
+                  >
+                    {imageVerificationStatus.vehicleNumberPlatePicture ? <CheckCircle /> : <RadioButtonUnchecked />}
+                  </IconButton>
+                  <Typography variant="body2" sx={{ ml: 1 }}>
+                    Mark as verified
+                  </Typography>
+                </Box>
+                <TextField
+                  fullWidth
+                  size="small"
+                  placeholder="Add comment"
+                  value={imageComments.vehicleNumberPlatePicture || ''}
+                  onChange={(e) => handleImageCommentChange('vehicleNumberPlatePicture', e.target.value)}
+                  variant="outlined"
+                  multiline
+                  rows={2}
+                  sx={{ mt: 2 }}
+                />
+              </Box>
+            </Box>
+          </Paper>
+        )}
+
+        {/* GPS IMEI Verification */}
+        {session?.images?.gpsImeiPicture && (
+          <Paper variant="outlined" sx={{ p: 2, mb: 3 }}>
+            <Typography variant="subtitle1" gutterBottom>
+              GPS IMEI
+            </Typography>
+            <Box sx={{ display: 'flex', gap: 2, alignItems: 'flex-start' }}>
+              <Box sx={{ width: '150px' }}>
+                <img 
+                  src={session.images.gpsImeiPicture} 
+                  alt="GPS IMEI" 
+                  style={{ width: '100%', height: 'auto', display: 'block', border: '1px solid #ddd', borderRadius: '4px' }}
+                />
+              </Box>
+              <Box sx={{ flex: 1 }}>
+                <Box display="flex" alignItems="center">
+                  <IconButton 
+                    onClick={() => verifyImage('gpsImeiPicture')}
+                    color={imageVerificationStatus.gpsImeiPicture ? "success" : "default"}
+                    size="small"
+                  >
+                    {imageVerificationStatus.gpsImeiPicture ? <CheckCircle /> : <RadioButtonUnchecked />}
+                  </IconButton>
+                  <Typography variant="body2" sx={{ ml: 1 }}>
+                    Mark as verified
+                  </Typography>
+                </Box>
+                <TextField
+                  fullWidth
+                  size="small"
+                  placeholder="Add comment"
+                  value={imageComments.gpsImeiPicture || ''}
+                  onChange={(e) => handleImageCommentChange('gpsImeiPicture', e.target.value)}
+                  variant="outlined"
+                  multiline
+                  rows={2}
+                  sx={{ mt: 2 }}
+                />
+              </Box>
+            </Box>
+          </Paper>
+        )}
+
+        {/* Sealing Images Verification */}
+        {session?.images?.sealingImages && session.images.sealingImages.length > 0 && (
+          <Paper variant="outlined" sx={{ p: 2, mb: 3 }}>
+            <Typography variant="subtitle1" gutterBottom>
+              Sealing Images
+            </Typography>
+            <Box sx={{ mb: 2 }}>
+              <Box display="flex" alignItems="center">
+                <IconButton 
+                  onClick={() => verifyImage('sealingImages')}
+                  color={imageVerificationStatus.sealingImages ? "success" : "default"}
+                  size="small"
+                >
+                  {imageVerificationStatus.sealingImages ? <CheckCircle /> : <RadioButtonUnchecked />}
+                </IconButton>
+                <Typography variant="body2" sx={{ ml: 1 }}>
+                  Mark all sealing images as verified
+                </Typography>
+              </Box>
+              <TextField
+                fullWidth
+                size="small"
+                placeholder="Add comment"
+                value={imageComments.sealingImages || ''}
+                onChange={(e) => handleImageCommentChange('sealingImages', e.target.value)}
+                variant="outlined"
+                multiline
+                rows={2}
+                sx={{ mt: 2, mb: 2 }}
+              />
+            </Box>
+            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
+              {session.images.sealingImages.map((image, index) => (
+                <Box key={`sealing-${index}`} sx={{ width: '150px' }}>
+                  <img 
+                    src={image} 
+                    alt={`Sealing ${index + 1}`} 
+                    style={{ width: '100%', height: 'auto', display: 'block', border: '1px solid #ddd', borderRadius: '4px' }}
+                  />
+                </Box>
+              ))}
+            </Box>
+          </Paper>
+        )}
+
+        {/* Vehicle Images Verification */}
+        {session?.images?.vehicleImages && session.images.vehicleImages.length > 0 && (
+          <Paper variant="outlined" sx={{ p: 2, mb: 3 }}>
+            <Typography variant="subtitle1" gutterBottom>
+              Vehicle Images
+            </Typography>
+            <Box sx={{ mb: 2 }}>
+              <Box display="flex" alignItems="center">
+                <IconButton 
+                  onClick={() => verifyImage('vehicleImages')}
+                  color={imageVerificationStatus.vehicleImages ? "success" : "default"}
+                  size="small"
+                >
+                  {imageVerificationStatus.vehicleImages ? <CheckCircle /> : <RadioButtonUnchecked />}
+                </IconButton>
+                <Typography variant="body2" sx={{ ml: 1 }}>
+                  Mark all vehicle images as verified
+                </Typography>
+              </Box>
+              <TextField
+                fullWidth
+                size="small"
+                placeholder="Add comment"
+                value={imageComments.vehicleImages || ''}
+                onChange={(e) => handleImageCommentChange('vehicleImages', e.target.value)}
+                variant="outlined"
+                multiline
+                rows={2}
+                sx={{ mt: 2, mb: 2 }}
+              />
+            </Box>
+            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
+              {session.images.vehicleImages.map((image, index) => (
+                <Box key={`vehicle-${index}`} sx={{ width: '150px' }}>
+                  <img 
+                    src={image} 
+                    alt={`Vehicle ${index + 1}`} 
+                    style={{ width: '100%', height: 'auto', display: 'block', border: '1px solid #ddd', borderRadius: '4px' }}
+                  />
+                </Box>
+              ))}
+            </Box>
+          </Paper>
+        )}
+
+        {/* Additional Images Verification */}
+        {session?.images?.additionalImages && session.images.additionalImages.length > 0 && (
+          <Paper variant="outlined" sx={{ p: 2, mb: 3 }}>
+            <Typography variant="subtitle1" gutterBottom>
+              Additional Images
+            </Typography>
+            <Box sx={{ mb: 2 }}>
+              <Box display="flex" alignItems="center">
+                <IconButton 
+                  onClick={() => verifyImage('additionalImages')}
+                  color={imageVerificationStatus.additionalImages ? "success" : "default"}
+                  size="small"
+                >
+                  {imageVerificationStatus.additionalImages ? <CheckCircle /> : <RadioButtonUnchecked />}
+                </IconButton>
+                <Typography variant="body2" sx={{ ml: 1 }}>
+                  Mark all additional images as verified
+                </Typography>
+              </Box>
+              <TextField
+                fullWidth
+                size="small"
+                placeholder="Add comment"
+                value={imageComments.additionalImages || ''}
+                onChange={(e) => handleImageCommentChange('additionalImages', e.target.value)}
+                variant="outlined"
+                multiline
+                rows={2}
+                sx={{ mt: 2, mb: 2 }}
+              />
+            </Box>
+            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
+              {session.images.additionalImages.map((image, index) => (
+                <Box key={`additional-${index}`} sx={{ width: '150px' }}>
+                  <img 
+                    src={image} 
+                    alt={`Additional ${index + 1}`} 
+                    style={{ width: '100%', height: 'auto', display: 'block', border: '1px solid #ddd', borderRadius: '4px' }}
+                  />
+                </Box>
+              ))}
+            </Box>
+          </Paper>
+        )}
+
+        <Box sx={{ width: '100%', mt: 3 }}>
+          <Box display="flex" justifyContent="space-between">
+            <Button
+              variant="outlined"
+              color="primary"
+              onClick={() => setVerificationStep(1)}
+              startIcon={<ArrowBack />}
+            >
+              Back to Driver Details
+            </Button>
+            <Button
+              variant="contained"
+              color="primary"
+              onClick={() => setVerificationStep(3)}
+              endIcon={<ArrowForward />}
+            >
+              Next: Seal Verification
+            </Button>
           </Box>
         </Box>
       </Box>
@@ -2902,6 +2843,14 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
         </Dialog>
       </>
     );
+  };
+
+  // Handle image comment changes
+  const handleImageCommentChange = (imageKey: string, comment: string) => {
+    setImageComments(prev => ({
+      ...prev,
+      [imageKey]: comment
+    }));
   };
 
   if (authStatus === "loading" || loading) {

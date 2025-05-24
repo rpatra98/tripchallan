@@ -1326,25 +1326,6 @@ export default function EmployeeDashboard({ user }: EmployeeDashboardProps) {
                       >
                         Check All Sessions
                       </button>
-                      <button 
-                        onClick={() => fetch('/api/guard-verification').then(r => r.json()).then(data => {
-                          if (data.sessions && data.sessions.length > 0) {
-                            setVerificationSessions(data.sessions);
-                            console.log(`Found ${data.sessions.length} sessions via direct API call`);
-                          } else {
-                            console.log("No sessions found via direct API call");
-                          }
-                        }).catch(e => console.error("Error in direct API call:", e))}
-                        className="px-4 py-2 bg-green-500 text-white rounded-md text-sm hover:bg-green-600"
-                      >
-                        Use Direct API
-                      </button>
-                      <button 
-                        onClick={fetchVerificationSessions}
-                        className="px-4 py-2 bg-blue-500 text-white rounded-md text-sm hover:bg-blue-600"
-                      >
-                        Refresh
-                      </button>
                     </div>
                   </div>
                 </div>
