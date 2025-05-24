@@ -186,18 +186,41 @@ async function handler(req: NextRequest) {
         };
       } else if (userRole === UserRole.COMPANY) {
         // Company user should see all sessions associated with their company
-        // For company users, we need to retrieve sessions where:
-        // 1. Sessions where companyId matches this company user's ID 
-        // 2. Sessions created by employees who belong to this company
-        
         console.log("[API DEBUG] Fetching sessions for company user:", userId);
         
-        // The correct approach is to use a more complex query:
-        // We need to find all sessions where the companyId is the company user's ID
-        // This is because operators set the companyId to their company's ID when creating sessions
+        // First, we need to get the actual company information for this company user
+        // The user ID is NOT the same as the company ID in the sessions table
+        const companyUser = await prisma.user.findUnique({
+          where: { id: userId },
+          select: { id: true, companyId: true }
+        });
+        
+        if (!companyUser) {
+          console.error("Company user not found:", userId);
+          return NextResponse.json({
+            sessions: [],
+            pagination: {
+              total: 0,
+              page,
+              limit,
+              pages: 0
+            }
+          });
+        }
+        
+        // Important: When operators create sessions, they set companyId to THEIR company's ID
+        // So we need to use the company entity ID here, NOT the company user's ID
         whereClause = {
-          companyId: userId
+          OR: [
+            { companyId: userId }, // Legacy - if any sessions were created with the company user's ID
+            { companyId: companyUser.id } // Also try the user's ID directly in case it's stored that way
+          ]
         };
+        
+        // If the company user has an associated company, also include that ID
+        if (companyUser.companyId) {
+          whereClause.OR.push({ companyId: companyUser.companyId });
+        }
         
         console.log("[API DEBUG] Company sessions whereClause:", JSON.stringify(whereClause, null, 2));
       } else if (userRole === UserRole.EMPLOYEE) {
