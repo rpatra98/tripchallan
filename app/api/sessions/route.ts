@@ -722,14 +722,26 @@ export const POST = withAuth(
                 ...sessionData,
                 companyId: employee.companyId || "", // Ensure companyId is not null
                 status: "IN_PROGRESS", // Set to IN_PROGRESS directly since we're creating a seal
+                // Create a seal record associated with this session
+                seal: {
+                  create: {
+                    barcode: sealTagIds.length > 0 ? sealTagIds[0] : `GENERATED-${Date.now()}`,
+                    verified: false,
+                    scannedAt: null
+                  }
+                }
               },
+              include: {
+                seal: true
+              }
             }).catch((error: Error) => {
               console.error("Error creating session:", error);
               throw new Error(`Session creation failed: ${error.message}`);
             });
             console.log(`Session created with ID: ${newSession.id}`);
+            console.log(`Seal created with ID: ${newSession.seal?.id}, barcode: ${newSession.seal?.barcode}`);
             
-            console.log(`No longer creating system-generated seal record. Using ${sealTagIds.length} actual seal tags from operator.`);
+            console.log(`Using ${sealTagIds.length} seal tags from operator.`);
 
             console.log("Creating coin transaction record");
             // Create coin transaction record - coin is spent, not transferred
