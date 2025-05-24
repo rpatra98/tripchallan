@@ -325,8 +325,164 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
   // Add useEffect to fetch session details when component mounts
   useEffect(() => {
     console.log("Component mounted, fetching session details...");
-      fetchSessionDetails();
+    fetchSessionDetails();
   }, [fetchSessionDetails]);
+  
+  // Add useEffect to extract verification data from session when it's loaded
+  useEffect(() => {
+    if (session && session.status === SessionStatus.COMPLETED) {
+      console.log("Extracting verification data from completed session");
+      
+      // Look for verification data in activity logs or seal
+      let foundVerificationData = false;
+      
+      // First check if there are any activity logs with verification data
+      if (session.activityLogs && session.activityLogs.length > 0) {
+        const verificationLog = session.activityLogs.find(log => {
+          const details = log.details as any;
+          return details?.verification?.fieldVerifications;
+        });
+        
+        if (verificationLog && verificationLog.details) {
+          console.log("Found verification data in activity log");
+          const verificationDetails = (verificationLog.details as any).verification;
+          
+          if (verificationDetails && verificationDetails.fieldVerifications) {
+            // Process verification data
+            const fieldVerifications = verificationDetails.fieldVerifications;
+            
+            const matches: string[] = [];
+            const mismatches: string[] = [];
+            const unverified: string[] = [];
+            const allFields: Record<string, any> = {};
+            
+            // Process each field
+            Object.entries(fieldVerifications).forEach(([field, data]: [string, any]) => {
+              allFields[field] = data;
+              
+              if (data.isVerified) {
+                if (data.matches) {
+                  matches.push(field);
+                } else {
+                  mismatches.push(field);
+                }
+              } else {
+                unverified.push(field);
+              }
+            });
+            
+            // Set verification results
+            setVerificationResults({
+              matches,
+              mismatches,
+              unverified,
+              allFields,
+              timestamp: verificationDetails.verificationTimestamp || verificationLog.createdAt || new Date().toISOString()
+            });
+            
+            foundVerificationData = true;
+          }
+        }
+      }
+      
+      // If no data in activity logs, check seal verificationData
+      if (!foundVerificationData && session.seal?.verificationData) {
+        console.log("Found verification data in seal");
+        const verificationData = session.seal.verificationData;
+        
+        if (verificationData.fieldVerifications) {
+          // Process verification data
+          const fieldVerifications = verificationData.fieldVerifications;
+          
+          const matches: string[] = [];
+          const mismatches: string[] = [];
+          const unverified: string[] = [];
+          const allFields: Record<string, any> = {};
+          
+          // Process each field
+          Object.entries(fieldVerifications).forEach(([field, data]: [string, any]) => {
+            allFields[field] = data;
+            
+            if (data.isVerified) {
+              if (data.matches) {
+                matches.push(field);
+              } else {
+                mismatches.push(field);
+              }
+            } else {
+              unverified.push(field);
+            }
+          });
+          
+          // Set verification results
+          setVerificationResults({
+            matches,
+            mismatches,
+            unverified,
+            allFields,
+            timestamp: verificationData.verificationTimestamp || session.seal.scannedAt || new Date().toISOString()
+          });
+          
+          foundVerificationData = true;
+        }
+      }
+      
+      // Check system seals for verification data if we haven't found any yet
+      if (!foundVerificationData && sessionSeals && sessionSeals.length > 0) {
+        console.log("Looking for verification data in session seals");
+        
+        // Find the first verification seal with verification details
+        const verificationSeal = sessionSeals.find(seal => 
+          seal.verificationDetails && seal.verificationDetails.fieldVerifications
+        );
+        
+        if (verificationSeal && verificationSeal.verificationDetails) {
+          console.log("Found verification data in session seal");
+          const verificationDetails = verificationSeal.verificationDetails;
+          
+          if (verificationDetails.fieldVerifications) {
+            // Process verification data
+            const fieldVerifications = verificationDetails.fieldVerifications;
+            
+            const matches: string[] = [];
+            const mismatches: string[] = [];
+            const unverified: string[] = [];
+            const allFields: Record<string, any> = {};
+            
+            // Process each field
+            Object.entries(fieldVerifications).forEach(([field, data]: [string, any]) => {
+              allFields[field] = data;
+              
+              if (data.isVerified) {
+                if (data.matches) {
+                  matches.push(field);
+                } else {
+                  mismatches.push(field);
+                }
+              } else {
+                unverified.push(field);
+              }
+            });
+            
+            // Set verification results
+            setVerificationResults({
+              matches,
+              mismatches,
+              unverified,
+              allFields,
+              timestamp: verificationDetails.verificationTimestamp || verificationSeal.scannedAt || new Date().toISOString()
+            });
+            
+            foundVerificationData = true;
+          }
+        }
+      }
+      
+      if (!foundVerificationData) {
+        console.log("No verification data found for completed session");
+      }
+    }
+  }, [session, sessionSeals]);
    
   // Extract operator seals from session data - pulling from activity logs and sessionSeals
   const operatorSeals = useMemo(() => {
@@ -2613,6 +2769,7 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
                     <TableCell>No.</TableCell>
                     <TableCell>Tag ID</TableCell>
                     <TableCell>Method</TableCell>
+                    <TableCell>Image</TableCell>
                     <TableCell>Created At</TableCell>
                     <TableCell>Created By</TableCell>
                   </TableRow>
@@ -2644,6 +2801,28 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
                           label={seal.method === 'digital' ? 'Scanned' : 'Manual'} 
                           color={seal.method === 'digital' ? 'info' : 'default'}
                         />
+                      </TableCell>
+                      <TableCell>
+                        {seal.imageData ? (
+                          <Box 
+                            component="img" 
+                            src={seal.imageData} 
+                            alt={`Seal tag ${seal.barcode}`}
+                            sx={{ 
+                              width: 60, 
+                              height: 60, 
+                              objectFit: 'cover',
+                              borderRadius: 1,
+                              cursor: 'pointer'
+                            }}
+                            onClick={() => {
+                              // Open image in new tab
+                              window.open(seal.imageData, '_blank');
+                            }}
+                          />
+                        ) : (
+                          <Typography variant="caption">No image</Typography>
+                        )}
                       </TableCell>
                       <TableCell>{formatDate(seal.createdAt)}</TableCell>
                       <TableCell>

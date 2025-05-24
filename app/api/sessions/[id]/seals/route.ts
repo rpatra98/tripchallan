@@ -152,6 +152,7 @@ export async function GET(
       
       // Process system seals (from database)
       const systemSeals = [];
+      
       if (sessionData.seal) {
         systemSeals.push({
           ...sessionData.seal,
@@ -190,6 +191,32 @@ export async function GET(
           }
         } catch (err) {
           console.log(`[API DEBUG] Error processing verification log ${log.id}:`, err);
+        }
+      }
+      
+      // Find image data for seal tags
+      // Look for image data in activity logs
+      const imageLog = activityLogs.find(log => {
+        const details = log.details as any;
+        return details?.imageBase64Data || details?.images;
+      });
+      
+      if (imageLog) {
+        console.log("[API DEBUG] Found image data in activity log:", imageLog.id);
+        const details = imageLog.details as any;
+        
+        // Try to find sealTagImages or similar structure
+        const imageData = details?.imageBase64Data?.sealTagImages || {};
+        
+        // Update sealTags with image data if available
+        for (const sealTag of sealTags) {
+          if (imageData[sealTag.barcode]) {
+            // If we have the actual base64 data
+            if (imageData[sealTag.barcode].data) {
+              const contentType = imageData[sealTag.barcode].contentType || 'image/jpeg';
+              sealTag.imageData = `data:${contentType};base64,${imageData[sealTag.barcode].data}`;
+            }
+          }
         }
       }
       
