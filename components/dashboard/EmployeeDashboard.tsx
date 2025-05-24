@@ -286,6 +286,103 @@ export default function EmployeeDashboard({ user }: EmployeeDashboardProps) {
     }
   }, [user.companyId, user.id, user.name, user.subrole]);
 
+  // Keep the original check function as a fallback
+  const checkAllCompanySessions = useCallback(async () => {
+    if (!isGuard || !user.companyId) return;
+    
+    try {
+      console.log("[GUARD DEBUG] Performing direct check for ALL sessions in the company");
+      
+      // Use a direct API call without filters
+      const response = await fetch(`/api/sessions?companyId=${user.companyId}`);
+      
+      if (!response.ok) {
+        console.error("[GUARD DEBUG] Direct API check failed:", response.status);
+        return;
+      }
+      
+      const data = await response.json();
+      console.log("[GUARD DEBUG] Direct API check found sessions:", data);
+      
+      if (data.sessions && Array.isArray(data.sessions)) {
+        console.log(`[GUARD DEBUG] Total sessions for company: ${data.sessions.length}`);
+        
+        // Find sessions that SHOULD be verifiable
+        const potentialVerifiableSessions = data.sessions.filter((session: any) => {
+          return session.status === "IN_PROGRESS";
+        });
+        
+        console.log(`[GUARD DEBUG] IN_PROGRESS sessions: ${potentialVerifiableSessions.length}`);
+        
+        // Check how many have seals
+        const sessionsWithSeals = potentialVerifiableSessions.filter((session: any) => session.seal);
+        console.log(`[GUARD DEBUG] IN_PROGRESS sessions with seals: ${sessionsWithSeals.length}`);
+        
+        // Check how many have unverified seals
+        const sessionsWithUnverifiedSeals = sessionsWithSeals.filter((session: any) => 
+          session.seal && !session.seal.verified
+        );
+        
+        console.log(`[GUARD DEBUG] IN_PROGRESS sessions with unverified seals: ${sessionsWithUnverifiedSeals.length}`);
+        console.log("[GUARD DEBUG] These sessions SHOULD appear for verification:", sessionsWithUnverifiedSeals);
+        
+        // Force update the verification sessions if we found some that should be displayed
+        if (sessionsWithUnverifiedSeals.length > 0) {
+          console.log("[GUARD DEBUG] Manually updating verification sessions list with direct results");
+          setVerificationSessions(sessionsWithUnverifiedSeals);
+        }
+      }
+    } catch (error) {
+      console.error("[GUARD DEBUG] Error in direct session check:", error);
+    }
+  }, [isGuard, user.companyId]);
+
+  // Add a direct check for sessions that need verification, bypassing filters
+  const checkAllSessionsForVerification = useCallback(async () => {
+    if (!isGuard || !user.companyId) return;
+    
+    try {
+      console.log("[GUARD DEBUG] Using direct guard-verification API endpoint");
+      
+      // Use the new dedicated API endpoint for guard verification
+      const response = await fetch(`/api/guard-verification`);
+      
+      if (!response.ok) {
+        console.error("[GUARD DEBUG] Guard verification API failed:", response.status);
+        return;
+      }
+      
+      const data = await response.json();
+      console.log("[GUARD DEBUG] Guard verification API response:", data);
+      
+      if (data.sessions && Array.isArray(data.sessions)) {
+        console.log(`[GUARD DEBUG] Found ${data.sessions.length} sessions needing verification`);
+        
+        if (data.sessions.length > 0) {
+          console.log("[GUARD DEBUG] Sessions needing verification:", data.sessions);
+          setVerificationSessions(data.sessions);
+          
+          // Show success notification if sessions were found
+          if (data.sessions.length > 0) {
+            console.log(`[GUARD DEBUG] Found ${data.sessions.length} sessions that need verification`);
+          }
+        } else {
+          console.log("[GUARD DEBUG] No sessions found that need verification");
+          
+          // Fall back to original check method if nothing found
+          console.log("[GUARD DEBUG] Falling back to original method to check all sessions");
+          await checkAllCompanySessions();
+        }
+      }
+    } catch (error) {
+      console.error("[GUARD DEBUG] Error in guard verification check:", error);
+      
+      // Fall back to original check method if the new endpoint fails
+      console.log("[GUARD DEBUG] Falling back to original method after error");
+      await checkAllCompanySessions();
+    }
+  }, [isGuard, user.companyId, checkAllCompanySessions]);
+
   // Fetch verification sessions when the tab changes to verifications
   useEffect(() => {
     if (activeTab === "verifications" && isGuard) {
@@ -604,57 +701,6 @@ export default function EmployeeDashboard({ user }: EmployeeDashboardProps) {
     }
   };
 
-  // Add a direct check for sessions that need verification, bypassing filters
-  const checkAllSessionsForVerification = useCallback(async () => {
-    if (!isGuard || !user.companyId) return;
-    
-    try {
-      console.log("[GUARD DEBUG] Performing direct check for ALL sessions in the company");
-      
-      // Use a direct API call without filters
-      const response = await fetch(`/api/sessions?companyId=${user.companyId}`);
-      
-      if (!response.ok) {
-        console.error("[GUARD DEBUG] Direct API check failed:", response.status);
-        return;
-      }
-      
-      const data = await response.json();
-      console.log("[GUARD DEBUG] Direct API check found sessions:", data);
-      
-      if (data.sessions && Array.isArray(data.sessions)) {
-        console.log(`[GUARD DEBUG] Total sessions for company: ${data.sessions.length}`);
-        
-        // Find sessions that SHOULD be verifiable
-        const potentialVerifiableSessions = data.sessions.filter((session: any) => {
-          return session.status === "IN_PROGRESS";
-        });
-        
-        console.log(`[GUARD DEBUG] IN_PROGRESS sessions: ${potentialVerifiableSessions.length}`);
-        
-        // Check how many have seals
-        const sessionsWithSeals = potentialVerifiableSessions.filter((session: any) => session.seal);
-        console.log(`[GUARD DEBUG] IN_PROGRESS sessions with seals: ${sessionsWithSeals.length}`);
-        
-        // Check how many have unverified seals
-        const sessionsWithUnverifiedSeals = sessionsWithSeals.filter((session: any) => 
-          session.seal && !session.seal.verified
-        );
-        
-        console.log(`[GUARD DEBUG] IN_PROGRESS sessions with unverified seals: ${sessionsWithUnverifiedSeals.length}`);
-        console.log("[GUARD DEBUG] These sessions SHOULD appear for verification:", sessionsWithUnverifiedSeals);
-        
-        // Force update the verification sessions if we found some that should be displayed
-        if (sessionsWithUnverifiedSeals.length > 0) {
-          console.log("[GUARD DEBUG] Manually updating verification sessions list with direct results");
-          setVerificationSessions(sessionsWithUnverifiedSeals);
-        }
-      }
-    } catch (error) {
-      console.error("[GUARD DEBUG] Error in direct session check:", error);
-    }
-  }, [isGuard, user.companyId]);
-  
   // Call this check when guard dashboard loads if no sessions are found
   useEffect(() => {
     if (isGuard && verificationSessions.length === 0 && !loadingVerifications) {
@@ -1279,6 +1325,19 @@ export default function EmployeeDashboard({ user }: EmployeeDashboardProps) {
                         className="px-4 py-2 border border-blue-500 text-blue-600 rounded-md text-sm hover:bg-blue-50"
                       >
                         Check All Sessions
+                      </button>
+                      <button 
+                        onClick={() => fetch('/api/guard-verification').then(r => r.json()).then(data => {
+                          if (data.sessions && data.sessions.length > 0) {
+                            setVerificationSessions(data.sessions);
+                            console.log(`Found ${data.sessions.length} sessions via direct API call`);
+                          } else {
+                            console.log("No sessions found via direct API call");
+                          }
+                        }).catch(e => console.error("Error in direct API call:", e))}
+                        className="px-4 py-2 bg-green-500 text-white rounded-md text-sm hover:bg-green-600"
+                      >
+                        Use Direct API
                       </button>
                       <button 
                         onClick={fetchVerificationSessions}

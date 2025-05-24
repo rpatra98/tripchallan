@@ -1,0 +1,155 @@
+import { NextRequest, NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth-options";
+import { withAuth } from "@/lib/auth";
+import prisma from "@/lib/prisma";
+import { UserRole, EmployeeSubrole, SessionStatus } from "@/prisma/enums";
+
+// Direct API route for GUARD users to get sessions that need verification
+// This bypasses complex filtering that might cause issues
+async function handler(req: NextRequest) {
+  try {
+    console.log("[API DEBUG] Guard verification API called");
+    const session = await getServerSession(authOptions);
+    
+    if (!session?.user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    // This endpoint is only for GUARD users
+    if (session.user.role !== UserRole.EMPLOYEE || session.user.subrole !== EmployeeSubrole.GUARD) {
+      console.log("[API DEBUG] Non-guard user attempted to access guard-verification endpoint:", {
+        role: session.user.role,
+        subrole: session.user.subrole
+      });
+      return NextResponse.json(
+        { error: "This endpoint is only for GUARD users" },
+        { status: 403 }
+      );
+    }
+
+    // Get the guard's user details including company
+    const guard = await prisma.user.findUnique({
+      where: { id: session.user.id },
+      select: { 
+        id: true,
+        name: true,
+        email: true,
+        companyId: true,
+        company: {
+          select: { id: true, name: true }
+        }
+      }
+    });
+
+    if (!guard) {
+      console.log("[API DEBUG] Guard user not found in database");
+      return NextResponse.json(
+        { error: "User not found" },
+        { status: 404 }
+      );
+    }
+
+    // Get companyId from either direct property or relation
+    const guardCompanyId = guard.companyId || guard.company?.id;
+    
+    if (!guardCompanyId) {
+      console.log("[API DEBUG] Guard user has no company association:", guard);
+      return NextResponse.json(
+        { error: "GUARD user is not associated with a company" },
+        { status: 400 }
+      );
+    }
+
+    console.log("[API DEBUG] Guard information:", {
+      id: guard.id,
+      name: guard.name,
+      email: guard.email,
+      companyId: guardCompanyId
+    });
+
+    // Directly query for sessions that need verification
+    // Criteria: IN_PROGRESS status, same company, has a seal, seal not verified
+    const sessions = await prisma.session.findMany({
+      where: {
+        companyId: guardCompanyId,
+        status: SessionStatus.IN_PROGRESS,
+        seal: {
+          verified: false
+        }
+      },
+      include: {
+        createdBy: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            subrole: true,
+          },
+        },
+        company: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+        seal: true,
+      },
+      orderBy: { createdAt: "desc" }
+    });
+    
+    console.log(`[API DEBUG] Found ${sessions.length} sessions needing verification for guard ${guard.id} in company ${guardCompanyId}`);
+    
+    if (sessions.length > 0) {
+      // Log the first few sessions for debugging
+      sessions.slice(0, 3).forEach((session: any) => {
+        console.log(`[API DEBUG] Session ${session.id}:`, {
+          status: session.status,
+          hasSeal: !!session.seal,
+          sealVerified: session.seal?.verified,
+          createdBy: session.createdBy?.name
+        });
+      });
+    } else {
+      // If no sessions found, check if there are any sessions at all for this company
+      const allCompanySessions = await prisma.session.count({
+        where: { companyId: guardCompanyId }
+      });
+      
+      console.log(`[API DEBUG] Company ${guardCompanyId} has ${allCompanySessions} total sessions`);
+      
+      // Also check for sessions without the seal filter
+      const inProgressSessions = await prisma.session.count({
+        where: { 
+          companyId: guardCompanyId,
+          status: SessionStatus.IN_PROGRESS
+        }
+      });
+      
+      console.log(`[API DEBUG] Company ${guardCompanyId} has ${inProgressSessions} IN_PROGRESS sessions`);
+      
+      // Check how many sessions have seals
+      const sessionsWithSeals = await prisma.session.count({
+        where: { 
+          companyId: guardCompanyId,
+          seal: {
+            some: {}
+          }
+        }
+      });
+      
+      console.log(`[API DEBUG] Company ${guardCompanyId} has ${sessionsWithSeals} sessions with seals`);
+    }
+
+    return NextResponse.json({ sessions });
+
+  } catch (error) {
+    console.error("[API ERROR] Error fetching guard verification sessions:", error);
+    return NextResponse.json(
+      { error: "Failed to fetch guard verification sessions" },
+      { status: 500 }
+    );
+  }
+}
+
+export const GET = withAuth(handler, [UserRole.EMPLOYEE]); 
