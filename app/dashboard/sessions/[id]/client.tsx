@@ -411,11 +411,23 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
 
   // Update seal comparison data
   const updateSealComparison = useCallback((scannedSeals: any[]) => {
-    const guardSealIds = scannedSeals.map(seal => seal.id);
-    const operatorSealIds = operatorSeals.map(seal => seal.id);
+    const guardSealIds = scannedSeals.map(seal => seal.id.trim());
+    const operatorSealIds = operatorSeals.map(seal => seal.id.trim());
     
-    const matched = guardSealIds.filter(id => operatorSealIds.includes(id));
-    const mismatched = guardSealIds.filter(id => !operatorSealIds.includes(id));
+    console.log('Guard Seal IDs:', guardSealIds);
+    console.log('Operator Seal IDs:', operatorSealIds);
+    
+    // Use normalized strings for comparison (trim and lowercase)
+    const matched = guardSealIds.filter(id => 
+      operatorSealIds.some(opId => opId.toLowerCase() === id.toLowerCase())
+    );
+    
+    const mismatched = guardSealIds.filter(id => 
+      !operatorSealIds.some(opId => opId.toLowerCase() === id.toLowerCase())
+    );
+    
+    console.log('Matched Seal IDs:', matched);
+    console.log('Mismatched Seal IDs:', mismatched);
     
     setSealComparison({ matched, mismatched });
   }, [operatorSeals]);
@@ -459,19 +471,27 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
       setScanError('Please enter a valid Seal Tag ID');
       return;
     }
-          
+    
+    const trimmedSealId = sealId.trim();
+    
     // Check if already scanned by guard
-    if (guardScannedSeals.some(seal => seal.id === sealId)) {
+    if (guardScannedSeals.some(seal => seal.id.toLowerCase() === trimmedSealId.toLowerCase())) {
       setScanError('This seal has already been scanned');
       return;
     }
     
-    // Check if this seal matches an operator seal
-    const isVerified = operatorSeals.some(seal => seal.id === sealId);
+    // Check if this seal matches an operator seal (case insensitive)
+    const isVerified = operatorSeals.some(seal => 
+      seal.id.trim().toLowerCase() === trimmedSealId.toLowerCase()
+    );
+    
+    console.log('Scanning seal ID:', trimmedSealId);
+    console.log('Operator seals:', operatorSeals.map(s => s.id));
+    console.log('Is verified:', isVerified);
           
     // Add to scanned seals
     const newSeal = {
-      id: sealId,
+      id: trimmedSealId,
       method: scanMethod,
       image: null,
       imagePreview: null,
@@ -1511,11 +1531,115 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
           Verify the seal tags by scanning each seal's barcode/QR code. Each tag should match with those applied by the operator.
         </Typography>
 
+        {/* OPERATOR Seal Tags Table */}
+        <Paper variant="outlined" sx={{ p: 2, mb: 4, bgcolor: 'primary.light', color: 'primary.contrastText' }}>
+          <Typography variant="subtitle1" gutterBottom sx={{ color: 'primary.contrastText' }}>
+            OPERATOR Seal Tags to Match ({operatorSeals.length})
+          </Typography>
+          <Typography variant="body2" sx={{ mb: 2, color: 'primary.contrastText' }}>
+            The following seal tags were registered by the operator. Scan or enter these exact tags to verify them.
+          </Typography>
+          
+          <TableContainer component={Paper}>
+            <Table size="small">
+              <TableHead sx={{ bgcolor: 'primary.main' }}>
+                <TableRow>
+                  <TableCell sx={{ color: 'primary.contrastText' }}>#</TableCell>
+                  <TableCell sx={{ color: 'primary.contrastText' }}>Seal Tag ID</TableCell>
+                  <TableCell sx={{ color: 'primary.contrastText' }}>Method</TableCell>
+                  <TableCell sx={{ color: 'primary.contrastText' }}>Registered On</TableCell>
+                  <TableCell sx={{ color: 'primary.contrastText' }}>Image</TableCell>
+                  <TableCell sx={{ color: 'primary.contrastText' }}>Status</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {operatorSeals.map((seal, index) => {
+                  // Check if this operator seal has been scanned by the guard
+                  const isScanned = guardScannedSeals.some(
+                    guardSeal => guardSeal.id.toLowerCase() === seal.id.toLowerCase()
+                  );
+                  
+                  return (
+                    <TableRow key={index} 
+                      sx={{
+                        bgcolor: isScanned ? 'success.light' : 'background.paper',
+                        '&:hover': { bgcolor: isScanned ? 'success.light' : 'action.hover' }
+                      }}
+                    >
+                      <TableCell>{index + 1}</TableCell>
+                      <TableCell>
+                        <Typography 
+                          variant="body2"
+                          sx={{ 
+                            fontWeight: 'medium',
+                            fontFamily: 'monospace'
+                          }}
+                        >
+                          {seal.id}
+                        </Typography>
+                        {isScanned && (
+                          <Chip 
+                            size="small" 
+                            label="Verified" 
+                            color="success"
+                            icon={<CheckCircle fontSize="small" />}
+                            sx={{ mt: 0.5 }}
+                          />
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <Chip 
+                          size="small"
+                          label={seal.method === 'digital' ? 'Scanned' : 'Manual'} 
+                          color={seal.method === 'digital' ? 'info' : 'default'}
+                        />
+                      </TableCell>
+                      <TableCell>{new Date(seal.timestamp).toLocaleString()}</TableCell>
+                      <TableCell>
+                        {seal.image ? (
+                          <Box sx={{ width: 60, height: 60 }}>
+                            <img 
+                              src={seal.image} 
+                              alt={`Seal ${index + 1}`}
+                              style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '4px' }}
+                            />
+                          </Box>
+                        ) : (
+                          <Typography variant="caption" color="text.secondary">
+                            No image
+                          </Typography>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {isScanned ? (
+                          <Chip 
+                            size="small"
+                            label="Scanned" 
+                            color="success"
+                            icon={<CheckCircle fontSize="small" />}
+                          />
+                        ) : (
+                          <Chip 
+                            size="small"
+                            label="Not Scanned Yet" 
+                            color="warning"
+                            icon={<Warning fontSize="small" />}
+                          />
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        </Paper>
+
         {/* Seal Scanner Section */}
         <Paper variant="outlined" sx={{ p: 2, mb: 4 }}>
-              <Typography variant="subtitle1" gutterBottom>
+          <Typography variant="subtitle1" gutterBottom>
             Scan Seal Tags
-              </Typography>
+          </Typography>
           
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
@@ -1543,19 +1667,27 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
                   // Set method to digital since this was scanned
                   setScanMethod('digital');
                   
-                  // Check if already scanned by guard
-                  if (guardScannedSeals.some(seal => seal.id === data)) {
+                  const trimmedData = data.trim();
+                  
+                  // Check if already scanned by guard (case insensitive)
+                  if (guardScannedSeals.some(seal => seal.id.toLowerCase() === trimmedData.toLowerCase())) {
                     setScanError('This seal has already been scanned');
                     setTimeout(() => setScanError(''), 3000);
                     return;
                   }
                   
-                  // Check if this seal matches an operator seal
-                  const isVerified = operatorSeals.some(seal => seal.id === data);
+                  // Check if this seal matches an operator seal (case insensitive)
+                  const isVerified = operatorSeals.some(seal => 
+                    seal.id.trim().toLowerCase() === trimmedData.toLowerCase()
+                  );
+                  
+                  console.log('Scanning seal ID (QR):', trimmedData);
+                  console.log('Operator seals:', operatorSeals.map(s => s.id));
+                  console.log('Is verified:', isVerified);
                   
                   // Add the seal with the scanned data and captured image
                   const newSeal = {
-                    id: data,
+                    id: trimmedData,
                     method: 'digital',
                     image: imageFile,
                     imagePreview: URL.createObjectURL(imageFile),
@@ -1581,21 +1713,21 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
                 scannerTitle="Scan Seal Tag"
                 buttonVariant="contained"
               />
-                </Box>
-                </Box>
-                  </Paper>
+            </Box>
+          </Box>
+        </Paper>
 
         {/* Scanned Seals Table */}
         <Paper variant="outlined" sx={{ p: 2, mb: 4 }}>
-                <Typography variant="subtitle1" gutterBottom>
+          <Typography variant="subtitle1" gutterBottom>
             Scanned Seal Tags ({guardScannedSeals.length})
-                </Typography>
-                
+          </Typography>
+          
           {guardScannedSeals.length > 0 ? (
-                    <TableContainer>
-                      <Table size="small">
-                        <TableHead>
-                          <TableRow>
+            <TableContainer>
+              <Table size="small">
+                <TableHead>
+                  <TableRow>
                     <TableCell width="5%">#</TableCell>
                     <TableCell width="25%">Seal Tag ID</TableCell>
                     <TableCell width="15%">Method</TableCell>
@@ -1603,9 +1735,9 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
                     <TableCell width="20%">Image</TableCell>
                     <TableCell width="15%">Status</TableCell>
                     <TableCell width="10%">Actions</TableCell>
-                          </TableRow>
-                        </TableHead>
-                        <TableBody>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
                   {guardScannedSeals.map((seal, index) => (
                     <TableRow key={index} sx={{
                       bgcolor: seal.verified ? 'transparent' : 'rgba(211, 47, 47, 0.1)'
@@ -1659,25 +1791,25 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
                           <Delete fontSize="small" />
                         </IconButton>
                       </TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    </TableContainer>
-                  ) : (
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          ) : (
             <Box sx={{ py: 2, textAlign: 'center' }}>
-                      <Typography variant="body2" color="text.secondary">
+              <Typography variant="body2" color="text.secondary">
                 No seal tags scanned yet. Use the scanner above to add seal tags.
-                      </Typography>
-                    </Box>
-                  )}
-                </Paper>
+              </Typography>
+            </Box>
+          )}
+        </Paper>
 
         {/* Verification Summary */}
         <Paper variant="outlined" sx={{ p: 2, mb: 4 }}>
           <Typography variant="subtitle1" gutterBottom>
             Seal Tags Verification Summary
-                  </Typography>
+          </Typography>
           
           <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, mb: 3 }}>
             <Box sx={{ flex: '1 0 48%', minWidth: '250px' }}>
@@ -1703,9 +1835,9 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
             Detailed Comparison
           </Typography>
           
-                    <TableContainer>
-                      <Table size="small">
-                        <TableHead>
+          <TableContainer>
+            <Table size="small">
+              <TableHead>
                 <TableRow sx={{ bgcolor: 'background.paper' }}>
                   <TableCell colSpan={3} align="center" sx={{ borderRight: '1px solid rgba(224, 224, 224, 1)' }}>
                     <Typography variant="subtitle2">Operator Data</Typography>
@@ -1717,16 +1849,16 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
                     <Typography variant="subtitle2">Status</Typography>
                   </TableCell>
                 </TableRow>
-                          <TableRow>
+                <TableRow>
                   <TableCell>Seal Tag ID</TableCell>
                   <TableCell>Method</TableCell>
                   <TableCell sx={{ borderRight: '1px solid rgba(224, 224, 224, 1)' }}>Timestamp</TableCell>
                   <TableCell>Seal Tag ID</TableCell>
                   <TableCell>Method</TableCell>
                   <TableCell>Timestamp</TableCell>
-                          </TableRow>
-                        </TableHead>
-                        <TableBody>
+                </TableRow>
+              </TableHead>
+              <TableBody>
                 {/* All operator seals */}
                 {operatorSeals.map((operatorSeal, index) => {
                   const matchingGuardSeal = guardScannedSeals.find(
@@ -1740,7 +1872,7 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
                       bgcolor: isMatched ? 'transparent' : 'rgba(211, 47, 47, 0.1)'
                     }}>
                       <TableCell>{operatorSeal.id}</TableCell>
-                              <TableCell>
+                      <TableCell>
                         <Chip 
                           size="small"
                           label={operatorSeal.method === 'digital' ? 'Scanned' : 'Manual'} 
@@ -1780,8 +1912,8 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
                           color={isMatched ? 'success' : 'error'}
                           icon={isMatched ? <CheckCircle fontSize="small" /> : <Warning fontSize="small" />}
                         />
-                              </TableCell>
-                            </TableRow>
+                      </TableCell>
+                    </TableRow>
                   );
                 })}
                 
@@ -1821,9 +1953,9 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
                     </TableRow>
                   ))
                 }
-                        </TableBody>
-                      </Table>
-                    </TableContainer>
+              </TableBody>
+            </Table>
+          </TableContainer>
         </Paper>
 
         {/* Side-by-side Image Comparison */}
@@ -1898,7 +2030,7 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
         <Paper variant="outlined" sx={{ p: 2, mb: 4 }}>
           <Typography variant="subtitle1" gutterBottom>
             Complete Seal Verification Report
-                </Typography>
+          </Typography>
           
           <TableContainer>
             <Table size="small">
