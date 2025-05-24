@@ -2,12 +2,12 @@ import nodemailer from 'nodemailer';
 
 // Configure nodemailer with SMTP details from environment variables
 const transporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST || 'asetl.com',
+  host: process.env.SMTP_HOST || 'alphabetsoftware.in',
   port: parseInt(process.env.SMTP_PORT || '465'),
   secure: process.env.SMTP_SECURE !== 'false', // true for 465, false for other ports
   auth: {
-    user: process.env.SMTP_USER || 'a001@asetl.com',
-    pass: process.env.SMTP_PASS || 'sqyX~Ut8c29qekGz1',
+    user: process.env.SMTP_USER || 'cbums@alphabetsoftware.in',
+    pass: process.env.SMTP_PASS || 'w3u0btgYoY7x^Eba8',
   },
 });
 
@@ -166,7 +166,7 @@ export const sendVerificationEmail = async ({
     
     // Send email
     const info = await transporter.sendMail({
-      from: process.env.EMAIL_FROM || '"CBUMS System" <a001@asetl.com>',
+      from: process.env.EMAIL_FROM || '"CBUMS System" <cbums@alphabetsoftware.in>',
       to: companyEmail,
       subject: `Session Verification Confirmation - ${sessionId}`,
       html: htmlContent,
