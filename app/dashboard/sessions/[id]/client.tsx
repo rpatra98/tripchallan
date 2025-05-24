@@ -259,6 +259,10 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
   const [loadingSeals, setLoadingSeals] = useState(false);
   const [sealsError, setSealsError] = useState("");
   
+  // Add a new state for the details dialog
+  const [selectedSeal, setSelectedSeal] = useState<any>(null);
+  const [detailsDialogOpen, setDetailsDialogOpen] = useState(false);
+  
   // Utility functions needed before other definitions
   const getFieldLabel = useCallback((key: string): string => {
     // Convert camelCase to Title Case with spaces
@@ -2456,11 +2460,21 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
                       }}>
                         <TableCell>{index + 1}</TableCell>
                         <TableCell>
-                          <Tooltip title="Seal ID">
-                            <Typography variant="body2" sx={{ fontFamily: 'monospace', fontSize: '0.8rem' }}>
+                          <Box 
+                            sx={{ 
+                              border: '1px solid',
+                              borderColor: 'divider',
+                              borderRadius: 1,
+                              p: 0.75,
+                              bgcolor: 'background.paper',
+                              maxWidth: 180,
+                              overflow: 'hidden'
+                            }}
+                          >
+                            <Typography variant="body2" sx={{ fontFamily: 'monospace', fontSize: '0.9rem', fontWeight: 'medium' }}>
                               {seal.barcode}
                             </Typography>
-                          </Tooltip>
+                          </Box>
                         </TableCell>
                         <TableCell>
                           <Chip 
@@ -2525,17 +2539,9 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
                               <IconButton 
                                 size="small"
                                 onClick={() => {
-                                  console.log("Verification details:", seal);
-                                  alert(`
-                                    Verification Details for Seal ${seal.barcode}:
-                                    
-                                    - Verified: ${seal.verified ? 'Yes' : 'No'}
-                                    - Verified At: ${seal.scannedAt ? new Date(seal.scannedAt).toLocaleString() : 'N/A'}
-                                    - Verified By: ${seal.verifiedBy?.name || 'Unknown'}
-                                    - All Fields Match: ${allMatch === true ? 'Yes' : (allMatch === false ? 'No' : 'Not specified')}
-                                    
-                                    Verification Data: ${JSON.stringify(seal.verificationDetails || {}, null, 2)}
-                                  `);
+                                  console.log("Viewing seal details:", seal);
+                                  setSelectedSeal(seal);
+                                  setDetailsDialogOpen(true);
                                 }}
                               >
                                 <InfoOutlined fontSize="small" />
@@ -2574,9 +2580,21 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
                     <TableRow key={seal.id} hover>
                       <TableCell>{index + 1}</TableCell>
                       <TableCell>
-                        <Typography variant="body2" sx={{ fontFamily: 'monospace', fontSize: '0.8rem' }}>
-                          {seal.barcode}
-                        </Typography>
+                        <Box 
+                          sx={{ 
+                            border: '1px solid',
+                            borderColor: 'divider',
+                            borderRadius: 1,
+                            p: 0.75,
+                            bgcolor: 'background.paper',
+                            maxWidth: 180,
+                            overflow: 'hidden'
+                          }}
+                        >
+                          <Typography variant="body2" sx={{ fontFamily: 'monospace', fontSize: '0.9rem', fontWeight: 'medium' }}>
+                            {seal.barcode}
+                          </Typography>
+                        </Box>
                       </TableCell>
                       <TableCell>
                         <Chip 
@@ -2618,6 +2636,270 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
             Refresh Seals
           </Button>
         </Box>
+        
+        {/* Seal Details Dialog */}
+        <Dialog 
+          open={detailsDialogOpen} 
+          onClose={() => setDetailsDialogOpen(false)}
+          maxWidth="md"
+          fullWidth
+        >
+          <DialogTitle>
+            <Box display="flex" justifyContent="space-between" alignItems="center">
+              <Typography variant="h6">
+                Seal Details
+              </Typography>
+              <IconButton onClick={() => setDetailsDialogOpen(false)} size="small">
+                <Close />
+              </IconButton>
+            </Box>
+          </DialogTitle>
+          <DialogContent dividers>
+            {selectedSeal && (
+              <>
+                {/* Seal Information */}
+                <Paper variant="outlined" sx={{ p: 2, mb: 2 }}>
+                  <Box sx={{ mb: 2 }}>
+                    <Typography variant="subtitle1" gutterBottom>
+                      Seal Information
+                    </Typography>
+                    
+                    <Box 
+                      sx={{ 
+                        display: 'inline-block',
+                        border: '2px solid',
+                        borderColor: selectedSeal.verified ? 'success.main' : 'divider',
+                        borderRadius: 1,
+                        p: 1.5,
+                        mt: 1,
+                        mb: 2,
+                        bgcolor: 'background.paper' 
+                      }}
+                    >
+                      <Typography variant="h6" component="div" sx={{ fontFamily: 'monospace', letterSpacing: 1 }}>
+                        {selectedSeal.barcode}
+                      </Typography>
+                    </Box>
+                    
+                                         <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
+                        <Box sx={{ flex: '1 0 45%', minWidth: '200px' }}>
+                          <Typography variant="body2" color="text.secondary">Type</Typography>
+                          <Typography variant="body1">{selectedSeal.type === 'system' ? 'System Seal' : 'Verification Seal'}</Typography>
+                        </Box>
+                        <Box sx={{ flex: '1 0 45%', minWidth: '200px' }}>
+                          <Typography variant="body2" color="text.secondary">Status</Typography>
+                          <Box sx={{ display: 'flex', alignItems: 'center', mt: 0.5 }}>
+                            <Chip 
+                              label={selectedSeal.verified ? "Verified" : "Unverified"} 
+                              color={selectedSeal.verified ? "success" : "default"}
+                              size="small"
+                              icon={selectedSeal.verified ? <CheckCircle fontSize="small" /> : <RadioButtonUnchecked fontSize="small" />}
+                            />
+                          </Box>
+                        </Box>
+                        <Box sx={{ flex: '1 0 45%', minWidth: '200px' }}>
+                          <Typography variant="body2" color="text.secondary">Created At</Typography>
+                          <Typography variant="body1">{new Date(selectedSeal.createdAt).toLocaleString()}</Typography>
+                        </Box>
+                        <Box sx={{ flex: '1 0 45%', minWidth: '200px' }}>
+                          <Typography variant="body2" color="text.secondary">Seal ID</Typography>
+                          <Typography variant="body1" sx={{ fontFamily: 'monospace' }}>{selectedSeal.id}</Typography>
+                        </Box>
+                     </Box>
+                  </Box>
+                  
+                  {selectedSeal.verified && (
+                    <Box>
+                      <Typography variant="subtitle1" gutterBottom>
+                        Verification Information
+                      </Typography>
+                                             <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
+                         <Box sx={{ flex: '1 0 45%', minWidth: '200px' }}>
+                           <Typography variant="body2" color="text.secondary">Verified By</Typography>
+                           <Typography variant="body1">
+                             {selectedSeal.verifiedBy?.name || 'Unknown'} 
+                             <Typography variant="caption" component="span" color="text.secondary">
+                               {' '}({selectedSeal.verifiedBy?.subrole || selectedSeal.verifiedBy?.role || 'User'})
+                             </Typography>
+                           </Typography>
+                         </Box>
+                         <Box sx={{ flex: '1 0 45%', minWidth: '200px' }}>
+                           <Typography variant="body2" color="text.secondary">Verified At</Typography>
+                           <Typography variant="body1">
+                             {selectedSeal.scannedAt ? new Date(selectedSeal.scannedAt).toLocaleString() : 'N/A'}
+                           </Typography>
+                         </Box>
+                         {selectedSeal.verificationDetails?.allMatch !== undefined && (
+                           <Box sx={{ flex: '1 0 45%', minWidth: '200px' }}>
+                             <Typography variant="body2" color="text.secondary">Field Verification</Typography>
+                             <Box sx={{ display: 'flex', alignItems: 'center', mt: 0.5 }}>
+                               <Chip 
+                                 label={selectedSeal.verificationDetails.allMatch ? "All Fields Match" : "Some Fields Mismatched"} 
+                                 color={selectedSeal.verificationDetails.allMatch ? "success" : "warning"}
+                                 size="small"
+                                 icon={selectedSeal.verificationDetails.allMatch ? 
+                                   <CheckCircle fontSize="small" /> : 
+                                   <Warning fontSize="small" />
+                                 }
+                               />
+                             </Box>
+                           </Box>
+                         )}
+                         {selectedSeal.verificationDetails?.verificationTimestamp && (
+                           <Box sx={{ flex: '1 0 45%', minWidth: '200px' }}>
+                             <Typography variant="body2" color="text.secondary">Verification Timestamp</Typography>
+                             <Typography variant="body1">
+                               {new Date(selectedSeal.verificationDetails.verificationTimestamp).toLocaleString()}
+                             </Typography>
+                           </Box>
+                         )}
+                       </Box>
+                    </Box>
+                  )}
+                </Paper>
+                
+                {/* Field Verifications */}
+                {selectedSeal.verificationDetails?.fieldVerifications && Object.keys(selectedSeal.verificationDetails.fieldVerifications).length > 0 && (
+                  <Paper variant="outlined" sx={{ p: 2, mb: 2 }}>
+                    <Typography variant="subtitle1" gutterBottom>
+                      Field Verification Details
+                    </Typography>
+                    <TableContainer>
+                      <Table size="small">
+                        <TableHead>
+                          <TableRow>
+                            <TableCell>Field</TableCell>
+                            <TableCell>Operator Value</TableCell>
+                            <TableCell>Guard Value</TableCell>
+                            <TableCell>Status</TableCell>
+                            <TableCell>Comment</TableCell>
+                          </TableRow>
+                        </TableHead>
+                        <TableBody>
+                          {Object.entries(selectedSeal.verificationDetails.fieldVerifications).map(([field, data]: [string, any]) => {
+                            const matches = data.matches === true;
+                            const isVerified = data.isVerified === true;
+                            
+                            return (
+                              <TableRow key={field} sx={{ 
+                                bgcolor: isVerified ? (matches ? 'rgba(46, 125, 50, 0.08)' : 'rgba(255, 152, 0, 0.08)') : 'inherit'
+                              }}>
+                                <TableCell>{getFieldLabel(field)}</TableCell>
+                                <TableCell>{data.operatorValue !== undefined ? String(data.operatorValue) : 'N/A'}</TableCell>
+                                <TableCell>{data.guardValue !== undefined ? String(data.guardValue) : 'N/A'}</TableCell>
+                                <TableCell>
+                                  {isVerified ? (
+                                    <Chip 
+                                      label={matches ? "Match" : "Mismatch"} 
+                                      color={matches ? "success" : "warning"}
+                                      size="small"
+                                      icon={matches ? <CheckCircle fontSize="small" /> : <Warning fontSize="small" />}
+                                    />
+                                  ) : (
+                                    <Chip 
+                                      label="Unverified" 
+                                      color="default"
+                                      size="small"
+                                    />
+                                  )}
+                                </TableCell>
+                                <TableCell>{data.comment || 'No comment'}</TableCell>
+                              </TableRow>
+                            );
+                          })}
+                        </TableBody>
+                      </Table>
+                    </TableContainer>
+                  </Paper>
+                )}
+                
+                {/* Image Verification */}
+                {selectedSeal.verificationDetails?.guardImages && Object.keys(selectedSeal.verificationDetails.guardImages).length > 0 && (
+                  <Paper variant="outlined" sx={{ p: 2 }}>
+                    <Typography variant="subtitle1" gutterBottom>
+                      Verification Images
+                    </Typography>
+                                         <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
+                       {Object.entries(selectedSeal.verificationDetails.guardImages || {}).map(([key, url]) => {
+                         if (Array.isArray(url)) {
+                           return url.map((imageUrl, idx) => (
+                            <Box key={`${key}-${idx}`} sx={{ width: 150, height: 150, position: 'relative' }}>
+                              <Typography variant="caption" sx={{ mb: 0.5 }}>
+                                {getFieldLabel(key)} {idx + 1}
+                              </Typography>
+                              <img 
+                                src={imageUrl as string} 
+                                alt={`${key} ${idx + 1}`}
+                                style={{ 
+                                  width: '100%', 
+                                  height: '100%', 
+                                  objectFit: 'cover',
+                                  borderRadius: '4px',
+                                  border: '1px solid #ddd'
+                                }}
+                              />
+                            </Box>
+                          ));
+                        }
+                        
+                        return (
+                          <Box key={key} sx={{ width: 150, height: 150, position: 'relative' }}>
+                            <Typography variant="caption" sx={{ mb: 0.5 }}>
+                              {getFieldLabel(key)}
+                            </Typography>
+                            <img 
+                              src={typeof url === 'string' ? url : ''} 
+                              alt={key}
+                              style={{ 
+                                width: '100%', 
+                                height: '100%', 
+                                objectFit: 'cover',
+                                borderRadius: '4px',
+                                border: '1px solid #ddd'
+                              }}
+                            />
+                          </Box>
+                        );
+                      })}
+                    </Box>
+                  </Paper>
+                )}
+                
+                {/* JSON Debug */}
+                <Box sx={{ mt: 3 }}>
+                  <details>
+                    <summary>
+                      <Typography variant="caption" component="span">
+                        Technical Details (Debug)
+                      </Typography>
+                    </summary>
+                    <Box 
+                      component="pre" 
+                      sx={{ 
+                        mt: 1, 
+                        p: 2, 
+                        bgcolor: 'background.paper', 
+                        border: '1px solid', 
+                        borderColor: 'divider',
+                        borderRadius: 1,
+                        overflow: 'auto',
+                        fontSize: '0.7rem',
+                        maxHeight: 300
+                      }}
+                    >
+                      {JSON.stringify(selectedSeal, null, 2)}
+                    </Box>
+                  </details>
+                </Box>
+              </>
+            )}
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => setDetailsDialogOpen(false)}>
+              Close
+            </Button>
+          </DialogActions>
+        </Dialog>
       </>
     );
   };
