@@ -108,90 +108,106 @@ export default async function CompanyDetailPage({ params }: { params: { id: stri
       try {
         console.log("Fetching company directly from database as API failed");
         
-        // Try to get the company directly from the database
-        const dbCompany = await prisma.company.findUnique({
-          where: { id: companyId },
-          include: {
-            employees: {
-              where: { role: UserRole.EMPLOYEE },
+        // First try to get the company user
+        const companyUser = await prisma.user.findFirst({
+          where: {
+            id: companyId,
+            role: UserRole.COMPANY
+          },
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            companyId: true,
+            createdAt: true,
+            updatedAt: true
+          }
+        });
+
+        if (companyUser) {
+          // If company user has a companyId, try to get that company
+          if (companyUser.companyId) {
+            const dbCompany = await prisma.company.findUnique({
+              where: { id: companyUser.companyId },
+              include: {
+                employees: {
+                  where: { role: UserRole.EMPLOYEE },
+                  select: {
+                    id: true,
+                    name: true,
+                    email: true,
+                    role: true,
+                    subrole: true,
+                    coins: true,
+                  }
+                }
+              }
+            });
+            
+            if (dbCompany) {
+              company = {
+                ...dbCompany,
+                createdAt: dbCompany.createdAt.toISOString(),
+                updatedAt: dbCompany.updatedAt.toISOString(),
+                employees: dbCompany.employees,
+              };
+            }
+          }
+          
+          // If we still don't have company data, create a synthetic company from user data
+          if (!company) {
+            // Get employees related to this company user
+            const employees = await prisma.user.findMany({
+              where: { 
+                companyId: companyUser.id,
+                role: UserRole.EMPLOYEE
+              },
               select: {
                 id: true,
                 name: true,
                 email: true,
-                role: true,
                 subrole: true,
                 coins: true,
+                createdAt: true
               }
-            }
+            });
+            
+            company = {
+              id: companyUser.id,
+              name: companyUser.name,
+              email: companyUser.email,
+              createdAt: companyUser.createdAt.toISOString(),
+              updatedAt: companyUser.updatedAt.toISOString(),
+              employees: employees || [],
+              _synthetic: true
+            };
           }
-        });
-        
-        if (dbCompany) {
-          company = {
-            ...dbCompany,
-            createdAt: dbCompany.createdAt.toISOString(),
-            updatedAt: dbCompany.updatedAt.toISOString(),
-            employees: dbCompany.employees,
-          };
         } else {
-          // Check if this might be a COMPANY user instead of a company record
-          const companyUser = await prisma.user.findFirst({
-            where: {
-              id: companyId,
-              role: UserRole.COMPANY
-            },
-            select: {
-              id: true,
-              name: true,
-              email: true,
-              companyId: true,
-              createdAt: true,
-              updatedAt: true
+          // If no company user found, try to get the company directly
+          const dbCompany = await prisma.company.findUnique({
+            where: { id: companyId },
+            include: {
+              employees: {
+                where: { role: UserRole.EMPLOYEE },
+                select: {
+                  id: true,
+                  name: true,
+                  email: true,
+                  role: true,
+                  subrole: true,
+                  coins: true,
+                }
+              }
             }
           });
           
-          if (companyUser) {
-            // If company user has a companyId, try to get that company
-            if (companyUser.companyId) {
-              const relatedCompany = await prisma.company.findUnique({
-                where: { id: companyUser.companyId },
-                include: {
-                  employees: {
-                    where: { role: UserRole.EMPLOYEE },
-                    select: {
-                      id: true,
-                      name: true,
-                      email: true,
-                      role: true,
-                      subrole: true,
-                      coins: true,
-                    }
-                  }
-                }
-              });
-              
-              if (relatedCompany) {
-                company = {
-                  ...relatedCompany,
-                  createdAt: relatedCompany.createdAt.toISOString(),
-                  updatedAt: relatedCompany.updatedAt.toISOString(),
-                  employees: relatedCompany.employees,
-                };
-              }
-            }
-            
-            // If we still don't have company data, create a synthetic company from user data
-            if (!company) {
-              company = {
-                id: companyUser.id,
-                name: companyUser.name,
-                email: companyUser.email,
-                createdAt: companyUser.createdAt.toISOString(),
-                updatedAt: companyUser.updatedAt.toISOString(),
-                employees: [],
-                _synthetic: true
-              };
-            }
+          if (dbCompany) {
+            company = {
+              ...dbCompany,
+              createdAt: dbCompany.createdAt.toISOString(),
+              updatedAt: dbCompany.updatedAt.toISOString(),
+              employees: dbCompany.employees,
+            };
           }
         }
       } catch (dbError) {
