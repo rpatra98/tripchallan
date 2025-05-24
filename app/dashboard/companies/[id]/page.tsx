@@ -87,7 +87,8 @@ export default async function CompanyDetailPage({ params }: { params: { id: stri
         console.error("API error:", response.status, response.statusText);
         error = `API error: ${response.status} ${response.statusText}`;
       } else {
-        company = await response.json();
+        const data = await response.json();
+        company = data;
         
         // Debug the company data structure
         console.log("Company data structure:", JSON.stringify(company, null, 2));
@@ -150,15 +151,47 @@ export default async function CompanyDetailPage({ params }: { params: { id: stri
           });
           
           if (companyUser) {
-            company = {
-              id: companyUser.id,
-              name: companyUser.name,
-              email: companyUser.email,
-              createdAt: companyUser.createdAt.toISOString(),
-              updatedAt: companyUser.updatedAt.toISOString(),
-              employees: [],
-              _synthetic: true
-            };
+            // If company user has a companyId, try to get that company
+            if (companyUser.companyId) {
+              const relatedCompany = await prisma.company.findUnique({
+                where: { id: companyUser.companyId },
+                include: {
+                  employees: {
+                    where: { role: UserRole.EMPLOYEE },
+                    select: {
+                      id: true,
+                      name: true,
+                      email: true,
+                      role: true,
+                      subrole: true,
+                      coins: true,
+                    }
+                  }
+                }
+              });
+              
+              if (relatedCompany) {
+                company = {
+                  ...relatedCompany,
+                  createdAt: relatedCompany.createdAt.toISOString(),
+                  updatedAt: relatedCompany.updatedAt.toISOString(),
+                  employees: relatedCompany.employees,
+                };
+              }
+            }
+            
+            // If we still don't have company data, create a synthetic company from user data
+            if (!company) {
+              company = {
+                id: companyUser.id,
+                name: companyUser.name,
+                email: companyUser.email,
+                createdAt: companyUser.createdAt.toISOString(),
+                updatedAt: companyUser.updatedAt.toISOString(),
+                employees: [],
+                _synthetic: true
+              };
+            }
           }
         }
       } catch (dbError) {
