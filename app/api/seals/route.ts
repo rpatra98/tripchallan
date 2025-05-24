@@ -53,8 +53,23 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const body = await req.json();
-    const { sessionId, barcode, verificationData } = body;
+    const user = await prisma.user.findUnique({
+      where: { email: session.user.email },
+    });
+
+    if (!user) {
+      return NextResponse.json({ error: "User not found" }, { status: 404 });
+    }
+
+    // Only guards can verify seals
+    if (user.role !== UserRole.EMPLOYEE || user.subrole !== EmployeeSubrole.GUARD) {
+      return NextResponse.json(
+        { error: "Only guards can verify seals" },
+        { status: 403 }
+      );
+    }
+
+    const { sessionId, verificationData } = await req.json();
 
     if (!sessionId) {
       return NextResponse.json(
@@ -68,9 +83,8 @@ export async function POST(req: NextRequest) {
       where: { id: sessionId },
       include: {
         company: true,
-        createdBy: true,
-        tripDetails: true,
-      },
+        createdBy: true
+      }
     });
 
     if (!existingSession) {
@@ -92,18 +106,10 @@ export async function POST(req: NextRequest) {
       );
     }
     
-    const user = await prisma.user.findUnique({
-      where: { email: session.user.email },
-    });
-
-    if (!user) {
-      return NextResponse.json({ error: "User not found" }, { status: 404 });
-    }
-
     // Create the seal
     const sealData: any = {
       sessionId,
-      barcode: barcode || `GENERATED-${Date.now()}`,
+      barcode: `GENERATED-${Date.now()}`,
     };
     
     // If this is a verification request from a guard
@@ -259,8 +265,7 @@ export async function PATCH(req: NextRequest) {
         session: {
           include: {
             company: true,
-            createdBy: true,
-            tripDetails: true,
+            createdBy: true
           }
         }
       }
