@@ -5,6 +5,9 @@ import { Button, Dialog, DialogTitle, DialogContent, DialogActions, Typography, 
 import { Close, Cameraswitch } from '@mui/icons-material';
 import { Html5Qrcode } from 'html5-qrcode';
 
+// Add console log for debugging purposes
+console.log('ClientSideQrScanner component loaded');
+
 interface ClientSideQrScannerProps {
   /**
    * Callback function when a QR code is scanned
@@ -114,15 +117,26 @@ const QrScannerDialog: React.FC<QrScannerDialogProps> = ({
     
     const initScanner = async () => {
       try {
+        console.log('Initializing QR scanner...');
         setError(null);
         
+        if (!Html5Qrcode) {
+          console.error('Html5Qrcode is not defined. Library may not be loaded correctly.');
+          setError('QR scanner library failed to load. Please try refreshing the page.');
+          return;
+        }
+        
         if (!scanner) {
+          console.log('Creating new Html5Qrcode instance...');
           scanner = new Html5Qrcode(scannerContainerId);
           scannerRef.current = scanner;
         }
         
         // Get all available cameras
+        console.log('Requesting camera permissions...');
         const devices = await Html5Qrcode.getCameras();
+        console.log('Available cameras:', devices);
+        
         if (devices && devices.length) {
           // Sort cameras to prioritize back camera (environment facing)
           const sortedDevices = sortCamerasByFacingMode(devices);
@@ -131,6 +145,7 @@ const QrScannerDialog: React.FC<QrScannerDialogProps> = ({
           // Start with the first camera (usually back camera after sorting)
           await startScanner(scanner, sortedDevices[0].id);
         } else {
+          console.warn('No cameras found or permission denied');
           setError("No camera found. Please make sure your camera is connected and you've granted permission to use it.");
         }
       } catch (err) {
@@ -164,7 +179,15 @@ const QrScannerDialog: React.FC<QrScannerDialogProps> = ({
     
     const startScanner = async (scanner: any, cameraId: string) => {
       try {
+        console.log(`Starting scanner with camera ID: ${cameraId}`);
         setIsScanning(true);
+        
+        if (!scanner) {
+          console.error('Scanner instance is null or undefined');
+          setError('Scanner initialization failed. Please refresh and try again.');
+          setIsScanning(false);
+          return;
+        }
         
         await scanner.start(
           cameraId, 
@@ -173,6 +196,7 @@ const QrScannerDialog: React.FC<QrScannerDialogProps> = ({
             qrbox: { width: 250, height: 250 }
           },
           (decodedText: string) => {
+            console.log('QR code scanned:', decodedText);
             // Capture the image from the video feed
             if (onScanWithImage) {
               captureFrame(decodedText);
@@ -183,16 +207,21 @@ const QrScannerDialog: React.FC<QrScannerDialogProps> = ({
           () => {}
         );
 
+        console.log('Scanner started successfully');
+
         // Get reference to the video element created by the scanner
         setTimeout(() => {
           const videoElement = document.querySelector('#' + scannerContainerId + ' video') as HTMLVideoElement;
           if (videoElement) {
+            console.log('Video element found');
             videoRef.current = videoElement;
+          } else {
+            console.warn('Video element not found');
           }
         }, 1000); // Give the scanner time to set up the video
       } catch (err) {
         console.error('Error starting scanner:', err);
-        setError("Failed to start scanner. Please try again.");
+        setError("Failed to start scanner. Please try again or use a different browser.");
         setIsScanning(false);
       }
     };
@@ -200,12 +229,15 @@ const QrScannerDialog: React.FC<QrScannerDialogProps> = ({
     // Function to capture a frame from the video as an image
     const captureFrame = (decodedText: string) => {
       try {
+        console.log('Attempting to capture frame from video...');
         if (!videoRef.current) {
           // Try to find the video element if not already set
+          console.log('Video ref not set, looking for video element...');
           const videoElement = document.querySelector('#' + scannerContainerId + ' video') as HTMLVideoElement;
           if (!videoElement) {
-            console.error('Video element not found');
+            console.error('Video element not found for frame capture');
             if (onScan) {
+              console.log('Falling back to onScan without image');
               onScan(decodedText);
             }
             return;
@@ -215,6 +247,7 @@ const QrScannerDialog: React.FC<QrScannerDialogProps> = ({
 
         // Create a canvas element if it doesn't exist
         if (!canvasRef.current) {
+          console.log('Creating canvas for frame capture');
           const canvas = document.createElement('canvas');
           canvasRef.current = canvas;
         }
@@ -225,6 +258,7 @@ const QrScannerDialog: React.FC<QrScannerDialogProps> = ({
         // Set canvas dimensions to match video
         canvas.width = video.videoWidth;
         canvas.height = video.videoHeight;
+        console.log(`Canvas dimensions set to ${canvas.width}x${canvas.height}`);
         
         // Draw the current video frame to the canvas
         const ctx = canvas.getContext('2d');
@@ -236,17 +270,21 @@ const QrScannerDialog: React.FC<QrScannerDialogProps> = ({
             if (blob && onScanWithImage) {
               // Create a file from the blob
               const imageFile = new File([blob], `qr-scan-${Date.now()}.jpg`, { type: 'image/jpeg' });
+              console.log('Image captured successfully, size:', blob.size);
               onScanWithImage(decodedText, imageFile);
             } else if (onScan) {
+              console.log('No blob created or onScanWithImage not provided, falling back to onScan');
               onScan(decodedText);
             }
           }, 'image/jpeg', 0.8);
         } else if (onScan) {
+          console.error('Could not get canvas context');
           onScan(decodedText);
         }
       } catch (error) {
         console.error('Error capturing frame:', error);
         if (onScan) {
+          console.log('Error in frame capture, falling back to onScan');
           onScan(decodedText);
         }
       }
