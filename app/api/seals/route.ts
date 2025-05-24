@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth-options";
 import prisma from "@/lib/prisma";
 import { EmployeeSubrole, UserRole } from "@/prisma/enums";
 import { sendVerificationEmail } from "@/lib/email";
+import { Prisma } from "@prisma/client";
 
 export async function GET(req: NextRequest) {
   try {
@@ -280,94 +281,122 @@ export async function PATCH(req: NextRequest) {
       );
     }
 
-    // Update the seal as verified
-    const updatedSeal = await prisma.seal.update({
-      where: { id: sealId },
-      data: {
-        verified: true,
-        verifiedById: user.id,
-        scannedAt: new Date(),
-      },
-      include: {
-        verifiedBy: true,
-        session: {
+    try {
+      // Start a transaction to ensure data consistency
+      const result = await prisma.$transaction(async (prismaClient: any) => {
+        // Type assertion for the transaction client
+        const tx = prismaClient as typeof prisma;
+        
+        // Update the seal as verified
+        const updatedSeal = await tx.seal.update({
+          where: { id: sealId },
+          data: {
+            verified: true,
+            verifiedById: user.id,
+            scannedAt: new Date(),
+          },
           include: {
-            company: true,
-            createdBy: true,
-            tripDetails: true,
+            verifiedBy: true,
+            session: {
+              include: {
+                company: true,
+                createdBy: true,
+              }
+            },
+          },
+        });
+
+        // Update session status to COMPLETED
+        await tx.session.update({
+          where: { id: updatedSeal.sessionId },
+          data: { 
+            status: "COMPLETED" 
+          },
+        });
+
+        // Store verification data in activity log
+        await tx.activityLog.create({
+          data: {
+            userId: user.id,
+            action: "UPDATE",
+            targetResourceId: updatedSeal.sessionId,
+            targetResourceType: "session",
+            details: {
+              verification: {
+                timestamp: new Date().toISOString(),
+                sealId: sealId,
+                fieldVerifications: verificationData.fieldVerifications,
+                imageVerifications: verificationData.imageVerifications,
+                allMatch: verificationData.allMatch
+              }
+            }
           }
-        },
-      },
-    });
+        });
 
-    // Update session status to COMPLETED
-    await prisma.session.update({
-      where: { id: updatedSeal.sessionId },
-      data: { 
-        status: "COMPLETED" 
-      },
-    });
-
-    // Store verification data in activity log
-    await prisma.activityLog.create({
-      data: {
-        userId: user.id,
-        action: "UPDATE",
-        targetResourceId: updatedSeal.sessionId,
-        targetResourceType: "session",
-        details: {
-          verification: {
-            timestamp: new Date().toISOString(),
-            sealId: sealId,
-            fieldVerifications: verificationData.fieldVerifications,
-            imageVerifications: verificationData.imageVerifications,
-            allMatch: verificationData.allMatch
-          }
-        }
-      }
-    });
-
-    // Get company email to send notification
-    let companyEmail = updatedSeal.session?.company?.email;
-    
-    if (!companyEmail && updatedSeal.session?.company?.id) {
-      const company = await prisma.company.findUnique({
-        where: { id: updatedSeal.session.company.id },
-        select: { email: true },
+        return updatedSeal;
       });
+
+      // Get company email to send notification (after transaction completion)
+      let companyEmail = result.session?.company?.email;
       
-      companyEmail = company?.email;
-    }
-    
-    // Send email notification if company email is available
-    if (companyEmail) {
-      try {
-        await sendVerificationEmail({
-          sessionId: updatedSeal.sessionId,
-          sessionDetails: updatedSeal.session,
-          companyEmail,
-          guardName: user.name || 'Guard',
-          verificationDetails: verificationData,
-          sealDetails: updatedSeal,
-          timestamp: new Date().toISOString(),
+      if (!companyEmail && result.session?.company?.id) {
+        const company = await prisma.company.findUnique({
+          where: { id: result.session.company.id },
+          select: { email: true },
         });
         
-        console.log(`[API] Verification email sent to ${companyEmail}`);
-      } catch (emailError) {
-        console.error("[API] Failed to send verification email:", emailError);
-        // Continue execution even if email fails
+        companyEmail = company?.email;
       }
-    } else {
-      console.log("[API] No company email found, skipping verification email");
-    }
+      
+      // Send email notification if company email is available
+      let emailSent = false;
+      let emailError: any = null;
+      
+      if (companyEmail) {
+        try {
+          const emailResult = await sendVerificationEmail({
+            sessionId: result.sessionId,
+            sessionDetails: result.session,
+            companyEmail,
+            guardName: user.name || 'Guard',
+            verificationDetails: verificationData,
+            sealDetails: result,
+            timestamp: new Date().toISOString(),
+          });
+          
+          emailSent = emailResult.success;
+          
+          if (emailResult.success) {
+            console.log(`[API] Verification email sent to ${companyEmail}`);
+          } else {
+            console.error("[API] Email sending returned error:", emailResult.error);
+            emailError = emailResult.error;
+          }
+        } catch (e) {
+          console.error("[API] Failed to send verification email:", e);
+          emailError = e;
+          // Continue execution even if email fails
+        }
+      } else {
+        console.log("[API] No company email found, skipping verification email");
+      }
 
-    return NextResponse.json({
-      ...updatedSeal,
-      verificationDetails: {
-        allMatch: verificationData.allMatch,
-        fieldVerifications: verificationData.fieldVerifications
-      }
-    });
+      return NextResponse.json({
+        ...result,
+        verificationDetails: {
+          allMatch: verificationData.allMatch,
+          fieldVerifications: verificationData.fieldVerifications
+        },
+        emailSent,
+        emailError: emailError ? String(emailError) : null
+      });
+    } catch (txError) {
+      console.error("Transaction error during verification:", txError);
+      return NextResponse.json(
+        { error: "Failed to complete verification transaction" },
+        { status: 500 }
+      );
+    }
   } catch (error) {
     console.error("Error verifying seal:", error);
     return NextResponse.json(

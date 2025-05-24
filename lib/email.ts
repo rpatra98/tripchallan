@@ -1,13 +1,13 @@
 import nodemailer from 'nodemailer';
 
-// Configure nodemailer with SMTP details
+// Configure nodemailer with SMTP details from environment variables
 const transporter = nodemailer.createTransport({
-  host: 'asetl.com',
-  port: 465,
-  secure: true, // true for 465, false for other ports
+  host: process.env.SMTP_HOST || 'asetl.com',
+  port: parseInt(process.env.SMTP_PORT || '465'),
+  secure: process.env.SMTP_SECURE !== 'false', // true for 465, false for other ports
   auth: {
-    user: 'a001@asetl.com',
-    pass: 'sqyX~Ut8c29qekGz1',
+    user: process.env.SMTP_USER || 'a001@asetl.com',
+    pass: process.env.SMTP_PASS || 'sqyX~Ut8c29qekGz1',
   },
 });
 
@@ -158,9 +158,15 @@ export const sendVerificationEmail = async ({
   `;
 
   try {
+    // Skip email sending if disabled in environment
+    if (process.env.DISABLE_EMAIL_SENDING === 'true') {
+      console.log('[EMAIL] Email sending is disabled by environment variable');
+      return { success: true, messageId: 'email-disabled' };
+    }
+    
     // Send email
     const info = await transporter.sendMail({
-      from: '"CBUMS System" <a001@asetl.com>',
+      from: process.env.EMAIL_FROM || '"CBUMS System" <a001@asetl.com>',
       to: companyEmail,
       subject: `Session Verification Confirmation - ${sessionId}`,
       html: htmlContent,
@@ -170,6 +176,7 @@ export const sendVerificationEmail = async ({
     return { success: true, messageId: info.messageId };
   } catch (error) {
     console.error('[EMAIL] Error sending verification email:', error);
+    // Return success: false but don't throw an error to prevent API failure
     return { success: false, error };
   }
 }; 

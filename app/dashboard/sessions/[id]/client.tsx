@@ -826,6 +826,7 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
   const handleVerifySeal = async () => {
     try {
       setVerifying(true);
+      setError(""); // Clear any previous error
       
       // Upload any guard images that were provided
       const uploadedImageUrls: Record<string, any> = {};
@@ -847,50 +848,87 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
       
       // If session has a seal, update it, otherwise create a new one
       let response;
-      if (session?.seal?.id) {
-        response = await fetch("/api/seals", {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ 
-          sealId: session.seal.id,
-          verificationData: {
-            fieldVerifications: fieldVerificationResults,
-            guardImages: uploadedImageUrls,
-            sealBarcode: sealInput || null,
-            allMatch: true, // Always match since we're just verifying
-            verificationTimestamp: new Date().toISOString()
+      let retryCount = 0;
+      const maxRetries = 2;
+      
+      while (retryCount <= maxRetries) {
+        try {
+          if (session?.seal?.id) {
+            response = await fetch("/api/seals", {
+            method: "PATCH",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ 
+              sealId: session.seal.id,
+              verificationData: {
+                fieldVerifications: fieldVerificationResults,
+                guardImages: uploadedImageUrls,
+                sealBarcode: sealInput || null,
+                allMatch: true, // Always match since we're just verifying
+                verificationTimestamp: new Date().toISOString()
+              }
+            }),
+          });
+          } else if (session) {
+            // Create a new seal for this session
+            response = await fetch("/api/seals", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({ 
+                sessionId: session.id,
+                verificationData: {
+                  fieldVerifications: fieldVerificationResults,
+                  guardImages: uploadedImageUrls,
+                  sealBarcode: sealInput || null,
+                  allMatch: true, // Always match since we're just verifying
+                  verificationTimestamp: new Date().toISOString()
+                }
+              }),
+            });
           }
-        }),
-      });
-      } else if (session) {
-        // Create a new seal for this session
-        response = await fetch("/api/seals", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ 
-            sessionId: session.id,
-            verificationData: {
-              fieldVerifications: fieldVerificationResults,
-              guardImages: uploadedImageUrls,
-              sealBarcode: sealInput || null,
-              allMatch: true, // Always match since we're just verifying
-              verificationTimestamp: new Date().toISOString()
-            }
-          }),
-        });
+          
+          // If we got a response, break out of the retry loop
+          if (response) break;
+        } catch (fetchError) {
+          console.error(`Fetch attempt ${retryCount + 1} failed:`, fetchError);
+          // If this was our last retry, throw the error to be caught by the outer try/catch
+          if (retryCount === maxRetries) throw fetchError;
+        }
+        
+        // Wait before retrying
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        retryCount++;
       }
       
-      if (!response || !response.ok) {
-        const errorData = await response?.json().catch(() => ({}));
-        throw new Error(errorData.error || "Failed to verify seal");
+      if (!response) {
+        throw new Error("Failed to connect to the server after multiple attempts");
       }
       
+      let responseData;
+      try {
+        responseData = await response.json();
+      } catch (jsonError) {
+        console.error("Failed to parse response JSON:", jsonError);
+      }
+      
+      if (!response.ok) {
+        // Check if we have detailed error information
+        const errorMessage = responseData?.error || 
+          `Server returned error (${response.status}): ${response.statusText}`;
+        throw new Error(errorMessage);
+      }
+      
+      // Success! Update the UI
       setVerificationSuccess(true);
       setVerificationFormOpen(false);
+      
+      // If email sending failed but verification succeeded, show a warning
+      if (responseData && responseData.emailSent === false) {
+        console.warn("Verification completed but email notification failed:", responseData.emailError);
+      }
       
       // Save verification results for displaying matched/mismatched fields
       const matches = Object.entries(fieldVerificationResults)
@@ -913,6 +951,11 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
         allFields: fieldVerificationResults,
         timestamp: new Date().toISOString()
       });
+      
+      // Reload session data to update status
+      setTimeout(() => {
+        fetchSessionDetails();
+      }, 1000);
     } catch (err) {
       console.error("Error verifying seal:", err);
       setError(err instanceof Error ? err.message : "Failed to verify seal");
