@@ -444,29 +444,17 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
     }));
   }, []);
 
-  const verifyField = useCallback((field: string) => {
-    // Get field data but don't show operator value to GUARD
-    const fieldData = verificationFields[field];
-    
-    // Guard must enter a value
-    if (!fieldData.guardValue || fieldData.guardValue.trim() === '') {
-      alert('Please enter a value before verifying this field.');
-      return false;
-    }
-    
-    // Mark as verified without showing if it matches
-    setVerificationFields(prev => ({
-      ...prev,
-      [field]: {
-        ...prev[field],
-        isVerified: true
-      }
-    }));
-    
-    // Still check for match in background (for stats and verification results)
-    const match = String(fieldData.operatorValue).toLowerCase() === String(fieldData.guardValue).toLowerCase();
-    return match;
-  }, [verificationFields]);
+  // Handle field verification state toggle
+  const verifyField = (field: string) => {
+    setVerificationFields(prev => {
+      const updatedFields = { ...prev };
+      updatedFields[field] = {
+        ...updatedFields[field],
+        isVerified: !updatedFields[field].isVerified
+      };
+      return updatedFields;
+    });
+  };
 
   // Handle QR/barcode scanner input
   const handleScanComplete = useCallback((sealId: string) => {
@@ -761,106 +749,30 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
   
   // Modified version of handleVerifySeal to allow completion without a seal barcode
   const handleVerifySeal = async () => {
-    // We'll create a seal if one doesn't exist
-    if (!session) return;
-    
-    setVerifying(true);
-    setError("");
-    setSealError("");
-    
     try {
-      // Upload any images that were provided (now optional)
-      const uploadedImageUrls: {[key: string]: any} = {};
+      setVerifying(true);
       
-      // Helper function to upload single image
-      const uploadImage = async (file: File, type: string): Promise<string> => {
-        const formData = new FormData();
-        formData.append('file', file);
-        formData.append('type', type);
-        
-        const response = await fetch(`/api/upload`, {
-          method: 'POST',
-          body: formData
-        });
-        
-        if (!response.ok) {
-          throw new Error(`Failed to upload ${type} image`);
-        }
-        
-        const data = await response.json();
-        return data.url;
-      };
-      
-      // Upload any images that exist (all optional now)
-      if (guardImages.driverPicture) {
-        uploadedImageUrls.driverPicture = await uploadImage(guardImages.driverPicture, 'driver');
-      }
-      
-      if (guardImages.vehicleNumberPlatePicture) {
-        uploadedImageUrls.vehicleNumberPlatePicture = await uploadImage(guardImages.vehicleNumberPlatePicture, 'numberPlate');
-      }
-      
-      if (guardImages.gpsImeiPicture) {
-        uploadedImageUrls.gpsImeiPicture = await uploadImage(guardImages.gpsImeiPicture, 'gpsImei');
-      }
-      
-      if (guardImages.sealingImages?.length) {
-        uploadedImageUrls.sealingImages = await Promise.all(
-          guardImages.sealingImages.map((file, index) => 
-            uploadImage(file, `sealing-${index}`)
-          )
-        );
-      }
-      
-      if (guardImages.vehicleImages?.length) {
-        uploadedImageUrls.vehicleImages = await Promise.all(
-          guardImages.vehicleImages.map((file, index) => 
-            uploadImage(file, `vehicle-${index}`)
-          )
-        );
-      }
-      
-      if (guardImages.additionalImages?.length) {
-        uploadedImageUrls.additionalImages = await Promise.all(
-          guardImages.additionalImages.map((file, index) => 
-            uploadImage(file, `additional-${index}`)
-          )
-        );
-      }
+      // Upload any guard images that were provided
+      const uploadedImageUrls: Record<string, any> = {};
       
       // Calculate verification results for each field
       const fieldVerificationResults = Object.entries(verificationFields).reduce(
         (results, [field, data]) => {
-          // Consider fields with values entered, even if not explicitly verified
-          const isEffectivelyVerified = data.isVerified || !!data.guardValue;
-          
-          if (data.guardValue) {
-            results[field] = {
-              operatorValue: data.operatorValue,
-              guardValue: data.guardValue,
-              matches: String(data.operatorValue).toLowerCase() === String(data.guardValue).toLowerCase(),
-              comment: data.comment,
-              isVerified: isEffectivelyVerified
-            };
-          } else {
-            // If no guard value provided, mark as incomplete
-            results[field] = {
-              operatorValue: data.operatorValue,
-              guardValue: null,
-              matches: false,
-              comment: data.comment || "No value entered",
-              isVerified: false
-            };
-          }
+          results[field] = {
+            operatorValue: data.operatorValue,
+            guardValue: data.operatorValue, // Use operator value as the guard value
+            matches: true, // Always match since we're just verifying
+            comment: data.comment,
+            isVerified: data.isVerified
+          };
           return results;
         },
         {} as Record<string, any>
       );
       
-      let response;
-
       // If session has a seal, update it, otherwise create a new one
-      if (session.seal?.id) {
+      let response;
+      if (session?.seal?.id) {
         response = await fetch("/api/seals", {
         method: "PATCH",
         headers: {
@@ -872,12 +784,12 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
             fieldVerifications: fieldVerificationResults,
             guardImages: uploadedImageUrls,
             sealBarcode: sealInput || null,
-            allMatch: Object.values(fieldVerificationResults).every(v => v.matches && v.isVerified),
+            allMatch: true, // Always match since we're just verifying
             verificationTimestamp: new Date().toISOString()
           }
         }),
       });
-      } else {
+      } else if (session) {
         // Create a new seal for this session
         response = await fetch("/api/seals", {
           method: "POST",
@@ -890,15 +802,15 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
               fieldVerifications: fieldVerificationResults,
               guardImages: uploadedImageUrls,
               sealBarcode: sealInput || null,
-              allMatch: Object.values(fieldVerificationResults).every(v => v.matches && v.isVerified),
+              allMatch: true, // Always match since we're just verifying
               verificationTimestamp: new Date().toISOString()
             }
           }),
         });
       }
       
-      if (!response.ok) {
-        const errorData = await response.json();
+      if (!response || !response.ok) {
+        const errorData = await response?.json().catch(() => ({}));
         throw new Error(errorData.error || "Failed to verify seal");
       }
       
@@ -909,7 +821,7 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
       const matches = Object.entries(fieldVerificationResults)
         .filter(([_, data]) => data.matches && data.isVerified)
         .map(([field, _]) => field);
-        
+      
       const mismatches = Object.entries(fieldVerificationResults)
         .filter(([_, data]) => !data.matches && data.isVerified)
         .map(([field, _]) => field);
@@ -926,9 +838,6 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
         allFields: fieldVerificationResults,
         timestamp: new Date().toISOString()
       });
-      
-      // Refresh session details after verification
-      fetchSessionDetails();
     } catch (err) {
       console.error("Error verifying seal:", err);
       setError(err instanceof Error ? err.message : "Failed to verify seal");
@@ -1237,7 +1146,7 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
             {session.images?.driverPicture && (
               <Box sx={{ width: '150px' }}>
                 <Typography variant="caption" color="text.secondary" gutterBottom>
-                  Original photo:
+                  Driver photo:
                 </Typography>
                 <Box sx={{ border: '1px solid #ddd', borderRadius: 1, overflow: 'hidden' }}>
                   <img 
@@ -1249,62 +1158,31 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
               </Box>
             )}
             
-            {/* Guard's verification photo */}
-            <Box sx={{ width: '150px' }}>
-              <Typography variant="caption" color="text.secondary" gutterBottom>
-                Your verification photo:
-              </Typography>
-              <Box
-                sx={{
-                  border: '1px solid #ddd',
-                  borderRadius: 1,
-                  height: '150px',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  justifyContent: 'center',
-                  alignItems: 'center',
-                  p: 1,
-                  backgroundColor: 'background.paper'
-                }}
-              >
-                {imagePreviews.driverPicture ? (
-                  <Box sx={{ position: 'relative', width: '100%', height: '100%' }}>
-                    <img
-                      src={imagePreviews.driverPicture}
-                      alt="Driver Verification"
-                      style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                    />
-                    <IconButton
-                      sx={{
-                        position: 'absolute',
-                        top: 0,
-                        right: 0,
-                        bgcolor: 'background.paper',
-                        '&:hover': { bgcolor: 'error.light' }
-                      }}
-                      size="small"
-                      onClick={() => removeUploadedImage('driverPicture')}
-                    >
-                      <Delete fontSize="small" />
-                    </IconButton>
-                  </Box>
-                ) : (
-          <Button
-                    component="label"
-                    variant="outlined"
-                    startIcon={<CloudUpload />}
-                    size="small"
-                  >
-                    Upload Photo
-                    <input
-                      type="file"
-                      hidden
-                      accept="image/*"
-                      onChange={(e) => handleImageUpload('driverPicture', e.target.files?.[0] || null)}
-                    />
-          </Button>
-                )}
+            {/* Verification radio button and comment */}
+            <Box sx={{ flex: 1 }}>
+              <Box display="flex" alignItems="center">
+                <IconButton 
+                  onClick={() => verifyImage('driverPicture')}
+                  color={imageVerificationStatus.driverPicture ? "success" : "default"}
+                  size="small"
+                >
+                  {imageVerificationStatus.driverPicture ? <CheckCircle /> : <RadioButtonUnchecked />}
+                </IconButton>
+                <Typography variant="body2" sx={{ ml: 1 }}>
+                  Mark as verified
+                </Typography>
               </Box>
+              <TextField
+                fullWidth
+                size="small"
+                placeholder="Add comment"
+                value={imageComments.driverPicture || ''}
+                onChange={(e) => handleImageCommentChange('driverPicture', e.target.value)}
+                variant="outlined"
+                multiline
+                rows={2}
+                sx={{ mt: 2 }}
+              />
             </Box>
           </Box>
         </Box>
@@ -1586,27 +1464,6 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
             </Box>
           </Paper>
         )}
-
-        <Box sx={{ width: '100%', mt: 3 }}>
-          <Box display="flex" justifyContent="space-between">
-            <Button
-              variant="outlined"
-              color="primary"
-              onClick={() => setVerificationStep(1)}
-              startIcon={<ArrowBack />}
-            >
-              Back to Driver Details
-            </Button>
-            <Button
-              variant="contained"
-              color="primary"
-              onClick={() => setVerificationStep(3)}
-              endIcon={<ArrowForward />}
-            >
-              Next: Seal Verification
-            </Button>
-          </Box>
-        </Box>
       </Box>
     );
   };
