@@ -1,9 +1,8 @@
 "use client";
 
-import { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
-import { toast } from "react-hot-toast";
 import React from 'react';
 import { 
   Container, 
@@ -33,27 +32,9 @@ import {
   TableCell,
   TextField,
   IconButton,
+  Grid as MuiGrid,
   InputAdornment,
-  Tooltip,
-  Backdrop,
-  FormControl,
-  FormControlLabel,
-  FormLabel,
-  RadioGroup,
-  Radio,
-  Stepper,
-  Step,
-  StepLabel,
-  StepContent,
-  InputLabel,
-  Select,
-  MenuItem,
-  CardHeader,
-  CardMedia,
-  CardContent,
-  CardActions,
-  Badge,
-  Grid
+  Tooltip
 } from "@mui/material";
 import { 
   LocationOn, 
@@ -80,10 +61,8 @@ import {
   Refresh
 } from "@mui/icons-material";
 import Link from "next/link";
-import { SessionStatus, EmployeeSubrole, SealStatus, ActivityAction, UserRole } from "@/prisma/enums";
+import { SessionStatus, EmployeeSubrole } from "@/prisma/enums";
 import CommentSection from "@/app/components/sessions/CommentSection";
-import SealVerification from "@/app/components/sessions/SealVerification";
-import useSessionSeals from "@/app/hooks/useSessionSeals";
 import { jsPDF } from 'jspdf';
 import ClientSideQrScanner from "@/app/components/ClientSideQrScanner";
 
@@ -174,18 +153,8 @@ type SessionType = {
   }[];
 };
 
-// Add interfaces for status updates
-interface SealStatusUpdate {
-  sealId: string;
-  status: string;
-  comment?: string;
-  evidence?: SealStatusEvidence;
-}
-
-interface SealStatusEvidence {
-  photos?: string[];
-  description?: string;
-}
+// For Material-UI Grid component
+const Grid = MuiGrid;
 
 export default function SessionDetailClient({ sessionId }: { sessionId: string }) {
   const { data: authSession, status: authStatus } = useSession();
@@ -201,9 +170,6 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
   const [reportLoading, setReportLoading] = useState<string | null>(null);
   const [canEdit, setCanEdit] = useState(false);
   
-  // Add an error boundary state for catching rendering errors
-  const [renderError, setRenderError] = useState<string | null>(null);
-  
   // New state for guard verification
   const [verificationFormOpen, setVerificationFormOpen] = useState(false);
   const [verificationFields, setVerificationFields] = useState<Record<string, any>>({});
@@ -213,26 +179,6 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
   const [sealError, setSealError] = useState("");
   const [imageVerificationStatus, setImageVerificationStatus] = useState<Record<string, boolean>>({});
   const [imageComments, setImageComments] = useState<Record<string, string>>({});
-  
-  // Add state for session seals
-  const [sessionSeals, setSessionSeals] = useState<any[]>([]);
-  const [loadingSeals, setLoadingSeals] = useState(false);
-  const [sealsError, setSealsError] = useState("");
-  const [scannedSealIds, setScannedSealIds] = useState<Set<string>>(new Set());
-  const [selectedSeal, setSelectedSeal] = useState<any>(null);
-  const [unscannedSealIds, setUnscannedSealIds] = useState<string[]>([]);
-  const [sealStatusUpdates, setSealStatusUpdates] = useState<Record<string, SealStatusUpdate>>({});
-  const [selectedSealForStatus, setSelectedSealForStatus] = useState<any>(null);
-  const [statusDialogOpen, setStatusDialogOpen] = useState(false);
-  const [statusComment, setStatusComment] = useState('');
-  const [statusEvidence, setStatusEvidence] = useState<SealStatusEvidence>({ photos: [] });
-  const [isSubmittingStatus, setIsSubmittingStatus] = useState(false);
-  const [completingVerification, setCompletingVerification] = useState(false);
-  const [verificationSummaryOpen, setVerificationSummaryOpen] = useState(false);
-  const [verificationSummary, setVerificationSummary] = useState<any>(null);
-  
-  // Add ref for file input
-  const fileInputRef = useRef<HTMLInputElement>(null);
   
   // Add new state for verification tabs
   const [activeTab, setActiveTab] = useState(0);
@@ -304,7 +250,13 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
     mismatched: []
   });
   
+  // Add new state for session seals
+  const [sessionSeals, setSessionSeals] = useState<any[]>([]);
+  const [loadingSeals, setLoadingSeals] = useState(false);
+  const [sealsError, setSealsError] = useState("");
+  
   // Add a new state for the details dialog
+  const [selectedSeal, setSelectedSeal] = useState<any>(null);
   const [detailsDialogOpen, setDetailsDialogOpen] = useState(false);
   
   // Utility functions needed before other definitions
@@ -317,336 +269,58 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
   // Define fetchSessionDetails function
   const fetchSessionDetails = useCallback(async () => {
     if (!sessionId) {
-      setError("Session ID is missing");
-      setLoading(false);
+      console.log("No session ID available yet, skipping fetch");
       return;
     }
     
     setLoading(true);
     setError("");
-    
+
     try {
       console.log("Fetching session details for ID:", sessionId);
-      const response = await fetch(`/api/sessions/${sessionId}`);
       
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error("API error response:", errorText);
-        throw new Error(`Failed to fetch session: ${response.status} - ${errorText}`);
+      // Try both API endpoints to provide redundancy
+      const apiUrls = [
+        `/api/session/${sessionId}`,
+        `/api/sessions/${sessionId}`
+      ];
+      
+      let response;
+      let errorText = '';
+      
+      // Try each endpoint until one works
+      for (const url of apiUrls) {
+        console.log(`Attempting to fetch from ${url}`);
+        try {
+          response = await fetch(url);
+          if (response.ok) {
+            console.log(`Successfully fetched data from ${url}`);
+            break;
+          } else {
+            const error = await response.text();
+            errorText += `${url}: ${response.status} - ${error}\n`;
+            console.error(`API Error (${response.status}) from ${url}:`, error);
+          }
+        } catch (err) {
+          errorText += `${url}: ${err}\n`;
+          console.error(`Fetch error from ${url}:`, err);
+        }
+      }
+      
+      if (!response || !response.ok) {
+        throw new Error(`Failed to fetch session details: ${errorText}`);
       }
       
       const data = await response.json();
-      console.log("Session data received:", data ? "Success" : "Empty data");
+      console.log("Session data received:", !!data, data ? Object.keys(data) : 'no data');
       setSession(data);
-      
-      // Initialize verification fields based on trip details
-      if (data.tripDetails) {
-        const initialFields: Record<string, any> = {};
-        
-        Object.entries(data.tripDetails).forEach(([key, value]) => {
-          if (value && typeof value === 'string' && value.trim() !== '') {
-            initialFields[key] = {
-              operatorValue: value,
-              isVerified: false,
-              matches: true,
-              comment: ""
-            };
-          }
-        });
-        
-        setVerificationFields(initialFields);
-      }
-      
-      // Check edit permissions
-      setCanEdit(data.status === SessionStatus.PENDING && 
-                (data.createdBy?.id === authSession?.user?.id || 
-                 userRole === "ADMIN" || userRole === "SUPERADMIN"));
-    } catch (error) {
-      console.error("Error fetching session:", error);
-      setError("Failed to load session details. Please try again.");
+    } catch (err) {
+      console.error("Error fetching session details:", err);
+      setError(err instanceof Error ? err.message : "An unknown error occurred");
     } finally {
       setLoading(false);
     }
-  }, [sessionId, authSession, userRole]);
-  
-  // Function to handle seal scanning
-  const handleScanSeal = async (sealId: string) => {
-    try {
-      if (!sealId) return;
-      
-      // Check if this seal is already scanned
-      if (scannedSealIds.has(sealId)) {
-        toast(`Seal ${sealId} has already been scanned.`, { 
-          icon: '🔵',
-          duration: 3000
-        });
-        return;
-      }
-      
-      // Mark as scanned
-      const newScannedSealIds = new Set(scannedSealIds);
-      newScannedSealIds.add(sealId);
-      setScannedSealIds(newScannedSealIds);
-      
-      // Update status to VERIFIED
-      const statusUpdate: SealStatusUpdate = {
-        sealId,
-        status: SealStatus.VERIFIED
-      };
-      
-      setSealStatusUpdates({
-        ...sealStatusUpdates,
-        [sealId]: statusUpdate
-      });
-      
-      // Find the seal in our existing data
-      const existingSeal = sessionSeals?.find(seal => seal.barcode === sealId);
-      
-      if (existingSeal) {
-        // Update API
-        await updateSealStatus(existingSeal.id, SealStatus.VERIFIED);
-        
-        // Refresh seals data
-        await fetchSessionSeals();
-        
-        toast.success(`Seal ${sealId} verified successfully!`);
-      } else {
-        toast.error(`Seal ${sealId} not found in this session.`);
-      }
-    } catch (error) {
-      console.error("Error scanning seal:", error);
-      toast.error("Failed to scan seal. Please try again.");
-    }
-  };
-  
-  // Function to open status dialog for a seal
-  const openStatusDialog = (seal: any) => {
-    setSelectedSealForStatus(seal);
-    setStatusComment('');
-    setStatusEvidence({ photos: [] });
-    setStatusDialogOpen(true);
-  };
-  
-  // Function to update seal status
-  const updateSealStatus = async (sealId: string, status: string, comment?: string, evidence?: SealStatusEvidence) => {
-    try {
-      setIsSubmittingStatus(true);
-      
-      const response = await fetch(`/api/sessions/${sessionId}/seals/${sealId}/status`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          status,
-          comment,
-          evidence
-        })
-      });
-      
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to update seal status');
-      }
-      
-      const data = await response.json();
-      
-      // Update our state
-      const newStatusUpdates = { ...sealStatusUpdates };
-      newStatusUpdates[sealId] = {
-        sealId,
-        status,
-        comment,
-        evidence
-      };
-      setSealStatusUpdates(newStatusUpdates);
-      
-      return data.seal;
-    } catch (error) {
-      console.error("Error updating seal status:", error);
-      throw error;
-    } finally {
-      setIsSubmittingStatus(false);
-    }
-  };
-  
-  // Function to handle photo upload for status evidence
-  const handlePhotoUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-    if (!event.target.files || event.target.files.length === 0) return;
-    
-    const file = event.target.files[0];
-    const reader = new FileReader();
-    
-    reader.onloadend = () => {
-      const base64String = reader.result as string;
-      setStatusEvidence({
-        ...statusEvidence,
-        photos: [...(statusEvidence.photos || []), base64String]
-      });
-    };
-    
-    reader.readAsDataURL(file);
-  };
-  
-  // Function to handle status update submission
-  const handleStatusUpdateSubmit = async () => {
-    if (!selectedSealForStatus) return;
-    
-    try {
-      // Validate evidence for BROKEN and TAMPERED statuses
-      if (
-        (selectedSealForStatus.status === SealStatus.BROKEN || 
-         selectedSealForStatus.status === SealStatus.TAMPERED) && 
-        (!statusEvidence.photos || statusEvidence.photos.length === 0)
-      ) {
-        toast.error(`Evidence photos are required for ${selectedSealForStatus.status} status.`);
-        return;
-      }
-      
-      await updateSealStatus(
-        selectedSealForStatus.id,
-        selectedSealForStatus.status,
-        statusComment,
-        statusEvidence
-      );
-      
-      toast.success(`Seal status updated to ${selectedSealForStatus.status}.`);
-      setStatusDialogOpen(false);
-      
-      // Refresh seals data
-      await fetchSessionSeals();
-    } catch (error) {
-      toast.error(`Failed to update seal status: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    }
-  };
-  
-  // Function to complete verification
-  const completeVerification = async () => {
-    try {
-      setCompletingVerification(true);
-      
-      // Get all unscanned seal IDs with null/undefined checks
-      const safeSessionSeals = sessionSeals || [];
-      
-      // Safely filter and map only if objects have the required properties
-      const allSealTagIds = safeSessionSeals
-        .filter(seal => seal && seal.type === 'tag' && seal.barcode)
-        .map(seal => seal.barcode);
-      
-      // Filter out already scanned seal IDs
-      const unscannedSealTagIds = allSealTagIds.filter(id => !scannedSealIds.has(id));
-      setUnscannedSealIds(unscannedSealTagIds);
-      
-      // Count seals by status with safe checks
-      const verifiedCount = safeSessionSeals.filter(seal => seal && seal.status === SealStatus.VERIFIED).length;
-      const brokenCount = safeSessionSeals.filter(seal => seal && seal.status === SealStatus.BROKEN).length;
-      const tamperedCount = safeSessionSeals.filter(seal => seal && seal.status === SealStatus.TAMPERED).length;
-      
-      // Show verification summary first
-      setVerificationSummary({
-        totalSeals: allSealTagIds.length,
-        scannedSeals: scannedSealIds.size,
-        unscannedSeals: unscannedSealTagIds.length,
-        statusBreakdown: {
-          [SealStatus.VERIFIED]: verifiedCount,
-          [SealStatus.BROKEN]: brokenCount,
-          [SealStatus.TAMPERED]: tamperedCount,
-          [SealStatus.MISSING]: unscannedSealTagIds.length // These will be marked as MISSING
-        }
-      });
-      
-      console.log("Verification summary prepared:", {
-        totalSeals: allSealTagIds.length,
-        scannedSeals: scannedSealIds.size,
-        unscannedSeals: unscannedSealTagIds.length,
-        verifiedCount,
-        brokenCount,
-        tamperedCount
-      });
-      
-      setVerificationSummaryOpen(true);
-    } catch (error) {
-      console.error("Error preparing verification summary:", error);
-      toast.error("Failed to prepare verification summary. Please try again.");
-      setCompletingVerification(false);
-    }
-  };
-  
-  // Function to confirm and complete verification
-  const confirmAndCompleteVerification = async () => {
-    try {
-      // Close the summary dialog
-      setVerificationSummaryOpen(false);
-      
-      // Complete verification via API
-      const response = await fetch(`/api/sessions/${sessionId}/complete-verification`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          verificationData: {
-            scannedSealIds: Array.from(scannedSealIds),
-            statusUpdates: sealStatusUpdates
-          },
-          unscannedSealTagIds: unscannedSealIds
-        })
-      });
-      
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to complete verification');
-      }
-      
-      const data = await response.json();
-      
-      toast.success("Verification completed successfully!");
-      
-      // Refresh session data
-      await fetchSessionDetails();
-      await fetchSessionSeals();
-    } catch (error) {
-      console.error("Error completing verification:", error);
-      toast.error(`Failed to complete verification: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    } finally {
-      setCompletingVerification(false);
-    }
-  };
-  
-  // Add a function to fetch all seals for this session
-  const fetchSessionSeals = useCallback(async () => {
-    if (!sessionId) {
-      setSealsError("Session ID is missing");
-      setLoadingSeals(false);
-      return;
-    }
-    
-    setLoadingSeals(true);
-    try {
-      console.log("Fetching seals for session:", sessionId);
-      const response = await fetch(`/api/sessions/${sessionId}/seals`);
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error("API error fetching seals:", errorText);
-        throw new Error(`Failed to fetch seals: ${response.status} - ${errorText}`);
-      }
-      const data = await response.json();
-      console.log("Session seals received:", data ? "Success" : "Empty data");
-      setSessionSeals(data || []);
-    } catch (error) {
-      console.error('Error fetching seals:', error);
-      setSealsError('Failed to fetch seals');
-    } finally {
-      setLoadingSeals(false);
-    }
   }, [sessionId]);
-
-  // Add useEffect to fetch session seals when session is loaded
-  useEffect(() => {
-    if (session) {
-      fetchSessionSeals();
-    }
-  }, [session, fetchSessionSeals]);
 
   // Add useEffect to fetch session details when component mounts
   useEffect(() => {
@@ -809,63 +483,7 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
       }
     }
   }, [session, sessionSeals]);
-  
-  // Function to render the seal status badge
-  const renderSealStatusBadge = (status: string | null | undefined) => {
-    if (!status) return null;
-    
-    switch (status) {
-      case SealStatus.VERIFIED:
-        return (
-          <Chip 
-            icon={<CheckCircle fontSize="small" />} 
-            label="Verified" 
-            color="success" 
-            size="small" 
-            variant="outlined"
-          />
-        );
-      case SealStatus.MISSING:
-        return (
-          <Chip 
-            icon={<Close fontSize="small" />} 
-            label="Missing" 
-            color="error" 
-            size="small" 
-            variant="outlined"
-          />
-        );
-      case SealStatus.BROKEN:
-        return (
-          <Chip 
-            icon={<Warning fontSize="small" />} 
-            label="Broken" 
-            color="warning" 
-            size="small" 
-            variant="outlined"
-          />
-        );
-      case SealStatus.TAMPERED:
-        return (
-          <Chip 
-            icon={<Warning fontSize="small" />} 
-            label="Tampered" 
-            color="error" 
-            size="small" 
-            variant="outlined"
-          />
-        );
-      default:
-        return (
-          <Chip 
-            label={status} 
-            size="small" 
-            variant="outlined"
-          />
-        );
-    }
-  };
-
+   
   // Extract operator seals from session data - pulling from activity logs and sessionSeals
   const operatorSeals = useMemo(() => {
     if (!session) return [];
@@ -996,7 +614,7 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
   // Update seal comparison data
   const updateSealComparison = useCallback((scannedSeals: any[]) => {
     const guardSealIds = scannedSeals.map(seal => seal.id.trim());
-    const operatorSealIds = operatorSeals?.map(seal => seal.id.trim()) || [];
+    const operatorSealIds = operatorSeals.map(seal => seal.id.trim());
     
     console.log('Guard Seal IDs:', guardSealIds);
     console.log('Operator Seal IDs:', operatorSealIds);
@@ -1065,12 +683,12 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
     }
     
     // Check if this seal matches an operator seal (case insensitive)
-    const isVerified = operatorSeals?.some(seal => 
+    const isVerified = operatorSeals.some(seal => 
       seal.id.trim().toLowerCase() === trimmedSealId.toLowerCase()
-    ) || false;
+    );
     
     console.log('Scanning seal ID:', trimmedSealId);
-    console.log('Operator seals:', operatorSeals?.map(s => s.id) || []);
+    console.log('Operator seals:', operatorSeals.map(s => s.id));
     console.log('Is verified:', isVerified);
           
     // Add to scanned seals
@@ -1132,19 +750,6 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
     [userRole, userSubrole]
   );
   
-  // Add debug logging for key state variables
-  useEffect(() => {
-    console.log("Key state variables:", {
-      sessionId,
-      authStatus,
-      userRole,
-      userSubrole,
-      isGuard,
-      operatorSealsCount: operatorSeals?.length || 0,
-      sessionStatus: session?.status
-    });
-  }, [sessionId, authStatus, userRole, userSubrole, isGuard, operatorSeals, session]);
-  
   // Check if user can access reports (non-GUARD users)
   const canAccessReports = useMemo(() => 
     userRole === "SUPERADMIN" || 
@@ -1165,20 +770,9 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
     console.log("- userSubrole:", userSubrole);
     console.log("- EmployeeSubrole.GUARD:", EmployeeSubrole.GUARD);
     
-    // Ensure all values are defined and meet conditions
-    const hasValidGuardRole = isGuard === true;
-    const hasValidSessionStatus = session?.status === SessionStatus.IN_PROGRESS;
-    const hasOperatorSeals = (operatorSeals?.length || 0) > 0;
-    const hasSealBarcode = !!session?.seal?.barcode;
-    
-    console.log("- hasValidGuardRole:", hasValidGuardRole);
-    console.log("- hasValidSessionStatus:", hasValidSessionStatus);
-    console.log("- hasOperatorSeals:", hasOperatorSeals);
-    console.log("- hasSealBarcode:", hasSealBarcode);
-    
-    return hasValidGuardRole && 
-      hasValidSessionStatus && 
-      (hasOperatorSeals || hasSealBarcode);
+    return isGuard && 
+      session?.status === SessionStatus.IN_PROGRESS && 
+      (operatorSeals.length > 0 || session?.seal?.barcode);
   }, [isGuard, session, operatorSeals]);
   
   // Check if user has edit permission
@@ -1310,19 +904,6 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
     }
   }, [authStatus, authSession?.user?.id, session, operatorSeals]);
 
-  // Add useEffect to fetch session details when component mounts
-  useEffect(() => {
-    console.log("Component mounted, fetching session details...");
-      fetchSessionDetails();
-  }, [fetchSessionDetails]);
-  
-  // Add useEffect to fetch seals when session details are loaded
-  useEffect(() => {
-    if (session) {
-      fetchSessionSeals();
-    }
-  }, [session, fetchSessionSeals]);
-  
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleString();
   };
@@ -2955,6 +2536,34 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
     }
   };
 
+  // Add a function to fetch all seals for this session
+  const fetchSessionSeals = useCallback(async () => {
+    if (!sessionId) return;
+    
+    setLoadingSeals(true);
+    setSealsError("");
+    
+    try {
+      console.log("Fetching seals for session ID:", sessionId);
+      const response = await fetch(`/api/sessions/${sessionId}/seals`);
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        console.error(`API Error (${response.status}):`, errorData);
+        throw new Error(`Failed to fetch session seals: ${response.status} - ${errorData.error || 'Unknown error'}`);
+      }
+      
+      const data = await response.json();
+      console.log("Session seals received:", data);
+      setSessionSeals(data);
+    } catch (err) {
+      console.error("Error fetching session seals:", err);
+      setSealsError(err instanceof Error ? err.message : "Failed to fetch seals");
+    } finally {
+      setLoadingSeals(false);
+    }
+  }, [sessionId]);
+  
   // Add useEffect to fetch seals when session details are loaded
   useEffect(() => {
     if (session) {
@@ -2964,28 +2573,7 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
   
   // Enhanced render all seals function
   const renderAllSeals = () => {
-    // Use the hook for session seals
-    const { sessionSeals: hookSeals, loadingSeals: hookLoading, sealsError: hookError, fetchSessionSeals: refreshSeals } = useSessionSeals(sessionId);
-    
-    // Check if we should use the SealVerification component
-    const shouldUseSealVerificationComponent = userSubrole === EmployeeSubrole.GUARD && 
-      session?.status !== SessionStatus.COMPLETED;
-    
-    if (shouldUseSealVerificationComponent && hookSeals) {
-      return (
-        <SealVerification 
-          sessionId={sessionId}
-          sessionSeals={hookSeals}
-          refreshSeals={refreshSeals}
-          refreshSession={fetchSessionDetails}
-          isGuard={userSubrole === EmployeeSubrole.GUARD}
-          isCompleted={session?.status === SessionStatus.COMPLETED}
-        />
-      );
-    }
-    
-    // Otherwise use the normal seals display
-    if (loadingSeals || hookLoading) {
+    if (loadingSeals) {
       return (
         <Box display="flex" justifyContent="center" p={2}>
           <CircularProgress size={24} />
@@ -2993,14 +2581,14 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
       );
     }
     
-    if (sealsError || hookError) {
+    if (sealsError) {
       return (
         <Alert severity="error" sx={{ mb: 2 }}>
           <AlertTitle>Error Loading Seals</AlertTitle>
-          {sealsError || hookError}
+          {sealsError}
           <Button 
             size="small" 
-            onClick={hookSeals ? refreshSeals : fetchSessionSeals} 
+            onClick={fetchSessionSeals} 
             sx={{ mt: 1 }}
             startIcon={<Refresh />}
           >
@@ -3010,10 +2598,7 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
       );
     }
     
-    // Use hook seals or fallback to component state, and ensure it's always an array
-    const displaySeals = (hookSeals || sessionSeals || []);
-    
-    if (displaySeals.length === 0) {
+    if (!sessionSeals || sessionSeals.length === 0) {
       return (
         <Box sx={{ p: 2, textAlign: 'center' }}>
           <Typography variant="body2" color="text.secondary">
@@ -3024,8 +2609,8 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
     }
     
     // Group seals by type
-    const tagSeals = displaySeals.filter(seal => seal?.type === 'tag') || [];
-    const systemSeals = displaySeals.filter(seal => seal?.type === 'system' || seal?.type === 'verification') || [];
+    const tagSeals = sessionSeals.filter(seal => seal.type === 'tag');
+    const systemSeals = sessionSeals.filter(seal => seal.type === 'system' || seal.type === 'verification');
     
     return (
       <>
@@ -3101,7 +2686,7 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
                           <Chip 
                             label={
                               seal.verified 
-                                ? (seal.verificationDetails?.allMatch === false 
+                                ? (allMatch === false 
                                     ? "Verified with Issues" 
                                     : "Verified")
                                 : "Unverified"
@@ -3110,7 +2695,7 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
                             size="small"
                             icon={
                               seal.verified 
-                                ? (seal.verificationDetails?.allMatch === false 
+                                ? (allMatch === false 
                                     ? <Warning fontSize="small" /> 
                                     : <CheckCircle fontSize="small" />)
                                 : <RadioButtonUnchecked fontSize="small" />
@@ -3548,167 +3133,20 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
     }));
   };
 
-  // Add a more robust useEffect for fetching session details
-  useEffect(() => {
-    console.log("Component mounted, fetching session details with ID:", sessionId);
-    if (!sessionId) {
-      console.error("No session ID provided");
-      setError("No session ID provided");
-      setLoading(false);
-      return;
-    }
-    
-    const fetchData = async () => {
-      try {
-        setLoading(true);
-        setError("");
-        
-        console.log("Fetching session details...");
-        const response = await fetch(`/api/sessions/${sessionId}`);
-        
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error("API error response:", errorText);
-          throw new Error(`Failed to fetch session: ${response.status} - ${errorText}`);
-        }
-        
-        const data = await response.json();
-        console.log("Session data received:", data ? "Success" : "Empty data");
-        
-        if (!data) {
-          throw new Error("No data returned from the server");
-        }
-        
-        setSession(data);
-        
-        // Initialize verification fields based on trip details
-        if (data.tripDetails) {
-          const initialFields: Record<string, any> = {};
-          
-          Object.entries(data.tripDetails).forEach(([key, value]) => {
-            if (value && typeof value === 'string' && value.trim() !== '') {
-              initialFields[key] = {
-                operatorValue: value,
-                isVerified: false,
-                matches: true,
-                comment: ""
-              };
-            }
-          });
-          
-          setVerificationFields(initialFields);
-        }
-        
-        // Check edit permissions
-        setCanEdit(data.status === SessionStatus.PENDING && 
-                  (data.createdBy?.id === authSession?.user?.id || 
-                   userRole === "ADMIN" || userRole === "SUPERADMIN"));
-                   
-        // After successfully loading session, fetch seals
-        fetchSessionSeals();
-      } catch (err) {
-        console.error("Error fetching session:", err);
-        setError(`Failed to load session details: ${err instanceof Error ? err.message : "Unknown error"}`);
-      } finally {
-        setLoading(false);
-      }
-    };
-    
-    fetchData();
-  }, [sessionId, authSession, userRole]);
+  if (authStatus === "loading" || loading) {
+    return (
+      <Box display="flex" justifyContent="center" alignItems="center" minHeight="50vh">
+        <CircularProgress />
+      </Box>
+    );
+  }
 
-  // Modify the return to use a try-catch for rendering
-  try {
-    if (authStatus === "loading" || loading) {
-      return (
-        <Box display="flex" justifyContent="center" alignItems="center" minHeight="50vh">
-          <CircularProgress />
-        </Box>
-      );
-    }
-
-    if (renderError) {
-      return (
-        <Container maxWidth="md">
-          <Box display="flex" flexDirection="column" alignItems="center" mt={4}>
-            <Alert severity="error" sx={{ mb: 3, width: "100%" }}>
-              <AlertTitle>Rendering Error</AlertTitle>
-              {renderError}
-            </Alert>
-            <Button
-              component={Link}
-              href="/dashboard/sessions"
-              startIcon={<ArrowBack />}
-            >
-              Back to Sessions
-            </Button>
-          </Box>
-        </Container>
-      );
-    }
-
-    if (error) {
-      return (
-        <Container maxWidth="md">
-          <Box display="flex" flexDirection="column" alignItems="center" mt={4}>
-            <Alert severity="error" sx={{ mb: 3, width: "100%" }}>
-              <AlertTitle>Error Loading Session</AlertTitle>
-              {error}
-            </Alert>
-            <Button
-              component={Link}
-              href="/dashboard/sessions"
-              startIcon={<ArrowBack />}
-            >
-              Back to Sessions
-            </Button>
-            <Button
-              onClick={() => fetchSessionDetails()}
-              startIcon={<Refresh />}
-              sx={{ mt: 2 }}
-            >
-              Try Again
-            </Button>
-          </Box>
-        </Container>
-      );
-    }
-
-    if (!session) {
-      return (
-        <Container maxWidth="md">
-          <Box display="flex" flexDirection="column" alignItems="center" mt={4}>
-            <Alert severity="info" sx={{ mb: 3, width: "100%" }}>
-              <AlertTitle>Session Not Found</AlertTitle>
-              No session data found with ID: {sessionId}
-            </Alert>
-            <Button
-              component={Link}
-              href="/dashboard/sessions"
-              startIcon={<ArrowBack />}
-            >
-              Back to Sessions
-            </Button>
-          </Box>
-        </Container>
-      );
-    }
-
-    // Rest of the component rendering remains the same
-    // ... existing render code ...
-
-  } catch (err) {
-    console.error("Error rendering SessionDetailClient:", err);
-    // Update state to show error on next render
-    setRenderError(`An error occurred while rendering: ${err instanceof Error ? err.message : "Unknown error"}`);
-    
-    // Provide a minimal fallback UI
+  if (error) {
     return (
       <Container maxWidth="md">
         <Box display="flex" flexDirection="column" alignItems="center" mt={4}>
           <Alert severity="error" sx={{ mb: 3, width: "100%" }}>
-            <AlertTitle>Rendering Error</AlertTitle>
-            An unexpected error occurred while displaying the session details.
+            {error}
           </Alert>
           <Button
             component={Link}
@@ -3721,4 +3159,687 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
       </Container>
     );
   }
+
+  if (!session) {
+    return (
+      <Container maxWidth="md">
+        <Box display="flex" flexDirection="column" alignItems="center" mt={4}>
+          <Alert severity="info" sx={{ mb: 3, width: "100%" }}>
+            Session not found
+          </Alert>
+          <Button
+            component={Link}
+            href="/dashboard/sessions"
+            startIcon={<ArrowBack />}
+          >
+            Back to Sessions
+          </Button>
+        </Box>
+      </Container>
+    );
+  }
+
+  // Modified Verification Box for Guards
+  if (canVerify) {
+    return (
+      <Container maxWidth="md">
+        <Box mb={3}>
+          <Button
+            component={Link}
+            href="/dashboard/sessions"
+            startIcon={<ArrowBack />}
+          >
+            Back to Sessions
+          </Button>
+        </Box>
+
+        {/* Session Details View */}
+        {!verificationFormOpen && (
+          <>
+            <Paper elevation={2} sx={{ p: 3, mb: 3 }}>
+              <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
+                <Typography variant="h4" component="h1">
+                  {isGuard ? "Trip Details" : "Session Details"}
+                </Typography>
+                <Box display="flex" alignItems="center" gap={2}>
+                  {canEdit && session.status !== SessionStatus.COMPLETED && (
+                    <Button
+                      component={Link}
+                      href={`/dashboard/sessions/${sessionId}/edit`}
+                      startIcon={<Edit />}
+                      variant="outlined"
+                      size="small"
+                    >
+                      Edit
+                    </Button>
+                  )}
+                  <Chip 
+                    label={session.status} 
+                    color={getStatusColor(session.status)}
+                    size="medium"
+                  />
+                </Box>
+              </Box>
+              
+              {/* Basic information */}
+              <Box mb={3}>
+                <Typography variant="h6" gutterBottom>
+                  Basic Information
+                </Typography>
+                <Divider sx={{ mb: 2 }} />
+                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
+                  <Box sx={{ flex: '1 0 45%', minWidth: '250px' }}>
+                    <Box display="flex" alignItems="center" mb={1}>
+                      <LocationOn color="primary" sx={{ mr: 1 }} />
+                      <Typography variant="body1">
+                        <strong>Source:</strong> {session.source}
+                      </Typography>
+                    </Box>
+                  </Box>
+                  <Box sx={{ flex: '1 0 45%', minWidth: '250px' }}>
+                    <Box display="flex" alignItems="center" mb={1}>
+                      <LocationOn color="primary" sx={{ mr: 1 }} />
+                      <Typography variant="body1">
+                        <strong>Destination:</strong> {session.destination}
+                      </Typography>
+                    </Box>
+                  </Box>
+                  <Box sx={{ flex: '1 0 45%', minWidth: '250px' }}>
+                    <Box display="flex" alignItems="center" mb={1}>
+                      <AccessTime color="primary" sx={{ mr: 1 }} />
+                      <Typography variant="body1">
+                        <strong>Created:</strong> {formatDate(session.createdAt)}
+                      </Typography>
+                    </Box>
+                  </Box>
+                  <Box sx={{ flex: '1 0 45%', minWidth: '250px' }}>
+                    <Box display="flex" alignItems="center" mb={1}>
+                      <BusinessCenter color="primary" sx={{ mr: 1 }} />
+                      <Typography variant="body1">
+                        <strong>Company:</strong> {session.company?.name || "N/A"}
+                      </Typography>
+                    </Box>
+                  </Box>
+                </Box>
+              </Box>
+
+              {/* Only show Vehicle Number from Trip Details */}
+              {session.tripDetails?.vehicleNumber && (
+                <Box mb={3}>
+                  <Divider sx={{ mb: 2 }} />
+                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
+                    <Box sx={{ flex: '1 0 45%', minWidth: '250px' }}>
+                      <Typography variant="body1">
+                        <strong>Vehicle Number:</strong> {session.tripDetails.vehicleNumber}
+                      </Typography>
+                    </Box>
+                  </Box>
+                </Box>
+              )}
+            </Paper>
+
+            {/* Verification Results */}
+            {renderVerificationResults()}
+
+            {/* Comment section - moved after verification results */}
+            <CommentSection sessionId={sessionId} />
+          </>
+        )}
+
+        {/* Verification Form */}
+        {verificationFormOpen && (
+          <Paper elevation={2} sx={{ p: 3, mb: 3 }}>
+            {/* Tab Navigation */}
+            <Box sx={{ display: 'flex', borderBottom: 1, borderColor: 'divider', mb: 3, overflowX: 'auto' }}>
+              {verificationTabs.map((label, index) => (
+                <Button
+                  key={index}
+                  variant={activeTab === index ? "contained" : "text"}
+                  onClick={() => setActiveTab(index)}
+                  sx={{ 
+                    minWidth: 'unset',
+                    px: 2,
+                    py: 1,
+                    borderRadius: 0,
+                    borderBottom: activeTab === index ? '2px solid' : 'none',
+                    backgroundColor: activeTab === index ? 'primary.main' : 'transparent',
+                    color: activeTab === index ? 'primary.contrastText' : 'text.primary',
+                    '&:hover': {
+                      backgroundColor: activeTab === index ? 'primary.dark' : 'action.hover',
+                    }
+                  }}
+                >
+                  {label}
+                </Button>
+              ))}
+            </Box>
+            
+            {/* Tab Content */}
+            {activeTab === 0 && renderTripDetailsVerification()}
+            {activeTab === 1 && renderSealVerification()}
+            {activeTab === 2 && renderDriverDetailsVerification()}
+            {activeTab === 3 && renderImageVerification()}
+
+            {/* Navigation and Verification Actions */}
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 4 }}>
+              <Button
+                variant="outlined"
+                onClick={() => setActiveTab(prev => Math.max(0, prev - 1))}
+                disabled={activeTab === 0}
+                startIcon={<ArrowBack />}
+              >
+                Previous
+              </Button>
+              <Box>
+                <Button
+                  variant="contained"
+                  color="primary"
+                  onClick={openConfirmDialog}
+                  startIcon={<VerifiedUser />}
+                  sx={{ ml: 2 }}
+                >
+                  Complete Verification
+                </Button>
+              </Box>
+              <Button
+                variant="outlined"
+                onClick={() => setActiveTab(prev => Math.min(verificationTabs.length - 1, prev + 1))}
+                disabled={activeTab === verificationTabs.length - 1}
+                endIcon={<ArrowForward />}
+              >
+                Next
+              </Button>
+            </Box>
+          </Paper>
+        )}
+
+        {/* Verification Results */}
+        {verificationResults && renderVerificationResults()}
+
+        {/* Verification Button */}
+        {!verificationFormOpen && (
+          <Box sx={{ display: "flex", justifyContent: "center", mt: 3 }}>
+            <Button
+              variant="contained"
+              color="primary"
+              size="large"
+              startIcon={<Lock />}
+              onClick={startVerification}
+            >
+              Start Trip Verification
+            </Button>
+          </Box>
+        )}
+
+        {/* Confirmation Dialog */}
+        <Dialog open={confirmDialogOpen} onClose={closeConfirmDialog}>
+          <DialogTitle>Confirm Verification</DialogTitle>
+          <DialogContent>
+            <DialogContentText>
+              Are you sure you want to verify this seal? This action cannot be undone.
+            </DialogContentText>
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={closeConfirmDialog} color="primary">
+              Cancel
+            </Button>
+            <Button onClick={handleVerifySeal} color="primary" disabled={verifying}>
+              {verifying ? "Verifying..." : "Verify"}
+            </Button>
+          </DialogActions>
+        </Dialog>
+
+        {/* Success Notification */}
+        {verificationSuccess && (
+          <Alert severity="success" sx={{ mt: 3 }}>
+            <AlertTitle>Success!</AlertTitle>
+            Trip successfully verified.
+          </Alert>
+        )}
+      </Container>
+    );
+  }
+
+  return (
+    <Container maxWidth="md">
+      <Box mb={3}>
+        <Button
+          component={Link}
+          href="/dashboard/sessions"
+          startIcon={<ArrowBack />}
+        >
+          Back to Sessions
+        </Button>
+      </Box>
+
+      {/* Main content */}
+      <Paper elevation={2} sx={{ p: 3, mb: 3 }}>
+        <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
+          <Typography variant="h4" component="h1">
+            Session Details
+          </Typography>
+          <Box display="flex" alignItems="center" gap={2}>
+            {canEdit && session.status !== SessionStatus.COMPLETED && (
+              <Button
+                component={Link}
+                href={`/dashboard/sessions/${sessionId}/edit`}
+                startIcon={<Edit />}
+                variant="outlined"
+                size="small"
+              >
+                Edit
+              </Button>
+            )}
+            <Chip 
+              label={session.status} 
+              color={getStatusColor(session.status)}
+              size="medium"
+            />
+          </Box>
+        </Box>
+
+        <Box mb={3}>
+          <Typography variant="h6" gutterBottom>
+            Basic Information
+          </Typography>
+          <Divider sx={{ mb: 2 }} />
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
+            <Box sx={{ flex: '1 0 45%', minWidth: '250px' }}>
+              <Box display="flex" alignItems="center" mb={1}>
+                <LocationOn color="primary" sx={{ mr: 1 }} />
+                <Typography variant="body1">
+                  <strong>Source:</strong> {session.source}
+                </Typography>
+              </Box>
+            </Box>
+            <Box sx={{ flex: '1 0 45%', minWidth: '250px' }}>
+              <Box display="flex" alignItems="center" mb={1}>
+                <LocationOn color="primary" sx={{ mr: 1 }} />
+                <Typography variant="body1">
+                  <strong>Destination:</strong> {session.destination}
+                </Typography>
+              </Box>
+            </Box>
+            <Box sx={{ flex: '1 0 45%', minWidth: '250px' }}>
+              <Box display="flex" alignItems="center" mb={1}>
+                <AccessTime color="primary" sx={{ mr: 1 }} />
+                <Typography variant="body1">
+                  <strong>Created:</strong> {formatDate(session.createdAt)}
+                </Typography>
+              </Box>
+            </Box>
+            <Box sx={{ flex: '1 0 45%', minWidth: '250px' }}>
+              <Box display="flex" alignItems="center" mb={1}>
+                <BusinessCenter color="primary" sx={{ mr: 1 }} />
+                <Typography variant="body1">
+                  <strong>Company:</strong> {session.company?.name || "N/A"}
+                </Typography>
+              </Box>
+            </Box>
+          </Box>
+        </Box>
+
+        {session.tripDetails && Object.keys(session.tripDetails).length > 0 && (
+          <Box mb={3}>
+            <Typography variant="h6" gutterBottom>
+              Trip Details
+            </Typography>
+            <Divider sx={{ mb: 2 }} />
+            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
+              {Object.entries(session.tripDetails).map(([key, value]) => (
+                value && (
+                  <Box key={key} sx={{ flex: '1 0 45%', minWidth: '250px' }}>
+                    <Typography variant="body1">
+                      <strong>{getFieldLabel(key)}:</strong> {String(value)}
+                    </Typography>
+                  </Box>
+                )
+              ))}
+            </Box>
+          </Box>
+        )}
+
+                {/* Show seal information only if operator-entered seal tags are available */}
+        {operatorSeals && operatorSeals.length > 0 && (
+          <Box mb={3}>
+            <Typography variant="h6" gutterBottom>
+              Seal Information
+            </Typography>
+            <Divider sx={{ mb: 2 }} />
+            
+            <Typography variant="body2" sx={{ mb: 2 }}>
+              Total Seal Tags: <strong>{operatorSeals.length}</strong>
+                </Typography>
+            
+            <TableContainer component={Paper} variant="outlined" sx={{ mb: 2 }}>
+              <Table size="small">
+                <TableHead>
+                  <TableRow>
+                    <TableCell>No.</TableCell>
+                    <TableCell>Seal Tag ID</TableCell>
+                    <TableCell>Method</TableCell>
+                    <TableCell>Image</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {operatorSeals.map((seal, index) => (
+                    <TableRow key={index}>
+                      <TableCell>{index + 1}</TableCell>
+                      <TableCell>{seal.id}</TableCell>
+                      <TableCell>
+                        <Chip 
+                          label={seal.method === 'digital' ? "Scanned" : "Manual Entry"}
+                          color="primary" 
+                          size="small"
+                        />
+                      </TableCell>
+                      <TableCell>
+                        {seal.image ? (
+                          <Box 
+                            component="img" 
+                            src={seal.image} 
+                            alt={`Seal tag ${index+1}`}
+                            sx={{ 
+                              width: 60, 
+                              height: 60, 
+                              objectFit: 'cover',
+                              borderRadius: 1,
+                              cursor: 'pointer'
+                            }}
+                            onClick={() => {
+                              // Open image in new tab
+                              window.open(seal.image!, '_blank');
+                            }}
+                          />
+                        ) : (
+                          <Typography variant="caption">No image</Typography>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          </Box>
+        )}
+
+        {/* Add All Verification Seals section */}
+        <Box mb={3}>
+          <Typography variant="h6" gutterBottom>
+            All Verification Seals
+          </Typography>
+          <Divider sx={{ mb: 2 }} />
+          {renderAllSeals()}
+        </Box>
+
+        {/* Images section - moved before Reports section */}
+        {session.images && Object.keys(session.images).some(key => {
+          const value = session.images && session.images[key as keyof typeof session.images];
+          return !!value;
+        }) && (
+          <Box mb={3}>
+            <Typography variant="h6" gutterBottom>
+              Images
+            </Typography>
+            <Divider sx={{ mb: 2 }} />
+            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
+              {session.images.driverPicture && (
+                <Box sx={{ flex: '1 0 30%', minWidth: '200px' }}>
+                  <Typography variant="subtitle2" gutterBottom>Driver</Typography>
+                  <img 
+                    src={session.images.driverPicture} 
+                    alt="Driver" 
+                    style={{ width: '100%', maxHeight: '200px', objectFit: 'cover', borderRadius: '4px' }} 
+                  />
+                </Box>
+              )}
+              {session.images.vehicleNumberPlatePicture && (
+                <Box sx={{ flex: '1 0 30%', minWidth: '200px' }}>
+                  <Typography variant="subtitle2" gutterBottom>Number Plate</Typography>
+                  <img 
+                    src={session.images.vehicleNumberPlatePicture} 
+                    alt="Vehicle Number Plate" 
+                    style={{ width: '100%', maxHeight: '200px', objectFit: 'cover', borderRadius: '4px' }} 
+                  />
+                </Box>
+              )}
+              {session.images.gpsImeiPicture && (
+                <Box sx={{ flex: '1 0 30%', minWidth: '200px' }}>
+                  <Typography variant="subtitle2" gutterBottom>GPS/IMEI</Typography>
+                  <img 
+                    src={session.images.gpsImeiPicture} 
+                    alt="GPS IMEI" 
+                    style={{ width: '100%', maxHeight: '200px', objectFit: 'cover', borderRadius: '4px' }} 
+                  />
+                </Box>
+              )}
+              
+              {/* Display all sealing images */}
+              {session.images.sealingImages && session.images.sealingImages.length > 0 && (
+                <>
+                  <Box sx={{ width: '100%', mt: 2 }}>
+                    <Typography variant="subtitle2" gutterBottom>Sealing Images</Typography>
+                  </Box>
+                  {session.images.sealingImages.map((image, index) => (
+                    <Box key={`sealing-${index}`} sx={{ flex: '1 0 30%', minWidth: '200px' }}>
+                      <img 
+                        src={image} 
+                        alt={`Sealing ${index + 1}`} 
+                        style={{ width: '100%', maxHeight: '200px', objectFit: 'cover', borderRadius: '4px' }} 
+                      />
+                    </Box>
+                  ))}
+                </>
+              )}
+              
+              {/* Display all vehicle images */}
+              {session.images.vehicleImages && session.images.vehicleImages.length > 0 && (
+                <>
+                  <Box sx={{ width: '100%', mt: 2 }}>
+                    <Typography variant="subtitle2" gutterBottom>Vehicle Images</Typography>
+                  </Box>
+                  {session.images.vehicleImages.map((image, index) => (
+                    <Box key={`vehicle-${index}`} sx={{ flex: '1 0 30%', minWidth: '200px' }}>
+                      <img 
+                        src={image} 
+                        alt={`Vehicle ${index + 1}`} 
+                        style={{ width: '100%', maxHeight: '200px', objectFit: 'cover', borderRadius: '4px' }} 
+                      />
+                    </Box>
+                  ))}
+                </>
+              )}
+              
+              {/* Display all additional images */}
+              {session.images.additionalImages && session.images.additionalImages.length > 0 && (
+                <>
+                  <Box sx={{ width: '100%', mt: 2 }}>
+                    <Typography variant="subtitle2" gutterBottom>Additional Images</Typography>
+                  </Box>
+                  {session.images.additionalImages.map((image, index) => (
+                    <Box key={`additional-${index}`} sx={{ flex: '1 0 30%', minWidth: '200px' }}>
+                      <img 
+                        src={image} 
+                        alt={`Additional ${index + 1}`} 
+                        style={{ width: '100%', maxHeight: '200px', objectFit: 'cover', borderRadius: '4px' }} 
+                      />
+                    </Box>
+                  ))}
+                </>
+              )}
+            </Box>
+          </Box>
+        )}
+
+        {/* Report Download Section - Only shown to authorized users */}
+        {canAccessReports && (
+          <Box mb={3}>
+            <Typography variant="h6" gutterBottom>
+              Reports
+            </Typography>
+            <Divider sx={{ mb: 2 }} />
+            <Box sx={{ display: "flex", gap: 2, flexWrap: "wrap" }}>
+              <Button
+                variant="outlined"
+                startIcon={<PictureAsPdf />}
+                onClick={() => handleDownloadReport("pdf")}
+                disabled={reportLoading !== null}
+                size="small"
+                sx={{ color: 'error.main', borderColor: 'error.main', '&:hover': { borderColor: 'error.dark' } }}
+              >
+                {reportLoading === "pdf" ? "Downloading..." : "Download PDF"}
+              </Button>
+            </Box>
+          </Box>
+        )}
+
+        {/* Field Verification Summary - Show for completed sessions */}
+        {session.status === SessionStatus.COMPLETED && (
+          <Box mb={3}>
+            <Typography variant="h6" gutterBottom sx={{ color: 'primary.main', fontWeight: 'bold' }}>
+              Field Verification Summary
+            </Typography>
+            <Divider sx={{ mb: 2 }} />
+            
+            {verificationResults ? (
+              <>
+                <TableContainer component={Paper} variant="outlined" sx={{ mb: 4 }}>
+                  <Table>
+                    <TableHead>
+                      <TableRow sx={{ bgcolor: 'grey.100' }}>
+                        <TableCell width="30%"><strong>Field</strong></TableCell>
+                        <TableCell width="25%"><strong>Operator Value</strong></TableCell>
+                        <TableCell width="25%"><strong>Guard Value</strong></TableCell>
+                        <TableCell width="20%" align="center"><strong>Status</strong></TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {/* Matching fields (green) - PASS */}
+                      {verificationResults.matches.map(field => {
+                        const data = verificationResults.allFields[field];
+                        return (
+                          <TableRow key={field} sx={{ 
+                            bgcolor: 'rgba(46, 125, 50, 0.15)', 
+                            '&:hover': { bgcolor: 'rgba(46, 125, 50, 0.25)' }
+                          }}>
+                            <TableCell component="th" scope="row" sx={{ color: 'success.dark', fontWeight: 'medium' }}>
+                              {getFieldLabel(field)}
+                            </TableCell>
+                            <TableCell sx={{ color: 'success.dark' }}>{String(data.operatorValue || 'N/A')}</TableCell>
+                            <TableCell sx={{ color: 'success.dark' }}>{String(data.guardValue || 'Not provided')}</TableCell>
+                            <TableCell align="center">
+                              <Box display="flex" alignItems="center" justifyContent="center" sx={{ color: 'success.main' }}>
+                                <CheckCircle fontSize="small" sx={{ mr: 0.5 }} />
+                                <Typography variant="body2" sx={{ color: 'success.main', fontWeight: 'bold' }}>Pass</Typography>
+                              </Box>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                      
+                      {/* Mismatched fields (red) - FAIL */}
+                      {verificationResults.mismatches.map(field => {
+                        const data = verificationResults.allFields[field];
+                        return (
+                          <TableRow key={field} sx={{ 
+                            bgcolor: 'rgba(211, 47, 47, 0.15)', 
+                            '&:hover': { bgcolor: 'rgba(211, 47, 47, 0.25)' }
+                          }}>
+                            <TableCell component="th" scope="row" sx={{ color: 'error.dark', fontWeight: 'medium' }}>
+                              {getFieldLabel(field)}
+                            </TableCell>
+                            <TableCell sx={{ color: 'error.dark' }}>{String(data.operatorValue || 'N/A')}</TableCell>
+                            <TableCell sx={{ color: 'error.dark' }}>{String(data.guardValue || 'Not provided')}</TableCell>
+                            <TableCell align="center">
+                              <Box display="flex" alignItems="center" justifyContent="center" sx={{ color: 'error.main' }}>
+                                <Warning fontSize="small" sx={{ mr: 0.5 }} />
+                                <Typography variant="body2" sx={{ color: 'error.main', fontWeight: 'bold' }}>Fail</Typography>
+                              </Box>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                      
+                      {/* Unverified fields (red) - FAIL */}
+                      {verificationResults.unverified.map(field => {
+                        const data = verificationResults.allFields[field];
+                        return (
+                          <TableRow key={field} sx={{ 
+                            bgcolor: 'rgba(211, 47, 47, 0.15)', 
+                            '&:hover': { bgcolor: 'rgba(211, 47, 47, 0.25)' }
+                          }}>
+                            <TableCell component="th" scope="row" sx={{ color: 'error.dark', fontWeight: 'medium' }}>
+                              {getFieldLabel(field)}
+                            </TableCell>
+                            <TableCell sx={{ color: 'error.dark' }}>{String(data.operatorValue || 'N/A')}</TableCell>
+                            <TableCell sx={{ color: 'error.dark' }}>{String(data.guardValue || 'Not provided')}</TableCell>
+                            <TableCell align="center">
+                              <Box display="flex" alignItems="center" justifyContent="center" sx={{ color: 'error.main' }}>
+                                <Warning fontSize="small" sx={{ mr: 0.5 }} />
+                                <Typography variant="body2" sx={{ color: 'error.main', fontWeight: 'bold' }}>Fail</Typography>
+                              </Box>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+
+                {/* Summary statistics */}
+                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, mb: 3 }}>
+                  <Box sx={{ flex: '1 0 30%', minWidth: '200px' }}>
+                    <Paper sx={{ p: 2, bgcolor: 'success.light', color: 'success.contrastText' }}>
+                      <Typography variant="h5" align="center">{verificationResults.matches.length}</Typography>
+                      <Typography variant="body2" align="center">Matching Fields</Typography>
+                    </Paper>
+                  </Box>
+                  <Box sx={{ flex: '1 0 30%', minWidth: '200px' }}>
+                    <Paper sx={{ p: 2, bgcolor: 'error.light', color: 'error.contrastText' }}>
+                      <Typography variant="h5" align="center">{verificationResults.mismatches.length}</Typography>
+                      <Typography variant="body2" align="center">Mismatched Fields</Typography>
+                    </Paper>
+                  </Box>
+                  <Box sx={{ flex: '1 0 30%', minWidth: '200px' }}>
+                    <Paper sx={{ p: 2, bgcolor: 'error.light', color: 'error.contrastText' }}>
+                      <Typography variant="h5" align="center">{verificationResults.unverified.length}</Typography>
+                      <Typography variant="body2" align="center">Unverified Fields</Typography>
+                    </Paper>
+                  </Box>
+                </Box>
+              </>
+            ) : (
+              <Alert severity="info">
+                <AlertTitle>Verification Data Not Available</AlertTitle>
+                <Typography variant="body2">
+                  This session has been verified, but detailed verification data is not available.
+                </Typography>
+              </Alert>
+            )}
+          </Box>
+        )}
+      </Paper>
+
+      {/* Verification Results */}
+      {renderVerificationResults()}
+
+      {/* GUARD Verification Button - Show for GUARD users with IN_PROGRESS sessions */}
+      {isGuard && session.status === SessionStatus.IN_PROGRESS && !verificationFormOpen && (
+        <Box sx={{ display: "flex", justifyContent: "center", mt: 3 }}>
+          <Button
+            variant="contained"
+            color="primary"
+            size="large"
+            startIcon={<Lock />}
+            onClick={startVerification}
+          >
+            Start Trip Verification
+          </Button>
+        </Box>
+      )}
+
+      {/* Comment section - moved after verification results */}
+      <CommentSection sessionId={sessionId} />
+    </Container>
+  );
 }
