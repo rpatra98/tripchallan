@@ -2536,28 +2536,44 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
         const pdf = new jsPDF({
           orientation: 'portrait',
           unit: 'mm',
-          format: 'a4'
+          format: 'a4',
+          compress: true, // Better quality
+          putOnlyUsedFonts: true, // Better quality
+          floatPrecision: 16 // Better quality for floating point values
         });
         
         // PDF styling constants
         const pageWidth = pdf.internal.pageSize.getWidth();
-        const margin = 10;
+        const pageHeight = pdf.internal.pageSize.getHeight();
+        const margin = 15; // Increased margin for better readability
         const contentWidth = pageWidth - (margin * 2);
-        let currentY = margin;
+        let currentY = margin + 5; // Start a bit lower for better spacing
         
-        // Helper functions for PDF generation
+        // Helper functions for PDF generation with improved styling
         const addTitle = (text: string) => {
+          // Add colored background for title
+          pdf.setFillColor(42, 54, 95); // Dark blue background
+          pdf.rect(0, currentY - 8, pageWidth, 14, 'F');
+          
+          pdf.setTextColor(255, 255, 255); // White text
           pdf.setFont("helvetica", "bold");
           pdf.setFontSize(16);
           pdf.text(text, margin, currentY);
-          currentY += 8;
+          currentY += 12; // More space after title
+          pdf.setTextColor(0, 0, 0); // Reset text color
         };
         
         const addSectionTitle = (text: string) => {
+          // Add light background for section titles
+          pdf.setFillColor(240, 240, 250); // Light blue background
+          pdf.rect(margin - 3, currentY - 5, contentWidth + 6, 10, 'F');
+          
+          pdf.setTextColor(42, 54, 95); // Dark blue text
           pdf.setFont("helvetica", "bold");
           pdf.setFontSize(12);
           pdf.text(text, margin, currentY);
-          currentY += 7;
+          currentY += 10; // More space after section title
+          pdf.setTextColor(0, 0, 0); // Reset text color
         };
         
         const addField = (label: string, value: any, inline = false) => {
@@ -2571,27 +2587,39 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
               ? JSON.stringify(value)
               : String(value); // Ensure all values are strings
           
+          // Truncate long values to prevent overflow
+          const maxValueLength = 60;
+          if (formattedValue.length > maxValueLength) {
+            formattedValue = formattedValue.substring(0, maxValueLength) + '...';
+          }
+          
           if (inline) {
+            // Improved styling for field/value pairs
+            pdf.setTextColor(70, 70, 70); // Dark gray for label
             pdf.text(`${label}: `, margin, currentY);
             pdf.setFont("helvetica", "normal");
             
             // Calculate position for value text (after label)
             const labelWidth = pdf.getStringUnitWidth(`${label}: `) * 10 * 0.3; // approximate conversion
+            pdf.setTextColor(0, 0, 0); // Black for value
             pdf.text(formattedValue, margin + labelWidth, currentY);
-            currentY += 5;
+            currentY += 6; // Increased spacing between lines
           } else {
+            pdf.setTextColor(70, 70, 70); // Dark gray for label
             pdf.text(`${label}:`, margin, currentY);
             currentY += 5;
             pdf.setFont("helvetica", "normal");
+            pdf.setTextColor(0, 0, 0); // Black for value
             pdf.text(formattedValue, margin + 5, currentY);
-            currentY += 6;
+            currentY += 7; // Increased spacing
           }
         };
         
         const addDivider = () => {
-          pdf.setDrawColor(200, 200, 200);
+          pdf.setDrawColor(180, 180, 200);
+          pdf.setLineWidth(0.5);
           pdf.line(margin, currentY, pageWidth - margin, currentY);
-          currentY += 5;
+          currentY += 8; // More space after divider
         };
         
         const checkPageBreak = (spaceNeeded: number = 10) => {
@@ -2607,13 +2635,34 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
           return new Date(dateString).toLocaleString();
         };
         
-        // Add logo or header
-        // pdf.addImage(logo, 'PNG', margin, currentY, 50, 15);
-        // currentY += 20;
+        // Header with company name and logo placeholder
+        pdf.setFillColor(245, 245, 250);
+        pdf.rect(0, 0, pageWidth, 25, 'F');
+        
+        // Add a border at the bottom of the header
+        pdf.setDrawColor(200, 200, 220);
+        pdf.setLineWidth(0.5);
+        pdf.line(0, 25, pageWidth, 25);
+        
+        // Company name (placeholder for actual company name)
+        pdf.setFont("helvetica", "bold");
+        pdf.setFontSize(14);
+        pdf.setTextColor(50, 50, 100);
+        pdf.text("Trip Challan Management System", margin, 15);
+        
+        // Current date on the right
+        pdf.setFont("helvetica", "normal");
+        pdf.setFontSize(10);
+        const dateString = new Date().toLocaleDateString();
+        const dateWidth = pdf.getStringUnitWidth(dateString) * 10 * 0.3;
+        pdf.text(dateString, pageWidth - margin - dateWidth, 15);
+        
+        // Reset for content
+        pdf.setTextColor(0, 0, 0);
+        currentY = 35; // Start content after header
         
         // Title and basic info
         addTitle(`Session Report: ${sessionId}`);
-        currentY += 2;
         addField("Generated On", new Date().toLocaleString(), true);
         addDivider();
         
@@ -2736,39 +2785,54 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
           
           checkPageBreak(30);
           
-          // Add table for verification details
+          // Add improved table for verification details
           if (verificationResults.allFields && Object.keys(verificationResults.allFields).length > 0) {
-            currentY += 5;
+            currentY += 8; // More space before table
             
             const tableTop = currentY;
             const colWidths = [contentWidth * 0.3, contentWidth * 0.3, contentWidth * 0.2, contentWidth * 0.2];
-            const rowHeight = 7;
+            const rowHeight = 10; // Taller rows for better readability
             
-            // Table headers
+            // Table headers with better styling
             pdf.setFont("helvetica", "bold");
-            pdf.setFillColor(240, 240, 240);
+            pdf.setFillColor(42, 54, 95); // Dark blue for header
             pdf.rect(margin, tableTop, contentWidth, rowHeight, 'F');
             
-            let colPos = margin;
-            pdf.text("Field", colPos, tableTop + 5);
+            pdf.setTextColor(255, 255, 255); // White text for header
+            let colPos = margin + 2; // Add padding
+            pdf.text("Field", colPos, tableTop + 6.5); // Centered text
             colPos += colWidths[0];
             
-            pdf.text("Operator Value", colPos, tableTop + 5);
+            pdf.text("Operator Value", colPos, tableTop + 6.5);
             colPos += colWidths[1];
             
-            pdf.text("Guard Value", colPos, tableTop + 5);
+            pdf.text("Guard Value", colPos, tableTop + 6.5);
             colPos += colWidths[2];
             
-            pdf.text("Status", colPos, tableTop + 5);
+            pdf.text("Status", colPos, tableTop + 6.5);
             
             currentY = tableTop + rowHeight;
             
-            // Table rows
+            // Draw vertical lines for columns
+            pdf.setDrawColor(200, 200, 200);
+            pdf.setLineWidth(0.2);
+            
+            // Table rows with improved styling
             pdf.setFont("helvetica", "normal");
+            pdf.setTextColor(0, 0, 0); // Reset text color
             let rowCount = 0;
             
+            // For drawing vertical lines later
+            const columnPositions = [
+              margin, 
+              margin + colWidths[0], 
+              margin + colWidths[0] + colWidths[1], 
+              margin + colWidths[0] + colWidths[1] + colWidths[2],
+              margin + contentWidth
+            ];
+            
             Object.entries(verificationResults.allFields).forEach(([field, data]) => {
-              checkPageBreak(rowHeight + 2);
+              checkPageBreak(rowHeight + 3);
               
               // Format field name from camelCase to Title Case
               const formattedField = field
@@ -2779,40 +2843,61 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
               
               // Alternating row background
               if (rowCount % 2 === 0) {
-                pdf.setFillColor(250, 250, 250);
+                pdf.setFillColor(245, 245, 250);
+                pdf.rect(margin, currentY, contentWidth, rowHeight, 'F');
+              } else {
+                pdf.setFillColor(255, 255, 255);
                 pdf.rect(margin, currentY, contentWidth, rowHeight, 'F');
               }
               
-              colPos = margin;
-              pdf.text(formattedField, colPos, currentY + 5);
+              // Draw horizontal grid line
+              pdf.setDrawColor(220, 220, 220);
+              pdf.line(margin, currentY, margin + contentWidth, currentY);
+              
+              // Text content
+              pdf.setTextColor(0, 0, 0);
+              colPos = margin + 2; // Padding
+              pdf.text(formattedField, colPos, currentY + 6.5); // Centered text
               colPos += colWidths[0];
               
               // Convert to string to avoid type errors
-              pdf.text(String(data.operatorValue || 'N/A'), colPos, currentY + 5);
+              pdf.text(String(data.operatorValue || 'N/A'), colPos, currentY + 6.5);
               colPos += colWidths[1];
               
               // Convert to string to avoid type errors
-              pdf.text(String(data.guardValue || 'Not provided'), colPos, currentY + 5);
+              pdf.text(String(data.guardValue || 'Not provided'), colPos, currentY + 6.5);
               colPos += colWidths[2];
               
-              // Status with color
+              // Status with color and better styling
               if (matches) {
                 pdf.setTextColor(0, 128, 0); // Green for matches
+                pdf.text('✓ Match', colPos, currentY + 6.5);
               } else {
                 pdf.setTextColor(255, 0, 0); // Red for mismatches
+                pdf.text('✗ Mismatch', colPos, currentY + 6.5);
               }
-              pdf.text(matches ? 'Match' : 'Mismatch', colPos, currentY + 5);
               pdf.setTextColor(0, 0, 0); // Reset text color
               
               currentY += rowHeight;
               rowCount++;
             });
             
-            // Table border
-            pdf.setDrawColor(200, 200, 200);
+            // Draw the final horizontal line
+            pdf.setDrawColor(220, 220, 220);
+            pdf.line(margin, currentY, margin + contentWidth, currentY);
+            
+            // Draw vertical grid lines
+            pdf.setDrawColor(220, 220, 220);
+            columnPositions.forEach(xPos => {
+              pdf.line(xPos, tableTop, xPos, currentY);
+            });
+            
+            // Outer table border
+            pdf.setDrawColor(150, 150, 150);
+            pdf.setLineWidth(0.5);
             pdf.rect(margin, tableTop, contentWidth, currentY - tableTop, 'S');
             
-            currentY += 5;
+            currentY += 10; // More space after table
           }
           
           addDivider();
@@ -2834,18 +2919,46 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
           addDivider();
         }
         
-                 // Footer with page numbers
+                 // Enhanced footer with page numbers and company info
          const totalPages = pdf.internal.pages.length - 1;
          for (let i = 1; i <= totalPages; i++) {
            pdf.setPage(i);
-           pdf.setFontSize(8);
+           
+           // Footer background
+           pdf.setFillColor(245, 245, 250);
+           pdf.rect(0, pageHeight - 15, pageWidth, 15, 'F');
+           
+           // Add a border at the top of the footer
+           pdf.setDrawColor(200, 200, 220);
+           pdf.setLineWidth(0.5);
+           pdf.line(0, pageHeight - 15, pageWidth, pageHeight - 15);
+           
+           // Page numbers
            pdf.setFont("helvetica", "normal");
+           pdf.setFontSize(9);
+           pdf.setTextColor(50, 50, 100);
+           
            // Ensure all values are strings when added to text
            pdf.text(
-             `Page ${String(i)} of ${String(totalPages)} - Generated on ${new Date().toLocaleString()}`,
+             `Page ${String(i)} of ${String(totalPages)}`,
+             margin,
+             pageHeight - 5
+           );
+           
+           // Center text - timestamp
+           pdf.text(
+             `Generated on ${new Date().toLocaleString()}`,
              pageWidth / 2,
-             pdf.internal.pageSize.getHeight() - 5,
+             pageHeight - 5,
              { align: 'center' }
+           );
+           
+           // Right aligned - copyright
+           pdf.text(
+             "Trip Challan © " + new Date().getFullYear(),
+             pageWidth - margin,
+             pageHeight - 5,
+             { align: 'right' }
            );
          }
         
@@ -4004,16 +4117,23 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
               Reports
             </Typography>
             <Divider sx={{ mb: 2 }} />
-            <Box sx={{ display: "flex", gap: 2, flexWrap: "wrap" }}>
+            <Box sx={{ display: "flex", gap: 2, flexWrap: "wrap", width: "100%" }}>
               <Button
-                variant="outlined"
+                variant="contained"
                 startIcon={<PictureAsPdf />}
                 onClick={() => handleDownloadReport("pdf")}
                 disabled={reportLoading !== null}
-                size="small"
-                sx={{ color: 'error.main', borderColor: 'error.main', '&:hover': { borderColor: 'error.dark' } }}
+                fullWidth
+                sx={{ 
+                  bgcolor: 'error.main', 
+                  color: 'white', 
+                  '&:hover': { bgcolor: 'error.dark' },
+                  py: { xs: 1.5, sm: 1 },
+                  fontSize: { xs: '0.9rem', sm: '0.875rem' },
+                  maxWidth: { xs: '100%', sm: 250 }
+                }}
               >
-                {reportLoading === "pdf" ? "Downloading..." : "Download PDF"}
+                {reportLoading === "pdf" ? "Downloading..." : "Download PDF Report"}
               </Button>
             </Box>
           </Box>
