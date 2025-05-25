@@ -2502,45 +2502,348 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
 
   // Report download handlers
   const handleDownloadReport = async (format: string) => {
-    if (!sessionId) return;
+    if (!sessionId || !session) return;
     
     try {
       setReportLoading(format);
-      let endpoint = "";
       
-      switch (format) {
-        case "pdf":
-          endpoint = `/api/reports/sessions/${sessionId}/pdf/simple`;
-          break;
-        case "excel":
-          endpoint = `/api/reports/sessions/${sessionId}/excel`;
-          break;
-        default:
-          throw new Error("Unsupported report format");
+      if (format === "excel") {
+        // For Excel, continue using the server-side endpoint
+        const endpoint = `/api/reports/sessions/${sessionId}/excel`;
+        const response = await fetch(endpoint);
+        
+        if (!response.ok) {
+          const errorData = await response.text();
+          throw new Error(errorData || `Failed to download excel report`);
+        }
+        
+        // Convert response to blob
+        const blob = await response.blob();
+        
+        // Create a link element to trigger the download
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = `session-${sessionId}.xlsx`;
+        document.body.appendChild(link);
+        link.click();
+        
+        // Clean up
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(link);
+      } else if (format === "pdf") {
+        // Generate PDF client-side for more control and faster generation
+        const pdf = new jsPDF({
+          orientation: 'portrait',
+          unit: 'mm',
+          format: 'a4'
+        });
+        
+        // PDF styling constants
+        const pageWidth = pdf.internal.pageSize.getWidth();
+        const margin = 10;
+        const contentWidth = pageWidth - (margin * 2);
+        let currentY = margin;
+        
+        // Helper functions for PDF generation
+        const addTitle = (text: string) => {
+          pdf.setFont("helvetica", "bold");
+          pdf.setFontSize(16);
+          pdf.text(text, margin, currentY);
+          currentY += 8;
+        };
+        
+        const addSectionTitle = (text: string) => {
+          pdf.setFont("helvetica", "bold");
+          pdf.setFontSize(12);
+          pdf.text(text, margin, currentY);
+          currentY += 7;
+        };
+        
+        const addField = (label: string, value: any, inline = false) => {
+          pdf.setFont("helvetica", "bold");
+          pdf.setFontSize(10);
+          
+          // Format value
+          const formattedValue = value === null || value === undefined
+            ? 'N/A'
+            : typeof value === 'object'
+              ? JSON.stringify(value)
+              : String(value);
+          
+          if (inline) {
+            pdf.text(`${label}: `, margin, currentY);
+            pdf.setFont("helvetica", "normal");
+            
+            // Calculate position for value text (after label)
+            const labelWidth = pdf.getStringUnitWidth(`${label}: `) * 10 * 0.3; // approximate conversion
+            pdf.text(formattedValue, margin + labelWidth, currentY);
+            currentY += 5;
+          } else {
+            pdf.text(`${label}:`, margin, currentY);
+            currentY += 5;
+            pdf.setFont("helvetica", "normal");
+            pdf.text(formattedValue, margin + 5, currentY);
+            currentY += 6;
+          }
+        };
+        
+        const addDivider = () => {
+          pdf.setDrawColor(200, 200, 200);
+          pdf.line(margin, currentY, pageWidth - margin, currentY);
+          currentY += 5;
+        };
+        
+        const checkPageBreak = (spaceNeeded: number = 10) => {
+          if (currentY + spaceNeeded > pdf.internal.pageSize.getHeight() - margin) {
+            pdf.addPage();
+            currentY = margin;
+            return true;
+          }
+          return false;
+        };
+        
+        const formatDate = (dateString: string) => {
+          return new Date(dateString).toLocaleString();
+        };
+        
+        // Add logo or header
+        // pdf.addImage(logo, 'PNG', margin, currentY, 50, 15);
+        // currentY += 20;
+        
+        // Title and basic info
+        addTitle(`Session Report: ${sessionId}`);
+        currentY += 2;
+        addField("Generated On", new Date().toLocaleString(), true);
+        addDivider();
+        
+        // Basic Session Information
+        addSectionTitle("Session Information");
+        addField("Status", session.status, true);
+        addField("Source", session.source, true);
+        addField("Destination", session.destination, true);
+        addField("Created At", formatDate(session.createdAt), true);
+        addField("Company", session.company?.name || "N/A", true);
+        addField("Created By", session.createdBy?.name || "N/A", true);
+        
+        checkPageBreak(20);
+        addDivider();
+        
+        // Trip Details Section
+        if (session.tripDetails && Object.keys(session.tripDetails).length > 0) {
+          addSectionTitle("Trip Details");
+          
+          Object.entries(session.tripDetails).forEach(([key, value]) => {
+            if (value) {
+              // Format key from camelCase to Title Case
+              const formattedKey = key
+                .replace(/([A-Z])/g, ' $1')
+                .replace(/^./, str => str.toUpperCase());
+              
+              addField(formattedKey, value, true);
+            }
+          });
+          
+          checkPageBreak(10);
+          addDivider();
+        }
+        
+        // Driver & Vehicle Details (specific fields for better organization)
+        addSectionTitle("Driver & Vehicle Information");
+        if (session.tripDetails) {
+          const driverFields = [
+            { key: 'driverName', label: 'Driver Name' },
+            { key: 'driverContactNumber', label: 'Driver Contact' },
+            { key: 'vehicleNumber', label: 'Vehicle Number' },
+            { key: 'gpsImeiNumber', label: 'GPS IMEI Number' },
+            { key: 'transporterName', label: 'Transporter' }
+          ];
+          
+          driverFields.forEach(({ key, label }) => {
+            if (session.tripDetails && session.tripDetails[key]) {
+              addField(label, session.tripDetails[key], true);
+            }
+          });
+        }
+        
+        checkPageBreak(20);
+        addDivider();
+        
+        // Material Details
+        addSectionTitle("Material Information");
+        if (session.tripDetails) {
+          const materialFields = [
+            { key: 'materialName', label: 'Material' },
+            { key: 'qualityOfMaterials', label: 'Quality' },
+            { key: 'grossWeight', label: 'Gross Weight' },
+            { key: 'tareWeight', label: 'Tare Weight' },
+            { key: 'netMaterialWeight', label: 'Net Weight' },
+            { key: 'loadingSite', label: 'Loading Site' },
+            { key: 'loaderName', label: 'Loader Name' },
+            { key: 'loaderMobileNumber', label: 'Loader Contact' },
+            { key: 'receiverPartyName', label: 'Receiver' }
+          ];
+          
+          materialFields.forEach(({ key, label }) => {
+            if (session.tripDetails && session.tripDetails[key]) {
+              addField(label, session.tripDetails[key], true);
+            }
+          });
+        }
+        
+        checkPageBreak(20);
+        addDivider();
+        
+        // Document Information
+        addSectionTitle("Document Information");
+        if (session.tripDetails) {
+          const documentFields = [
+            { key: 'challanRoyaltyNumber', label: 'Challan/Royalty Number' },
+            { key: 'doNumber', label: 'DO Number' },
+            { key: 'tpNumber', label: 'TP Number' },
+            { key: 'freight', label: 'Freight' }
+          ];
+          
+          documentFields.forEach(({ key, label }) => {
+            if (session.tripDetails && session.tripDetails[key]) {
+              addField(label, session.tripDetails[key], true);
+            }
+          });
+        }
+        
+        checkPageBreak(20);
+        addDivider();
+        
+        // Verification Information
+        if (verificationResults && Object.keys(verificationResults).length > 0) {
+          addSectionTitle("Verification Results");
+          
+          // Summary
+          const matches = verificationResults.matches || [];
+          const mismatches = verificationResults.mismatches || [];
+          const unverified = verificationResults.unverified || [];
+          
+          addField("Verified Fields", matches.length, true);
+          addField("Mismatched Fields", mismatches.length, true);
+          addField("Unverified Fields", unverified.length, true);
+          
+          if (verificationResults.timestamp) {
+            addField("Verification Time", formatDate(verificationResults.timestamp), true);
+          }
+          
+          checkPageBreak(30);
+          
+          // Add table for verification details
+          if (verificationResults.allFields && Object.keys(verificationResults.allFields).length > 0) {
+            currentY += 5;
+            
+            const tableTop = currentY;
+            const colWidths = [contentWidth * 0.3, contentWidth * 0.3, contentWidth * 0.2, contentWidth * 0.2];
+            const rowHeight = 7;
+            
+            // Table headers
+            pdf.setFont("helvetica", "bold");
+            pdf.setFillColor(240, 240, 240);
+            pdf.rect(margin, tableTop, contentWidth, rowHeight, 'F');
+            
+            let colPos = margin;
+            pdf.text("Field", colPos, tableTop + 5);
+            colPos += colWidths[0];
+            
+            pdf.text("Operator Value", colPos, tableTop + 5);
+            colPos += colWidths[1];
+            
+            pdf.text("Guard Value", colPos, tableTop + 5);
+            colPos += colWidths[2];
+            
+            pdf.text("Status", colPos, tableTop + 5);
+            
+            currentY = tableTop + rowHeight;
+            
+            // Table rows
+            pdf.setFont("helvetica", "normal");
+            let rowCount = 0;
+            
+            Object.entries(verificationResults.allFields).forEach(([field, data]) => {
+              checkPageBreak(rowHeight + 2);
+              
+              // Format field name from camelCase to Title Case
+              const formattedField = field
+                .replace(/([A-Z])/g, ' $1')
+                .replace(/^./, str => str.toUpperCase());
+              
+              const matches = data.matches === true;
+              
+              // Alternating row background
+              if (rowCount % 2 === 0) {
+                pdf.setFillColor(250, 250, 250);
+                pdf.rect(margin, currentY, contentWidth, rowHeight, 'F');
+              }
+              
+              colPos = margin;
+              pdf.text(formattedField, colPos, currentY + 5);
+              colPos += colWidths[0];
+              
+              pdf.text(data.operatorValue || 'N/A', colPos, currentY + 5);
+              colPos += colWidths[1];
+              
+              pdf.text(data.guardValue || 'Not provided', colPos, currentY + 5);
+              colPos += colWidths[2];
+              
+              // Status with color
+              pdf.setTextColor(matches ? 0, 128, 0 : 255, 0, 0);
+              pdf.text(matches ? 'Match' : 'Mismatch', colPos, currentY + 5);
+              pdf.setTextColor(0, 0, 0); // Reset text color
+              
+              currentY += rowHeight;
+              rowCount++;
+            });
+            
+            // Table border
+            pdf.setDrawColor(200, 200, 200);
+            pdf.rect(margin, tableTop, contentWidth, currentY - tableTop, 'S');
+            
+            currentY += 5;
+          }
+          
+          addDivider();
+        }
+        
+        // QR Code information
+        if (session.qrCodes) {
+          checkPageBreak(20);
+          addSectionTitle("QR Codes");
+          
+          if (session.qrCodes.primaryBarcode) {
+            addField("Primary Barcode", session.qrCodes.primaryBarcode, true);
+          }
+          
+          if (session.qrCodes.additionalBarcodes && session.qrCodes.additionalBarcodes.length > 0) {
+            addField("Additional Barcodes", session.qrCodes.additionalBarcodes.join(", "), true);
+          }
+          
+          addDivider();
+        }
+        
+        // Footer with page numbers
+        const totalPages = pdf.internal.getNumberOfPages();
+        for (let i = 1; i <= totalPages; i++) {
+          pdf.setPage(i);
+          pdf.setFontSize(8);
+          pdf.setFont("helvetica", "normal");
+          pdf.text(
+            `Page ${i} of ${totalPages} - Generated on ${new Date().toLocaleString()}`,
+            pageWidth / 2,
+            pdf.internal.pageSize.getHeight() - 5,
+            { align: 'center' }
+          );
+        }
+        
+        // Save the PDF
+        pdf.save(`session-${sessionId}.pdf`);
+      } else {
+        throw new Error("Unsupported report format");
       }
-      
-      // Get the report as a blob
-      const response = await fetch(endpoint);
-      
-      if (!response.ok) {
-        const errorData = await response.text();
-        throw new Error(errorData || `Failed to download ${format} report`);
-      }
-      
-      // Convert response to blob
-      const blob = await response.blob();
-      
-      // Create a link element to trigger the download
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = `session-${sessionId}.${format === "excel" ? "xlsx" : "pdf"}`;
-      document.body.appendChild(link);
-      link.click();
-      
-      // Clean up
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(link);
     } catch (err) {
       console.error(`Error downloading ${format} report:`, err);
       alert(`Failed to download ${format} report: ${err instanceof Error ? err.message : "Unknown error"}`);
