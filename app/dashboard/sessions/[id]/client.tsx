@@ -613,24 +613,22 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
   // Add a function to fetch all seals for this session
   const fetchSessionSeals = useCallback(async () => {
     if (!sessionId) {
-      setSealsError('Session ID is missing');
+      setSealsError("Session ID is missing");
       setLoadingSeals(false);
       return;
     }
     
     setLoadingSeals(true);
     try {
-      console.log("Fetching seals for session ID:", sessionId);
+      console.log("Fetching seals for session:", sessionId);
       const response = await fetch(`/api/sessions/${sessionId}/seals`);
-      
       if (!response.ok) {
         const errorText = await response.text();
-        console.error("API error response for seals:", errorText);
+        console.error("API error fetching seals:", errorText);
         throw new Error(`Failed to fetch seals: ${response.status} - ${errorText}`);
       }
-      
       const data = await response.json();
-      console.log("Session seals received:", data?.length || 0);
+      console.log("Session seals received:", data ? "Success" : "Empty data");
       setSessionSeals(data || []);
     } catch (error) {
       console.error('Error fetching seals:', error);
@@ -640,61 +638,12 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
     }
   }, [sessionId]);
 
-  // Function to render the seal status badge
-  const renderSealStatusBadge = (status: string | null | undefined) => {
-    if (!status) return null;
-    
-    switch (status) {
-      case SealStatus.VERIFIED:
-        return (
-          <Chip 
-            icon={<CheckCircle fontSize="small" />} 
-            label="Verified" 
-            color="success" 
-            size="small" 
-            variant="outlined"
-          />
-        );
-      case SealStatus.MISSING:
-        return (
-          <Chip 
-            icon={<Close fontSize="small" />} 
-            label="Missing" 
-            color="error" 
-            size="small" 
-            variant="outlined"
-          />
-        );
-      case SealStatus.BROKEN:
-        return (
-          <Chip 
-            icon={<Warning fontSize="small" />} 
-            label="Broken" 
-            color="warning" 
-            size="small" 
-            variant="outlined"
-          />
-        );
-      case SealStatus.TAMPERED:
-        return (
-          <Chip 
-            icon={<Warning fontSize="small" />} 
-            label="Tampered" 
-            color="error" 
-            size="small" 
-            variant="outlined"
-          />
-        );
-      default:
-        return (
-          <Chip 
-            label={status} 
-            size="small" 
-            variant="outlined"
-          />
-        );
+  // Add useEffect to fetch session seals when session is loaded
+  useEffect(() => {
+    if (session) {
+      fetchSessionSeals();
     }
-  };
+  }, [session, fetchSessionSeals]);
 
   // Add useEffect to fetch session details when component mounts
   useEffect(() => {
@@ -857,7 +806,63 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
       }
     }
   }, [session, sessionSeals]);
-   
+  
+  // Function to render the seal status badge
+  const renderSealStatusBadge = (status: string | null | undefined) => {
+    if (!status) return null;
+    
+    switch (status) {
+      case SealStatus.VERIFIED:
+        return (
+          <Chip 
+            icon={<CheckCircle fontSize="small" />} 
+            label="Verified" 
+            color="success" 
+            size="small" 
+            variant="outlined"
+          />
+        );
+      case SealStatus.MISSING:
+        return (
+          <Chip 
+            icon={<Close fontSize="small" />} 
+            label="Missing" 
+            color="error" 
+            size="small" 
+            variant="outlined"
+          />
+        );
+      case SealStatus.BROKEN:
+        return (
+          <Chip 
+            icon={<Warning fontSize="small" />} 
+            label="Broken" 
+            color="warning" 
+            size="small" 
+            variant="outlined"
+          />
+        );
+      case SealStatus.TAMPERED:
+        return (
+          <Chip 
+            icon={<Warning fontSize="small" />} 
+            label="Tampered" 
+            color="error" 
+            size="small" 
+            variant="outlined"
+          />
+        );
+      default:
+        return (
+          <Chip 
+            label={status} 
+            size="small" 
+            variant="outlined"
+          />
+        );
+    }
+  };
+
   // Extract operator seals from session data - pulling from activity logs and sessionSeals
   const operatorSeals = useMemo(() => {
     if (!session) return [];
