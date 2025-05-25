@@ -2569,7 +2569,7 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
             ? 'N/A'
             : typeof value === 'object'
               ? JSON.stringify(value)
-              : String(value);
+              : String(value); // Ensure all values are strings
           
           if (inline) {
             pdf.text(`${label}: `, margin, currentY);
@@ -2726,9 +2726,9 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
           const mismatches = verificationResults.mismatches || [];
           const unverified = verificationResults.unverified || [];
           
-          addField("Verified Fields", matches.length, true);
-          addField("Mismatched Fields", mismatches.length, true);
-          addField("Unverified Fields", unverified.length, true);
+                     addField("Verified Fields", String(matches.length), true);
+           addField("Mismatched Fields", String(mismatches.length), true);
+           addField("Unverified Fields", String(unverified.length), true);
           
           if (verificationResults.timestamp) {
             addField("Verification Time", formatDate(verificationResults.timestamp), true);
@@ -2787,10 +2787,12 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
               pdf.text(formattedField, colPos, currentY + 5);
               colPos += colWidths[0];
               
-              pdf.text(data.operatorValue || 'N/A', colPos, currentY + 5);
+              // Convert to string to avoid type errors
+              pdf.text(String(data.operatorValue || 'N/A'), colPos, currentY + 5);
               colPos += colWidths[1];
               
-              pdf.text(data.guardValue || 'Not provided', colPos, currentY + 5);
+              // Convert to string to avoid type errors
+              pdf.text(String(data.guardValue || 'Not provided'), colPos, currentY + 5);
               colPos += colWidths[2];
               
               // Status with color
@@ -2838,8 +2840,9 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
            pdf.setPage(i);
            pdf.setFontSize(8);
            pdf.setFont("helvetica", "normal");
+           // Ensure all values are strings when added to text
            pdf.text(
-             `Page ${i} of ${totalPages} - Generated on ${new Date().toLocaleString()}`,
+             `Page ${String(i)} of ${String(totalPages)} - Generated on ${new Date().toLocaleString()}`,
              pageWidth / 2,
              pdf.internal.pageSize.getHeight() - 5,
              { align: 'center' }
