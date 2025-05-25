@@ -313,17 +313,27 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
 
   // Define fetchSessionDetails function
   const fetchSessionDetails = useCallback(async () => {
+    if (!sessionId) {
+      setError("Session ID is missing");
+      setLoading(false);
+      return;
+    }
+    
     setLoading(true);
     setError("");
     
     try {
+      console.log("Fetching session details for ID:", sessionId);
       const response = await fetch(`/api/sessions/${sessionId}`);
       
       if (!response.ok) {
-        throw new Error(`Failed to fetch session: ${response.status}`);
+        const errorText = await response.text();
+        console.error("API error response:", errorText);
+        throw new Error(`Failed to fetch session: ${response.status} - ${errorText}`);
       }
       
       const data = await response.json();
+      console.log("Session data received:", data ? "Success" : "Empty data");
       setSession(data);
       
       // Initialize verification fields based on trip details
@@ -346,7 +356,7 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
       
       // Check edit permissions
       setCanEdit(data.status === SessionStatus.PENDING && 
-                (data.createdBy.id === authSession?.user.id || 
+                (data.createdBy?.id === authSession?.user?.id || 
                  userRole === "ADMIN" || userRole === "SUPERADMIN"));
     } catch (error) {
       console.error("Error fetching session:", error);
@@ -512,13 +522,22 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
     try {
       setCompletingVerification(true);
       
-      // Get all unscanned seal IDs
-      const allSealTagIds = (sessionSeals || [])
-        .filter(seal => seal.type === 'tag')
+      // Get all unscanned seal IDs with null/undefined checks
+      const safeSessionSeals = sessionSeals || [];
+      
+      // Safely filter and map only if objects have the required properties
+      const allSealTagIds = safeSessionSeals
+        .filter(seal => seal && seal.type === 'tag' && seal.barcode)
         .map(seal => seal.barcode);
       
+      // Filter out already scanned seal IDs
       const unscannedSealTagIds = allSealTagIds.filter(id => !scannedSealIds.has(id));
       setUnscannedSealIds(unscannedSealTagIds);
+      
+      // Count seals by status with safe checks
+      const verifiedCount = safeSessionSeals.filter(seal => seal && seal.status === SealStatus.VERIFIED).length;
+      const brokenCount = safeSessionSeals.filter(seal => seal && seal.status === SealStatus.BROKEN).length;
+      const tamperedCount = safeSessionSeals.filter(seal => seal && seal.status === SealStatus.TAMPERED).length;
       
       // Show verification summary first
       setVerificationSummary({
@@ -526,12 +545,22 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
         scannedSeals: scannedSealIds.size,
         unscannedSeals: unscannedSealTagIds.length,
         statusBreakdown: {
-          [SealStatus.VERIFIED]: (sessionSeals || []).filter(seal => seal.status === SealStatus.VERIFIED).length,
-          [SealStatus.BROKEN]: (sessionSeals || []).filter(seal => seal.status === SealStatus.BROKEN).length,
-          [SealStatus.TAMPERED]: (sessionSeals || []).filter(seal => seal.status === SealStatus.TAMPERED).length,
+          [SealStatus.VERIFIED]: verifiedCount,
+          [SealStatus.BROKEN]: brokenCount,
+          [SealStatus.TAMPERED]: tamperedCount,
           [SealStatus.MISSING]: unscannedSealTagIds.length // These will be marked as MISSING
         }
       });
+      
+      console.log("Verification summary prepared:", {
+        totalSeals: allSealTagIds.length,
+        scannedSeals: scannedSealIds.size,
+        unscannedSeals: unscannedSealTagIds.length,
+        verifiedCount,
+        brokenCount,
+        tamperedCount
+      });
+      
       setVerificationSummaryOpen(true);
     } catch (error) {
       console.error("Error preparing verification summary:", error);
@@ -583,16 +612,26 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
   
   // Add a function to fetch all seals for this session
   const fetchSessionSeals = useCallback(async () => {
-    if (!sessionId) return;
+    if (!sessionId) {
+      setSealsError('Session ID is missing');
+      setLoadingSeals(false);
+      return;
+    }
     
     setLoadingSeals(true);
     try {
+      console.log("Fetching seals for session ID:", sessionId);
       const response = await fetch(`/api/sessions/${sessionId}/seals`);
+      
       if (!response.ok) {
-        throw new Error('Failed to fetch seals');
+        const errorText = await response.text();
+        console.error("API error response for seals:", errorText);
+        throw new Error(`Failed to fetch seals: ${response.status} - ${errorText}`);
       }
+      
       const data = await response.json();
-      setSessionSeals(data);
+      console.log("Session seals received:", data?.length || 0);
+      setSessionSeals(data || []);
     } catch (error) {
       console.error('Error fetching seals:', error);
       setSealsError('Failed to fetch seals');
@@ -1085,6 +1124,19 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
     [userRole, userSubrole]
   );
   
+  // Add debug logging for key state variables
+  useEffect(() => {
+    console.log("Key state variables:", {
+      sessionId,
+      authStatus,
+      userRole,
+      userSubrole,
+      isGuard,
+      operatorSealsCount: operatorSeals?.length || 0,
+      sessionStatus: session?.status
+    });
+  }, [sessionId, authStatus, userRole, userSubrole, isGuard, operatorSeals, session]);
+  
   // Check if user can access reports (non-GUARD users)
   const canAccessReports = useMemo(() => 
     userRole === "SUPERADMIN" || 
@@ -1105,9 +1157,20 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
     console.log("- userSubrole:", userSubrole);
     console.log("- EmployeeSubrole.GUARD:", EmployeeSubrole.GUARD);
     
-    return isGuard && 
-      session?.status === SessionStatus.IN_PROGRESS && 
-      ((operatorSeals?.length || 0) > 0 || session?.seal?.barcode);
+    // Ensure all values are defined and meet conditions
+    const hasValidGuardRole = isGuard === true;
+    const hasValidSessionStatus = session?.status === SessionStatus.IN_PROGRESS;
+    const hasOperatorSeals = (operatorSeals?.length || 0) > 0;
+    const hasSealBarcode = !!session?.seal?.barcode;
+    
+    console.log("- hasValidGuardRole:", hasValidGuardRole);
+    console.log("- hasValidSessionStatus:", hasValidSessionStatus);
+    console.log("- hasOperatorSeals:", hasOperatorSeals);
+    console.log("- hasSealBarcode:", hasSealBarcode);
+    
+    return hasValidGuardRole && 
+      hasValidSessionStatus && 
+      (hasOperatorSeals || hasSealBarcode);
   }, [isGuard, session, operatorSeals]);
   
   // Check if user has edit permission
@@ -2939,9 +3002,10 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
       );
     }
     
-    const displaySeals = hookSeals || sessionSeals;
+    // Use hook seals or fallback to component state, and ensure it's always an array
+    const displaySeals = (hookSeals || sessionSeals || []);
     
-    if (!displaySeals || displaySeals.length === 0) {
+    if (displaySeals.length === 0) {
       return (
         <Box sx={{ p: 2, textAlign: 'center' }}>
           <Typography variant="body2" color="text.secondary">
@@ -2952,8 +3016,8 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
     }
     
     // Group seals by type
-    const tagSeals = displaySeals.filter(seal => seal.type === 'tag');
-    const systemSeals = displaySeals.filter(seal => seal.type === 'system' || seal.type === 'verification');
+    const tagSeals = displaySeals.filter(seal => seal?.type === 'tag') || [];
+    const systemSeals = displaySeals.filter(seal => seal?.type === 'system' || seal?.type === 'verification') || [];
     
     return (
       <>
@@ -3029,7 +3093,7 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
                           <Chip 
                             label={
                               seal.verified 
-                                ? (allMatch === false 
+                                ? (seal.verificationDetails?.allMatch === false 
                                     ? "Verified with Issues" 
                                     : "Verified")
                                 : "Unverified"
@@ -3038,7 +3102,7 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
                             size="small"
                             icon={
                               seal.verified 
-                                ? (allMatch === false 
+                                ? (seal.verificationDetails?.allMatch === false 
                                     ? <Warning fontSize="small" /> 
                                     : <CheckCircle fontSize="small" />)
                                 : <RadioButtonUnchecked fontSize="small" />
