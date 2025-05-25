@@ -89,14 +89,18 @@ model Session {
 }
 
 model Seal {
-  id           String    @id @default(uuid())
-  sessionId    String    @unique
-  barcode      String
-  scannedAt    DateTime?
-  verified     Boolean   @default(false)
-  verifiedById String?
-  session      Session   @relation(fields: [sessionId], references: [id])
-  verifiedBy   User?     @relation("SealVerifiedBy", fields: [verifiedById], references: [id])
+  id              String    @id @default(uuid())
+  sessionId       String    @unique
+  barcode         String
+  scannedAt       DateTime?
+  verified        Boolean   @default(false)
+  verifiedById    String?
+  status          String?
+  statusComment   String?
+  statusUpdatedAt DateTime?
+  statusEvidence  Json?
+  session         Session   @relation(fields: [sessionId], references: [id])
+  verifiedBy      User?     @relation("SealVerifiedBy", fields: [verifiedById], references: [id])
 
   @@map("seals")
 }

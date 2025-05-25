@@ -19,6 +19,13 @@ export enum SessionStatus {
   COMPLETED = "COMPLETED"
 }
 
+export enum SealStatus {
+  VERIFIED = "VERIFIED",
+  MISSING = "MISSING",
+  BROKEN = "BROKEN",
+  TAMPERED = "TAMPERED"
+}
+
 export enum TransactionReason {
   ADMIN_CREATION = "ADMIN_CREATION",
   OPERATOR_CREATION = "OPERATOR_CREATION",

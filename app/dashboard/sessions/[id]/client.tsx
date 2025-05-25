@@ -33,7 +33,6 @@ import {
   TableCell,
   TextField,
   IconButton,
-  Grid,
   InputAdornment,
   Tooltip,
   Backdrop,
@@ -53,7 +52,8 @@ import {
   CardMedia,
   CardContent,
   CardActions,
-  Badge
+  Badge,
+  Grid
 } from "@mui/material";
 import { 
   LocationOn, 
@@ -4289,8 +4289,8 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
                 </Typography>
               </Alert>
               
-              <Grid container spacing={3} sx={{ mb: 3 }}>
-                <Grid item xs={12} md={4}>
+              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 3, mb: 3 }}>
+                <Box sx={{ flex: '1 1 300px' }}>
                   <Paper variant="outlined" sx={{ p: 2, height: '100%' }}>
                     <Typography variant="subtitle1" gutterBottom>
                       Total Seals
@@ -4299,8 +4299,8 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
                       {verificationSummary.totalSeals}
                     </Typography>
                   </Paper>
-                </Grid>
-                <Grid item xs={12} md={4}>
+                </Box>
+                <Box sx={{ flex: '1 1 300px' }}>
                   <Paper variant="outlined" sx={{ p: 2, height: '100%' }}>
                     <Typography variant="subtitle1" gutterBottom>
                       Scanned Seals
@@ -4309,18 +4309,18 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
                       {verificationSummary.scannedSeals}
                     </Typography>
                   </Paper>
-                </Grid>
-                <Grid item xs={12} md={4}>
+                </Box>
+                <Box sx={{ flex: '1 1 300px' }}>
                   <Paper variant="outlined" sx={{ p: 2, height: '100%' }}>
                     <Typography variant="subtitle1" gutterBottom>
                       Unscanned Seals (Will be marked as MISSING)
                     </Typography>
                     <Typography variant="h3" align="center" color="error.main">
-                      {verificationSummary.unscannedSeals}
+                      {verificationSummary.totalSeals - verificationSummary.scannedSeals}
                     </Typography>
                   </Paper>
-                </Grid>
-              </Grid>
+                </Box>
+              </Box>
               
               <Typography variant="subtitle1" gutterBottom>
                 Status Breakdown

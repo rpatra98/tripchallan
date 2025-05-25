@@ -18,6 +18,10 @@ interface SealTag {
   scannedAt: Date | null;
   source: 'operator';
   imageData: string | null;
+  status?: string | null;
+  statusComment?: string | null;
+  statusUpdatedAt?: Date | null;
+  statusEvidence?: any | null;
 }
 
 interface SystemSeal {
@@ -32,6 +36,10 @@ interface SystemSeal {
   source: 'system' | 'guard';
   verificationDetails: any | null;
   imageData: string | null;
+  status?: string | null;
+  statusComment?: string | null;
+  statusUpdatedAt?: Date | null;
+  statusEvidence?: any | null;
 }
 
 type Seal = SealTag | SystemSeal;
@@ -172,6 +180,10 @@ export async function GET(
                 scannedAt: null,
                 source: 'operator',
                 imageData: null, // Initialize imageData as null
+                status: null,
+                statusComment: null,
+                statusUpdatedAt: null,
+                statusEvidence: null,
               });
             }
           }
@@ -195,7 +207,11 @@ export async function GET(
           type: 'system',
           source: sessionData.seal.verified ? 'guard' : 'system',
           verificationDetails: null,
-          imageData: null
+          imageData: null,
+          status: sessionData.seal.status || null,
+          statusComment: sessionData.seal.statusComment || null,
+          statusUpdatedAt: sessionData.seal.statusUpdatedAt || null,
+          statusEvidence: sessionData.seal.statusEvidence || null
         });
       }
       
@@ -224,6 +240,10 @@ export async function GET(
                 source: 'guard',
                 verificationDetails: verification,
                 imageData: null, // Initialize imageData as null
+                status: verification.status || null,
+                statusComment: verification.statusComment || null,
+                statusUpdatedAt: verification.statusUpdatedAt || null,
+                statusEvidence: verification.statusEvidence || null
               });
             }
           }
