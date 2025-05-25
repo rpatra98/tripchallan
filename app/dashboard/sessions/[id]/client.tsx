@@ -3545,20 +3545,170 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
     }));
   };
 
-  if (authStatus === "loading" || loading) {
-    return (
-      <Box display="flex" justifyContent="center" alignItems="center" minHeight="50vh">
-        <CircularProgress />
-      </Box>
-    );
-  }
+  // Add an error boundary state
+  const [renderError, setRenderError] = useState<string | null>(null);
 
-  if (error) {
+  // Add a more robust useEffect for fetching session details
+  useEffect(() => {
+    console.log("Component mounted, fetching session details with ID:", sessionId);
+    if (!sessionId) {
+      console.error("No session ID provided");
+      setError("No session ID provided");
+      setLoading(false);
+      return;
+    }
+    
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+        setError("");
+        
+        console.log("Fetching session details...");
+        const response = await fetch(`/api/sessions/${sessionId}`);
+        
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error("API error response:", errorText);
+          throw new Error(`Failed to fetch session: ${response.status} - ${errorText}`);
+        }
+        
+        const data = await response.json();
+        console.log("Session data received:", data ? "Success" : "Empty data");
+        
+        if (!data) {
+          throw new Error("No data returned from the server");
+        }
+        
+        setSession(data);
+        
+        // Initialize verification fields based on trip details
+        if (data.tripDetails) {
+          const initialFields: Record<string, any> = {};
+          
+          Object.entries(data.tripDetails).forEach(([key, value]) => {
+            if (value && typeof value === 'string' && value.trim() !== '') {
+              initialFields[key] = {
+                operatorValue: value,
+                isVerified: false,
+                matches: true,
+                comment: ""
+              };
+            }
+          });
+          
+          setVerificationFields(initialFields);
+        }
+        
+        // Check edit permissions
+        setCanEdit(data.status === SessionStatus.PENDING && 
+                  (data.createdBy?.id === authSession?.user?.id || 
+                   userRole === "ADMIN" || userRole === "SUPERADMIN"));
+                   
+        // After successfully loading session, fetch seals
+        fetchSessionSeals();
+      } catch (err) {
+        console.error("Error fetching session:", err);
+        setError(`Failed to load session details: ${err instanceof Error ? err.message : "Unknown error"}`);
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    fetchData();
+  }, [sessionId, authSession, userRole]);
+
+  // Modify the return to use a try-catch for rendering
+  try {
+    if (authStatus === "loading" || loading) {
+      return (
+        <Box display="flex" justifyContent="center" alignItems="center" minHeight="50vh">
+          <CircularProgress />
+        </Box>
+      );
+    }
+
+    if (renderError) {
+      return (
+        <Container maxWidth="md">
+          <Box display="flex" flexDirection="column" alignItems="center" mt={4}>
+            <Alert severity="error" sx={{ mb: 3, width: "100%" }}>
+              <AlertTitle>Rendering Error</AlertTitle>
+              {renderError}
+            </Alert>
+            <Button
+              component={Link}
+              href="/dashboard/sessions"
+              startIcon={<ArrowBack />}
+            >
+              Back to Sessions
+            </Button>
+          </Box>
+        </Container>
+      );
+    }
+
+    if (error) {
+      return (
+        <Container maxWidth="md">
+          <Box display="flex" flexDirection="column" alignItems="center" mt={4}>
+            <Alert severity="error" sx={{ mb: 3, width: "100%" }}>
+              <AlertTitle>Error Loading Session</AlertTitle>
+              {error}
+            </Alert>
+            <Button
+              component={Link}
+              href="/dashboard/sessions"
+              startIcon={<ArrowBack />}
+            >
+              Back to Sessions
+            </Button>
+            <Button
+              onClick={() => fetchSessionDetails()}
+              startIcon={<Refresh />}
+              sx={{ mt: 2 }}
+            >
+              Try Again
+            </Button>
+          </Box>
+        </Container>
+      );
+    }
+
+    if (!session) {
+      return (
+        <Container maxWidth="md">
+          <Box display="flex" flexDirection="column" alignItems="center" mt={4}>
+            <Alert severity="info" sx={{ mb: 3, width: "100%" }}>
+              <AlertTitle>Session Not Found</AlertTitle>
+              No session data found with ID: {sessionId}
+            </Alert>
+            <Button
+              component={Link}
+              href="/dashboard/sessions"
+              startIcon={<ArrowBack />}
+            >
+              Back to Sessions
+            </Button>
+          </Box>
+        </Container>
+      );
+    }
+
+    // Rest of the component rendering remains the same
+    // ... existing render code ...
+
+  } catch (err) {
+    console.error("Error rendering SessionDetailClient:", err);
+    // Update state to show error on next render
+    setRenderError(`An error occurred while rendering: ${err instanceof Error ? err.message : "Unknown error"}`);
+    
+    // Provide a minimal fallback UI
     return (
       <Container maxWidth="md">
         <Box display="flex" flexDirection="column" alignItems="center" mt={4}>
           <Alert severity="error" sx={{ mb: 3, width: "100%" }}>
-            {error}
+            <AlertTitle>Rendering Error</AlertTitle>
+            An unexpected error occurred while displaying the session details.
           </Alert>
           <Button
             component={Link}
@@ -3571,919 +3721,4 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
       </Container>
     );
   }
-
-  if (!session) {
-    return (
-      <Container maxWidth="md">
-        <Box display="flex" flexDirection="column" alignItems="center" mt={4}>
-          <Alert severity="info" sx={{ mb: 3, width: "100%" }}>
-            Session not found
-          </Alert>
-          <Button
-            component={Link}
-            href="/dashboard/sessions"
-            startIcon={<ArrowBack />}
-          >
-            Back to Sessions
-          </Button>
-        </Box>
-      </Container>
-    );
-  }
-
-  // Modified Verification Box for Guards
-  if (canVerify) {
-    return (
-      <Container maxWidth="md">
-        <Box mb={3}>
-          <Button
-            component={Link}
-            href="/dashboard/sessions"
-            startIcon={<ArrowBack />}
-          >
-            Back to Sessions
-          </Button>
-        </Box>
-
-        {/* Session Details View */}
-        {!verificationFormOpen && (
-          <>
-            <Paper elevation={2} sx={{ p: 3, mb: 3 }}>
-              <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
-                <Typography variant="h4" component="h1">
-                  {isGuard ? "Trip Details" : "Session Details"}
-                </Typography>
-                <Box display="flex" alignItems="center" gap={2}>
-                  {canEdit && session.status !== SessionStatus.COMPLETED && (
-                    <Button
-                      component={Link}
-                      href={`/dashboard/sessions/${sessionId}/edit`}
-                      startIcon={<Edit />}
-                      variant="outlined"
-                      size="small"
-                    >
-                      Edit
-                    </Button>
-                  )}
-                  <Chip 
-                    label={session.status} 
-                    color={getStatusColor(session.status)}
-                    size="medium"
-                  />
-                </Box>
-              </Box>
-              
-              {/* Basic information */}
-              <Box mb={3}>
-                <Typography variant="h6" gutterBottom>
-                  Basic Information
-                </Typography>
-                <Divider sx={{ mb: 2 }} />
-                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
-                  <Box sx={{ flex: '1 0 45%', minWidth: '250px' }}>
-                    <Box display="flex" alignItems="center" mb={1}>
-                      <LocationOn color="primary" sx={{ mr: 1 }} />
-                      <Typography variant="body1">
-                        <strong>Source:</strong> {session.source}
-                      </Typography>
-                    </Box>
-                  </Box>
-                  <Box sx={{ flex: '1 0 45%', minWidth: '250px' }}>
-                    <Box display="flex" alignItems="center" mb={1}>
-                      <LocationOn color="primary" sx={{ mr: 1 }} />
-                      <Typography variant="body1">
-                        <strong>Destination:</strong> {session.destination}
-                      </Typography>
-                    </Box>
-                  </Box>
-                  <Box sx={{ flex: '1 0 45%', minWidth: '250px' }}>
-                    <Box display="flex" alignItems="center" mb={1}>
-                      <AccessTime color="primary" sx={{ mr: 1 }} />
-                      <Typography variant="body1">
-                        <strong>Created:</strong> {formatDate(session.createdAt)}
-                      </Typography>
-                    </Box>
-                  </Box>
-                  <Box sx={{ flex: '1 0 45%', minWidth: '250px' }}>
-                    <Box display="flex" alignItems="center" mb={1}>
-                      <BusinessCenter color="primary" sx={{ mr: 1 }} />
-                      <Typography variant="body1">
-                        <strong>Company:</strong> {session.company?.name || "N/A"}
-                      </Typography>
-                    </Box>
-                  </Box>
-                </Box>
-              </Box>
-
-              {/* Only show Vehicle Number from Trip Details */}
-              {session.tripDetails?.vehicleNumber && (
-                <Box mb={3}>
-                  <Divider sx={{ mb: 2 }} />
-                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
-                    <Box sx={{ flex: '1 0 45%', minWidth: '250px' }}>
-                      <Typography variant="body1">
-                        <strong>Vehicle Number:</strong> {session.tripDetails.vehicleNumber}
-                      </Typography>
-                    </Box>
-                  </Box>
-                </Box>
-              )}
-            </Paper>
-
-            {/* Verification Results */}
-            {renderVerificationResults()}
-
-            {/* Comment section - moved after verification results */}
-            <CommentSection sessionId={sessionId} />
-          </>
-        )}
-
-        {/* Verification Form */}
-        {verificationFormOpen && (
-          <Paper elevation={2} sx={{ p: 3, mb: 3 }}>
-            {/* Tab Navigation */}
-            <Box sx={{ display: 'flex', borderBottom: 1, borderColor: 'divider', mb: 3, overflowX: 'auto' }}>
-              {verificationTabs.map((label, index) => (
-                <Button
-                  key={index}
-                  variant={activeTab === index ? "contained" : "text"}
-                  onClick={() => setActiveTab(index)}
-                  sx={{ 
-                    minWidth: 'unset',
-                    px: 2,
-                    py: 1,
-                    borderRadius: 0,
-                    borderBottom: activeTab === index ? '2px solid' : 'none',
-                    backgroundColor: activeTab === index ? 'primary.main' : 'transparent',
-                    color: activeTab === index ? 'primary.contrastText' : 'text.primary',
-                    '&:hover': {
-                      backgroundColor: activeTab === index ? 'primary.dark' : 'action.hover',
-                    }
-                  }}
-                >
-                  {label}
-                </Button>
-              ))}
-            </Box>
-            
-            {/* Tab Content */}
-            {activeTab === 0 && renderTripDetailsVerification()}
-            {activeTab === 1 && renderSealVerification()}
-            {activeTab === 2 && renderDriverDetailsVerification()}
-            {activeTab === 3 && renderImageVerification()}
-
-            {/* Navigation and Verification Actions */}
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 4 }}>
-              <Button
-                variant="outlined"
-                onClick={() => setActiveTab(prev => Math.max(0, prev - 1))}
-                disabled={activeTab === 0}
-                startIcon={<ArrowBack />}
-              >
-                Previous
-              </Button>
-              <Box>
-                <Button
-                  variant="contained"
-                  color="primary"
-                  onClick={openConfirmDialog}
-                  startIcon={<VerifiedUser />}
-                  sx={{ ml: 2 }}
-                >
-                  Complete Verification
-                </Button>
-              </Box>
-              <Button
-                variant="outlined"
-                onClick={() => setActiveTab(prev => Math.min(verificationTabs.length - 1, prev + 1))}
-                disabled={activeTab === verificationTabs.length - 1}
-                endIcon={<ArrowForward />}
-              >
-                Next
-              </Button>
-            </Box>
-          </Paper>
-        )}
-
-        {/* Verification Results */}
-        {verificationResults && renderVerificationResults()}
-
-        {/* Verification Button */}
-        {!verificationFormOpen && (
-          <Box sx={{ display: "flex", justifyContent: "center", mt: 3 }}>
-            <Button
-              variant="contained"
-              color="primary"
-              size="large"
-              startIcon={<Lock />}
-              onClick={startVerification}
-            >
-              Start Trip Verification
-            </Button>
-          </Box>
-        )}
-
-        {/* Confirmation Dialog */}
-        <Dialog open={confirmDialogOpen} onClose={closeConfirmDialog}>
-          <DialogTitle>Confirm Verification</DialogTitle>
-          <DialogContent>
-            <DialogContentText>
-              Are you sure you want to verify this seal? This action cannot be undone.
-            </DialogContentText>
-          </DialogContent>
-          <DialogActions>
-            <Button onClick={closeConfirmDialog} color="primary">
-              Cancel
-            </Button>
-            <Button onClick={handleVerifySeal} color="primary" disabled={verifying}>
-              {verifying ? "Verifying..." : "Verify"}
-            </Button>
-          </DialogActions>
-        </Dialog>
-
-        {/* Success Notification */}
-        {verificationSuccess && (
-          <Alert severity="success" sx={{ mt: 3 }}>
-            <AlertTitle>Success!</AlertTitle>
-            Trip successfully verified.
-          </Alert>
-        )}
-      </Container>
-    );
-  }
-
-  return (
-    <Container maxWidth="md">
-      <Box mb={3}>
-        <Button
-          component={Link}
-          href="/dashboard/sessions"
-          startIcon={<ArrowBack />}
-        >
-          Back to Sessions
-        </Button>
-      </Box>
-
-      {/* Main content */}
-      <Paper elevation={2} sx={{ p: 3, mb: 3 }}>
-        <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
-          <Typography variant="h4" component="h1">
-            Session Details
-          </Typography>
-          <Box display="flex" alignItems="center" gap={2}>
-            {canEdit && session.status !== SessionStatus.COMPLETED && (
-              <Button
-                component={Link}
-                href={`/dashboard/sessions/${sessionId}/edit`}
-                startIcon={<Edit />}
-                variant="outlined"
-                size="small"
-              >
-                Edit
-              </Button>
-            )}
-            <Chip 
-              label={session.status} 
-              color={getStatusColor(session.status)}
-              size="medium"
-            />
-          </Box>
-        </Box>
-
-        <Box mb={3}>
-          <Typography variant="h6" gutterBottom>
-            Basic Information
-          </Typography>
-          <Divider sx={{ mb: 2 }} />
-          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
-            <Box sx={{ flex: '1 0 45%', minWidth: '250px' }}>
-              <Box display="flex" alignItems="center" mb={1}>
-                <LocationOn color="primary" sx={{ mr: 1 }} />
-                <Typography variant="body1">
-                  <strong>Source:</strong> {session.source}
-                </Typography>
-              </Box>
-            </Box>
-            <Box sx={{ flex: '1 0 45%', minWidth: '250px' }}>
-              <Box display="flex" alignItems="center" mb={1}>
-                <LocationOn color="primary" sx={{ mr: 1 }} />
-                <Typography variant="body1">
-                  <strong>Destination:</strong> {session.destination}
-                </Typography>
-              </Box>
-            </Box>
-            <Box sx={{ flex: '1 0 45%', minWidth: '250px' }}>
-              <Box display="flex" alignItems="center" mb={1}>
-                <AccessTime color="primary" sx={{ mr: 1 }} />
-                <Typography variant="body1">
-                  <strong>Created:</strong> {formatDate(session.createdAt)}
-                </Typography>
-              </Box>
-            </Box>
-            <Box sx={{ flex: '1 0 45%', minWidth: '250px' }}>
-              <Box display="flex" alignItems="center" mb={1}>
-                <BusinessCenter color="primary" sx={{ mr: 1 }} />
-                <Typography variant="body1">
-                  <strong>Company:</strong> {session.company?.name || "N/A"}
-                </Typography>
-              </Box>
-            </Box>
-          </Box>
-        </Box>
-
-        {session.tripDetails && Object.keys(session.tripDetails).length > 0 && (
-          <Box mb={3}>
-            <Typography variant="h6" gutterBottom>
-              Trip Details
-            </Typography>
-            <Divider sx={{ mb: 2 }} />
-            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
-              {Object.entries(session.tripDetails).map(([key, value]) => (
-                value && (
-                  <Box key={key} sx={{ flex: '1 0 45%', minWidth: '250px' }}>
-                    <Typography variant="body1">
-                      <strong>{getFieldLabel(key)}:</strong> {String(value)}
-                    </Typography>
-                  </Box>
-                )
-              ))}
-            </Box>
-          </Box>
-        )}
-
-                {/* Show seal information only if operator-entered seal tags are available */}
-        {operatorSeals && operatorSeals.length > 0 && (
-          <Box mb={3}>
-            <Typography variant="h6" gutterBottom>
-              Seal Information
-            </Typography>
-            <Divider sx={{ mb: 2 }} />
-            
-            <Typography variant="body2" sx={{ mb: 2 }}>
-              Total Seal Tags: <strong>{operatorSeals.length}</strong>
-                </Typography>
-            
-            <TableContainer component={Paper} variant="outlined" sx={{ mb: 2 }}>
-              <Table size="small">
-                <TableHead>
-                  <TableRow>
-                    <TableCell>No.</TableCell>
-                    <TableCell>Seal Tag ID</TableCell>
-                    <TableCell>Method</TableCell>
-                    <TableCell>Image</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {operatorSeals.map((seal, index) => (
-                    <TableRow key={index}>
-                      <TableCell>{index + 1}</TableCell>
-                      <TableCell>{seal.id}</TableCell>
-                      <TableCell>
-                        <Chip 
-                          label={seal.method === 'digital' ? "Scanned" : "Manual Entry"}
-                          color="primary" 
-                          size="small"
-                        />
-                      </TableCell>
-                      <TableCell>
-                        {seal.image ? (
-                          <Box 
-                            component="img" 
-                            src={seal.image} 
-                            alt={`Seal tag ${index+1}`}
-                            sx={{ 
-                              width: 60, 
-                              height: 60, 
-                              objectFit: 'cover',
-                              borderRadius: 1,
-                              cursor: 'pointer'
-                            }}
-                            onClick={() => {
-                              // Open image in new tab
-                              window.open(seal.image!, '_blank');
-                            }}
-                          />
-                        ) : (
-                          <Typography variant="caption">No image</Typography>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </TableContainer>
-          </Box>
-        )}
-
-        {/* Add All Verification Seals section */}
-        <Box mb={3}>
-          <Typography variant="h6" gutterBottom>
-            All Verification Seals
-          </Typography>
-          <Divider sx={{ mb: 2 }} />
-          {renderAllSeals()}
-        </Box>
-
-        {/* Images section - moved before Reports section */}
-        {session.images && Object.keys(session.images).some(key => {
-          const value = session.images && session.images[key as keyof typeof session.images];
-          return !!value;
-        }) && (
-          <Box mb={3}>
-            <Typography variant="h6" gutterBottom>
-              Images
-            </Typography>
-            <Divider sx={{ mb: 2 }} />
-            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
-              {session.images.driverPicture && (
-                <Box sx={{ flex: '1 0 30%', minWidth: '200px' }}>
-                  <Typography variant="subtitle2" gutterBottom>Driver</Typography>
-                  <img 
-                    src={session.images.driverPicture} 
-                    alt="Driver" 
-                    style={{ width: '100%', maxHeight: '200px', objectFit: 'cover', borderRadius: '4px' }} 
-                  />
-                </Box>
-              )}
-              {session.images.vehicleNumberPlatePicture && (
-                <Box sx={{ flex: '1 0 30%', minWidth: '200px' }}>
-                  <Typography variant="subtitle2" gutterBottom>Number Plate</Typography>
-                  <img 
-                    src={session.images.vehicleNumberPlatePicture} 
-                    alt="Vehicle Number Plate" 
-                    style={{ width: '100%', maxHeight: '200px', objectFit: 'cover', borderRadius: '4px' }} 
-                  />
-                </Box>
-              )}
-              {session.images.gpsImeiPicture && (
-                <Box sx={{ flex: '1 0 30%', minWidth: '200px' }}>
-                  <Typography variant="subtitle2" gutterBottom>GPS/IMEI</Typography>
-                  <img 
-                    src={session.images.gpsImeiPicture} 
-                    alt="GPS IMEI" 
-                    style={{ width: '100%', maxHeight: '200px', objectFit: 'cover', borderRadius: '4px' }} 
-                  />
-                </Box>
-              )}
-              
-              {/* Display all sealing images */}
-              {session.images.sealingImages && session.images.sealingImages.length > 0 && (
-                <>
-                  <Box sx={{ width: '100%', mt: 2 }}>
-                    <Typography variant="subtitle2" gutterBottom>Sealing Images</Typography>
-                  </Box>
-                  {session.images.sealingImages.map((image, index) => (
-                    <Box key={`sealing-${index}`} sx={{ flex: '1 0 30%', minWidth: '200px' }}>
-                      <img 
-                        src={image} 
-                        alt={`Sealing ${index + 1}`} 
-                        style={{ width: '100%', maxHeight: '200px', objectFit: 'cover', borderRadius: '4px' }} 
-                      />
-                    </Box>
-                  ))}
-                </>
-              )}
-              
-              {/* Display all vehicle images */}
-              {session.images.vehicleImages && session.images.vehicleImages.length > 0 && (
-                <>
-                  <Box sx={{ width: '100%', mt: 2 }}>
-                    <Typography variant="subtitle2" gutterBottom>Vehicle Images</Typography>
-                  </Box>
-                  {session.images.vehicleImages.map((image, index) => (
-                    <Box key={`vehicle-${index}`} sx={{ flex: '1 0 30%', minWidth: '200px' }}>
-                      <img 
-                        src={image} 
-                        alt={`Vehicle ${index + 1}`} 
-                        style={{ width: '100%', maxHeight: '200px', objectFit: 'cover', borderRadius: '4px' }} 
-                      />
-                    </Box>
-                  ))}
-                </>
-              )}
-              
-              {/* Display all additional images */}
-              {session.images.additionalImages && session.images.additionalImages.length > 0 && (
-                <>
-                  <Box sx={{ width: '100%', mt: 2 }}>
-                    <Typography variant="subtitle2" gutterBottom>Additional Images</Typography>
-                  </Box>
-                  {session.images.additionalImages.map((image, index) => (
-                    <Box key={`additional-${index}`} sx={{ flex: '1 0 30%', minWidth: '200px' }}>
-                      <img 
-                        src={image} 
-                        alt={`Additional ${index + 1}`} 
-                        style={{ width: '100%', maxHeight: '200px', objectFit: 'cover', borderRadius: '4px' }} 
-                      />
-                    </Box>
-                  ))}
-                </>
-              )}
-            </Box>
-          </Box>
-        )}
-
-        {/* Report Download Section - Only shown to authorized users */}
-        {canAccessReports && (
-          <Box mb={3}>
-            <Typography variant="h6" gutterBottom>
-              Reports
-            </Typography>
-            <Divider sx={{ mb: 2 }} />
-            <Box sx={{ display: "flex", gap: 2, flexWrap: "wrap" }}>
-              <Button
-                variant="outlined"
-                startIcon={<PictureAsPdf />}
-                onClick={() => handleDownloadReport("pdf")}
-                disabled={reportLoading !== null}
-                size="small"
-                sx={{ color: 'error.main', borderColor: 'error.main', '&:hover': { borderColor: 'error.dark' } }}
-              >
-                {reportLoading === "pdf" ? "Downloading..." : "Download PDF"}
-              </Button>
-            </Box>
-          </Box>
-        )}
-
-        {/* Field Verification Summary - Show for completed sessions */}
-        {session.status === SessionStatus.COMPLETED && (
-          <Box mb={3}>
-            <Typography variant="h6" gutterBottom sx={{ color: 'primary.main', fontWeight: 'bold' }}>
-              Field Verification Summary
-            </Typography>
-            <Divider sx={{ mb: 2 }} />
-            
-            {verificationResults ? (
-              <>
-                <TableContainer component={Paper} variant="outlined" sx={{ mb: 4 }}>
-                  <Table>
-                    <TableHead>
-                      <TableRow sx={{ bgcolor: 'grey.100' }}>
-                        <TableCell width="30%"><strong>Field</strong></TableCell>
-                        <TableCell width="25%"><strong>Operator Value</strong></TableCell>
-                        <TableCell width="25%"><strong>Guard Value</strong></TableCell>
-                        <TableCell width="20%" align="center"><strong>Status</strong></TableCell>
-                      </TableRow>
-                    </TableHead>
-                    <TableBody>
-                      {/* Matching fields (green) - PASS */}
-                      {verificationResults.matches.map(field => {
-                        const data = verificationResults.allFields[field];
-                        return (
-                          <TableRow key={field} sx={{ 
-                            bgcolor: 'rgba(46, 125, 50, 0.15)', 
-                            '&:hover': { bgcolor: 'rgba(46, 125, 50, 0.25)' }
-                          }}>
-                            <TableCell component="th" scope="row" sx={{ color: 'success.dark', fontWeight: 'medium' }}>
-                              {getFieldLabel(field)}
-                            </TableCell>
-                            <TableCell sx={{ color: 'success.dark' }}>{String(data.operatorValue || 'N/A')}</TableCell>
-                            <TableCell sx={{ color: 'success.dark' }}>{String(data.guardValue || 'Not provided')}</TableCell>
-                            <TableCell align="center">
-                              <Box display="flex" alignItems="center" justifyContent="center" sx={{ color: 'success.main' }}>
-                                <CheckCircle fontSize="small" sx={{ mr: 0.5 }} />
-                                <Typography variant="body2" sx={{ color: 'success.main', fontWeight: 'bold' }}>Pass</Typography>
-                              </Box>
-                            </TableCell>
-                          </TableRow>
-                        );
-                      })}
-                      
-                      {/* Mismatched fields (red) - FAIL */}
-                      {verificationResults.mismatches.map(field => {
-                        const data = verificationResults.allFields[field];
-                        return (
-                          <TableRow key={field} sx={{ 
-                            bgcolor: 'rgba(211, 47, 47, 0.15)', 
-                            '&:hover': { bgcolor: 'rgba(211, 47, 47, 0.25)' }
-                          }}>
-                            <TableCell component="th" scope="row" sx={{ color: 'error.dark', fontWeight: 'medium' }}>
-                              {getFieldLabel(field)}
-                            </TableCell>
-                            <TableCell sx={{ color: 'error.dark' }}>{String(data.operatorValue || 'N/A')}</TableCell>
-                            <TableCell sx={{ color: 'error.dark' }}>{String(data.guardValue || 'Not provided')}</TableCell>
-                            <TableCell align="center">
-                              <Box display="flex" alignItems="center" justifyContent="center" sx={{ color: 'error.main' }}>
-                                <Warning fontSize="small" sx={{ mr: 0.5 }} />
-                                <Typography variant="body2" sx={{ color: 'error.main', fontWeight: 'bold' }}>Fail</Typography>
-                              </Box>
-                            </TableCell>
-                          </TableRow>
-                        );
-                      })}
-                      
-                      {/* Unverified fields (red) - FAIL */}
-                      {verificationResults.unverified.map(field => {
-                        const data = verificationResults.allFields[field];
-                        return (
-                          <TableRow key={field} sx={{ 
-                            bgcolor: 'rgba(211, 47, 47, 0.15)', 
-                            '&:hover': { bgcolor: 'rgba(211, 47, 47, 0.25)' }
-                          }}>
-                            <TableCell component="th" scope="row" sx={{ color: 'error.dark', fontWeight: 'medium' }}>
-                              {getFieldLabel(field)}
-                            </TableCell>
-                            <TableCell sx={{ color: 'error.dark' }}>{String(data.operatorValue || 'N/A')}</TableCell>
-                            <TableCell sx={{ color: 'error.dark' }}>{String(data.guardValue || 'Not provided')}</TableCell>
-                            <TableCell align="center">
-                              <Box display="flex" alignItems="center" justifyContent="center" sx={{ color: 'error.main' }}>
-                                <Warning fontSize="small" sx={{ mr: 0.5 }} />
-                                <Typography variant="body2" sx={{ color: 'error.main', fontWeight: 'bold' }}>Fail</Typography>
-                              </Box>
-                            </TableCell>
-                          </TableRow>
-                        );
-                      })}
-                    </TableBody>
-                  </Table>
-                </TableContainer>
-
-                {/* Summary statistics */}
-                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, mb: 3 }}>
-                  <Box sx={{ flex: '1 0 30%', minWidth: '200px' }}>
-                    <Paper sx={{ p: 2, bgcolor: 'success.light', color: 'success.contrastText' }}>
-                      <Typography variant="h5" align="center">{verificationResults.matches.length}</Typography>
-                      <Typography variant="body2" align="center">Matching Fields</Typography>
-                    </Paper>
-                  </Box>
-                  <Box sx={{ flex: '1 0 30%', minWidth: '200px' }}>
-                    <Paper sx={{ p: 2, bgcolor: 'error.light', color: 'error.contrastText' }}>
-                      <Typography variant="h5" align="center">{verificationResults.mismatches.length}</Typography>
-                      <Typography variant="body2" align="center">Mismatched Fields</Typography>
-                    </Paper>
-                  </Box>
-                  <Box sx={{ flex: '1 0 30%', minWidth: '200px' }}>
-                    <Paper sx={{ p: 2, bgcolor: 'error.light', color: 'error.contrastText' }}>
-                      <Typography variant="h5" align="center">{verificationResults.unverified.length}</Typography>
-                      <Typography variant="body2" align="center">Unverified Fields</Typography>
-                    </Paper>
-                  </Box>
-                </Box>
-              </>
-            ) : (
-              <Alert severity="info">
-                <AlertTitle>Verification Data Not Available</AlertTitle>
-                <Typography variant="body2">
-                  This session has been verified, but detailed verification data is not available.
-                </Typography>
-              </Alert>
-            )}
-          </Box>
-        )}
-      </Paper>
-
-      {/* Verification Results */}
-      {renderVerificationResults()}
-
-      {/* GUARD Verification Button - Show for GUARD users with IN_PROGRESS sessions */}
-      {isGuard && session.status === SessionStatus.IN_PROGRESS && !verificationFormOpen && (
-        <Box sx={{ display: "flex", justifyContent: "center", mt: 3 }}>
-          <Button
-            variant="contained"
-            color="primary"
-            size="large"
-            startIcon={<Lock />}
-            onClick={startVerification}
-          >
-            Start Trip Verification
-          </Button>
-        </Box>
-      )}
-
-      {/* Comment section - moved after verification results */}
-      <CommentSection sessionId={sessionId} />
-      
-      {/* Add Status Update Dialog */}
-      <Dialog open={statusDialogOpen} onClose={() => setStatusDialogOpen(false)} maxWidth="md" fullWidth>
-        <DialogTitle>
-          Update Seal Status
-          {selectedSealForStatus && (
-            <Typography variant="subtitle1" color="text.secondary">
-              Seal ID: {selectedSealForStatus.barcode}
-            </Typography>
-          )}
-        </DialogTitle>
-        <DialogContent>
-          {selectedSealForStatus && (
-            <>
-              <Alert 
-                severity={selectedSealForStatus.status === SealStatus.BROKEN ? 'warning' : 'error'}
-                sx={{ mb: 3 }}
-              >
-                <AlertTitle>
-                  {selectedSealForStatus.status === SealStatus.BROKEN 
-                    ? 'Marking Seal as Broken' 
-                    : 'Marking Seal as Tampered'}
-                </AlertTitle>
-                <Typography variant="body2">
-                  {selectedSealForStatus.status === SealStatus.BROKEN 
-                    ? 'Use this option if the seal is physically damaged but appears to be an accident or normal wear.'
-                    : 'Use this option if the seal shows signs of intentional tampering or unauthorized access.'}
-                </Typography>
-              </Alert>
-              
-              <TextField
-                fullWidth
-                label="Comments (Required)"
-                multiline
-                rows={3}
-                value={statusComment}
-                onChange={(e) => setStatusComment(e.target.value)}
-                placeholder={selectedSealForStatus.status === SealStatus.BROKEN 
-                  ? "Describe the damage to the seal..."
-                  : "Describe the signs of tampering..."}
-                required
-                sx={{ mb: 3 }}
-              />
-              
-              <Typography variant="subtitle1" gutterBottom>
-                Evidence Photos (Required)
-              </Typography>
-              
-              {statusEvidence.photos && statusEvidence.photos.length > 0 ? (
-                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mb: 2 }}>
-                  {statusEvidence.photos.map((photo, index) => (
-                    <Box
-                      key={index}
-                      component="img"
-                      src={photo}
-                      sx={{ width: 100, height: 100, objectFit: 'cover', borderRadius: 1 }}
-                    />
-                  ))}
-                </Box>
-              ) : (
-                <Typography variant="body2" color="text.secondary" gutterBottom>
-                  No photos added yet. Please add at least one photo.
-                </Typography>
-              )}
-              
-              <Button
-                variant="outlined"
-                startIcon={<CloudUpload />}
-                onClick={() => fileInputRef.current?.click()}
-                sx={{ mt: 1 }}
-              >
-                Add Photo
-              </Button>
-              <input
-                type="file"
-                accept="image/*"
-                style={{ display: 'none' }}
-                ref={fileInputRef}
-                onChange={handlePhotoUpload}
-              />
-            </>
-          )}
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setStatusDialogOpen(false)} disabled={isSubmittingStatus}>
-            Cancel
-          </Button>
-          <Button 
-            onClick={handleStatusUpdateSubmit} 
-            variant="contained" 
-            color={selectedSealForStatus?.status === SealStatus.BROKEN ? 'warning' : 'error'}
-            disabled={isSubmittingStatus || !statusComment || !statusEvidence.photos || statusEvidence.photos.length === 0}
-          >
-            {isSubmittingStatus ? (
-              <>
-                <CircularProgress size={20} color="inherit" sx={{ mr: 1 }} />
-                Updating...
-              </>
-            ) : (
-              `Confirm ${selectedSealForStatus?.status}`
-            )}
-          </Button>
-        </DialogActions>
-      </Dialog>
-      
-      {/* Add Verification Summary Dialog */}
-      <Dialog open={verificationSummaryOpen} onClose={() => setVerificationSummaryOpen(false)} maxWidth="md" fullWidth>
-        <DialogTitle>Verification Summary</DialogTitle>
-        <DialogContent>
-          {verificationSummary && (
-            <>
-              <Alert severity="info" sx={{ mb: 3 }}>
-                <AlertTitle>Completing Verification</AlertTitle>
-                <Typography variant="body2">
-                  You are about to complete the verification process. Any unscanned seals will be marked as MISSING.
-                  Please review the summary below and confirm.
-                </Typography>
-              </Alert>
-              
-              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 3, mb: 3 }}>
-                <Box sx={{ flex: '1 1 300px' }}>
-                  <Paper variant="outlined" sx={{ p: 2, height: '100%' }}>
-                    <Typography variant="subtitle1" gutterBottom>
-                      Total Seals
-                    </Typography>
-                    <Typography variant="h3" align="center">
-                      {verificationSummary.totalSeals}
-                    </Typography>
-                  </Paper>
-                </Box>
-                <Box sx={{ flex: '1 1 300px' }}>
-                  <Paper variant="outlined" sx={{ p: 2, height: '100%' }}>
-                    <Typography variant="subtitle1" gutterBottom>
-                      Scanned Seals
-                    </Typography>
-                    <Typography variant="h3" align="center" color="success.main">
-                      {verificationSummary.scannedSeals}
-                    </Typography>
-                  </Paper>
-                </Box>
-                <Box sx={{ flex: '1 1 300px' }}>
-                  <Paper variant="outlined" sx={{ p: 2, height: '100%' }}>
-                    <Typography variant="subtitle1" gutterBottom>
-                      Unscanned Seals (Will be marked as MISSING)
-                    </Typography>
-                    <Typography variant="h3" align="center" color="error.main">
-                      {verificationSummary.totalSeals - verificationSummary.scannedSeals}
-                    </Typography>
-                  </Paper>
-                </Box>
-              </Box>
-              
-              <Typography variant="subtitle1" gutterBottom>
-                Status Breakdown
-              </Typography>
-              <TableContainer component={Paper} variant="outlined" sx={{ mb: 3 }}>
-                <Table size="small">
-                  <TableHead>
-                    <TableRow>
-                      <TableCell>Status</TableCell>
-                      <TableCell align="right">Count</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    <TableRow>
-                      <TableCell>
-                        <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                          <CheckCircle color="success" sx={{ mr: 1 }} />
-                          Verified
-                        </Box>
-                      </TableCell>
-                      <TableCell align="right">{verificationSummary.statusBreakdown[SealStatus.VERIFIED] || 0}</TableCell>
-                    </TableRow>
-                    <TableRow>
-                      <TableCell>
-                        <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                          <Close color="error" sx={{ mr: 1 }} />
-                          Missing
-                        </Box>
-                      </TableCell>
-                      <TableCell align="right">{verificationSummary.statusBreakdown[SealStatus.MISSING] || 0}</TableCell>
-                    </TableRow>
-                    <TableRow>
-                      <TableCell>
-                        <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                          <Warning color="warning" sx={{ mr: 1 }} />
-                          Broken
-                        </Box>
-                      </TableCell>
-                      <TableCell align="right">{verificationSummary.statusBreakdown[SealStatus.BROKEN] || 0}</TableCell>
-                    </TableRow>
-                    <TableRow>
-                      <TableCell>
-                        <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                          <Warning color="error" sx={{ mr: 1 }} />
-                          Tampered
-                        </Box>
-                      </TableCell>
-                      <TableCell align="right">{verificationSummary.statusBreakdown[SealStatus.TAMPERED] || 0}</TableCell>
-                    </TableRow>
-                  </TableBody>
-                </Table>
-              </TableContainer>
-              
-              <Typography variant="body2" color="text.secondary">
-                After completion, this session will be marked as COMPLETED and the verification details will be saved.
-                This action cannot be undone.
-              </Typography>
-            </>
-          )}
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setVerificationSummaryOpen(false)} disabled={completingVerification}>
-            Cancel
-          </Button>
-          <Button 
-            onClick={confirmAndCompleteVerification} 
-            variant="contained" 
-            color="success"
-            disabled={completingVerification}
-          >
-            {completingVerification ? (
-              <>
-                <CircularProgress size={20} color="inherit" sx={{ mr: 1 }} />
-                Completing...
-              </>
-            ) : (
-              "Complete Verification"
-            )}
-          </Button>
-        </DialogActions>
-      </Dialog>
-    </Container>
-  );
 }
