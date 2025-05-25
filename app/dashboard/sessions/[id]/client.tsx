@@ -3548,9 +3548,6 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
     }));
   };
 
-  // Add an error boundary state
-  const [renderError, setRenderError] = useState<string | null>(null);
-
   // Add a more robust useEffect for fetching session details
   useEffect(() => {
     console.log("Component mounted, fetching session details with ID:", sessionId);
