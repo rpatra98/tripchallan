@@ -44,6 +44,7 @@ import { EmployeeSubrole } from "@/prisma/enums";
 import { SessionUpdateContext } from "@/app/dashboard/layout";
 import ClientSideQrScanner from "@/app/components/ClientSideQrScanner";
 import SimpleQrScanner from "@/app/components/SimpleQrScanner";
+import { toast } from "react-hot-toast";
 
 type CompanyType = {
   id: string;
@@ -966,6 +967,10 @@ export default function CreateSessionPage() {
     // Immediately set isSubmitting to true to disable the submit button
     setIsSubmitting(true);
     
+    // Clear previous errors
+    setError("");
+    setErrorDetails("");
+    
     // Validate the current step (final step)
     if (!validateStep(activeStep)) {
       console.log("Validation failed on final step", validationErrors);
@@ -973,25 +978,8 @@ export default function CreateSessionPage() {
       return;
     }
     
-    setError("");
-    setErrorDetails("");
-
     try {
       console.log("Starting trip creation process");
-      // Check if we need to create a new vehicle record
-      const vehicleNumber = loadingDetails.vehicleNumber.trim();
-      if (vehicleNumber) {
-        const existingVehicle = vehicles.find(v => v.numberPlate === vehicleNumber);
-        
-        // If the vehicle doesn't exist in our list, create it
-        if (!existingVehicle) {
-          const vehicleCreated = await createNewVehicle(vehicleNumber);
-          if (!vehicleCreated) {
-            // If vehicle creation fails, show an error but don't block trip creation
-            console.warn("Failed to create vehicle record, but continuing with trip creation");
-          }
-        }
-      }
       
       // Create form data to handle file uploads
       const formData = new FormData();
@@ -1026,154 +1014,177 @@ export default function CreateSessionPage() {
       // Prepare base64 image data
       const imageBase64Data: Record<string, any> = {};
       
-      // Add seal tag images to the imageBase64Data and formData
-      imageBase64Data.sealTagImages = {};
-      console.log(`Processing ${sealTags.sealTagIds.length} seal tag images`);
-      for (const tagId of sealTags.sealTagIds) {
-        const image = sealTags.sealTagImages[tagId];
-        if (image) {
-          try {
-            const resizedImage = await resizeImage(image, 1280, 1280, 0.8);
-            const base64Data = await fileToBase64(resizedImage);
-            
-            // Add to base64 data
-            imageBase64Data.sealTagImages[tagId] = {
-              data: base64Data.split(',')[1],
-              contentType: resizedImage.type,
-              name: resizedImage.name,
-              method: sealTags.sealTagMethods[tagId] || 'unknown'
-            };
-            
-            // Add to form data
-            formData.append(`sealTagImages[${tagId}]`, resizedImage);
-          } catch (error) {
-            console.error(`Error processing seal tag image for ${tagId}:`, error);
-            setError(`Error processing image for seal tag ${tagId}. Please try again.`);
-            setIsSubmitting(false);
-            return;
+      // Track progress in more detail to detect where issues might occur
+      let progressStage = "starting";
+      
+      try {
+        progressStage = "processing seal tag images";
+        // Add seal tag images to the imageBase64Data and formData
+        imageBase64Data.sealTagImages = {};
+        console.log(`Processing ${sealTags.sealTagIds.length} seal tag images`);
+        for (const tagId of sealTags.sealTagIds) {
+          const image = sealTags.sealTagImages[tagId];
+          if (image) {
+            try {
+              const resizedImage = await resizeImage(image, 1280, 1280, 0.8);
+              const base64Data = await fileToBase64(resizedImage);
+              
+              // Add to base64 data
+              imageBase64Data.sealTagImages[tagId] = {
+                data: base64Data.split(',')[1],
+                contentType: resizedImage.type,
+                name: resizedImage.name,
+                method: sealTags.sealTagMethods[tagId] || 'unknown'
+              };
+              
+              // Add to form data
+              formData.append(`sealTagImages[${tagId}]`, resizedImage);
+            } catch (error) {
+              console.error(`Error processing seal tag image for ${tagId}:`, error);
+              throw new Error(`Error processing image for seal tag ${tagId}. Please try with a smaller image.`);
+            }
           }
         }
-      }
-      
-      // Convert registration certificate document to base64 if available
-      if (loadingDetails.registrationCertificateDoc) {
-        try {
-          const base64Data = await fileToBase64(loadingDetails.registrationCertificateDoc);
-          imageBase64Data.registrationCertificateDoc = {
-            data: base64Data.split(',')[1],
-            contentType: loadingDetails.registrationCertificateDoc.type,
-            name: loadingDetails.registrationCertificateDoc.name
-          };
-          formData.append('registrationCertificateDoc', loadingDetails.registrationCertificateDoc);
-        } catch (error) {
-          console.error("Error processing registration certificate document:", error);
-          setError("Error processing registration certificate document. Please try again.");
-          setIsSubmitting(false);
-          return;
+        
+        progressStage = "processing registration certificate";
+        // Convert registration certificate document to base64 if available
+        if (loadingDetails.registrationCertificateDoc) {
+          try {
+            const base64Data = await fileToBase64(loadingDetails.registrationCertificateDoc);
+            imageBase64Data.registrationCertificateDoc = {
+              data: base64Data.split(',')[1],
+              contentType: loadingDetails.registrationCertificateDoc.type,
+              name: loadingDetails.registrationCertificateDoc.name
+            };
+            formData.append('registrationCertificateDoc', loadingDetails.registrationCertificateDoc);
+          } catch (error) {
+            console.error("Error processing registration certificate document:", error);
+            throw new Error("Error processing registration certificate document. Please try with a smaller file.");
+          }
         }
-      }
-      
-      // Convert driver license document to base64 if available
-      if (driverDetails.driverLicenseDoc) {
-        try {
-          const base64Data = await fileToBase64(driverDetails.driverLicenseDoc);
-          imageBase64Data.driverLicenseDoc = {
-            data: base64Data.split(',')[1],
-            contentType: driverDetails.driverLicenseDoc.type,
-            name: driverDetails.driverLicenseDoc.name
-          };
-          formData.append('driverLicenseDoc', driverDetails.driverLicenseDoc);
-        } catch (error) {
-          console.error("Error processing driver license document:", error);
-          setError("Error processing driver license document. Please try again.");
-          setIsSubmitting(false);
-          return;
+        
+        progressStage = "processing driver license";
+        // Convert driver license document to base64 if available
+        if (driverDetails.driverLicenseDoc) {
+          try {
+            const base64Data = await fileToBase64(driverDetails.driverLicenseDoc);
+            imageBase64Data.driverLicenseDoc = {
+              data: base64Data.split(',')[1],
+              contentType: driverDetails.driverLicenseDoc.type,
+              name: driverDetails.driverLicenseDoc.name
+            };
+            formData.append('driverLicenseDoc', driverDetails.driverLicenseDoc);
+          } catch (error) {
+            console.error("Error processing driver license document:", error);
+            throw new Error("Error processing driver license document. Please try with a smaller file.");
+          }
         }
-      }
-      
-      // Process GPS IMEI picture
-      if (loadingDetails.gpsImeiPicture) {
-        try {
-          const resizedImage = await resizeImage(loadingDetails.gpsImeiPicture, 1280, 1280, 0.8);
-          const base64Data = await fileToBase64(resizedImage);
-          imageBase64Data.gpsImeiPicture = {
-            data: base64Data.split(',')[1],
-            contentType: resizedImage.type,
-            name: resizedImage.name
-          };
-          formData.append('gpsImeiPicture', resizedImage);
-        } catch (error) {
-          console.error("Error processing GPS IMEI image:", error);
-          setError("Error processing GPS IMEI image. Please try again.");
-          setIsSubmitting(false);
-          return;
+        
+        progressStage = "processing GPS IMEI picture";
+        // Process GPS IMEI picture
+        if (loadingDetails.gpsImeiPicture) {
+          try {
+            const resizedImage = await resizeImage(loadingDetails.gpsImeiPicture, 1280, 1280, 0.8);
+            const base64Data = await fileToBase64(resizedImage);
+            imageBase64Data.gpsImeiPicture = {
+              data: base64Data.split(',')[1],
+              contentType: resizedImage.type,
+              name: resizedImage.name
+            };
+            formData.append('gpsImeiPicture', resizedImage);
+          } catch (error) {
+            console.error("Error processing GPS IMEI image:", error);
+            throw new Error("Error processing GPS IMEI image. Please try with a smaller image.");
+          }
         }
-      }
-      
-      // Process driver picture
-      if (driverDetails.driverPicture) {
-        try {
-          const resizedImage = await resizeImage(driverDetails.driverPicture, 1280, 1280, 0.8);
-          const base64Data = await fileToBase64(resizedImage);
-          imageBase64Data.driverPicture = {
-            data: base64Data.split(',')[1],
-            contentType: resizedImage.type,
-            name: resizedImage.name
-          };
-          formData.append('driverPicture', resizedImage);
-        } catch (error) {
-          console.error("Error processing driver picture:", error);
-          setError("Error processing driver picture. Please try again.");
-          setIsSubmitting(false);
-          return;
+        
+        progressStage = "processing driver picture";
+        // Process driver picture
+        if (driverDetails.driverPicture) {
+          try {
+            const resizedImage = await resizeImage(driverDetails.driverPicture, 1280, 1280, 0.8);
+            const base64Data = await fileToBase64(resizedImage);
+            imageBase64Data.driverPicture = {
+              data: base64Data.split(',')[1],
+              contentType: resizedImage.type,
+              name: resizedImage.name
+            };
+            formData.append('driverPicture', resizedImage);
+          } catch (error) {
+            console.error("Error processing driver picture:", error);
+            throw new Error("Error processing driver picture. Please try with a smaller image.");
+          }
         }
-      }
-      
-      // Convert vehicle number plate picture
-      if (imagesForm.vehicleNumberPlatePicture) {
-        try {
-          // Resize the image first
-          const resizedImage = await resizeImage(imagesForm.vehicleNumberPlatePicture, 1280, 1280, 0.8);
-          const base64Data = await fileToBase64(resizedImage);
-          imageBase64Data.vehicleNumberPlatePicture = {
-            data: base64Data.split(',')[1], // Remove data URL prefix
-            contentType: resizedImage.type,
-            name: resizedImage.name
-          };
-          formData.append('vehicleNumberPlatePicture', resizedImage);
-        } catch (error) {
-          console.error("Error processing vehicle number plate image:", error);
-          setError("Error processing vehicle number plate image. Please try again."); // Generic error
-          setIsSubmitting(false);
-          return;
+        
+        progressStage = "processing vehicle number plate picture";
+        // Convert vehicle number plate picture
+        if (imagesForm.vehicleNumberPlatePicture) {
+          try {
+            // Resize the image first
+            const resizedImage = await resizeImage(imagesForm.vehicleNumberPlatePicture, 1280, 1280, 0.8);
+            const base64Data = await fileToBase64(resizedImage);
+            imageBase64Data.vehicleNumberPlatePicture = {
+              data: base64Data.split(',')[1], // Remove data URL prefix
+              contentType: resizedImage.type,
+              name: resizedImage.name
+            };
+            formData.append('vehicleNumberPlatePicture', resizedImage);
+          } catch (error) {
+            console.error("Error processing vehicle number plate image:", error);
+            throw new Error("Error processing vehicle number plate image. Please try with a smaller image.");
+          }
         }
-      }
-      
-      // Process array images
-      imageBase64Data.vehicleImages = [];
-      imageBase64Data.additionalImages = [];
-      
-      // Add multiple files - limit the number of files to reduce payload size
-      const maxImagesPerCategory = 5; // Limit to 5 images per category
-      
-      // Process vehicle images
-      for (let i = 0; i < Math.min(imagesForm.vehicleImages.length, maxImagesPerCategory); i++) {
-        try {
-          const file = imagesForm.vehicleImages[i];
-          const resizedImage = await resizeImage(file, 1280, 1280, 0.8);
-          const base64Data = await fileToBase64(resizedImage);
-          imageBase64Data.vehicleImages.push({
-            data: base64Data.split(',')[1],
-            contentType: resizedImage.type,
-            name: resizedImage.name
-          });
-          formData.append(`vehicleImages[${i}]`, resizedImage);
-        } catch (error) {
-          console.error(`Error processing vehicle image ${i}:`, error);
-          setError(`Error processing vehicle image ${i}. Please try again.`); // Generic error
-          setIsSubmitting(false);
-          return;
+        
+        progressStage = "processing vehicle images";
+        // Process array images
+        imageBase64Data.vehicleImages = [];
+        imageBase64Data.additionalImages = [];
+        
+        // Add multiple files - limit the number of files to reduce payload size
+        const maxImagesPerCategory = 5; // Limit to 5 images per category
+        
+        // Process vehicle images
+        for (let i = 0; i < Math.min(imagesForm.vehicleImages.length, maxImagesPerCategory); i++) {
+          try {
+            const file = imagesForm.vehicleImages[i];
+            const resizedImage = await resizeImage(file, 1280, 1280, 0.8);
+            const base64Data = await fileToBase64(resizedImage);
+            imageBase64Data.vehicleImages.push({
+              data: base64Data.split(',')[1],
+              contentType: resizedImage.type,
+              name: resizedImage.name
+            });
+            formData.append(`vehicleImages[${i}]`, resizedImage);
+          } catch (error) {
+            console.error(`Error processing vehicle image ${i}:`, error);
+            throw new Error(`Error processing vehicle image ${i+1}. Please try with a smaller image.`);
+          }
         }
+        
+        progressStage = "processing additional images";
+        // Process additional images with the same approach
+        for (let i = 0; i < Math.min(imagesForm.additionalImages.length, maxImagesPerCategory); i++) {
+          try {
+            const file = imagesForm.additionalImages[i];
+            const resizedImage = await resizeImage(file, 1280, 1280, 0.8);
+            const base64Data = await fileToBase64(resizedImage);
+            imageBase64Data.additionalImages.push({
+              data: base64Data.split(',')[1],
+              contentType: resizedImage.type,
+              name: resizedImage.name
+            });
+            formData.append(`additionalImages[${i}]`, resizedImage);
+          } catch (error) {
+            console.error(`Error processing additional image ${i}:`, error);
+            throw new Error(`Error processing additional image ${i+1}. Please try with a smaller image.`);
+          }
+        }
+      } catch (error) {
+        console.error(`Error while ${progressStage}:`, error);
+        setError(`Error while ${progressStage}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        setErrorDetails("Try using smaller images or fewer images. Each image should be under 5MB.");
+        setIsSubmitting(false);
+        return;
       }
       
       // Add the base64 image data to the form
@@ -1218,10 +1229,13 @@ export default function CreateSessionPage() {
           
           if (response.status === 500) {
             throw new Error("Server error: Could not process the request.", 
-              { cause: "An unexpected error occurred on the server. Please check server logs for details or try again later." });
+              { cause: "An unexpected error occurred on the server. Please try again with smaller images or fewer images." });
+          } else if (response.status === 413) {
+            throw new Error("Data too large", 
+              { cause: "The images or data you're uploading are too large. Please use smaller or fewer images." });
           } else {
             throw new Error(`Server error: ${response.status} ${response.statusText}.`, 
-              { cause: "An unexpected server error occurred." });
+              { cause: "An unexpected server error occurred. Please try again later." });
           }
         }
       }
@@ -1230,12 +1244,17 @@ export default function CreateSessionPage() {
       console.log("API response data:", data);
 
       // Generate QR code for the loading ID
-      if (data.session && data.session.id) {
-        setLoadingId(data.session.id);
-        generateQRCode(data.session.id);
+      if (data.sessionId) {
+        setLoadingId(data.sessionId);
+        generateQRCode(data.sessionId);
         
         // Refresh the user session to update coin balance
-        await refreshUserSession();
+        if (refreshUserSession) {
+          await refreshUserSession();
+        }
+        
+        // Show success message
+        toast.success("Session created successfully!");
         
         // Redirect to sessions page after successful creation
         router.push("/dashboard/sessions");
@@ -1249,11 +1268,11 @@ export default function CreateSessionPage() {
       console.error("Error submitting form:", error);
       setError(error.message || "An unknown error occurred");
       setErrorDetails(error.cause as string || "");
-      // Make sure the button is re-enabled
-      setIsSubmitting(false);
+      
+      // Show error toast for better visibility
+      toast.error(error.message || "An error occurred while creating the session");
     } finally {
       // Ensure isSubmitting is always set to false after API call completes
-      // This was missing in the original code and might cause the button to stay disabled
       setIsSubmitting(false);
     }
   };
