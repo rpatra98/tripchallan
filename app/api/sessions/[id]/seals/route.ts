@@ -3,6 +3,38 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-options";
 import prisma from "@/lib/prisma";
 import { ActivityAction, EmployeeSubrole } from "@/prisma/enums";
+import { ActivityLog, User } from "@prisma/client";
+
+// Define types for our seal objects
+interface SealTag {
+  id: string;
+  type: 'tag';
+  barcode: string;
+  method: string;
+  createdAt: Date;
+  createdBy: User;
+  verified: boolean;
+  verifiedBy: User | null;
+  scannedAt: Date | null;
+  source: 'operator';
+  imageData: string | null;
+}
+
+interface SystemSeal {
+  id: string;
+  type: 'system' | 'verification';
+  barcode: string;
+  createdAt: Date;
+  createdBy: User;
+  verified: boolean;
+  verifiedBy: User | null;
+  scannedAt: Date | null;
+  source: 'system' | 'guard';
+  verificationDetails: any | null;
+  imageData: string | null;
+}
+
+type Seal = SealTag | SystemSeal;
 
 export async function GET(
   req: NextRequest,
@@ -81,15 +113,15 @@ export async function GET(
       console.log(`[API DEBUG] Found ${activityLogs.length} activity logs for session`);
 
       // Extract seal information from activity logs
-      const sealTags = [];
+      const sealTags: SealTag[] = [];
       
       // Look for CREATE logs that might have seal tag information
-      const createLogs = activityLogs.filter(log => log.action === ActivityAction.CREATE);
+      const createLogs = activityLogs.filter((log: ActivityLog) => log.action === ActivityAction.CREATE);
       
       for (const log of createLogs) {
         try {
           const details = log.details as any;
-          let sealTagIds = [];
+          let sealTagIds: string[] = [];
           
           // Check different possible locations for seal tag IDs
           if (details?.sealTagIds) {
@@ -109,13 +141,16 @@ export async function GET(
           if (sealTagIds && sealTagIds.length > 0) {
             console.log(`[API DEBUG] Found ${sealTagIds.length} seal tags in log ${log.id}`);
             
+            // Initialize methods object
+            const methods: Record<string, string> = {};
+            
             // Get method information if available
-            const methods = {};
             if (details?.sealTagMethods) {
               try {
-                Object.assign(methods, typeof details.sealTagMethods === 'string'
+                const parsedMethods = typeof details.sealTagMethods === 'string'
                   ? JSON.parse(details.sealTagMethods)
-                  : details.sealTagMethods);
+                  : details.sealTagMethods;
+                Object.assign(methods, parsedMethods);
               } catch (e) {
                 console.log("[API DEBUG] Error parsing sealTagMethods:", e);
               }
@@ -136,6 +171,7 @@ export async function GET(
                 verifiedBy: null,
                 scannedAt: null,
                 source: 'operator',
+                imageData: null, // Initialize imageData as null
               });
             }
           }
@@ -145,20 +181,21 @@ export async function GET(
       }
       
       // Look for UPDATE logs that might have verification information
-      const verificationLogs = activityLogs.filter(log => 
+      const verificationLogs = activityLogs.filter((log: ActivityLog) => 
         log.action === ActivityAction.UPDATE && 
         (log.details as any)?.verification
       );
       
       // Process system seals (from database)
-      const systemSeals = [];
+      const systemSeals: SystemSeal[] = [];
       
       if (sessionData.seal) {
         systemSeals.push({
           ...sessionData.seal,
           type: 'system',
           source: sessionData.seal.verified ? 'guard' : 'system',
-          verificationDetails: null
+          verificationDetails: null,
+          imageData: null
         });
       }
       
@@ -186,6 +223,7 @@ export async function GET(
                 scannedAt: log.createdAt,
                 source: 'guard',
                 verificationDetails: verification,
+                imageData: null, // Initialize imageData as null
               });
             }
           }
@@ -196,7 +234,7 @@ export async function GET(
       
       // Find image data for seal tags
       // Look for image data in activity logs
-      const imageLog = activityLogs.find(log => {
+      const imageLog = activityLogs.find((log: ActivityLog) => {
         const details = log.details as any;
         return details?.imageBase64Data || details?.images;
       });
@@ -221,7 +259,7 @@ export async function GET(
       }
       
       // Combine all seals
-      const allSeals = [...systemSeals, ...sealTags];
+      const allSeals: Seal[] = [...systemSeals, ...sealTags];
       
       console.log(`[API DEBUG] Returning ${allSeals.length} seals (${systemSeals.length} system, ${sealTags.length} tags)`);
       return NextResponse.json(allSeals);
