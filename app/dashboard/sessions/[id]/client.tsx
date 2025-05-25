@@ -1239,6 +1239,19 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
     }
   }, [authStatus, authSession?.user?.id, session, operatorSeals]);
 
+  // Add useEffect to fetch session details when component mounts
+  useEffect(() => {
+    console.log("Component mounted, fetching session details...");
+      fetchSessionDetails();
+  }, [fetchSessionDetails]);
+  
+  // Add useEffect to fetch seals when session details are loaded
+  useEffect(() => {
+    if (session) {
+      fetchSessionSeals();
+    }
+  }, [session, fetchSessionSeals]);
+  
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleString();
   };
