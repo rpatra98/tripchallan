@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
+import { toast } from "react-hot-toast";
 import React from 'react';
 import { 
   Container, 
@@ -32,9 +33,27 @@ import {
   TableCell,
   TextField,
   IconButton,
-  Grid as MuiGrid,
+  Grid,
   InputAdornment,
-  Tooltip
+  Tooltip,
+  Backdrop,
+  FormControl,
+  FormControlLabel,
+  FormLabel,
+  RadioGroup,
+  Radio,
+  Stepper,
+  Step,
+  StepLabel,
+  StepContent,
+  InputLabel,
+  Select,
+  MenuItem,
+  CardHeader,
+  CardMedia,
+  CardContent,
+  CardActions,
+  Badge
 } from "@mui/material";
 import { 
   LocationOn, 
@@ -61,8 +80,10 @@ import {
   Refresh
 } from "@mui/icons-material";
 import Link from "next/link";
-import { SessionStatus, EmployeeSubrole } from "@/prisma/enums";
+import { SessionStatus, EmployeeSubrole, SealStatus, ActivityAction, UserRole } from "@/prisma/enums";
 import CommentSection from "@/app/components/sessions/CommentSection";
+import SealVerification from "@/app/components/sessions/SealVerification";
+import useSessionSeals from "@/app/hooks/useSessionSeals";
 import { jsPDF } from 'jspdf';
 import ClientSideQrScanner from "@/app/components/ClientSideQrScanner";
 
@@ -153,8 +174,18 @@ type SessionType = {
   }[];
 };
 
-// For Material-UI Grid component
-const Grid = MuiGrid;
+// Add interfaces for status updates
+interface SealStatusUpdate {
+  sealId: string;
+  status: string;
+  comment?: string;
+  evidence?: SealStatusEvidence;
+}
+
+interface SealStatusEvidence {
+  photos?: string[];
+  description?: string;
+}
 
 export default function SessionDetailClient({ sessionId }: { sessionId: string }) {
   const { data: authSession, status: authStatus } = useSession();
@@ -179,6 +210,26 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
   const [sealError, setSealError] = useState("");
   const [imageVerificationStatus, setImageVerificationStatus] = useState<Record<string, boolean>>({});
   const [imageComments, setImageComments] = useState<Record<string, string>>({});
+  
+  // Add state for session seals
+  const [sessionSeals, setSessionSeals] = useState<any[]>([]);
+  const [loadingSeals, setLoadingSeals] = useState(false);
+  const [sealsError, setSealsError] = useState("");
+  const [scannedSealIds, setScannedSealIds] = useState<Set<string>>(new Set());
+  const [selectedSeal, setSelectedSeal] = useState<any>(null);
+  const [unscannedSealIds, setUnscannedSealIds] = useState<string[]>([]);
+  const [sealStatusUpdates, setSealStatusUpdates] = useState<Record<string, SealStatusUpdate>>({});
+  const [selectedSealForStatus, setSelectedSealForStatus] = useState<any>(null);
+  const [statusDialogOpen, setStatusDialogOpen] = useState(false);
+  const [statusComment, setStatusComment] = useState('');
+  const [statusEvidence, setStatusEvidence] = useState<SealStatusEvidence>({ photos: [] });
+  const [isSubmittingStatus, setIsSubmittingStatus] = useState(false);
+  const [completingVerification, setCompletingVerification] = useState(false);
+  const [verificationSummaryOpen, setVerificationSummaryOpen] = useState(false);
+  const [verificationSummary, setVerificationSummary] = useState<any>(null);
+  
+  // Add ref for file input
+  const fileInputRef = useRef<HTMLInputElement>(null);
   
   // Add new state for verification tabs
   const [activeTab, setActiveTab] = useState(0);
@@ -250,13 +301,7 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
     mismatched: []
   });
   
-  // Add new state for session seals
-  const [sessionSeals, setSessionSeals] = useState<any[]>([]);
-  const [loadingSeals, setLoadingSeals] = useState(false);
-  const [sealsError, setSealsError] = useState("");
-  
   // Add a new state for the details dialog
-  const [selectedSeal, setSelectedSeal] = useState<any>(null);
   const [detailsDialogOpen, setDetailsDialogOpen] = useState(false);
   
   // Utility functions needed before other definitions
@@ -268,59 +313,349 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
 
   // Define fetchSessionDetails function
   const fetchSessionDetails = useCallback(async () => {
-    if (!sessionId) {
-      console.log("No session ID available yet, skipping fetch");
-      return;
-    }
-    
     setLoading(true);
     setError("");
-
+    
     try {
-      console.log("Fetching session details for ID:", sessionId);
+      const response = await fetch(`/api/sessions/${sessionId}`);
       
-      // Try both API endpoints to provide redundancy
-      const apiUrls = [
-        `/api/session/${sessionId}`,
-        `/api/sessions/${sessionId}`
-      ];
-      
-      let response;
-      let errorText = '';
-      
-      // Try each endpoint until one works
-      for (const url of apiUrls) {
-        console.log(`Attempting to fetch from ${url}`);
-        try {
-          response = await fetch(url);
-          if (response.ok) {
-            console.log(`Successfully fetched data from ${url}`);
-            break;
-          } else {
-            const error = await response.text();
-            errorText += `${url}: ${response.status} - ${error}\n`;
-            console.error(`API Error (${response.status}) from ${url}:`, error);
-          }
-        } catch (err) {
-          errorText += `${url}: ${err}\n`;
-          console.error(`Fetch error from ${url}:`, err);
-        }
-      }
-      
-      if (!response || !response.ok) {
-        throw new Error(`Failed to fetch session details: ${errorText}`);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch session: ${response.status}`);
       }
       
       const data = await response.json();
-      console.log("Session data received:", !!data, data ? Object.keys(data) : 'no data');
       setSession(data);
-    } catch (err) {
-      console.error("Error fetching session details:", err);
-      setError(err instanceof Error ? err.message : "An unknown error occurred");
+      
+      // Initialize verification fields based on trip details
+      if (data.tripDetails) {
+        const initialFields: Record<string, any> = {};
+        
+        Object.entries(data.tripDetails).forEach(([key, value]) => {
+          if (value && typeof value === 'string' && value.trim() !== '') {
+            initialFields[key] = {
+              operatorValue: value,
+              isVerified: false,
+              matches: true,
+              comment: ""
+            };
+          }
+        });
+        
+        setVerificationFields(initialFields);
+      }
+      
+      // Check edit permissions
+      setCanEdit(data.status === SessionStatus.PENDING && 
+                (data.createdBy.id === authSession?.user.id || 
+                 userRole === "ADMIN" || userRole === "SUPERADMIN"));
+    } catch (error) {
+      console.error("Error fetching session:", error);
+      setError("Failed to load session details. Please try again.");
     } finally {
       setLoading(false);
     }
+  }, [sessionId, authSession, userRole]);
+  
+  // Function to handle seal scanning
+  const handleScanSeal = async (sealId: string) => {
+    try {
+      if (!sealId) return;
+      
+      // Check if this seal is already scanned
+      if (scannedSealIds.has(sealId)) {
+        toast(`Seal ${sealId} has already been scanned.`, { 
+          icon: '🔵',
+          duration: 3000
+        });
+        return;
+      }
+      
+      // Mark as scanned
+      const newScannedSealIds = new Set(scannedSealIds);
+      newScannedSealIds.add(sealId);
+      setScannedSealIds(newScannedSealIds);
+      
+      // Update status to VERIFIED
+      const statusUpdate: SealStatusUpdate = {
+        sealId,
+        status: SealStatus.VERIFIED
+      };
+      
+      setSealStatusUpdates({
+        ...sealStatusUpdates,
+        [sealId]: statusUpdate
+      });
+      
+      // Find the seal in our existing data
+      const existingSeal = sessionSeals?.find(seal => seal.barcode === sealId);
+      
+      if (existingSeal) {
+        // Update API
+        await updateSealStatus(existingSeal.id, SealStatus.VERIFIED);
+        
+        // Refresh seals data
+        await fetchSessionSeals();
+        
+        toast.success(`Seal ${sealId} verified successfully!`);
+      } else {
+        toast.error(`Seal ${sealId} not found in this session.`);
+      }
+    } catch (error) {
+      console.error("Error scanning seal:", error);
+      toast.error("Failed to scan seal. Please try again.");
+    }
+  };
+  
+  // Function to open status dialog for a seal
+  const openStatusDialog = (seal: any) => {
+    setSelectedSealForStatus(seal);
+    setStatusComment('');
+    setStatusEvidence({ photos: [] });
+    setStatusDialogOpen(true);
+  };
+  
+  // Function to update seal status
+  const updateSealStatus = async (sealId: string, status: string, comment?: string, evidence?: SealStatusEvidence) => {
+    try {
+      setIsSubmittingStatus(true);
+      
+      const response = await fetch(`/api/sessions/${sessionId}/seals/${sealId}/status`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          status,
+          comment,
+          evidence
+        })
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to update seal status');
+      }
+      
+      const data = await response.json();
+      
+      // Update our state
+      const newStatusUpdates = { ...sealStatusUpdates };
+      newStatusUpdates[sealId] = {
+        sealId,
+        status,
+        comment,
+        evidence
+      };
+      setSealStatusUpdates(newStatusUpdates);
+      
+      return data.seal;
+    } catch (error) {
+      console.error("Error updating seal status:", error);
+      throw error;
+    } finally {
+      setIsSubmittingStatus(false);
+    }
+  };
+  
+  // Function to handle photo upload for status evidence
+  const handlePhotoUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    if (!event.target.files || event.target.files.length === 0) return;
+    
+    const file = event.target.files[0];
+    const reader = new FileReader();
+    
+    reader.onloadend = () => {
+      const base64String = reader.result as string;
+      setStatusEvidence({
+        ...statusEvidence,
+        photos: [...(statusEvidence.photos || []), base64String]
+      });
+    };
+    
+    reader.readAsDataURL(file);
+  };
+  
+  // Function to handle status update submission
+  const handleStatusUpdateSubmit = async () => {
+    if (!selectedSealForStatus) return;
+    
+    try {
+      // Validate evidence for BROKEN and TAMPERED statuses
+      if (
+        (selectedSealForStatus.status === SealStatus.BROKEN || 
+         selectedSealForStatus.status === SealStatus.TAMPERED) && 
+        (!statusEvidence.photos || statusEvidence.photos.length === 0)
+      ) {
+        toast.error(`Evidence photos are required for ${selectedSealForStatus.status} status.`);
+        return;
+      }
+      
+      await updateSealStatus(
+        selectedSealForStatus.id,
+        selectedSealForStatus.status,
+        statusComment,
+        statusEvidence
+      );
+      
+      toast.success(`Seal status updated to ${selectedSealForStatus.status}.`);
+      setStatusDialogOpen(false);
+      
+      // Refresh seals data
+      await fetchSessionSeals();
+    } catch (error) {
+      toast.error(`Failed to update seal status: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  };
+  
+  // Function to complete verification
+  const completeVerification = async () => {
+    try {
+      setCompletingVerification(true);
+      
+      // Get all unscanned seal IDs
+      const allSealTagIds = (sessionSeals || [])
+        .filter(seal => seal.type === 'tag')
+        .map(seal => seal.barcode);
+      
+      const unscannedSealTagIds = allSealTagIds.filter(id => !scannedSealIds.has(id));
+      setUnscannedSealIds(unscannedSealTagIds);
+      
+      // Show verification summary first
+      setVerificationSummary({
+        totalSeals: allSealTagIds.length,
+        scannedSeals: scannedSealIds.size,
+        unscannedSeals: unscannedSealTagIds.length,
+        statusBreakdown: {
+          [SealStatus.VERIFIED]: (sessionSeals || []).filter(seal => seal.status === SealStatus.VERIFIED).length,
+          [SealStatus.BROKEN]: (sessionSeals || []).filter(seal => seal.status === SealStatus.BROKEN).length,
+          [SealStatus.TAMPERED]: (sessionSeals || []).filter(seal => seal.status === SealStatus.TAMPERED).length,
+          [SealStatus.MISSING]: unscannedSealTagIds.length // These will be marked as MISSING
+        }
+      });
+      setVerificationSummaryOpen(true);
+    } catch (error) {
+      console.error("Error preparing verification summary:", error);
+      toast.error("Failed to prepare verification summary. Please try again.");
+      setCompletingVerification(false);
+    }
+  };
+  
+  // Function to confirm and complete verification
+  const confirmAndCompleteVerification = async () => {
+    try {
+      // Close the summary dialog
+      setVerificationSummaryOpen(false);
+      
+      // Complete verification via API
+      const response = await fetch(`/api/sessions/${sessionId}/complete-verification`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          verificationData: {
+            scannedSealIds: Array.from(scannedSealIds),
+            statusUpdates: sealStatusUpdates
+          },
+          unscannedSealTagIds: unscannedSealIds
+        })
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to complete verification');
+      }
+      
+      const data = await response.json();
+      
+      toast.success("Verification completed successfully!");
+      
+      // Refresh session data
+      await fetchSessionDetails();
+      await fetchSessionSeals();
+    } catch (error) {
+      console.error("Error completing verification:", error);
+      toast.error(`Failed to complete verification: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setCompletingVerification(false);
+    }
+  };
+  
+  // Add a function to fetch all seals for this session
+  const fetchSessionSeals = useCallback(async () => {
+    if (!sessionId) return;
+    
+    setLoadingSeals(true);
+    try {
+      const response = await fetch(`/api/sessions/${sessionId}/seals`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch seals');
+      }
+      const data = await response.json();
+      setSessionSeals(data);
+    } catch (error) {
+      console.error('Error fetching seals:', error);
+      setSealsError('Failed to fetch seals');
+    } finally {
+      setLoadingSeals(false);
+    }
   }, [sessionId]);
+
+  // Function to render the seal status badge
+  const renderSealStatusBadge = (status: string | null | undefined) => {
+    if (!status) return null;
+    
+    switch (status) {
+      case SealStatus.VERIFIED:
+        return (
+          <Chip 
+            icon={<CheckCircle fontSize="small" />} 
+            label="Verified" 
+            color="success" 
+            size="small" 
+            variant="outlined"
+          />
+        );
+      case SealStatus.MISSING:
+        return (
+          <Chip 
+            icon={<Close fontSize="small" />} 
+            label="Missing" 
+            color="error" 
+            size="small" 
+            variant="outlined"
+          />
+        );
+      case SealStatus.BROKEN:
+        return (
+          <Chip 
+            icon={<Warning fontSize="small" />} 
+            label="Broken" 
+            color="warning" 
+            size="small" 
+            variant="outlined"
+          />
+        );
+      case SealStatus.TAMPERED:
+        return (
+          <Chip 
+            icon={<Warning fontSize="small" />} 
+            label="Tampered" 
+            color="error" 
+            size="small" 
+            variant="outlined"
+          />
+        );
+      default:
+        return (
+          <Chip 
+            label={status} 
+            size="small" 
+            variant="outlined"
+          />
+        );
+    }
+  };
 
   // Add useEffect to fetch session details when component mounts
   useEffect(() => {
@@ -2536,34 +2871,6 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
     }
   };
 
-  // Add a function to fetch all seals for this session
-  const fetchSessionSeals = useCallback(async () => {
-    if (!sessionId) return;
-    
-    setLoadingSeals(true);
-    setSealsError("");
-    
-    try {
-      console.log("Fetching seals for session ID:", sessionId);
-      const response = await fetch(`/api/sessions/${sessionId}/seals`);
-      
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        console.error(`API Error (${response.status}):`, errorData);
-        throw new Error(`Failed to fetch session seals: ${response.status} - ${errorData.error || 'Unknown error'}`);
-      }
-      
-      const data = await response.json();
-      console.log("Session seals received:", data);
-      setSessionSeals(data);
-    } catch (err) {
-      console.error("Error fetching session seals:", err);
-      setSealsError(err instanceof Error ? err.message : "Failed to fetch seals");
-    } finally {
-      setLoadingSeals(false);
-    }
-  }, [sessionId]);
-  
   // Add useEffect to fetch seals when session details are loaded
   useEffect(() => {
     if (session) {
@@ -2573,7 +2880,28 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
   
   // Enhanced render all seals function
   const renderAllSeals = () => {
-    if (loadingSeals) {
+    // Use the hook for session seals
+    const { sessionSeals: hookSeals, loadingSeals: hookLoading, sealsError: hookError, fetchSessionSeals: refreshSeals } = useSessionSeals(sessionId);
+    
+    // Check if we should use the SealVerification component
+    const shouldUseSealVerificationComponent = userSubrole === EmployeeSubrole.GUARD && 
+      session?.status !== SessionStatus.COMPLETED;
+    
+    if (shouldUseSealVerificationComponent && hookSeals) {
+      return (
+        <SealVerification 
+          sessionId={sessionId}
+          sessionSeals={hookSeals}
+          refreshSeals={refreshSeals}
+          refreshSession={fetchSessionDetails}
+          isGuard={userSubrole === EmployeeSubrole.GUARD}
+          isCompleted={session?.status === SessionStatus.COMPLETED}
+        />
+      );
+    }
+    
+    // Otherwise use the normal seals display
+    if (loadingSeals || hookLoading) {
       return (
         <Box display="flex" justifyContent="center" p={2}>
           <CircularProgress size={24} />
@@ -2581,14 +2909,14 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
       );
     }
     
-    if (sealsError) {
+    if (sealsError || hookError) {
       return (
         <Alert severity="error" sx={{ mb: 2 }}>
           <AlertTitle>Error Loading Seals</AlertTitle>
-          {sealsError}
+          {sealsError || hookError}
           <Button 
             size="small" 
-            onClick={fetchSessionSeals} 
+            onClick={hookSeals ? refreshSeals : fetchSessionSeals} 
             sx={{ mt: 1 }}
             startIcon={<Refresh />}
           >
@@ -2598,7 +2926,9 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
       );
     }
     
-    if (!sessionSeals || sessionSeals.length === 0) {
+    const displaySeals = hookSeals || sessionSeals;
+    
+    if (!displaySeals || displaySeals.length === 0) {
       return (
         <Box sx={{ p: 2, textAlign: 'center' }}>
           <Typography variant="body2" color="text.secondary">
@@ -2609,8 +2939,8 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
     }
     
     // Group seals by type
-    const tagSeals = sessionSeals.filter(seal => seal.type === 'tag');
-    const systemSeals = sessionSeals.filter(seal => seal.type === 'system' || seal.type === 'verification');
+    const tagSeals = displaySeals.filter(seal => seal.type === 'tag');
+    const systemSeals = displaySeals.filter(seal => seal.type === 'system' || seal.type === 'verification');
     
     return (
       <>
@@ -3840,6 +4170,238 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
 
       {/* Comment section - moved after verification results */}
       <CommentSection sessionId={sessionId} />
+      
+      {/* Add Status Update Dialog */}
+      <Dialog open={statusDialogOpen} onClose={() => setStatusDialogOpen(false)} maxWidth="md" fullWidth>
+        <DialogTitle>
+          Update Seal Status
+          {selectedSealForStatus && (
+            <Typography variant="subtitle1" color="text.secondary">
+              Seal ID: {selectedSealForStatus.barcode}
+            </Typography>
+          )}
+        </DialogTitle>
+        <DialogContent>
+          {selectedSealForStatus && (
+            <>
+              <Alert 
+                severity={selectedSealForStatus.status === SealStatus.BROKEN ? 'warning' : 'error'}
+                sx={{ mb: 3 }}
+              >
+                <AlertTitle>
+                  {selectedSealForStatus.status === SealStatus.BROKEN 
+                    ? 'Marking Seal as Broken' 
+                    : 'Marking Seal as Tampered'}
+                </AlertTitle>
+                <Typography variant="body2">
+                  {selectedSealForStatus.status === SealStatus.BROKEN 
+                    ? 'Use this option if the seal is physically damaged but appears to be an accident or normal wear.'
+                    : 'Use this option if the seal shows signs of intentional tampering or unauthorized access.'}
+                </Typography>
+              </Alert>
+              
+              <TextField
+                fullWidth
+                label="Comments (Required)"
+                multiline
+                rows={3}
+                value={statusComment}
+                onChange={(e) => setStatusComment(e.target.value)}
+                placeholder={selectedSealForStatus.status === SealStatus.BROKEN 
+                  ? "Describe the damage to the seal..."
+                  : "Describe the signs of tampering..."}
+                required
+                sx={{ mb: 3 }}
+              />
+              
+              <Typography variant="subtitle1" gutterBottom>
+                Evidence Photos (Required)
+              </Typography>
+              
+              {statusEvidence.photos && statusEvidence.photos.length > 0 ? (
+                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mb: 2 }}>
+                  {statusEvidence.photos.map((photo, index) => (
+                    <Box
+                      key={index}
+                      component="img"
+                      src={photo}
+                      sx={{ width: 100, height: 100, objectFit: 'cover', borderRadius: 1 }}
+                    />
+                  ))}
+                </Box>
+              ) : (
+                <Typography variant="body2" color="text.secondary" gutterBottom>
+                  No photos added yet. Please add at least one photo.
+                </Typography>
+              )}
+              
+              <Button
+                variant="outlined"
+                startIcon={<CloudUpload />}
+                onClick={() => fileInputRef.current?.click()}
+                sx={{ mt: 1 }}
+              >
+                Add Photo
+              </Button>
+              <input
+                type="file"
+                accept="image/*"
+                style={{ display: 'none' }}
+                ref={fileInputRef}
+                onChange={handlePhotoUpload}
+              />
+            </>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setStatusDialogOpen(false)} disabled={isSubmittingStatus}>
+            Cancel
+          </Button>
+          <Button 
+            onClick={handleStatusUpdateSubmit} 
+            variant="contained" 
+            color={selectedSealForStatus?.status === SealStatus.BROKEN ? 'warning' : 'error'}
+            disabled={isSubmittingStatus || !statusComment || !statusEvidence.photos || statusEvidence.photos.length === 0}
+          >
+            {isSubmittingStatus ? (
+              <>
+                <CircularProgress size={20} color="inherit" sx={{ mr: 1 }} />
+                Updating...
+              </>
+            ) : (
+              `Confirm ${selectedSealForStatus?.status}`
+            )}
+          </Button>
+        </DialogActions>
+      </Dialog>
+      
+      {/* Add Verification Summary Dialog */}
+      <Dialog open={verificationSummaryOpen} onClose={() => setVerificationSummaryOpen(false)} maxWidth="md" fullWidth>
+        <DialogTitle>Verification Summary</DialogTitle>
+        <DialogContent>
+          {verificationSummary && (
+            <>
+              <Alert severity="info" sx={{ mb: 3 }}>
+                <AlertTitle>Completing Verification</AlertTitle>
+                <Typography variant="body2">
+                  You are about to complete the verification process. Any unscanned seals will be marked as MISSING.
+                  Please review the summary below and confirm.
+                </Typography>
+              </Alert>
+              
+              <Grid container spacing={3} sx={{ mb: 3 }}>
+                <Grid item xs={12} md={4}>
+                  <Paper variant="outlined" sx={{ p: 2, height: '100%' }}>
+                    <Typography variant="subtitle1" gutterBottom>
+                      Total Seals
+                    </Typography>
+                    <Typography variant="h3" align="center">
+                      {verificationSummary.totalSeals}
+                    </Typography>
+                  </Paper>
+                </Grid>
+                <Grid item xs={12} md={4}>
+                  <Paper variant="outlined" sx={{ p: 2, height: '100%' }}>
+                    <Typography variant="subtitle1" gutterBottom>
+                      Scanned Seals
+                    </Typography>
+                    <Typography variant="h3" align="center" color="success.main">
+                      {verificationSummary.scannedSeals}
+                    </Typography>
+                  </Paper>
+                </Grid>
+                <Grid item xs={12} md={4}>
+                  <Paper variant="outlined" sx={{ p: 2, height: '100%' }}>
+                    <Typography variant="subtitle1" gutterBottom>
+                      Unscanned Seals (Will be marked as MISSING)
+                    </Typography>
+                    <Typography variant="h3" align="center" color="error.main">
+                      {verificationSummary.unscannedSeals}
+                    </Typography>
+                  </Paper>
+                </Grid>
+              </Grid>
+              
+              <Typography variant="subtitle1" gutterBottom>
+                Status Breakdown
+              </Typography>
+              <TableContainer component={Paper} variant="outlined" sx={{ mb: 3 }}>
+                <Table size="small">
+                  <TableHead>
+                    <TableRow>
+                      <TableCell>Status</TableCell>
+                      <TableCell align="right">Count</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    <TableRow>
+                      <TableCell>
+                        <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                          <CheckCircle color="success" sx={{ mr: 1 }} />
+                          Verified
+                        </Box>
+                      </TableCell>
+                      <TableCell align="right">{verificationSummary.statusBreakdown[SealStatus.VERIFIED] || 0}</TableCell>
+                    </TableRow>
+                    <TableRow>
+                      <TableCell>
+                        <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                          <Close color="error" sx={{ mr: 1 }} />
+                          Missing
+                        </Box>
+                      </TableCell>
+                      <TableCell align="right">{verificationSummary.statusBreakdown[SealStatus.MISSING] || 0}</TableCell>
+                    </TableRow>
+                    <TableRow>
+                      <TableCell>
+                        <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                          <Warning color="warning" sx={{ mr: 1 }} />
+                          Broken
+                        </Box>
+                      </TableCell>
+                      <TableCell align="right">{verificationSummary.statusBreakdown[SealStatus.BROKEN] || 0}</TableCell>
+                    </TableRow>
+                    <TableRow>
+                      <TableCell>
+                        <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                          <Warning color="error" sx={{ mr: 1 }} />
+                          Tampered
+                        </Box>
+                      </TableCell>
+                      <TableCell align="right">{verificationSummary.statusBreakdown[SealStatus.TAMPERED] || 0}</TableCell>
+                    </TableRow>
+                  </TableBody>
+                </Table>
+              </TableContainer>
+              
+              <Typography variant="body2" color="text.secondary">
+                After completion, this session will be marked as COMPLETED and the verification details will be saved.
+                This action cannot be undone.
+              </Typography>
+            </>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setVerificationSummaryOpen(false)} disabled={completingVerification}>
+            Cancel
+          </Button>
+          <Button 
+            onClick={confirmAndCompleteVerification} 
+            variant="contained" 
+            color="success"
+            disabled={completingVerification}
+          >
+            {completingVerification ? (
+              <>
+                <CircularProgress size={20} color="inherit" sx={{ mr: 1 }} />
+                Completing...
+              </>
+            ) : (
+              "Complete Verification"
+            )}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Container>
   );
 }
