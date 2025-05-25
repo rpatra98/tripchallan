@@ -65,6 +65,7 @@ import { SessionStatus, EmployeeSubrole } from "@/prisma/enums";
 import CommentSection from "@/app/components/sessions/CommentSection";
 import { jsPDF } from 'jspdf';
 import ClientSideQrScanner from "@/app/components/ClientSideQrScanner";
+import { toast } from "react-hot-toast";
 
 // Types
 type SealType = {
@@ -1081,9 +1082,21 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
       setVerificationSuccess(true);
       setVerificationFormOpen(false);
       
+      // If email sending succeeded, show a toast notification
+      if (responseData && responseData.emailSent === true) {
+        toast.success("Verification report email sent to company", {
+          duration: 5000,
+          icon: '📧'
+        });
+      }
       // If email sending failed but verification succeeded, show a warning
-      if (responseData && responseData.emailSent === false) {
+      else if (responseData && responseData.emailSent === false) {
         console.warn("Verification completed but email notification failed:", responseData.emailError);
+        if (responseData.emailError) {
+          toast.error(`Email notification failed: ${responseData.emailError}`, {
+            duration: 4000
+          });
+        }
       }
       
       // Save verification results for displaying matched/mismatched fields

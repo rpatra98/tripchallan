@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-options";
 import prisma from "@/lib/prisma";
 import { ActivityAction, EmployeeSubrole, SealStatus, SessionStatus, UserRole } from "@/prisma/enums";
+import { sendVerificationEmail } from "@/lib/email";
 
 export async function POST(
   req: NextRequest,
@@ -203,10 +204,50 @@ export async function POST(
       return { session: updatedSession, activityLog };
     });
 
+    // Send email notification if the session's company has an email
+    let emailSent = false;
+    let emailError: any = null;
+    const companyEmail = results.session?.company?.email;
+    
+    if (companyEmail) {
+      try {
+        console.log(`[API] Sending verification email to company: ${companyEmail}`);
+        
+        // Get the seal details to include in email
+        const firstSeal = results.session.seal || null;
+        
+        const emailResult = await sendVerificationEmail({
+          sessionId: params.id,
+          sessionDetails: results.session,
+          companyEmail,
+          guardName: user.name || 'Guard',
+          verificationDetails: results.activityLog.details.verification,
+          sealDetails: firstSeal,
+          timestamp: results.activityLog.details.verification.completedAt
+        });
+        
+        emailSent = emailResult.success;
+        
+        if (emailResult.success) {
+          console.log(`[API] Verification email sent to company email: ${companyEmail}`);
+        } else {
+          console.error("[API] Email sending returned error:", emailResult.error);
+          emailError = emailResult.error;
+        }
+      } catch (e) {
+        console.error("[API] Failed to send verification email:", e);
+        emailError = e;
+      }
+    } else {
+      console.log("[API] No company email found, skipping verification email");
+    }
+
     return NextResponse.json({
       success: true,
       session: results.session,
-      verificationSummary: results.activityLog.details.verification
+      verificationSummary: results.activityLog.details.verification,
+      emailSent,
+      emailError: emailError ? String(emailError) : null
     });
   } catch (error) {
     console.error("[API ERROR] Error completing verification:", error);

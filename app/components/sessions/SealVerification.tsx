@@ -306,6 +306,18 @@ export default function SealVerification({
       
       toast.success("Verification completed successfully!");
       
+      // Check if email was sent successfully
+      if (data.emailSent) {
+        toast.success("Verification report email sent to company", {
+          duration: 5000,
+          icon: '📧'
+        });
+      } else if (data.emailError) {
+        toast.error(`Email notification failed: ${data.emailError}`, {
+          duration: 5000
+        });
+      }
+      
       // Refresh session data
       await refreshSession();
       await refreshSeals();
