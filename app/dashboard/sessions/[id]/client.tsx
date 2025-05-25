@@ -2648,68 +2648,71 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
           addDivider();
         }
         
-        // Driver & Vehicle Details (specific fields for better organization)
-        addSectionTitle("Driver & Vehicle Information");
-        if (session.tripDetails) {
-          const driverFields = [
-            { key: 'driverName', label: 'Driver Name' },
-            { key: 'driverContactNumber', label: 'Driver Contact' },
-            { key: 'vehicleNumber', label: 'Vehicle Number' },
-            { key: 'gpsImeiNumber', label: 'GPS IMEI Number' },
-            { key: 'transporterName', label: 'Transporter' }
-          ];
-          
-          driverFields.forEach(({ key, label }) => {
-            if (session.tripDetails && session.tripDetails[key]) {
-              addField(label, session.tripDetails[key], true);
-            }
-          });
-        }
+                 // Driver & Vehicle Details (specific fields for better organization)
+         addSectionTitle("Driver & Vehicle Information");
+         if (session.tripDetails) {
+           const driverFields = [
+             { key: 'driverName', label: 'Driver Name' },
+             { key: 'driverContactNumber', label: 'Driver Contact' },
+             { key: 'vehicleNumber', label: 'Vehicle Number' },
+             { key: 'gpsImeiNumber', label: 'GPS IMEI Number' },
+             { key: 'transporterName', label: 'Transporter' }
+           ];
+           
+           driverFields.forEach(({ key, label }) => {
+             const tripDetails = session.tripDetails as Record<string, any>;
+             if (tripDetails && tripDetails[key]) {
+               addField(label, tripDetails[key], true);
+             }
+           });
+         }
         
         checkPageBreak(20);
         addDivider();
         
-        // Material Details
-        addSectionTitle("Material Information");
-        if (session.tripDetails) {
-          const materialFields = [
-            { key: 'materialName', label: 'Material' },
-            { key: 'qualityOfMaterials', label: 'Quality' },
-            { key: 'grossWeight', label: 'Gross Weight' },
-            { key: 'tareWeight', label: 'Tare Weight' },
-            { key: 'netMaterialWeight', label: 'Net Weight' },
-            { key: 'loadingSite', label: 'Loading Site' },
-            { key: 'loaderName', label: 'Loader Name' },
-            { key: 'loaderMobileNumber', label: 'Loader Contact' },
-            { key: 'receiverPartyName', label: 'Receiver' }
-          ];
-          
-          materialFields.forEach(({ key, label }) => {
-            if (session.tripDetails && session.tripDetails[key]) {
-              addField(label, session.tripDetails[key], true);
-            }
-          });
-        }
+                 // Material Details
+         addSectionTitle("Material Information");
+         if (session.tripDetails) {
+           const materialFields = [
+             { key: 'materialName', label: 'Material' },
+             { key: 'qualityOfMaterials', label: 'Quality' },
+             { key: 'grossWeight', label: 'Gross Weight' },
+             { key: 'tareWeight', label: 'Tare Weight' },
+             { key: 'netMaterialWeight', label: 'Net Weight' },
+             { key: 'loadingSite', label: 'Loading Site' },
+             { key: 'loaderName', label: 'Loader Name' },
+             { key: 'loaderMobileNumber', label: 'Loader Contact' },
+             { key: 'receiverPartyName', label: 'Receiver' }
+           ];
+           
+           materialFields.forEach(({ key, label }) => {
+             const tripDetails = session.tripDetails as Record<string, any>;
+             if (tripDetails && tripDetails[key]) {
+               addField(label, tripDetails[key], true);
+             }
+           });
+         }
         
         checkPageBreak(20);
         addDivider();
         
-        // Document Information
-        addSectionTitle("Document Information");
-        if (session.tripDetails) {
-          const documentFields = [
-            { key: 'challanRoyaltyNumber', label: 'Challan/Royalty Number' },
-            { key: 'doNumber', label: 'DO Number' },
-            { key: 'tpNumber', label: 'TP Number' },
-            { key: 'freight', label: 'Freight' }
-          ];
-          
-          documentFields.forEach(({ key, label }) => {
-            if (session.tripDetails && session.tripDetails[key]) {
-              addField(label, session.tripDetails[key], true);
-            }
-          });
-        }
+                 // Document Information
+         addSectionTitle("Document Information");
+         if (session.tripDetails) {
+           const documentFields = [
+             { key: 'challanRoyaltyNumber', label: 'Challan/Royalty Number' },
+             { key: 'doNumber', label: 'DO Number' },
+             { key: 'tpNumber', label: 'TP Number' },
+             { key: 'freight', label: 'Freight' }
+           ];
+           
+           documentFields.forEach(({ key, label }) => {
+             const tripDetails = session.tripDetails as Record<string, any>;
+             if (tripDetails && tripDetails[key]) {
+               addField(label, tripDetails[key], true);
+             }
+           });
+         }
         
         checkPageBreak(20);
         addDivider();
@@ -2791,7 +2794,11 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
               colPos += colWidths[2];
               
               // Status with color
-              pdf.setTextColor(matches ? 0, 128, 0 : 255, 0, 0);
+              if (matches) {
+                pdf.setTextColor(0, 128, 0); // Green for matches
+              } else {
+                pdf.setTextColor(255, 0, 0); // Red for mismatches
+              }
               pdf.text(matches ? 'Match' : 'Mismatch', colPos, currentY + 5);
               pdf.setTextColor(0, 0, 0); // Reset text color
               
@@ -2825,19 +2832,19 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
           addDivider();
         }
         
-        // Footer with page numbers
-        const totalPages = pdf.internal.getNumberOfPages();
-        for (let i = 1; i <= totalPages; i++) {
-          pdf.setPage(i);
-          pdf.setFontSize(8);
-          pdf.setFont("helvetica", "normal");
-          pdf.text(
-            `Page ${i} of ${totalPages} - Generated on ${new Date().toLocaleString()}`,
-            pageWidth / 2,
-            pdf.internal.pageSize.getHeight() - 5,
-            { align: 'center' }
-          );
-        }
+                 // Footer with page numbers
+         const totalPages = pdf.internal.pages.length - 1;
+         for (let i = 1; i <= totalPages; i++) {
+           pdf.setPage(i);
+           pdf.setFontSize(8);
+           pdf.setFont("helvetica", "normal");
+           pdf.text(
+             `Page ${i} of ${totalPages} - Generated on ${new Date().toLocaleString()}`,
+             pageWidth / 2,
+             pdf.internal.pageSize.getHeight() - 5,
+             { align: 'center' }
+           );
+         }
         
         // Save the PDF
         pdf.save(`session-${sessionId}.pdf`);
