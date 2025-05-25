@@ -949,7 +949,7 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
   // Update seal comparison data
   const updateSealComparison = useCallback((scannedSeals: any[]) => {
     const guardSealIds = scannedSeals.map(seal => seal.id.trim());
-    const operatorSealIds = operatorSeals.map(seal => seal.id.trim());
+    const operatorSealIds = operatorSeals?.map(seal => seal.id.trim()) || [];
     
     console.log('Guard Seal IDs:', guardSealIds);
     console.log('Operator Seal IDs:', operatorSealIds);
@@ -1018,12 +1018,12 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
     }
     
     // Check if this seal matches an operator seal (case insensitive)
-    const isVerified = operatorSeals.some(seal => 
+    const isVerified = operatorSeals?.some(seal => 
       seal.id.trim().toLowerCase() === trimmedSealId.toLowerCase()
-    );
+    ) || false;
     
     console.log('Scanning seal ID:', trimmedSealId);
-    console.log('Operator seals:', operatorSeals.map(s => s.id));
+    console.log('Operator seals:', operatorSeals?.map(s => s.id) || []);
     console.log('Is verified:', isVerified);
           
     // Add to scanned seals
@@ -1107,7 +1107,7 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
     
     return isGuard && 
       session?.status === SessionStatus.IN_PROGRESS && 
-      (operatorSeals.length > 0 || session?.seal?.barcode);
+      ((operatorSeals?.length || 0) > 0 || session?.seal?.barcode);
   }, [isGuard, session, operatorSeals]);
   
   // Check if user has edit permission
