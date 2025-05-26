@@ -361,7 +361,7 @@ const QrScannerDialog: React.FC<QrScannerDialogProps> = ({
               qrbox: { width: 250, height: 250 }
             },
             (decodedText: string) => {
-              onScan(decodedText);
+              if (onScan) onScan(decodedText);
             },
             () => {}
           ).catch(err => {
@@ -407,7 +407,7 @@ const QrScannerDialog: React.FC<QrScannerDialogProps> = ({
           qrbox: { width: 250, height: 250 }
         },
         (decodedText: string) => {
-          onScan(decodedText);
+          if (onScan) onScan(decodedText);
         },
         () => {}
       );
