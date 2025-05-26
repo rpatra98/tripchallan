@@ -19,7 +19,8 @@ import {
   InputLabel,
   Select,
   MenuItem,
-  SelectChangeEvent
+  SelectChangeEvent,
+  Alert
 } from "@mui/material";
 import { 
   Comment, 
@@ -153,7 +154,12 @@ export default function CommentSection({ sessionId }: CommentSectionProps) {
         });
 
         if (!response.ok) {
-          throw new Error("Failed to add comment");
+          const errorData = await response.json().catch(() => ({}));
+          if (response.status === 413) {
+            throw new Error(errorData.error || "Image is too large. Please use a smaller image (max 5MB).");
+          } else {
+            throw new Error(errorData.error || "Failed to add comment");
+          }
         }
 
         const newComment = await response.json();
@@ -173,7 +179,8 @@ export default function CommentSection({ sessionId }: CommentSectionProps) {
         });
 
         if (!response.ok) {
-          throw new Error("Failed to add comment");
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(errorData.error || "Failed to add comment");
         }
 
         const newComment = await response.json();
@@ -250,6 +257,16 @@ export default function CommentSection({ sessionId }: CommentSectionProps) {
         <Comment color="action" sx={{ mr: 1 }} />
         <Typography variant="h6">Comments</Typography>
       </Box>
+
+      {error && (
+        <Alert 
+          severity="error" 
+          sx={{ mb: 2 }}
+          onClose={() => setError(null)}
+        >
+          {error}
+        </Alert>
+      )}
 
       <form onSubmit={handleSendComment}>
         <TextField
@@ -359,12 +376,6 @@ export default function CommentSection({ sessionId }: CommentSectionProps) {
           </Button>
         </Box>
       </form>
-
-      {error && (
-        <Typography color="error" sx={{ mt: 2, mb: 2 }}>
-          {error}
-        </Typography>
-      )}
 
       <List sx={{ mt: 2 }}>
         {isFetching ? (

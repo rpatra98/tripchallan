@@ -4,6 +4,16 @@ import { authOptions } from "@/lib/auth-options";
 import prisma from "@/lib/prisma";
 import { fileToBase64 } from "@/lib/utils";
 
+// Configure larger payload size - 10MB
+export const config = {
+  api: {
+    bodyParser: {
+      sizeLimit: '10mb',
+    },
+    responseLimit: '10mb',
+  },
+};
+
 export async function GET(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
@@ -94,6 +104,15 @@ export async function POST(req: NextRequest) {
       // Process image if available
       if (imageFile) {
         try {
+          // Check file size - reject if too large (>5MB)
+          const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
+          if (imageFile.size > MAX_FILE_SIZE) {
+            return NextResponse.json(
+              { error: "Image file is too large. Maximum size is 5MB." },
+              { status: 413 }
+            );
+          }
+          
           // Convert image to base64 string
           const arrayBuffer = await imageFile.arrayBuffer();
           const buffer = Buffer.from(arrayBuffer);
