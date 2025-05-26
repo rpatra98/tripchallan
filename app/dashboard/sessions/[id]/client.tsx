@@ -2481,8 +2481,9 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
                               cursor: 'pointer'
                             }}
                             onClick={() => {
-                              // Open image in new tab
-                              window.open(seal.image!, '_blank');
+                              // Open image in modal
+                              setSelectedImage(seal.image);
+                              setOpenImageModal(true);
                             }}
                           />
                         ) : (
@@ -3255,8 +3256,9 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
                               cursor: 'pointer'
                             }}
                             onClick={() => {
-                              // Open image in new tab
-                              window.open(seal.imageData, '_blank');
+                              // Open image in modal
+                              setSelectedImage(seal.imageData);
+                              setOpenImageModal(true);
                             }}
                           />
                         ) : (
@@ -3571,6 +3573,9 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
       [imageKey]: comment
     }));
   };
+
+  const [openImageModal, setOpenImageModal] = useState(false);
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
 
   if (authStatus === "loading" || loading) {
     return (
@@ -3986,8 +3991,9 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
                               cursor: 'pointer'
                             }}
                             onClick={() => {
-                              // Open image in new tab
-                              window.open(seal.image!, '_blank');
+                              // Open image in modal
+                              setSelectedImage(seal.image);
+                              setOpenImageModal(true);
                             }}
                           />
                         ) : (
@@ -4025,30 +4031,84 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
               {session.images.driverPicture && (
                 <Box sx={{ flex: '1 0 30%', minWidth: '200px' }}>
                   <Typography variant="subtitle2" gutterBottom>Driver</Typography>
-                  <img 
+                  <Box
+                    component="img" 
                     src={session.images.driverPicture} 
                     alt="Driver" 
-                    style={{ width: '100%', maxHeight: '200px', objectFit: 'cover', borderRadius: '4px' }} 
+                    sx={{ 
+                      width: '100%', 
+                      maxHeight: '200px', 
+                      objectFit: 'cover', 
+                      borderRadius: '4px',
+                      cursor: 'pointer',
+                      transition: 'transform 0.2s',
+                      '&:hover': {
+                        transform: 'scale(1.03)',
+                        boxShadow: '0 4px 8px rgba(0,0,0,0.1)'
+                      }
+                    }}
+                    onClick={() => {
+                      if (session.images?.driverPicture) {
+                        setSelectedImage(session.images.driverPicture);
+                        setOpenImageModal(true);
+                      }
+                    }}
                   />
                 </Box>
               )}
               {session.images.vehicleNumberPlatePicture && (
                 <Box sx={{ flex: '1 0 30%', minWidth: '200px' }}>
                   <Typography variant="subtitle2" gutterBottom>Number Plate</Typography>
-                  <img 
+                  <Box
+                    component="img" 
                     src={session.images.vehicleNumberPlatePicture} 
                     alt="Vehicle Number Plate" 
-                    style={{ width: '100%', maxHeight: '200px', objectFit: 'cover', borderRadius: '4px' }} 
+                    sx={{ 
+                      width: '100%', 
+                      maxHeight: '200px', 
+                      objectFit: 'cover', 
+                      borderRadius: '4px',
+                      cursor: 'pointer',
+                      transition: 'transform 0.2s',
+                      '&:hover': {
+                        transform: 'scale(1.03)',
+                        boxShadow: '0 4px 8px rgba(0,0,0,0.1)'
+                      }
+                    }}
+                    onClick={() => {
+                      if (session.images?.vehicleNumberPlatePicture) {
+                        setSelectedImage(session.images.vehicleNumberPlatePicture);
+                        setOpenImageModal(true);
+                      }
+                    }}
                   />
                 </Box>
               )}
               {session.images.gpsImeiPicture && (
                 <Box sx={{ flex: '1 0 30%', minWidth: '200px' }}>
                   <Typography variant="subtitle2" gutterBottom>GPS/IMEI</Typography>
-                  <img 
+                  <Box
+                    component="img" 
                     src={session.images.gpsImeiPicture} 
                     alt="GPS IMEI" 
-                    style={{ width: '100%', maxHeight: '200px', objectFit: 'cover', borderRadius: '4px' }} 
+                    sx={{ 
+                      width: '100%', 
+                      maxHeight: '200px', 
+                      objectFit: 'cover', 
+                      borderRadius: '4px',
+                      cursor: 'pointer',
+                      transition: 'transform 0.2s',
+                      '&:hover': {
+                        transform: 'scale(1.03)',
+                        boxShadow: '0 4px 8px rgba(0,0,0,0.1)'
+                      }
+                    }}
+                    onClick={() => {
+                      if (session.images?.gpsImeiPicture) {
+                        setSelectedImage(session.images.gpsImeiPicture);
+                        setOpenImageModal(true);
+                      }
+                    }}
                   />
                 </Box>
               )}
@@ -4061,10 +4121,26 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
                   </Box>
                   {session.images.sealingImages.map((image, index) => (
                     <Box key={`sealing-${index}`} sx={{ flex: '1 0 30%', minWidth: '200px' }}>
-                      <img 
+                      <Box
+                        component="img" 
                         src={image} 
                         alt={`Sealing ${index + 1}`} 
-                        style={{ width: '100%', maxHeight: '200px', objectFit: 'cover', borderRadius: '4px' }} 
+                        sx={{ 
+                          width: '100%', 
+                          maxHeight: '200px', 
+                          objectFit: 'cover', 
+                          borderRadius: '4px',
+                          cursor: 'pointer',
+                          transition: 'transform 0.2s',
+                          '&:hover': {
+                            transform: 'scale(1.03)',
+                            boxShadow: '0 4px 8px rgba(0,0,0,0.1)'
+                          }
+                        }}
+                        onClick={() => {
+                          setSelectedImage(image);
+                          setOpenImageModal(true);
+                        }}
                       />
                     </Box>
                   ))}
@@ -4079,10 +4155,26 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
                   </Box>
                   {session.images.vehicleImages.map((image, index) => (
                     <Box key={`vehicle-${index}`} sx={{ flex: '1 0 30%', minWidth: '200px' }}>
-                      <img 
+                      <Box
+                        component="img" 
                         src={image} 
                         alt={`Vehicle ${index + 1}`} 
-                        style={{ width: '100%', maxHeight: '200px', objectFit: 'cover', borderRadius: '4px' }} 
+                        sx={{ 
+                          width: '100%', 
+                          maxHeight: '200px', 
+                          objectFit: 'cover', 
+                          borderRadius: '4px',
+                          cursor: 'pointer',
+                          transition: 'transform 0.2s',
+                          '&:hover': {
+                            transform: 'scale(1.03)',
+                            boxShadow: '0 4px 8px rgba(0,0,0,0.1)'
+                          }
+                        }}
+                        onClick={() => {
+                          setSelectedImage(image);
+                          setOpenImageModal(true);
+                        }}
                       />
                     </Box>
                   ))}
@@ -4097,10 +4189,26 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
                   </Box>
                   {session.images.additionalImages.map((image, index) => (
                     <Box key={`additional-${index}`} sx={{ flex: '1 0 30%', minWidth: '200px' }}>
-                      <img 
+                      <Box
+                        component="img" 
                         src={image} 
                         alt={`Additional ${index + 1}`} 
-                        style={{ width: '100%', maxHeight: '200px', objectFit: 'cover', borderRadius: '4px' }} 
+                        sx={{ 
+                          width: '100%', 
+                          maxHeight: '200px', 
+                          objectFit: 'cover', 
+                          borderRadius: '4px',
+                          cursor: 'pointer',
+                          transition: 'transform 0.2s',
+                          '&:hover': {
+                            transform: 'scale(1.03)',
+                            boxShadow: '0 4px 8px rgba(0,0,0,0.1)'
+                          }
+                        }}
+                        onClick={() => {
+                          setSelectedImage(image);
+                          setOpenImageModal(true);
+                        }}
                       />
                     </Box>
                   ))}
@@ -4286,6 +4394,29 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
 
       {/* Comment section - moved after verification results */}
       <CommentSection sessionId={sessionId} />
+
+      {/* Image Modal */}
+      <Dialog
+        open={openImageModal}
+        onClose={() => setOpenImageModal(false)}
+        maxWidth="lg"
+        fullWidth
+      >
+        <DialogContent sx={{ p: 1, textAlign: 'center' }}>
+          {selectedImage && (
+            <Box
+              component="img"
+              src={selectedImage}
+              alt="Seal tag"
+              sx={{
+                maxWidth: '100%',
+                maxHeight: 'calc(100vh - 100px)',
+                objectFit: 'contain'
+              }}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
     </Container>
   );
 }
