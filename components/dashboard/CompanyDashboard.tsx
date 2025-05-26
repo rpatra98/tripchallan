@@ -540,7 +540,7 @@ export default function CompanyDashboard({ user, initialTab }: CompanyDashboardP
                               <Box sx={{ display: "flex", alignItems: "center" }}>
                                 <CheckCircle color="success" sx={{ mr: 1 }} />
                                 <Typography variant="body2">
-                                  Verified by: {session.seal.verifiedBy?.name || "Unknown"}
+                                  Verified by: {session.seal.verifiedBy?.name || (session.seal.verifiedById ? "Guard" : "Unknown")}
                                   {session.seal.scannedAt && ` (${formatDate(session.seal.scannedAt)})`}
                                 </Typography>
                               </Box>
