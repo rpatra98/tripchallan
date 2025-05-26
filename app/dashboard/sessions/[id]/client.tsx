@@ -326,7 +326,7 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
   // Add useEffect to fetch session details when component mounts
   useEffect(() => {
     console.log("Component mounted, fetching session details...");
-    fetchSessionDetails();
+      fetchSessionDetails();
   }, [fetchSessionDetails]);
   
   // Add useEffect to extract verification data from session when it's loaded
@@ -352,26 +352,26 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
             // Process verification data
             const fieldVerifications = verificationDetails.fieldVerifications;
             
-            const matches: string[] = [];
-            const mismatches: string[] = [];
-            const unverified: string[] = [];
+    const matches: string[] = [];
+    const mismatches: string[] = [];
+    const unverified: string[] = [];
             const allFields: Record<string, any> = {};
-            
+    
             // Process each field
-            Object.entries(fieldVerifications).forEach(([field, data]: [string, any]) => {
+    Object.entries(fieldVerifications).forEach(([field, data]: [string, any]) => {
               allFields[field] = data;
               
               if (data.isVerified) {
                 if (data.matches) {
-                  matches.push(field);
-                } else {
-                  mismatches.push(field);
-                }
-              } else {
-                unverified.push(field);
-              }
-            });
-            
+          matches.push(field);
+        } else {
+          mismatches.push(field);
+        }
+      } else {
+        unverified.push(field);
+      }
+    });
+    
             // Set verification results
             setVerificationResults({
               matches,
@@ -416,10 +416,10 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
           });
           
           // Set verification results
-          setVerificationResults({
-            matches,
-            mismatches,
-            unverified,
+    setVerificationResults({
+      matches,
+      mismatches,
+      unverified,
             allFields,
             timestamp: verificationData.verificationTimestamp || session.seal.scannedAt || new Date().toISOString()
           });
@@ -982,7 +982,7 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
   // Modified version of handleVerifySeal to allow completion without a seal barcode
   const handleVerifySeal = async () => {
     try {
-      setVerifying(true);
+    setVerifying(true);
       setError(""); // Clear any previous error
       
       // Upload any guard images that were provided
@@ -991,11 +991,11 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
       // Calculate verification results for each field
       const fieldVerificationResults = Object.entries(verificationFields).reduce(
         (results, [field, data]) => {
-          results[field] = {
-            operatorValue: data.operatorValue,
+            results[field] = {
+              operatorValue: data.operatorValue,
             guardValue: data.operatorValue, // Use operator value as the guard value
             matches: true, // Always match since we're just verifying
-            comment: data.comment,
+              comment: data.comment,
             isVerified: data.isVerified
           };
           return results;
@@ -1012,21 +1012,21 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
         try {
           if (session?.seal?.id) {
             response = await fetch("/api/seals", {
-            method: "PATCH",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({ 
-              sealId: session.seal.id,
-              verificationData: {
-                fieldVerifications: fieldVerificationResults,
-                guardImages: uploadedImageUrls,
-                sealBarcode: sealInput || null,
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ 
+          sealId: session.seal.id,
+          verificationData: {
+            fieldVerifications: fieldVerificationResults,
+            guardImages: uploadedImageUrls,
+            sealBarcode: sealInput || null,
                 allMatch: true, // Always match since we're just verifying
-                verificationTimestamp: new Date().toISOString()
-              }
-            }),
-          });
+            verificationTimestamp: new Date().toISOString()
+          }
+        }),
+      });
           } else if (session) {
             // Create a new seal for this session
             response = await fetch("/api/seals", {
@@ -1103,7 +1103,7 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
       const matches = Object.entries(fieldVerificationResults)
         .filter(([_, data]) => data.matches && data.isVerified)
         .map(([field, _]) => field);
-      
+        
       const mismatches = Object.entries(fieldVerificationResults)
         .filter(([_, data]) => !data.matches && data.isVerified)
         .map(([field, _]) => field);
@@ -1123,7 +1123,7 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
       
       // Reload session data to update status
       setTimeout(() => {
-        fetchSessionDetails();
+      fetchSessionDetails();
       }, 1000);
     } catch (err) {
       console.error("Error verifying seal:", err);
@@ -1293,11 +1293,11 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
                   'tareWeight', 'netMaterialWeight', 'loaderMobileNumber'
                 ].includes(field))
                 .map(([field, data]) => (
-                  <TableRow key={field} sx={{ '&:last-child td, &:last-child th': { border: 0 } }}>
-                    <TableCell component="th" scope="row">
-                      {getFieldLabel(field)}
-                    </TableCell>
-                    <TableCell>
+                <TableRow key={field} sx={{ '&:last-child td, &:last-child th': { border: 0 } }}>
+                  <TableCell component="th" scope="row">
+                    {getFieldLabel(field)}
+                  </TableCell>
+                  <TableCell>
                       {data.operatorValue}
                     </TableCell>
                     <TableCell>
@@ -1309,8 +1309,8 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
                         >
                           {data.isVerified ? <CheckCircle /> : <RadioButtonUnchecked />}
                         </IconButton>
-                        <TextField
-                          size="small"
+                    <TextField 
+                      size="small"
                           placeholder="Add comment"
                           value={data.comment}
                           onChange={(e) => handleCommentChange(field, e.target.value)}
@@ -1348,7 +1348,7 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
         <Box sx={{ py: 3, textAlign: 'center' }}>
           <Typography variant="body1" color="text.secondary">
             No driver details available for verification.
-          </Typography>
+                      </Typography>
         </Box>
       );
     }
@@ -1384,16 +1384,16 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
                     </TableCell>
                     <TableCell>
                       {data.operatorValue}
-                    </TableCell>
-                    <TableCell>
-                      <Box display="flex" flexDirection="column" alignItems="center">
-                        <IconButton 
-                          onClick={() => verifyField(field)}
+                  </TableCell>
+                  <TableCell>
+                    <Box display="flex" flexDirection="column" alignItems="center">
+                      <IconButton 
+                        onClick={() => verifyField(field)}
                           color={data.isVerified ? "success" : "default"}
-                          size="small"
-                        >
+                        size="small"
+                      >
                           {data.isVerified ? <CheckCircle /> : <RadioButtonUnchecked />}
-                        </IconButton>
+                      </IconButton>
                         <TextField
                           size="small"
                           placeholder="Add comment"
@@ -1404,21 +1404,21 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
                           InputProps={{
                             endAdornment: data.comment ? (
                               <InputAdornment position="end">
-                                <IconButton 
+                      <IconButton 
                                   onClick={() => handleCommentChange(field, '')}
                                   edge="end"
-                                  size="small" 
+                        size="small" 
                                 >
                                   <Close fontSize="small" />
-                                </IconButton>
+                      </IconButton>
                               </InputAdornment>
                             ) : null,
                           }}
                         />
-                      </Box>
-                    </TableCell>
-                  </TableRow>
-                ))}
+                    </Box>
+                  </TableCell>
+                </TableRow>
+              ))}
             </TableBody>
           </Table>
         </TableContainer>
@@ -1521,14 +1521,14 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
                   placeholder="Add comment"
                   value={imageComments.driverPicture || ''}
                   onChange={(e) => handleImageCommentChange('driverPicture', e.target.value)}
-                  variant="outlined"
+                      variant="outlined"
                   multiline
                   rows={2}
                   sx={{ mt: 2 }}
                 />
+                </Box>
               </Box>
-            </Box>
-          </Paper>
+            </Paper>
         )}
 
         {/* Vehicle Number Plate Verification */}
@@ -1564,14 +1564,14 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
                   placeholder="Add comment"
                   value={imageComments.vehicleNumberPlatePicture || ''}
                   onChange={(e) => handleImageCommentChange('vehicleNumberPlatePicture', e.target.value)}
-                  variant="outlined"
+                      variant="outlined"
                   multiline
                   rows={2}
                   sx={{ mt: 2 }}
                 />
+                </Box>
               </Box>
-            </Box>
-          </Paper>
+            </Paper>
         )}
 
         {/* GPS IMEI Verification */}
@@ -1607,12 +1607,12 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
                   placeholder="Add comment"
                   value={imageComments.gpsImeiPicture || ''}
                   onChange={(e) => handleImageCommentChange('gpsImeiPicture', e.target.value)}
-                  variant="outlined"
+                      variant="outlined"
                   multiline
                   rows={2}
                   sx={{ mt: 2 }}
                 />
-              </Box>
+                </Box>
             </Box>
           </Paper>
         )}
@@ -1647,7 +1647,7 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
                 rows={2}
                 sx={{ mt: 2, mb: 2 }}
               />
-            </Box>
+          </Box>
             <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
               {session.images.sealingImages.map((image, index) => (
                 <Box key={`sealing-${index}`} sx={{ width: '150px' }}>
@@ -1670,13 +1670,13 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
             </Typography>
             <Box sx={{ mb: 2 }}>
               <Box display="flex" alignItems="center">
-                <IconButton 
+                      <IconButton 
                   onClick={() => verifyImage('vehicleImages')}
                   color={imageVerificationStatus.vehicleImages ? "success" : "default"}
-                  size="small"
-                >
+                        size="small"
+                      >
                   {imageVerificationStatus.vehicleImages ? <CheckCircle /> : <RadioButtonUnchecked />}
-                </IconButton>
+                      </IconButton>
                 <Typography variant="body2" sx={{ ml: 1 }}>
                   Mark all vehicle images as verified
                 </Typography>
@@ -1701,9 +1701,9 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
                     alt={`Vehicle ${index + 1}`} 
                     style={{ width: '100%', height: 'auto', display: 'block', border: '1px solid #ddd', borderRadius: '4px' }}
                   />
+                    </Box>
+                  ))}
                 </Box>
-              ))}
-            </Box>
           </Paper>
         )}
 
@@ -1746,9 +1746,9 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
                     alt={`Additional ${index + 1}`} 
                     style={{ width: '100%', height: 'auto', display: 'block', border: '1px solid #ddd', borderRadius: '4px' }}
                   />
-                </Box>
+          </Box>
               ))}
-            </Box>
+        </Box>
           </Paper>
         )}
       </Box>
@@ -1793,10 +1793,10 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
         <Paper variant="outlined" sx={{ p: 2, mb: 4, bgcolor: 'primary.light', color: 'primary.contrastText' }}>
           <Typography variant="subtitle1" gutterBottom sx={{ color: 'primary.contrastText' }}>
             OPERATOR Seal Tags to Match ({operatorSeals.length})
-          </Typography>
+              </Typography>
           <Typography variant="body2" sx={{ mb: 2, color: 'primary.contrastText' }}>
             The following seal tags were registered by the operator. Scan or enter these exact tags to verify them.
-          </Typography>
+              </Typography>
           
           <TableContainer component={Paper}>
             <Table size="small">
@@ -1971,21 +1971,21 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
                 scannerTitle="Scan Seal Tag"
                 buttonVariant="contained"
               />
-            </Box>
-          </Box>
-        </Paper>
+                </Box>
+                </Box>
+                  </Paper>
 
         {/* Scanned Seals Table */}
         <Paper variant="outlined" sx={{ p: 2, mb: 4 }}>
-          <Typography variant="subtitle1" gutterBottom>
+                <Typography variant="subtitle1" gutterBottom>
             Scanned Seal Tags ({guardScannedSeals.length})
-          </Typography>
-          
+                </Typography>
+                
           {guardScannedSeals.length > 0 ? (
-            <TableContainer>
-              <Table size="small">
-                <TableHead>
-                  <TableRow>
+                    <TableContainer>
+                      <Table size="small">
+                        <TableHead>
+                          <TableRow>
                     <TableCell width="5%">#</TableCell>
                     <TableCell width="25%">Seal Tag ID</TableCell>
                     <TableCell width="15%">Method</TableCell>
@@ -1993,9 +1993,9 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
                     <TableCell width="20%">Image</TableCell>
                     <TableCell width="15%">Status</TableCell>
                     <TableCell width="10%">Actions</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
+                          </TableRow>
+                        </TableHead>
+                        <TableBody>
                   {guardScannedSeals.map((seal, index) => (
                     <TableRow key={index} sx={{
                       bgcolor: seal.verified ? 'transparent' : 'rgba(211, 47, 47, 0.1)'
@@ -2049,25 +2049,25 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
                           <Delete fontSize="small" />
                         </IconButton>
                       </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </TableContainer>
-          ) : (
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </TableContainer>
+                  ) : (
             <Box sx={{ py: 2, textAlign: 'center' }}>
-              <Typography variant="body2" color="text.secondary">
+                      <Typography variant="body2" color="text.secondary">
                 No seal tags scanned yet. Use the scanner above to add seal tags.
-              </Typography>
-            </Box>
-          )}
-        </Paper>
+                      </Typography>
+                    </Box>
+                  )}
+                </Paper>
 
         {/* Verification Summary */}
         <Paper variant="outlined" sx={{ p: 2, mb: 4 }}>
           <Typography variant="subtitle1" gutterBottom>
             Seal Tags Verification Summary
-          </Typography>
+                  </Typography>
           
           <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, mb: 3 }}>
             <Box sx={{ flex: '1 0 48%', minWidth: '250px' }}>
@@ -2093,9 +2093,9 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
             Detailed Comparison
           </Typography>
           
-          <TableContainer>
-            <Table size="small">
-              <TableHead>
+                    <TableContainer>
+                      <Table size="small">
+                        <TableHead>
                 <TableRow sx={{ bgcolor: 'background.paper' }}>
                   <TableCell colSpan={3} align="center" sx={{ borderRight: '1px solid rgba(224, 224, 224, 1)' }}>
                     <Typography variant="subtitle2">Operator Data</Typography>
@@ -2107,16 +2107,16 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
                     <Typography variant="subtitle2">Status</Typography>
                   </TableCell>
                 </TableRow>
-                <TableRow>
+                          <TableRow>
                   <TableCell>Seal Tag ID</TableCell>
                   <TableCell>Method</TableCell>
                   <TableCell sx={{ borderRight: '1px solid rgba(224, 224, 224, 1)' }}>Timestamp</TableCell>
                   <TableCell>Seal Tag ID</TableCell>
                   <TableCell>Method</TableCell>
                   <TableCell>Timestamp</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
+                          </TableRow>
+                        </TableHead>
+                        <TableBody>
                 {/* All operator seals */}
                 {operatorSeals.map((operatorSeal, index) => {
                   const matchingGuardSeal = guardScannedSeals.find(
@@ -2130,7 +2130,7 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
                       bgcolor: isMatched ? 'transparent' : 'rgba(211, 47, 47, 0.1)'
                     }}>
                       <TableCell>{operatorSeal.id}</TableCell>
-                      <TableCell>
+                              <TableCell>
                         <Chip 
                           size="small"
                           label={operatorSeal.method === 'digital' ? 'Scanned' : 'Manual'} 
@@ -2170,8 +2170,8 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
                           color={isMatched ? 'success' : 'error'}
                           icon={isMatched ? <CheckCircle fontSize="small" /> : <Warning fontSize="small" />}
                         />
-                      </TableCell>
-                    </TableRow>
+                              </TableCell>
+                            </TableRow>
                   );
                 })}
                 
@@ -2211,9 +2211,9 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
                     </TableRow>
                   ))
                 }
-              </TableBody>
-            </Table>
-          </TableContainer>
+                        </TableBody>
+                      </Table>
+                    </TableContainer>
         </Paper>
 
         {/* Side-by-side Image Comparison */}
@@ -2288,7 +2288,7 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
         <Paper variant="outlined" sx={{ p: 2, mb: 4 }}>
           <Typography variant="subtitle1" gutterBottom>
             Complete Seal Verification Report
-          </Typography>
+                </Typography>
           
           <TableContainer>
             <Table size="small">
@@ -2494,7 +2494,7 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
                 </TableBody>
               </Table>
             </TableContainer>
-          </Box>
+              </Box>
         )}
       </Paper>
     );
@@ -2581,7 +2581,7 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
           pdf.setFontSize(10);
           
           // Format value
-          const formattedValue = value === null || value === undefined
+          let formattedValue = value === null || value === undefined
             ? 'N/A'
             : typeof value === 'object'
               ? JSON.stringify(value)
@@ -2596,11 +2596,11 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
           if (inline) {
             // Improved styling for field/value pairs
             pdf.setTextColor(70, 70, 70); // Dark gray for label
-            pdf.text(`${label}: `, margin, currentY);
+            pdf.text(`${label}:   `, margin, currentY);
             pdf.setFont("helvetica", "normal");
             
             // Calculate position for value text (after label)
-            const labelWidth = pdf.getStringUnitWidth(`${label}: `) * 10 * 0.3; // approximate conversion
+            const labelWidth = pdf.getStringUnitWidth(`${label}: `) * 10 * 0.5; // approximate conversion
             pdf.setTextColor(0, 0, 0); // Black for value
             pdf.text(formattedValue, margin + labelWidth, currentY);
             currentY += 6; // Increased spacing between lines
@@ -3110,8 +3110,8 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
                           >
                             <Typography variant="body2" sx={{ fontFamily: 'monospace', fontSize: '0.9rem', fontWeight: 'medium' }}>
                               {seal.barcode}
-                            </Typography>
-                          </Box>
+                    </Typography>
+                  </Box>
                         </TableCell>
                         <TableCell>
                           <Chip 
@@ -3144,7 +3144,7 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
                         <TableCell>
                           {seal.verifiedBy ? (
                             <Tooltip title={`User ID: ${seal.verifiedBy.id}`}>
-                              <Typography variant="body2">
+                      <Typography variant="body2">
                                 {seal.verifiedBy.name || 'Unknown'} 
                                 <Typography variant="caption" component="span" color="text.secondary">
                                   {' '}({seal.verifiedBy.subrole || seal.verifiedBy.role || 'User'})
@@ -3231,8 +3231,8 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
                         >
                           <Typography variant="body2" sx={{ fontFamily: 'monospace', fontSize: '0.9rem', fontWeight: 'medium' }}>
                             {seal.barcode}
-                          </Typography>
-                        </Box>
+                      </Typography>
+                    </Box>
                       </TableCell>
                       <TableCell>
                         <Chip 
@@ -3283,8 +3283,8 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
                 </TableBody>
               </Table>
             </TableContainer>
-          </>
-        )}
+                </>
+              )}
         
         <Box display="flex" justifyContent="flex-end">
           <Button
@@ -3413,10 +3413,10 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
                              </Typography>
                            </Box>
                          )}
-                       </Box>
-                    </Box>
-                  )}
-                </Paper>
+            </Box>
+          </Box>
+        )}
+      </Paper>
                 
                 {/* Field Verifications */}
                 {selectedSeal.verificationDetails?.fieldVerifications && Object.keys(selectedSeal.verificationDetails.fieldVerifications).length > 0 && (
@@ -3999,17 +3999,17 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
                 </TableBody>
               </Table>
             </TableContainer>
-          </Box>
-        )}
+                </Box>
+              )}
 
         {/* Add All Verification Seals section */}
         <Box mb={3}>
           <Typography variant="h6" gutterBottom>
             All Verification Seals
-          </Typography>
+                  </Typography>
           <Divider sx={{ mb: 2 }} />
           {renderAllSeals()}
-        </Box>
+                </Box>
 
         {/* Images section - moved before Reports section */}
         {session.images && Object.keys(session.images).some(key => {
