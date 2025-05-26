@@ -2596,11 +2596,11 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
           if (inline) {
             // Improved styling for field/value pairs
             pdf.setTextColor(70, 70, 70); // Dark gray for label
-            pdf.text(`${label}:   `, margin, currentY);
+            pdf.text(`${label}:  `, margin, currentY);
             pdf.setFont("helvetica", "normal");
             
             // Calculate position for value text (after label)
-            const labelWidth = pdf.getStringUnitWidth(`${label}: `) * 10 * 0.5; // approximate conversion
+            const labelWidth = pdf.getStringUnitWidth(`${label}: `) * 10 * 0.4; // approximate conversion
             pdf.setTextColor(0, 0, 0); // Black for value
             pdf.text(formattedValue, margin + labelWidth, currentY);
             currentY += 6; // Increased spacing between lines
