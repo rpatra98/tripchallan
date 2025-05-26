@@ -213,7 +213,7 @@ export default function SessionCard({
               <Box sx={{ display: "flex", alignItems: "center" }}>
                 <Verified color="success" sx={{ mr: 1 }} />
                 <Typography variant="body2">
-                  Verified by: {session.seal.verifiedBy?.name || "Unknown"}
+                  Verified by: {session.seal.verifiedBy?.name || (session.seal.verifiedById ? "Guard" : "Unknown")}
                   {session.seal.scannedAt && ` (${formatDate(session.seal.scannedAt)})`}
                 </Typography>
               </Box>
