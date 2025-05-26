@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth-options";
 import prisma from "@/lib/prisma";
 import { UserRole, EmployeeSubrole } from "@/prisma/enums";
 import Link from "next/link";
+import { cookies } from "next/headers";
 import CompanyActions from "./company-actions";
 
 // Add dynamic export to ensure Next.js treats this as a dynamic route

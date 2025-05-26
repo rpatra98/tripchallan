@@ -57,7 +57,12 @@ export default function CompanyDetailPage({ params }) {
         const empRes = await fetch(`/api/companies/${companyId}/employees`);
         if (empRes.ok) {
           const empData = await empRes.json();
-          setEmployees(empData);
+          // Filter out employees whose email matches the company's email
+          const filteredEmps = empData.filter(emp => 
+            emp.email.toLowerCase() !== data.email.toLowerCase() && 
+            emp.name.toLowerCase() !== data.name.toLowerCase()
+          );
+          setEmployees(filteredEmps);
         }
       } catch (err) {
         console.error("Error fetching company:", err);
@@ -174,6 +179,22 @@ export default function CompanyDetailPage({ params }) {
               <h3 className="text-sm font-medium text-gray-500">Created</h3>
               <p className="mt-1">{new Date(company.createdAt).toLocaleDateString()}</p>
             </div>
+            {company.logo && (
+              <div>
+                <h3 className="text-sm font-medium text-gray-500">Company Logo</h3>
+                <div className="w-40 h-40 border rounded-md overflow-hidden mt-2">
+                  <img 
+                    src={company.logo} 
+                    alt={`${company.name} logo`} 
+                    className="w-full h-full object-contain"
+                    onError={(e) => {
+                      e.target.onerror = null;
+                      e.target.src = '/placeholder-logo.png'; // Fallback image
+                    }}
+                  />
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>
