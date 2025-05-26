@@ -53,6 +53,7 @@ export async function GET(
         }
       }
     });
+    
 
     console.log(`API: Direct company lookup result:`, company ? "Found" : "Not Found");
 
