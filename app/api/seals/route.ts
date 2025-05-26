@@ -105,7 +105,7 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       );
     }
-    
+
     // Create the seal
     const sealData: any = {
       sessionId,
@@ -120,12 +120,12 @@ export async function POST(req: NextRequest) {
       sealData.scannedAt = new Date();
       
       // Create the seal with verification
-      const seal = await prisma.seal.create({
+    const seal = await prisma.seal.create({
         data: sealData,
         include: {
           verifiedBy: true,
-        },
-      });
+      },
+    });
       
       // Update session status to COMPLETED
       await prisma.session.update({
@@ -198,14 +198,14 @@ export async function POST(req: NextRequest) {
       const seal = await prisma.seal.create({
         data: sealData,
       });
-  
-      // Update session status to IN_PROGRESS
-      await prisma.session.update({
-        where: { id: sessionId },
-        data: { status: "IN_PROGRESS" },
-      });
-  
-      return NextResponse.json(seal);
+
+    // Update session status to IN_PROGRESS
+    await prisma.session.update({
+      where: { id: sessionId },
+      data: { status: "IN_PROGRESS" },
+    });
+
+    return NextResponse.json(seal);
     }
   } catch (error) {
     console.error("Error creating seal:", error);
@@ -291,16 +291,16 @@ export async function PATCH(req: NextRequest) {
       const result = await prisma.$transaction(async (prismaClient: any) => {
         // Type assertion for the transaction client
         const tx = prismaClient as typeof prisma;
-        
-        // Update the seal as verified
+
+    // Update the seal as verified
         const updatedSeal = await tx.seal.update({
-          where: { id: sealId },
-          data: {
-            verified: true,
-            verifiedById: user.id,
-            scannedAt: new Date(),
-          },
-          include: {
+      where: { id: sealId },
+      data: {
+        verified: true,
+        verifiedById: user.id,
+        scannedAt: new Date(),
+      },
+      include: {
             verifiedBy: true,
             session: {
               include: {
@@ -308,35 +308,35 @@ export async function PATCH(req: NextRequest) {
                 createdBy: true,
               }
             },
-          },
-        });
+      },
+    });
 
-        // Update session status to COMPLETED
+    // Update session status to COMPLETED
         await tx.session.update({
-          where: { id: updatedSeal.sessionId },
-          data: { 
-            status: "COMPLETED" 
-          },
-        });
+      where: { id: updatedSeal.sessionId },
+      data: { 
+        status: "COMPLETED" 
+      },
+    });
 
-        // Store verification data in activity log
+    // Store verification data in activity log
         await tx.activityLog.create({
-          data: {
-            userId: user.id,
-            action: "UPDATE",
-            targetResourceId: updatedSeal.sessionId,
-            targetResourceType: "session",
-            details: {
-              verification: {
-                timestamp: new Date().toISOString(),
-                sealId: sealId,
-                fieldVerifications: verificationData.fieldVerifications,
-                imageVerifications: verificationData.imageVerifications,
-                allMatch: verificationData.allMatch
-              }
-            }
+      data: {
+        userId: user.id,
+        action: "UPDATE",
+        targetResourceId: updatedSeal.sessionId,
+        targetResourceType: "session",
+        details: {
+          verification: {
+            timestamp: new Date().toISOString(),
+            sealId: sealId,
+            fieldVerifications: verificationData.fieldVerifications,
+            imageVerifications: verificationData.imageVerifications,
+            allMatch: verificationData.allMatch
           }
-        });
+        }
+      }
+    });
 
         return updatedSeal;
       });
@@ -386,11 +386,11 @@ export async function PATCH(req: NextRequest) {
         console.log("[API] No company email found, skipping verification email");
       }
 
-      return NextResponse.json({
+    return NextResponse.json({
         ...result,
-        verificationDetails: {
-          allMatch: verificationData.allMatch,
-          fieldVerifications: verificationData.fieldVerifications
+      verificationDetails: {
+        allMatch: verificationData.allMatch,
+        fieldVerifications: verificationData.fieldVerifications
         },
         emailSent,
         emailError: emailError ? String(emailError) : null

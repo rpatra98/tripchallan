@@ -73,26 +73,26 @@ export async function GET(
       // If we found a company user, get the actual company data if it has a companyId
       if (companyUser) {
         if (companyUser.companyId) {
-          company = await prisma.company.findUnique({
-            where: { id: companyUser.companyId },
-            include: {
-              employees: {
-                where: { role: UserRole.EMPLOYEE },
-                select: {
-                  id: true,
-                  name: true,
-                  email: true,
+        company = await prisma.company.findUnique({
+          where: { id: companyUser.companyId },
+          include: {
+            employees: {
+              where: { role: UserRole.EMPLOYEE },
+              select: {
+                id: true,
+                name: true,
+                email: true,
                   role: true,
-                  subrole: true,
-                  coins: true,
-                  createdAt: true
-                }
+                subrole: true,
+                coins: true,
+                createdAt: true
               }
             }
-          });
+          }
+        });
           
           console.log(`API: Related company lookup result:`, company ? "Found" : "Not Found");
-        }
+      }
 
         // If we found a company user but no related company record, create a synthetic company object
         if (!company) {
@@ -117,18 +117,18 @@ export async function GET(
           
           console.log(`API: Found ${employees.length} employees for synthetic company`);
           
-          return NextResponse.json({
-            id: companyUser.id,
-            companyId: companyUser.companyId,
-            name: companyUser.name,
-            email: companyUser.email,
+        return NextResponse.json({
+          id: companyUser.id,
+          companyId: companyUser.companyId,
+          name: companyUser.name,
+          email: companyUser.email,
             coins: companyUser.coins || 0,
-            createdAt: companyUser.createdAt,
-            updatedAt: companyUser.updatedAt,
+          createdAt: companyUser.createdAt,
+          updatedAt: companyUser.updatedAt,
             employees: employees || [],
             isActive: true, // Default to active
-            _synthetic: true
-          });
+          _synthetic: true
+        });
         }
       }
     }
