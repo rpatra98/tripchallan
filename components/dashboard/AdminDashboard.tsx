@@ -46,9 +46,17 @@ interface EmployeeData {
 
 // Add a helper function before the component to ensure we're using the right company ID
 function getCompanyLinkId(company: CompanyData) {
-  // If company has a companyUserId, use that, otherwise use the company.id
-  // This ensures we link to the right ID
-  return company.companyUserId || company.id;
+  // Make sure we use the complete, non-truncated ID
+  // First check if companyUserId exists, otherwise use company.id
+  const id = company.companyUserId || company.id;
+  
+  // Ensure the ID is not truncated and is properly formatted
+  if (!id || typeof id !== 'string') {
+    console.error("Invalid company ID:", id);
+    return "invalid-id"; // Fallback
+  }
+  
+  return id;
 }
 
 // Helper function to check company active status - matches the details page logic

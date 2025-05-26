@@ -44,8 +44,8 @@ interface Company {
 export default async function CompanyDetailPage({ params }: { params: { id: string } }) {
   const companyId = params.id;
   
-  // Debug output
-  console.log("Company ID from params:", companyId);
+  // Enhanced debug output
+  console.log(`Company detail page - ID from params: "${companyId}" - Length: ${companyId?.length || 0}`);
   
   try {
     const session = await getServerSession(authOptions);

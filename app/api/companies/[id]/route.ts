@@ -27,7 +27,13 @@ export async function GET(
       );
     }
 
-    console.log(`API: Fetching company with ID: ${id}`);
+    // Additional validation for the ID format
+    console.log(`API: Fetching company with ID: "${id}" - Length: ${id.length}`);
+    
+    // Validate UUID format if possible
+    if (id.length < 10) {
+      console.warn(`API: Suspicious company ID (too short): ${id}`);
+    }
 
     // First, check if this is a direct company ID
     let company = await prisma.company.findUnique({
