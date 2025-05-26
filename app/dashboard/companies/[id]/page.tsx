@@ -1,3 +1,4 @@
+import { cookies } from \" "next/headers\;  
 import { notFound, redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-options";
@@ -41,9 +42,17 @@ interface Company {
 }
 
 export default async function CompanyDetailPage({ params }: { params: { id: string } }) {
-  const companyId = params.id;
+  // Get and decode the ID from params
+  let companyId = params.id;
   
-  // Enhanced debug output
+  // Try to decode the ID in case it has encoding issues
+  try {
+    companyId = decodeURIComponent(companyId);
+  } catch (e) {
+    console.error("Failed to decode company ID:", e);
+    // Continue with the original ID
+  }
+  
   console.log(`Company detail page - ID from params: "${companyId}" - Length: ${companyId?.length || 0}`);
   
   try {
@@ -69,58 +78,88 @@ export default async function CompanyDetailPage({ params }: { params: { id: stri
       redirect("/dashboard");
     }
 
-    // Get full company details from the API which will include more data
-    const cookieStore = cookies();
-    let company: Company | null = null;
-    let error = null;
-
-    try {
-      const response = await fetch(`${process.env.NEXTAUTH_URL}/api/companies/${companyId}`, {
-        headers: {
-          cookie: cookieStore.toString(),
-        },
-        next: { revalidate: 0 },
-      });
-
-      if (!response.ok) {
-        console.error("API error:", response.status, response.statusText);
-        error = `API error: ${response.status} ${response.statusText}`;
-      } else {
-        const data = await response.json();
-        company = data;
-        
-        // Debug the company data structure
-        console.log("Company data structure:", JSON.stringify(company, null, 2));
-        
-        // Ensure employees is an array
-        if (company && !company.employees) {
-          company.employees = [];
-        }
-        
-        // Ensure company has all required fields
-        if (company) {
-          company = {
-            ...company,
-            isActive: company.isActive !== undefined ? company.isActive : true,
-            employees: company.employees || [],
-            coins: company.coins || 0,
-            createdAt: company.createdAt || new Date().toISOString(),
-            updatedAt: company.updatedAt || new Date().toISOString()
-          };
-        }
-      }
+    // Check if ID might be truncated (usually UUIDs are 36 chars with hyphens)
+    const potentiallyTruncated = companyId.length > 0 && companyId.length < 30;
+    if (potentiallyTruncated) {
+      console.log(`Potentially truncated ID detected: ${companyId}`);
       
-    } catch (fetchError) {
-      console.error("Fetch error:", fetchError);
-      error = fetchError instanceof Error ? fetchError.message : String(fetchError);
+      // Try to find a matching company by partial ID
+      try {
+        // First check if any company starts with this ID
+        const companies = await prisma.company.findMany({
+          where: {
+            id: {
+              startsWith: companyId
+            }
+          },
+          take: 1
+        });
+        
+        if (companies.length > 0) {
+          // Found a matching company - redirect to its correct URL
+          const fullId = companies[0].id;
+          console.log(`Found matching company with full ID: ${fullId}`);
+          redirect(`/dashboard/companies/${fullId}`);
+          return null; // Not reached due to redirect
+        }
+        
+        // No company found with ID starting with the provided prefix
+        // Now try to find matching company users (COMPANY role)
+        const companyUsers = await prisma.user.findMany({
+          where: {
+            id: {
+              startsWith: companyId
+            },
+            role: UserRole.COMPANY
+          },
+          take: 1
+        });
+        
+        if (companyUsers.length > 0) {
+          // Found a matching company user - redirect to its correct URL
+          const fullId = companyUsers[0].id;
+          console.log(`Found matching company user with full ID: ${fullId}`);
+          redirect(`/dashboard/companies/${fullId}`);
+          return null; // Not reached due to redirect
+        }
+      } catch (searchError) {
+        console.error("Error searching for company by partial ID:", searchError);
+        // Continue with the original flow - we'll show an error page if needed
+      }
     }
 
-    // If we couldn't get the company data from the API, try to get it directly from the database
-    if (!company) {
-      try {
-        console.log("Fetching company directly from database as API failed");
-        
-        // First try to get the company user
+    // Get company data directly from database
+    let company: Company | null = null;
+    let error: string | null = null;
+    
+    try {
+      // Try direct company lookup
+      const dbCompany = await prisma.company.findUnique({
+        where: { id: companyId },
+        include: {
+          employees: {
+            where: { role: UserRole.EMPLOYEE },
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              role: true,
+              subrole: true,
+              coins: true,
+            }
+          }
+        }
+      });
+      
+      if (dbCompany) {
+        company = {
+          ...dbCompany,
+          createdAt: dbCompany.createdAt.toISOString(),
+          updatedAt: dbCompany.updatedAt.toISOString(),
+          employees: dbCompany.employees
+        };
+      } else {
+        // Try company user lookup
         const companyUser = await prisma.user.findFirst({
           where: {
             id: companyId,
@@ -131,15 +170,16 @@ export default async function CompanyDetailPage({ params }: { params: { id: stri
             name: true,
             email: true,
             companyId: true,
+            coins: true,
             createdAt: true,
             updatedAt: true
           }
         });
-
+        
         if (companyUser) {
-          // If company user has a companyId, try to get that company
           if (companyUser.companyId) {
-            const dbCompany = await prisma.company.findUnique({
+            // Get related company
+            const relatedCompany = await prisma.company.findUnique({
               where: { id: companyUser.companyId },
               include: {
                 employees: {
@@ -150,25 +190,25 @@ export default async function CompanyDetailPage({ params }: { params: { id: stri
                     email: true,
                     role: true,
                     subrole: true,
-                    coins: true,
+                    coins: true
                   }
                 }
               }
             });
             
-            if (dbCompany) {
+            if (relatedCompany) {
               company = {
-                ...dbCompany,
-                createdAt: dbCompany.createdAt.toISOString(),
-                updatedAt: dbCompany.updatedAt.toISOString(),
-                employees: dbCompany.employees,
+                ...relatedCompany,
+                createdAt: relatedCompany.createdAt.toISOString(),
+                updatedAt: relatedCompany.updatedAt.toISOString(),
+                employees: relatedCompany.employees
               };
             }
           }
           
-          // If we still don't have company data, create a synthetic company from user data
+          // If still no company, create synthetic one
           if (!company) {
-            // Get employees related to this company user
+            // Get employees for this company user
             const employees = await prisma.user.findMany({
               where: { 
                 companyId: companyUser.id,
@@ -180,7 +220,6 @@ export default async function CompanyDetailPage({ params }: { params: { id: stri
                 email: true,
                 subrole: true,
                 coins: true,
-                createdAt: true
               }
             });
             
@@ -190,42 +229,17 @@ export default async function CompanyDetailPage({ params }: { params: { id: stri
               email: companyUser.email,
               createdAt: companyUser.createdAt.toISOString(),
               updatedAt: companyUser.updatedAt.toISOString(),
-              employees: employees || [],
+              employees: employees,
+              isActive: true,
+              coins: companyUser.coins || 0,
               _synthetic: true
             };
           }
-        } else {
-          // If no company user found, try to get the company directly
-          const dbCompany = await prisma.company.findUnique({
-            where: { id: companyId },
-            include: {
-              employees: {
-                where: { role: UserRole.EMPLOYEE },
-                select: {
-                  id: true,
-                  name: true,
-                  email: true,
-                  role: true,
-                  subrole: true,
-                  coins: true,
-                }
-              }
-            }
-          });
-          
-          if (dbCompany) {
-            company = {
-              ...dbCompany,
-              createdAt: dbCompany.createdAt.toISOString(),
-              updatedAt: dbCompany.updatedAt.toISOString(),
-              employees: dbCompany.employees,
-            };
-          }
         }
-      } catch (dbError) {
-        console.error("Database error:", dbError);
-        error = (dbError instanceof Error) ? dbError.message : String(dbError);
       }
+    } catch (dbError) {
+      console.error("Database error:", dbError);
+      error = dbError instanceof Error ? dbError.message : String(dbError);
     }
 
     // If we still don't have company data, show an error
@@ -456,4 +470,4 @@ export default async function CompanyDetailPage({ params }: { params: { id: stri
       </div>
     );
   }
-}
+} 
