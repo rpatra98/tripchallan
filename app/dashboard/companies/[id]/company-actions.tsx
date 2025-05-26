@@ -23,6 +23,7 @@ export default function CompanyActions({ companyId, companyName, isActive }: Com
     setError('');
 
     try {
+      console.log(`Toggling activation for company ID: ${companyId}`);
       const response = await fetch(`/api/companies/${companyId}`, {
         method: 'PATCH',
         headers: {
@@ -83,6 +84,7 @@ export default function CompanyActions({ companyId, companyName, isActive }: Com
       }
 
       // If password is verified, proceed with company deletion
+      console.log(`Deleting company ID: ${companyId}`);
       const deleteResponse = await fetch(`/api/companies/${companyId}`, {
         method: 'DELETE',
         headers: {
