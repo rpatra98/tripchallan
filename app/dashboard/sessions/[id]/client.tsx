@@ -3146,7 +3146,7 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
                           {seal.verifiedBy ? (
                             <Tooltip title={`User ID: ${seal.verifiedBy.id}`}>
                       <Typography variant="body2">
-                                {seal.verifiedBy.name || 'Unknown'} 
+                                {seal.verifiedBy.name || (seal.verifiedById ? 'Guard' : 'Unknown')} 
                                 <Typography variant="caption" component="span" color="text.secondary">
                                   {' '}({seal.verifiedBy.subrole || seal.verifiedBy.role || 'User'})
                                 </Typography>
