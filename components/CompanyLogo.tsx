@@ -46,6 +46,14 @@ export default function CompanyLogo({ logoUrl, companyName }: CompanyLogoProps) 
       url = `/${url}`;
     }
     
+    // Use our custom image API route for uploads
+    if (url && url.includes('/uploads/')) {
+      // Remove the leading slash if it exists
+      const pathWithoutLeadingSlash = url.startsWith('/') ? url.substring(1) : url;
+      // Use the API route
+      url = `/api/images/${pathWithoutLeadingSlash}`;
+    }
+    
     setFixedUrl(url);
     setDebugInfo(`Original URL: ${logoUrl} | Fixed URL: ${url}`);
     console.log("CompanyLogo processing logoUrl:", logoUrl, "→", url);
