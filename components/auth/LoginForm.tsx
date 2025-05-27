@@ -75,7 +75,7 @@ export default function LoginForm({ callbackUrl, initialError, forceLogout, need
       });
 
       if (result?.error) {
-        setError(result.error);
+        setError(result.error === "CredentialsSignin" ? "You have entered wrong Email Address or Password" : result.error);
       } else if (result?.url) {
         // Use direct window location for more reliable navigation
         window.location.href = result.url;
