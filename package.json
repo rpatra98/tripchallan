@@ -4,15 +4,17 @@
   "private": true,
   "description": "Updated for Vercel deployment with React 19.1.0",
   "scripts": {
-    "dev": "next dev",
-    "build": "prisma generate && prisma migrate deploy && node prisma/seed.js && next build",
-    "start": "next start",
+    "dev": "node scripts/check-directories.js && next dev",
+    "build": "node scripts/check-directories.js && prisma generate && prisma migrate deploy && node prisma/seed.js && next build",
+    "start": "node scripts/check-directories.js && next start",
     "lint": "next lint",
     "migrate": "prisma migrate dev",
     "migrate:deploy": "prisma migrate deploy",
     "db:seed": "npx ts-node --compiler-options {\\\"module\\\":\\\"CommonJS\\\"} prisma/seed.ts",
     "db:seed:js": "node prisma/seed.js",
-    "vercel-build": "echo 'Running Vercel specific build' && prisma generate && node prisma/migrate-safely.js && (node prisma/seed.js || echo 'Seed failed but continuing') && next build"
+    "vercel-build": "echo 'Running Vercel specific build' && node scripts/check-directories.js && prisma generate && node prisma/migrate-safely.js && (node prisma/seed.js || echo 'Seed failed but continuing') && next build",
+    "check-dirs": "node scripts/check-directories.js",
+    "fix-images": "node scripts/fix-image-paths.js"
   },
   "dependencies": {
     "@emotion/react": "^11.14.0",
