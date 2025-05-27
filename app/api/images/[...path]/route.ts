@@ -44,8 +44,169 @@ export async function GET(
       index = pathSegments[2];
     }
 
-    // First try to serve from the public directory (for images that should be stored on disk)
-    // Build the absolute path in the public directory
+    // First try to get the image from the database
+    try {
+      // Verify the session exists
+      const session = await prisma.session.findUnique({
+        where: { id: sessionId },
+      });
+
+      if (!session) {
+        console.error(`Session not found: ${sessionId}`);
+        // Continue to file system fallback
+      } else {
+        // Find the activity logs for this session
+        const allLogs = await prisma.activityLog.findMany({
+          where: {
+            targetResourceId: sessionId,
+            targetResourceType: 'session',
+          },
+          orderBy: {
+            createdAt: 'desc',
+          },
+        });
+        
+        console.log(`Found ${allLogs.length} activity logs for session ${sessionId}`);
+        
+        // First, look for logs with direct imageBase64Data
+        let activityLog = allLogs.find((log: any) => 
+          log.details && 
+          typeof log.details === 'object' && 
+          (log.details as any).imageBase64Data
+        );
+        
+        if (activityLog) {
+          console.log(`Found activity log with imageBase64Data`);
+          const details = activityLog.details as any;
+          
+          if (details.imageBase64Data) {
+            console.log(`Activity log contains imageBase64Data`);
+            let imageData = null;
+            let contentType = 'image/jpeg';
+
+            // Extract the correct image data based on the type and index
+            if (imageType === 'gpsImei' && details.imageBase64Data.gpsImeiPicture) {
+              imageData = details.imageBase64Data.gpsImeiPicture.data;
+              contentType = details.imageBase64Data.gpsImeiPicture.contentType || contentType;
+            } else if (imageType === 'vehicleNumber' && details.imageBase64Data.vehicleNumberPlatePicture) {
+              imageData = details.imageBase64Data.vehicleNumberPlatePicture.data;
+              contentType = details.imageBase64Data.vehicleNumberPlatePicture.contentType || contentType;
+            } else if (imageType === 'driver' && details.imageBase64Data.driverPicture) {
+              imageData = details.imageBase64Data.driverPicture.data;
+              contentType = details.imageBase64Data.driverPicture.contentType || contentType;
+            } else if (imageType === 'sealing' && details.imageBase64Data.sealingImages && index !== null) {
+              const sealingImage = details.imageBase64Data.sealingImages[parseInt(index)];
+              if (sealingImage) {
+                imageData = sealingImage.data;
+                contentType = sealingImage.contentType || contentType;
+              }
+            } else if (imageType === 'vehicle' && details.imageBase64Data.vehicleImages && index !== null) {
+              const vehicleImage = details.imageBase64Data.vehicleImages[parseInt(index)];
+              if (vehicleImage) {
+                imageData = vehicleImage.data;
+                contentType = vehicleImage.contentType || contentType;
+              }
+            } else if (imageType === 'additional' && details.imageBase64Data.additionalImages && index !== null) {
+              const additionalImage = details.imageBase64Data.additionalImages[parseInt(index)];
+              if (additionalImage) {
+                imageData = additionalImage.data;
+                contentType = additionalImage.contentType || contentType;
+              }
+            }
+
+            if (imageData) {
+              console.log(`Serving image data for ${imageType}${index !== null ? ` at index ${index}` : ''}`);
+              // Convert base64 to buffer
+              const buffer = Buffer.from(imageData, 'base64');
+              
+              // Return the image
+              return new NextResponse(buffer, {
+                headers: {
+                  'Content-Type': contentType,
+                  'Cache-Control': 'public, max-age=86400', // Cache for 24 hours
+                },
+              });
+            }
+          }
+        } else {
+          // Try checking other logs for image data in different formats
+          for (const log of allLogs) {
+            if (!log.details || typeof log.details !== 'object') continue;
+            
+            const details = log.details as any;
+            for (const field of Object.keys(details)) {
+              const value = details[field];
+              if (!value || typeof value !== 'object') continue;
+              
+              // Check if this field or any nested field has our image
+              if (imageType === 'gpsImei' && value.gpsImeiPicture && value.gpsImeiPicture.data) {
+                const buffer = Buffer.from(value.gpsImeiPicture.data, 'base64');
+                return new NextResponse(buffer, {
+                  headers: {
+                    'Content-Type': value.gpsImeiPicture.contentType || 'image/jpeg',
+                    'Cache-Control': 'public, max-age=86400',
+                  },
+                });
+              } else if (imageType === 'vehicleNumber' && value.vehicleNumberPlatePicture && value.vehicleNumberPlatePicture.data) {
+                const buffer = Buffer.from(value.vehicleNumberPlatePicture.data, 'base64');
+                return new NextResponse(buffer, {
+                  headers: {
+                    'Content-Type': value.vehicleNumberPlatePicture.contentType || 'image/jpeg',
+                    'Cache-Control': 'public, max-age=86400',
+                  },
+                });
+              } else if (imageType === 'driver' && value.driverPicture && value.driverPicture.data) {
+                const buffer = Buffer.from(value.driverPicture.data, 'base64');
+                return new NextResponse(buffer, {
+                  headers: {
+                    'Content-Type': value.driverPicture.contentType || 'image/jpeg',
+                    'Cache-Control': 'public, max-age=86400',
+                  },
+                });
+              } else if (imageType === 'sealing' && value.sealingImages && index !== null) {
+                const sealingImage = value.sealingImages[parseInt(index)];
+                if (sealingImage && sealingImage.data) {
+                  const buffer = Buffer.from(sealingImage.data, 'base64');
+                  return new NextResponse(buffer, {
+                    headers: {
+                      'Content-Type': sealingImage.contentType || 'image/jpeg',
+                      'Cache-Control': 'public, max-age=86400',
+                    },
+                  });
+                }
+              } else if (imageType === 'vehicle' && value.vehicleImages && index !== null) {
+                const vehicleImage = value.vehicleImages[parseInt(index)];
+                if (vehicleImage && vehicleImage.data) {
+                  const buffer = Buffer.from(vehicleImage.data, 'base64');
+                  return new NextResponse(buffer, {
+                    headers: {
+                      'Content-Type': vehicleImage.contentType || 'image/jpeg',
+                      'Cache-Control': 'public, max-age=86400',
+                    },
+                  });
+                }
+              } else if (imageType === 'additional' && value.additionalImages && index !== null) {
+                const additionalImage = value.additionalImages[parseInt(index)];
+                if (additionalImage && additionalImage.data) {
+                  const buffer = Buffer.from(additionalImage.data, 'base64');
+                  return new NextResponse(buffer, {
+                    headers: {
+                      'Content-Type': additionalImage.contentType || 'image/jpeg',
+                      'Cache-Control': 'public, max-age=86400',
+                    },
+                  });
+                }
+              }
+            }
+          }
+        }
+      }
+    } catch (dbError) {
+      console.error(`Error retrieving image from database:`, dbError);
+      // Continue to file system fallback
+    }
+
+    // If database retrieval failed, try to serve from the file system
     const filePath = path.join(process.cwd(), 'public', 'uploads', relativePath);
     
     try {
