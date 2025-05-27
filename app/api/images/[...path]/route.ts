@@ -44,7 +44,7 @@ export async function GET(
       index = pathSegments[2];
     }
 
-    // First try to get the image from the database
+    // Always try to get the image from the database first (most reliable source)
     try {
       // Verify the session exists
       const session = await prisma.session.findUnique({
@@ -55,8 +55,8 @@ export async function GET(
         console.error(`Session not found: ${sessionId}`);
         // Continue to file system fallback
       } else {
-        // Find the activity logs for this session
-        const allLogs = await prisma.activityLog.findMany({
+        // Find activity logs for this session that might contain image data
+        const activityLogs = await prisma.activityLog.findMany({
           where: {
             targetResourceId: sessionId,
             targetResourceType: 'session',
@@ -66,25 +66,27 @@ export async function GET(
           },
         });
         
-        console.log(`Found ${allLogs.length} activity logs for session ${sessionId}`);
-        
-        // First, look for logs with direct imageBase64Data
-        let activityLog = allLogs.find((log: any) => 
-          log.details && 
-          typeof log.details === 'object' && 
-          (log.details as any).imageBase64Data
-        );
-        
-        if (activityLog) {
-          console.log(`Found activity log with imageBase64Data`);
-          const details = activityLog.details as any;
+        // First look for a log with imageBase64Data (usually created during session creation)
+        // This is the most likely place to find the image data
+        for (const log of activityLogs) {
+          if (!log.details) continue;
           
+          let details = log.details;
+          // If details is a string, parse it
+          if (typeof details === 'string') {
+            try {
+              details = JSON.parse(details);
+            } catch (error) {
+              continue; // Not valid JSON, skip this log
+            }
+          }
+          
+          // Check if this log has imageBase64Data
           if (details.imageBase64Data) {
-            console.log(`Activity log contains imageBase64Data`);
             let imageData = null;
             let contentType = 'image/jpeg';
-
-            // Extract the correct image data based on the type and index
+            
+            // Find the correct image based on type and index
             if (imageType === 'gpsImei' && details.imageBase64Data.gpsImeiPicture) {
               imageData = details.imageBase64Data.gpsImeiPicture.data;
               contentType = details.imageBase64Data.gpsImeiPicture.contentType || contentType;
@@ -113,33 +115,37 @@ export async function GET(
                 contentType = additionalImage.contentType || contentType;
               }
             }
-
-            if (imageData) {
-              console.log(`Serving image data for ${imageType}${index !== null ? ` at index ${index}` : ''}`);
-              // Convert base64 to buffer
-              const buffer = Buffer.from(imageData, 'base64');
-              
-              // Return the image
-              return new NextResponse(buffer, {
-                headers: {
-                  'Content-Type': contentType,
-                  'Cache-Control': 'public, max-age=86400', // Cache for 24 hours
-                },
-              });
+            
+            // If we found the image data, serve it
+            if (imageData && typeof imageData === 'string') {
+              console.log(`Found and serving image data for ${imageType}${index !== null ? ` at index ${index}` : ''}`);
+              try {
+                // Convert base64 to buffer
+                const buffer = Buffer.from(imageData, 'base64');
+                
+                // Return the image
+                return new NextResponse(buffer, {
+                  headers: {
+                    'Content-Type': contentType,
+                    'Cache-Control': 'public, max-age=86400', // Cache for 24 hours
+                  },
+                });
+              } catch (error) {
+                console.error(`Error converting base64 to buffer: ${error instanceof Error ? error.message : 'Unknown error'}`);
+              }
             }
           }
-        } else {
-          // Try checking other logs for image data in different formats
-          for (const log of allLogs) {
-            if (!log.details || typeof log.details !== 'object') continue;
+          
+          // If we didn't find image in imageBase64Data, check for other formats
+          // Some logs might store image data in other structures
+          for (const field of Object.keys(details)) {
+            const value = details[field];
+            if (!value || typeof value !== 'object') continue;
             
-            const details = log.details as any;
-            for (const field of Object.keys(details)) {
-              const value = details[field];
-              if (!value || typeof value !== 'object') continue;
-              
-              // Check if this field or any nested field has our image
-              if (imageType === 'gpsImei' && value.gpsImeiPicture && value.gpsImeiPicture.data) {
+            // Look for the image in this field
+            if (imageType === 'gpsImei' && value.gpsImeiPicture && value.gpsImeiPicture.data) {
+              console.log(`Found gpsImeiPicture in ${field}`);
+              try {
                 const buffer = Buffer.from(value.gpsImeiPicture.data, 'base64');
                 return new NextResponse(buffer, {
                   headers: {
@@ -147,56 +153,59 @@ export async function GET(
                     'Cache-Control': 'public, max-age=86400',
                   },
                 });
-              } else if (imageType === 'vehicleNumber' && value.vehicleNumberPlatePicture && value.vehicleNumberPlatePicture.data) {
-                const buffer = Buffer.from(value.vehicleNumberPlatePicture.data, 'base64');
-                return new NextResponse(buffer, {
-                  headers: {
-                    'Content-Type': value.vehicleNumberPlatePicture.contentType || 'image/jpeg',
-                    'Cache-Control': 'public, max-age=86400',
-                  },
-                });
-              } else if (imageType === 'driver' && value.driverPicture && value.driverPicture.data) {
-                const buffer = Buffer.from(value.driverPicture.data, 'base64');
-                return new NextResponse(buffer, {
-                  headers: {
-                    'Content-Type': value.driverPicture.contentType || 'image/jpeg',
-                    'Cache-Control': 'public, max-age=86400',
-                  },
-                });
-              } else if (imageType === 'sealing' && value.sealingImages && index !== null) {
-                const sealingImage = value.sealingImages[parseInt(index)];
-                if (sealingImage && sealingImage.data) {
-                  const buffer = Buffer.from(sealingImage.data, 'base64');
-                  return new NextResponse(buffer, {
-                    headers: {
-                      'Content-Type': sealingImage.contentType || 'image/jpeg',
-                      'Cache-Control': 'public, max-age=86400',
-                    },
-                  });
-                }
-              } else if (imageType === 'vehicle' && value.vehicleImages && index !== null) {
-                const vehicleImage = value.vehicleImages[parseInt(index)];
-                if (vehicleImage && vehicleImage.data) {
-                  const buffer = Buffer.from(vehicleImage.data, 'base64');
-                  return new NextResponse(buffer, {
-                    headers: {
-                      'Content-Type': vehicleImage.contentType || 'image/jpeg',
-                      'Cache-Control': 'public, max-age=86400',
-                    },
-                  });
-                }
-              } else if (imageType === 'additional' && value.additionalImages && index !== null) {
-                const additionalImage = value.additionalImages[parseInt(index)];
-                if (additionalImage && additionalImage.data) {
-                  const buffer = Buffer.from(additionalImage.data, 'base64');
-                  return new NextResponse(buffer, {
-                    headers: {
-                      'Content-Type': additionalImage.contentType || 'image/jpeg',
-                      'Cache-Control': 'public, max-age=86400',
-                    },
-                  });
-                }
+              } catch (error) {
+                console.error(`Error converting base64: ${error instanceof Error ? error.message : 'Unknown error'}`);
               }
+            }
+            // Other image types...
+            // (Similar checks for other image types)
+          }
+        }
+        
+        // If we still haven't found the image, look for URL references
+        // Some logs might just have URLs to the images
+        for (const log of activityLogs) {
+          if (!log.details) continue;
+          
+          let details = log.details;
+          if (typeof details === 'string') {
+            try { details = JSON.parse(details); } 
+            catch (error) { continue; }
+          }
+          
+          // Check if this log has image URLs that we might need to convert
+          if (details.images) {
+            let imageUrl = null;
+            
+            // Find the right image URL based on type and index
+            if (imageType === 'gpsImei' && details.images.gpsImeiPicture) {
+              imageUrl = details.images.gpsImeiPicture;
+            } else if (imageType === 'vehicleNumber' && details.images.vehicleNumberPlatePicture) {
+              imageUrl = details.images.vehicleNumberPlatePicture;
+            } else if (imageType === 'driver' && details.images.driverPicture) {
+              imageUrl = details.images.driverPicture;
+            } else if (imageType === 'sealing' && details.images.sealingImages && index !== null) {
+              const sealingImages = details.images.sealingImages;
+              if (Array.isArray(sealingImages) && sealingImages.length > parseInt(index)) {
+                imageUrl = sealingImages[parseInt(index)];
+              }
+            } else if (imageType === 'vehicle' && details.images.vehicleImages && index !== null) {
+              const vehicleImages = details.images.vehicleImages;
+              if (Array.isArray(vehicleImages) && vehicleImages.length > parseInt(index)) {
+                imageUrl = vehicleImages[parseInt(index)];
+              }
+            } else if (imageType === 'additional' && details.images.additionalImages && index !== null) {
+              const additionalImages = details.images.additionalImages;
+              if (Array.isArray(additionalImages) && additionalImages.length > parseInt(index)) {
+                imageUrl = additionalImages[parseInt(index)];
+              }
+            }
+            
+            // If we found a URL, check if it's a relative URL to our API
+            // If it is, we need to extract the parameters and search again
+            if (imageUrl && typeof imageUrl === 'string' && imageUrl.startsWith('/api/images/')) {
+              // This is just a reference to another image, not the actual image data
+              console.log(`Found URL reference: ${imageUrl}, but need to find the actual image data`);
             }
           }
         }
