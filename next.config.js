@@ -50,6 +50,20 @@ const nextConfig = {
   
   images: {
     domains: ['localhost'],
+    remotePatterns: [
+      {
+        protocol: 'http',
+        hostname: 'localhost',
+        port: '',
+        pathname: '/**',
+      },
+      {
+        protocol: 'https',
+        hostname: '**',
+        port: '',
+        pathname: '/**',
+      },
+    ],
   },
   
   // Increase maximum file upload size (default is 4MB)

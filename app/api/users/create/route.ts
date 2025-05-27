@@ -153,9 +153,9 @@ export const POST = withAuth(
           
           // Process documents if provided
           if (body.documents) {
-            const docs = Array.isArray(body.documents) ? body.documents : [body.documents];
-            // Process each document
             try {
+              const docs = Array.isArray(body.documents) ? body.documents : [body.documents];
+              // Process each document
               documentUrls = await Promise.all(docs.map(async (doc: FormDataEntryValue, index: number) => {
                 if (doc instanceof File) {
                   try {
@@ -185,10 +185,9 @@ export const POST = withAuth(
                 }
                 return "";
               })).then(urls => urls.filter(Boolean));
-            } catch (docError) {
-              console.error("Error processing documents:", docError);
-              // Continue without documents rather than failing the entire request
-              documentUrls = [];
+            } catch (documentsError) {
+              console.error("Error processing documents:", documentsError);
+              documentUrls = []; // Continue without documents
             }
           }
           

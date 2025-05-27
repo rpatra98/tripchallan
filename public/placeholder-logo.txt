@@ -1,0 +1,2 @@
+This is a placeholder for a logo image. 
+Please replace this with an actual image file named 'placeholder-logo.png' (400x400px recommended). 
