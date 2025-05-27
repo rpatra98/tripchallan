@@ -2729,7 +2729,6 @@ export default function SessionDetailClient({ sessionId }: { sessionId: string }
              { key: 'grossWeight', label: 'Gross Weight' },
              { key: 'tareWeight', label: 'Tare Weight' },
              { key: 'netMaterialWeight', label: 'Net Weight' },
-             { key: 'loadingSite', label: 'Loading Site' },
              { key: 'loaderName', label: 'Loader Name' },
              { key: 'loaderMobileNumber', label: 'Loader Contact' },
              { key: 'receiverPartyName', label: 'Receiver' }

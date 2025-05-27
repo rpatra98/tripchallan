@@ -757,7 +757,6 @@ export default function AdminDetailsPage({ params }: AdminDetailsPageProps) {
                   <TableRow>
                     <TableCell>ID</TableCell>
                     <TableCell>Source</TableCell>
-                    <TableCell>Loading Site</TableCell>
                     <TableCell>Destination</TableCell>
                     <TableCell>Company</TableCell>
                     <TableCell>Created By</TableCell>
@@ -795,7 +794,6 @@ export default function AdminDetailsPage({ params }: AdminDetailsPageProps) {
                       <TableRow key={session.id}>
                         <TableCell>{session.id.substring(0, 8)}...</TableCell>
                         <TableCell>{session.source}</TableCell>
-                        <TableCell>{session.tripDetails?.loadingSite || "N/A"}</TableCell>
                         <TableCell>{session.destination}</TableCell>
                         <TableCell>{session.company.name}</TableCell>
                         <TableCell>{session.createdBy.name}</TableCell>

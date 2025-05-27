@@ -491,13 +491,6 @@ export default function CompanyDashboard({ user, initialTab }: CompanyDashboardP
                         </Box>
 
                         <Box sx={{ display: "flex", alignItems: "center", mb: 1 }}>
-                          <LocationOn color="action" sx={{ mr: 1 }} />
-                          <Typography variant="body2" color="text.secondary">
-                            Loading Site: {session.tripDetails?.loadingSite || "N/A"}
-                          </Typography>
-                        </Box>
-
-                        <Box sx={{ display: "flex", alignItems: "center", mb: 1 }}>
                           <DirectionsCar color="action" sx={{ mr: 1 }} />
                           <Typography variant="body2" color="text.secondary">
                             To: {session.destination}

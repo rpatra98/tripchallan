@@ -153,14 +153,6 @@ export default function SessionsPage() {
       searchable: true,
     },
     {
-      accessorKey: "tripDetails.loadingSite",
-      header: "Loading Site",
-      cell: ({ row }: { row: any }) => (
-        <span>{row.tripDetails?.loadingSite || "N/A"}</span>
-      ),
-      searchable: true,
-    },
-    {
       accessorKey: "destination",
       header: "Destination",
       searchable: true,
