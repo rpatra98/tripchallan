@@ -329,18 +329,25 @@ export default async function CompanyDetailPage({ params }: { params: { id: stri
             )}
           </div>
 
-          {company?.logo && (
-            <div className="mt-4">
-              <p className="text-gray-600 mb-2">Company Logo</p>
+          <div className="mt-4">
+            <p className="text-gray-600 mb-2">Company Logo</p>
+            {company?.logo ? (
               <div className="w-40 h-40 border rounded-md overflow-hidden">
                 <img 
                   src={company.logo} 
                   alt={`${company.name} logo`} 
                   className="w-full h-full object-contain"
+                  onError={(e) => {
+                    const imgElement = e.target as HTMLImageElement;
+                    imgElement.onerror = null;
+                    imgElement.src = '/placeholder-logo.png'; // Fallback image
+                  }}
                 />
               </div>
-            </div>
-          )}
+            ) : (
+              <p className="text-gray-500 italic">Logo is not available</p>
+            )}
+          </div>
 
           <div className="mt-6">
             <CompanyActions 
