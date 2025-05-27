@@ -3,7 +3,7 @@ import prisma from "@/lib/prisma";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-options";
 import { withAuth } from "@/lib/auth";
-import { UserRole } from "@/prisma/enums";
+import { UserRole, EmployeeSubrole } from "@/prisma/enums";
 
 async function handler(req: NextRequest, context?: { params: Record<string, string> }) {
   try {
@@ -74,6 +74,9 @@ async function handler(req: NextRequest, context?: { params: Record<string, stri
             role: UserRole.EMPLOYEE,
             email: {
               not: companyEmail // Exclude self-admin (matches company email)
+            },
+            subrole: {
+              in: [EmployeeSubrole.GUARD, EmployeeSubrole.OPERATOR] // Only include GUARD and OPERATOR
             }
           },
           select: {
@@ -95,6 +98,11 @@ async function handler(req: NextRequest, context?: { params: Record<string, stri
           {
             email: {
               not: companyEmail // Exclude self-admin (matches company email)
+            }
+          },
+          {
+            subrole: {
+              in: [EmployeeSubrole.GUARD, EmployeeSubrole.OPERATOR] // Only include GUARD and OPERATOR
             }
           },
           {
@@ -155,6 +163,9 @@ async function handler(req: NextRequest, context?: { params: Record<string, stri
           role: UserRole.EMPLOYEE,
           email: {
             not: companyEmail // Exclude self-admin (matches company email)
+          },
+          subrole: {
+            in: [EmployeeSubrole.GUARD, EmployeeSubrole.OPERATOR] // Only include GUARD and OPERATOR
           }
         },
         select: {

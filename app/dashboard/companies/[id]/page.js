@@ -58,10 +58,17 @@ export default function CompanyDetailPage({ params }) {
         if (empRes.ok) {
           const empData = await empRes.json();
           // Filter out employees whose email matches the company's email
-          const filteredEmps = empData.filter(emp => 
-            emp.email.toLowerCase() !== data.email.toLowerCase() && 
-            emp.name.toLowerCase() !== data.name.toLowerCase()
-          );
+          // And only include GUARD and OPERATOR subroles
+          const filteredEmps = empData.filter(emp => {
+            // Make sure it's not the company admin
+            const isNotAdmin = emp.email.toLowerCase() !== data.email.toLowerCase() && 
+                               emp.name.toLowerCase() !== data.name.toLowerCase();
+            
+            // Make sure it's either a GUARD or OPERATOR
+            const isAllowedRole = emp.subrole === "GUARD" || emp.subrole === "OPERATOR";
+            
+            return isNotAdmin && isAllowedRole;
+          });
           setEmployees(filteredEmps);
         }
       } catch (err) {
