@@ -11,14 +11,27 @@ interface CompanyLogoProps {
 export default function CompanyLogo({ logoUrl, companyName }: CompanyLogoProps) {
   const [error, setError] = useState(false);
   const [debugInfo, setDebugInfo] = useState<string>("");
+  const [fixedUrl, setFixedUrl] = useState<string | null>(null);
   
   useEffect(() => {
-    // Debug info to help troubleshoot
-    setDebugInfo(`Logo URL: ${logoUrl || "none"}`);
-    console.log("CompanyLogo received logoUrl:", logoUrl);
+    if (!logoUrl) {
+      setFixedUrl(null);
+      setDebugInfo("Logo URL: none");
+      return;
+    }
+    
+    // Fix URL if it doesn't start with a slash
+    let url = logoUrl;
+    if (url && !url.startsWith('/') && !url.startsWith('http')) {
+      url = `/${url}`;
+    }
+    
+    setFixedUrl(url);
+    setDebugInfo(`Original URL: ${logoUrl} | Fixed URL: ${url}`);
+    console.log("CompanyLogo processing logoUrl:", logoUrl, "→", url);
   }, [logoUrl]);
   
-  if (!logoUrl || error) {
+  if (!fixedUrl || error) {
     return (
       <div>
         <p className="text-gray-500 italic">Logo is not available</p>
@@ -31,11 +44,11 @@ export default function CompanyLogo({ logoUrl, companyName }: CompanyLogoProps) 
     <div>
       <div className="w-40 h-40 border rounded-md overflow-hidden">
         <img 
-          src={logoUrl}
+          src={fixedUrl}
           alt={`${companyName} logo`}
           className="w-full h-full object-contain"
           onError={() => {
-            console.error("Image failed to load:", logoUrl);
+            console.error("Image failed to load:", fixedUrl);
             setError(true);
           }}
         />
