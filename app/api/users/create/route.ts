@@ -10,6 +10,8 @@ import { hash } from "bcrypt";
 import { addActivityLog } from "@/lib/activity-logger";
 import { TransactionReason } from "@/prisma/enums";
 import { Prisma } from "@prisma/client";
+import path from "path";
+import fs from "fs/promises";
 
 // Generate a random password with 12 characters
 function generateRandomPassword(): string {
@@ -115,21 +117,65 @@ export const POST = withAuth(
           
           // Process logo if provided
           if (body.logo && body.logo instanceof File) {
-            // Here you would upload the logo to your file storage service
-            // For now, we'll just store the filename
-            logoUrl = `uploads/logos/${Date.now()}_${body.logo.name}`;
+            try {
+              // Generate a unique filename
+              const uniqueFilename = `${Date.now()}_${body.logo.name.replace(/[^a-zA-Z0-9.]/g, '_')}`;
+              const logoPath = `uploads/logos/${uniqueFilename}`;
+              const publicPath = `/uploads/logos/${uniqueFilename}`;
+              
+              // Convert File to Buffer
+              const arrayBuffer = await body.logo.arrayBuffer();
+              const buffer = Buffer.from(arrayBuffer);
+              
+              // Ensure directory exists (should be created in app startup, but just in case)
+              const dir = path.join(process.cwd(), 'public', 'uploads', 'logos');
+              await fs.mkdir(dir, { recursive: true });
+              
+              // Write file to public directory
+              await fs.writeFile(path.join(process.cwd(), 'public', logoPath), buffer);
+              
+              // Store public URL path in database
+              logoUrl = publicPath;
+              console.log(`Logo saved successfully at ${logoPath}`);
+            } catch (fileError) {
+              console.error("Error saving logo file:", fileError);
+              // Don't throw error, just log it and continue without logo
+            }
           }
           
           // Process documents if provided
           if (body.documents) {
             const docs = Array.isArray(body.documents) ? body.documents : [body.documents];
-            // Here you would upload each document to your file storage service
-            documentUrls = docs.map((doc: FormDataEntryValue, index: number) => {
+            // Process each document
+            documentUrls = await Promise.all(docs.map(async (doc: FormDataEntryValue, index: number) => {
               if (doc instanceof File) {
-                return `uploads/documents/${Date.now()}_${index}_${doc.name}`;
+                try {
+                  // Generate a unique filename
+                  const uniqueFilename = `${Date.now()}_${index}_${doc.name.replace(/[^a-zA-Z0-9.]/g, '_')}`;
+                  const docPath = `uploads/documents/${uniqueFilename}`;
+                  const publicPath = `/uploads/documents/${uniqueFilename}`;
+                  
+                  // Convert File to Buffer
+                  const arrayBuffer = await doc.arrayBuffer();
+                  const buffer = Buffer.from(arrayBuffer);
+                  
+                  // Ensure directory exists
+                  const dir = path.join(process.cwd(), 'public', 'uploads', 'documents');
+                  await fs.mkdir(dir, { recursive: true });
+                  
+                  // Write file to public directory
+                  await fs.writeFile(path.join(process.cwd(), 'public', docPath), buffer);
+                  
+                  // Return public URL path to store in database
+                  console.log(`Document saved successfully at ${docPath}`);
+                  return publicPath;
+                } catch (fileError) {
+                  console.error(`Error saving document file ${index}:`, fileError);
+                  return "";
+                }
               }
               return "";
-            }).filter(Boolean);
+            })).then(urls => urls.filter(Boolean));
           }
           
           // First create the company
