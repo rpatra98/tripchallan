@@ -337,10 +337,11 @@ export default async function CompanyDetailPage({ params }: { params: { id: stri
                   src={company.logo} 
                   alt={`${company.name} logo`} 
                   className="w-full h-full object-contain"
-                  onError={(e) => {
-                    const imgElement = e.target as HTMLImageElement;
-                    imgElement.onerror = null;
-                    imgElement.src = '/placeholder-logo.png'; // Fallback image
+                  onError={function(e) {
+                    if (e.target instanceof HTMLImageElement) {
+                      e.target.onerror = null;
+                      e.target.src = '/placeholder-logo.png';
+                    }
                   }}
                 />
               </div>
@@ -439,4 +440,4 @@ export default async function CompanyDetailPage({ params }: { params: { id: stri
       </div>
     );
   }
-} 
+}
