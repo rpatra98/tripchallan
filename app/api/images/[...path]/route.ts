@@ -35,9 +35,18 @@ export async function GET(
     
     // Log what we're trying to serve
     console.log(`Serving image: ${relativePath}`);
-    
+
+    // Determine which type of image this is based on the path segments
+    const sessionId = pathSegments[0];
+    const imageType = pathSegments[1];
+    let index = null;
+    if (pathSegments.length > 2) {
+      index = pathSegments[2];
+    }
+
+    // First try to serve from the public directory (for images that should be stored on disk)
     // Build the absolute path in the public directory
-    const filePath = path.join(process.cwd(), 'public', relativePath);
+    const filePath = path.join(process.cwd(), 'public', 'uploads', relativePath);
     
     try {
       // Check if the file exists
@@ -45,44 +54,119 @@ export async function GET(
       
       if (!stats.isFile()) {
         console.error(`Image not a file: ${filePath}`);
-        return new NextResponse(null, { status: 404 });
+        // Continue to fallback below
+      } else {
+        // Read the file
+        const file = await fsPromises.readFile(filePath);
+        
+        // Determine content type based on file extension
+        let contentType = 'application/octet-stream';
+        if (filePath.endsWith('.jpg') || filePath.endsWith('.jpeg')) {
+          contentType = 'image/jpeg';
+        } else if (filePath.endsWith('.png')) {
+          contentType = 'image/png';
+        } else if (filePath.endsWith('.gif')) {
+          contentType = 'image/gif';
+        } else if (filePath.endsWith('.svg')) {
+          contentType = 'image/svg+xml';
+        } else if (filePath.endsWith('.webp')) {
+          contentType = 'image/webp';
+        }
+        
+        // Return the file with appropriate headers
+        return new NextResponse(file, {
+          status: 200,
+          headers: {
+            'Content-Type': contentType,
+            'Content-Length': stats.size.toString(),
+            'Cache-Control': 'public, max-age=86400',
+          },
+        });
       }
-      
-      // Read the file
-      const file = await fsPromises.readFile(filePath);
-      
-      // Determine content type based on file extension
-      let contentType = 'application/octet-stream';
-      if (filePath.endsWith('.jpg') || filePath.endsWith('.jpeg')) {
-        contentType = 'image/jpeg';
-      } else if (filePath.endsWith('.png')) {
-        contentType = 'image/png';
-      } else if (filePath.endsWith('.gif')) {
-        contentType = 'image/gif';
-      } else if (filePath.endsWith('.svg')) {
-        contentType = 'image/svg+xml';
-      } else if (filePath.endsWith('.webp')) {
-        contentType = 'image/webp';
-      }
-      
-      // Return the file with appropriate headers
-      return new NextResponse(file, {
-        status: 200,
-        headers: {
-          'Content-Type': contentType,
-          'Content-Length': stats.size.toString(),
-          'Cache-Control': 'public, max-age=86400',
-        },
-      });
     } catch (error) {
       console.error(`Error serving image ${filePath}:`, error);
-      
-      // Return a 404 response
-      return new NextResponse(null, { status: 404 });
+      // Continue to fallback
     }
+
+    // If we get here, either the file wasn't found or there was an error reading it.
+    // Serve an appropriate default image based on the image type
+    
+    // Define paths for placeholder images based on type
+    let placeholderPath;
+    
+    switch(imageType) {
+      case 'driver':
+        placeholderPath = path.join(process.cwd(), 'public', 'images', 'driver-placeholder.svg');
+        break;
+      case 'vehicleNumber':
+        placeholderPath = path.join(process.cwd(), 'public', 'images', 'plate-placeholder.svg');
+        break;
+      case 'gpsImei':
+        placeholderPath = path.join(process.cwd(), 'public', 'images', 'gps-placeholder.svg');
+        break;
+      case 'sealing':
+      case 'vehicle':
+      case 'additional':
+      default:
+        placeholderPath = path.join(process.cwd(), 'public', 'file.svg');
+        break;
+    }
+    
+    // Serve the placeholder image if it exists
+    try {
+      const exists = await fsPromises.stat(placeholderPath).then(() => true).catch(() => false);
+      
+      if (exists) {
+        const placeholderFile = await fsPromises.readFile(placeholderPath);
+        return new NextResponse(placeholderFile, {
+          status: 200,
+          headers: {
+            'Content-Type': 'image/svg+xml',
+            'Cache-Control': 'public, max-age=3600',
+          },
+        });
+      }
+    } catch (error) {
+      console.error(`Error serving placeholder: ${placeholderPath}`, error);
+    }
+    
+    // If we get here, even the placeholder couldn't be served, so generate a simple SVG
+    const placeholderText = imageType === 'driver' ? 'Driver'
+                          : imageType === 'vehicleNumber' ? 'Plate'
+                          : imageType === 'gpsImei' ? 'GPS/IMEI'
+                          : imageType === 'sealing' ? 'Seal'
+                          : imageType === 'vehicle' ? 'Vehicle'
+                          : 'Image';
+    
+    const svgContent = `<svg xmlns="http://www.w3.org/2000/svg" width="200" height="150" viewBox="0 0 200 150">
+      <rect width="200" height="150" fill="#f0f0f0"/>
+      <rect x="5" y="5" width="190" height="140" fill="#e0e0e0" stroke="#cccccc" stroke-width="2"/>
+      <text x="100" y="75" font-family="Arial" font-size="16" text-anchor="middle" dominant-baseline="middle" fill="#666">${placeholderText}</text>
+    </svg>`;
+    
+    return new NextResponse(svgContent, {
+      status: 200,
+      headers: {
+        'Content-Type': 'image/svg+xml',
+        'Cache-Control': 'public, max-age=3600',
+      },
+    });
   } catch (error) {
     console.error('Error in image API route:', error);
-    return new NextResponse(null, { status: 500 });
+    
+    // Return a simple SVG as a fallback
+    const svgContent = `<svg xmlns="http://www.w3.org/2000/svg" width="200" height="150" viewBox="0 0 200 150">
+      <rect width="200" height="150" fill="#f0f0f0"/>
+      <text x="100" y="75" font-family="Arial" font-size="16" text-anchor="middle" dominant-baseline="middle" fill="#666">Image Error</text>
+    </svg>`;
+    
+    return new NextResponse(svgContent, {
+      status: 200,
+      headers: {
+        'Content-Type': 'image/svg+xml',
+        'Cache-Control': 'public, max-age=3600',
+      },
+    });
   }
 }
 

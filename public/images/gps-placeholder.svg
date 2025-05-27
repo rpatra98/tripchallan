@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="200" height="150" viewBox="0 0 200 150">
+  <rect width="200" height="150" fill="#f0f0f0"/>
+  <rect x="5" y="5" width="190" height="140" fill="#e0e0e0" stroke="#cccccc" stroke-width="2"/>
+  <circle cx="100" cy="70" r="30" fill="#ccc" stroke="#999" stroke-width="2"/>
+  <path d="M100,40 L100,60 M85,70 L115,70" stroke="#999" stroke-width="3"/>
+  <circle cx="100" cy="70" r="5" fill="#999"/>
+  <text x="100" y="135" font-family="Arial" font-size="14" text-anchor="middle" dominant-baseline="middle" fill="#666">GPS/IMEI</text>
+</svg> 
