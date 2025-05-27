@@ -179,6 +179,7 @@ export default function CompanyDetailPage({ params }) {
               <h3 className="text-sm font-medium text-gray-500">Created</h3>
               <p className="mt-1">{new Date(company.createdAt).toLocaleDateString()}</p>
             </div>
+            
             {company.logo && (
               <div>
                 <h3 className="text-sm font-medium text-gray-500">Company Logo</h3>
