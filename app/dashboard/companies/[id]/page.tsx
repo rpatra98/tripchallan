@@ -1,4 +1,4 @@
-import { notFound, redirect } from "next/navigation";
+﻿import { notFound, redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-options";
 import prisma from "@/lib/prisma";
@@ -6,6 +6,7 @@ import { UserRole, EmployeeSubrole } from "@/prisma/enums";
 import Link from "next/link";
 import { cookies } from "next/headers";
 import CompanyActions from "./company-actions";
+import CompanyLogo from "@/components/CompanyLogo";
 
 // Add dynamic export to ensure Next.js treats this as a dynamic route
 export const dynamic = 'force-dynamic';
@@ -331,22 +332,7 @@ export default async function CompanyDetailPage({ params }: { params: { id: stri
 
           <div className="mt-4">
             <p className="text-gray-600 mb-2">Company Logo</p>
-            {company?.logo ? (
-              <div className="w-40 h-40 border rounded-md overflow-hidden">
-                <img 
-                  src={company.logo} 
-                  alt={`${company.name} logo`} 
-                  className="w-full h-full object-contain"
-                  onError={(e) => {
-                    const imgElement = e.target as HTMLImageElement;
-                    imgElement.onerror = null;
-                    imgElement.src = '/placeholder-logo.png'; // Fallback image
-                  }}
-                />
-              </div>
-            ) : (
-              <p className="text-gray-500 italic">Logo is not available</p>
-            )}
+            <CompanyLogo logoUrl={company.logo} companyName={company.name} />
           </div>
 
           <div className="mt-6">

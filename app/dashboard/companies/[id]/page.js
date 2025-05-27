@@ -57,11 +57,23 @@ export default function CompanyDetailPage({ params }) {
         const empRes = await fetch(`/api/companies/${companyId}/employees`);
         if (empRes.ok) {
           const empData = await empRes.json();
+          console.log("Raw employee data:", empData);
+          
           // Filter out employees whose email matches the company's email
-          const filteredEmps = empData.filter(emp => 
-            emp.email.toLowerCase() !== data.email.toLowerCase() && 
-            emp.name.toLowerCase() !== data.name.toLowerCase()
-          );
+          // And only include GUARD and OPERATOR subroles (case insensitive)
+          const filteredEmps = empData.filter(emp => {
+            // Make sure it's not the company admin
+            const isNotAdmin = emp.email.toLowerCase() !== data.email.toLowerCase() && 
+                               emp.name.toLowerCase() !== data.name.toLowerCase();
+            
+            // Check if subrole exists and is either GUARD or OPERATOR (case insensitive)
+            const subroleUpper = emp.subrole ? emp.subrole.toUpperCase() : '';
+            const isAllowedRole = subroleUpper === "GUARD" || subroleUpper === "OPERATOR";
+            
+            return isNotAdmin && isAllowedRole;
+          });
+          
+          console.log("Filtered employees:", filteredEmps);
           setEmployees(filteredEmps);
         }
       } catch (err) {

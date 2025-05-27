@@ -4,6 +4,7 @@ import prisma from "@/lib/prisma";
 import fs from 'fs';
 import path from 'path';
 import { UserRole } from "@/prisma/enums";
+import fsPromises from 'fs/promises';
 
 // Directory for storing uploaded files
 const UPLOAD_DIR = path.join(process.cwd(), 'uploads');
@@ -17,7 +18,75 @@ if (process.env.NODE_ENV !== 'production' && !fs.existsSync(UPLOAD_DIR)) {
   }
 }
 
-export const GET = withAuth(
+/**
+ * API route that serves images from the public directory with better error handling
+ * This helps debug issues with missing or corrupted images
+ */
+export async function GET(
+  req: NextRequest,
+  { params }: { params: { path: string[] } }
+) {
+  try {
+    // Get the path segments
+    const pathSegments = params.path || [];
+    
+    // Join the path segments to form the relative file path
+    const relativePath = pathSegments.join('/');
+    
+    // Log what we're trying to serve
+    console.log(`Serving image: ${relativePath}`);
+    
+    // Build the absolute path in the public directory
+    const filePath = path.join(process.cwd(), 'public', relativePath);
+    
+    try {
+      // Check if the file exists
+      const stats = await fsPromises.stat(filePath);
+      
+      if (!stats.isFile()) {
+        console.error(`Image not a file: ${filePath}`);
+        return new NextResponse(null, { status: 404 });
+      }
+      
+      // Read the file
+      const file = await fsPromises.readFile(filePath);
+      
+      // Determine content type based on file extension
+      let contentType = 'application/octet-stream';
+      if (filePath.endsWith('.jpg') || filePath.endsWith('.jpeg')) {
+        contentType = 'image/jpeg';
+      } else if (filePath.endsWith('.png')) {
+        contentType = 'image/png';
+      } else if (filePath.endsWith('.gif')) {
+        contentType = 'image/gif';
+      } else if (filePath.endsWith('.svg')) {
+        contentType = 'image/svg+xml';
+      } else if (filePath.endsWith('.webp')) {
+        contentType = 'image/webp';
+      }
+      
+      // Return the file with appropriate headers
+      return new NextResponse(file, {
+        status: 200,
+        headers: {
+          'Content-Type': contentType,
+          'Content-Length': stats.size.toString(),
+          'Cache-Control': 'public, max-age=86400',
+        },
+      });
+    } catch (error) {
+      console.error(`Error serving image ${filePath}:`, error);
+      
+      // Return a 404 response
+      return new NextResponse(null, { status: 404 });
+    }
+  } catch (error) {
+    console.error('Error in image API route:', error);
+    return new NextResponse(null, { status: 500 });
+  }
+}
+
+export const GET_OLD = withAuth(
   async (req: NextRequest, context?: { params: Record<string, string> }) => {
     try {
       // Get path segments from the request URL

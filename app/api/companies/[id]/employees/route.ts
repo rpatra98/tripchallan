@@ -3,7 +3,7 @@ import prisma from "@/lib/prisma";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-options";
 import { withAuth } from "@/lib/auth";
-import { UserRole } from "@/prisma/enums";
+import { UserRole, EmployeeSubrole } from "@/prisma/enums";
 
 async function handler(req: NextRequest, context?: { params: Record<string, string> }) {
   try {
@@ -51,6 +51,9 @@ async function handler(req: NextRequest, context?: { params: Record<string, stri
     
     console.log(`Fetching employees for company ID: ${companyId}`);
     
+    // Get the company's email to filter out self-admin
+    const companyEmail = company.email;
+    
     // First, find the actual Company record if it exists
     const companyRecord = await prisma.company.findFirst({
       where: {
@@ -68,7 +71,13 @@ async function handler(req: NextRequest, context?: { params: Record<string, stri
       include: {
         employees: {
           where: {
-            role: UserRole.EMPLOYEE
+            role: UserRole.EMPLOYEE,
+            email: {
+              not: companyEmail // Exclude self-admin (matches company email)
+            },
+            subrole: {
+              in: [EmployeeSubrole.GUARD, EmployeeSubrole.OPERATOR] // Only include GUARD and OPERATOR
+            }
           },
           select: {
             id: true
@@ -85,29 +94,43 @@ async function handler(req: NextRequest, context?: { params: Record<string, stri
     // Get all employees associated with this company through all possible paths
     const employees = await prisma.user.findMany({
       where: {
-        OR: [
-          // Direct association via companyId field
+        AND: [
           {
-            companyId: companyId,
-            role: UserRole.EMPLOYEE,
-          },
-          // Indirect association via company.employees relation
-          {
-            company: {
-              id: companyId
-            },
-            role: UserRole.EMPLOYEE,
-          },
-          // Created by this company
-          {
-            createdById: companyId,
-            role: UserRole.EMPLOYEE,
-          },
-          // Found through Company.employees relation
-          {
-            id: {
-              in: employeeIdsFromCompany
+            email: {
+              not: companyEmail // Exclude self-admin (matches company email)
             }
+          },
+          {
+            subrole: {
+              in: [EmployeeSubrole.GUARD, EmployeeSubrole.OPERATOR] // Only include GUARD and OPERATOR
+            }
+          },
+          {
+            OR: [
+              // Direct association via companyId field
+              {
+                companyId: companyId,
+                role: UserRole.EMPLOYEE
+              },
+              // Indirect association via company.employees relation
+              {
+                company: {
+                  id: companyId
+                },
+                role: UserRole.EMPLOYEE
+              },
+              // Created by this company
+              {
+                createdById: companyId,
+                role: UserRole.EMPLOYEE
+              },
+              // Found through Company.employees relation
+              {
+                id: {
+                  in: employeeIdsFromCompany
+                }
+              }
+            ]
           }
         ]
       },
@@ -138,6 +161,12 @@ async function handler(req: NextRequest, context?: { params: Record<string, stri
         where: {
           companyId: companyRecord.id,
           role: UserRole.EMPLOYEE,
+          email: {
+            not: companyEmail // Exclude self-admin (matches company email)
+          },
+          subrole: {
+            in: [EmployeeSubrole.GUARD, EmployeeSubrole.OPERATOR] // Only include GUARD and OPERATOR
+          }
         },
         select: {
           id: true,
