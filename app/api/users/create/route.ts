@@ -10,6 +10,8 @@ import { hash } from "bcrypt";
 import { addActivityLog } from "@/lib/activity-logger";
 import { TransactionReason } from "@/prisma/enums";
 import { Prisma } from "@prisma/client";
+import path from "path";
+import fs from "fs/promises";
 
 // Generate a random password with 12 characters
 function generateRandomPassword(): string {
@@ -29,26 +31,34 @@ export const POST = withAuth(
       const contentType = req.headers.get("content-type") || "";
       let body;
       
-      if (contentType.includes("multipart/form-data")) {
-        // Handle form data
-        const formData = await req.formData();
-        body = Object.fromEntries(formData);
-        
-        // Convert documents from FormData to array
-        const documentEntries = Array.from(formData.entries())
-          .filter(([key]) => key.startsWith('documents['))
-          .map(([_, value]) => value);
+      try {
+        if (contentType.includes("multipart/form-data")) {
+          // Handle form data
+          const formData = await req.formData();
+          body = Object.fromEntries(formData);
           
-        if (documentEntries.length > 0) {
-          // Create a new body object with the documents array
-          body = {
-            ...body,
-            documents: documentEntries
-          };
+          // Convert documents from FormData to array
+          const documentEntries = Array.from(formData.entries())
+            .filter(([key]) => key.startsWith('documents['))
+            .map(([_, value]) => value);
+            
+          if (documentEntries.length > 0) {
+            // Create a new body object with the documents array
+            body = {
+              ...body,
+              documents: documentEntries
+            };
+          }
+        } else {
+          // Handle JSON data
+          body = await req.json();
         }
-      } else {
-        // Handle JSON data
-        body = await req.json();
+      } catch (parseError) {
+        console.error("Error parsing request body:", parseError);
+        return NextResponse.json(
+          { error: "Invalid request format. Could not parse request body." },
+          { status: 400 }
+        );
       }
       
       // Log the request body for debugging
@@ -115,21 +125,70 @@ export const POST = withAuth(
           
           // Process logo if provided
           if (body.logo && body.logo instanceof File) {
-            // Here you would upload the logo to your file storage service
-            // For now, we'll just store the filename
-            logoUrl = `uploads/logos/${Date.now()}_${body.logo.name}`;
+            try {
+              // Generate a unique filename
+              const uniqueFilename = `${Date.now()}_${body.logo.name.replace(/[^a-zA-Z0-9.]/g, '_')}`;
+              const logoPath = `uploads/logos/${uniqueFilename}`;
+              const publicPath = `/uploads/logos/${uniqueFilename}`;
+              
+              // Convert File to Buffer
+              const arrayBuffer = await body.logo.arrayBuffer();
+              const buffer = Buffer.from(arrayBuffer);
+              
+              // Ensure directory exists (should be created in app startup, but just in case)
+              const dir = path.join(process.cwd(), 'public', 'uploads', 'logos');
+              await fs.mkdir(dir, { recursive: true });
+              
+              // Write file to public directory
+              await fs.writeFile(path.join(process.cwd(), 'public', logoPath), buffer);
+              
+              // Store public URL path in database
+              logoUrl = publicPath;
+              console.log(`Logo saved successfully at ${logoPath}`);
+            } catch (fileError) {
+              console.error("Error saving logo file:", fileError);
+              // Don't throw error, just log it and continue without logo
+            }
           }
           
           // Process documents if provided
           if (body.documents) {
-            const docs = Array.isArray(body.documents) ? body.documents : [body.documents];
-            // Here you would upload each document to your file storage service
-            documentUrls = docs.map((doc: FormDataEntryValue, index: number) => {
-              if (doc instanceof File) {
-                return `uploads/documents/${Date.now()}_${index}_${doc.name}`;
-              }
-              return "";
-            }).filter(Boolean);
+            try {
+              const docs = Array.isArray(body.documents) ? body.documents : [body.documents];
+              // Process each document
+              documentUrls = await Promise.all(docs.map(async (doc: FormDataEntryValue, index: number) => {
+                if (doc instanceof File) {
+                  try {
+                    // Generate a unique filename
+                    const uniqueFilename = `${Date.now()}_${index}_${doc.name.replace(/[^a-zA-Z0-9.]/g, '_')}`;
+                    const docPath = `uploads/documents/${uniqueFilename}`;
+                    const publicPath = `/uploads/documents/${uniqueFilename}`;
+                    
+                    // Convert File to Buffer
+                    const arrayBuffer = await doc.arrayBuffer();
+                    const buffer = Buffer.from(arrayBuffer);
+                    
+                    // Ensure directory exists
+                    const dir = path.join(process.cwd(), 'public', 'uploads', 'documents');
+                    await fs.mkdir(dir, { recursive: true });
+                    
+                    // Write file to public directory
+                    await fs.writeFile(path.join(process.cwd(), 'public', docPath), buffer);
+                    
+                    // Return public URL path to store in database
+                    console.log(`Document saved successfully at ${docPath}`);
+                    return publicPath;
+                  } catch (fileError) {
+                    console.error(`Error saving document file ${index}:`, fileError);
+                    return "";
+                  }
+                }
+                return "";
+              })).then(urls => urls.filter(Boolean));
+            } catch (documentsError) {
+              console.error("Error processing documents:", documentsError);
+              documentUrls = []; // Continue without documents
+            }
           }
           
           // First create the company
