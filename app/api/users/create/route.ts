@@ -31,26 +31,34 @@ export const POST = withAuth(
       const contentType = req.headers.get("content-type") || "";
       let body;
       
-      if (contentType.includes("multipart/form-data")) {
-        // Handle form data
-        const formData = await req.formData();
-        body = Object.fromEntries(formData);
-        
-        // Convert documents from FormData to array
-        const documentEntries = Array.from(formData.entries())
-          .filter(([key]) => key.startsWith('documents['))
-          .map(([_, value]) => value);
+      try {
+        if (contentType.includes("multipart/form-data")) {
+          // Handle form data
+          const formData = await req.formData();
+          body = Object.fromEntries(formData);
           
-        if (documentEntries.length > 0) {
-          // Create a new body object with the documents array
-          body = {
-            ...body,
-            documents: documentEntries
-          };
+          // Convert documents from FormData to array
+          const documentEntries = Array.from(formData.entries())
+            .filter(([key]) => key.startsWith('documents['))
+            .map(([_, value]) => value);
+            
+          if (documentEntries.length > 0) {
+            // Create a new body object with the documents array
+            body = {
+              ...body,
+              documents: documentEntries
+            };
+          }
+        } else {
+          // Handle JSON data
+          body = await req.json();
         }
-      } else {
-        // Handle JSON data
-        body = await req.json();
+      } catch (parseError) {
+        console.error("Error parsing request body:", parseError);
+        return NextResponse.json(
+          { error: "Invalid request format. Could not parse request body." },
+          { status: 400 }
+        );
       }
       
       // Log the request body for debugging
@@ -147,35 +155,41 @@ export const POST = withAuth(
           if (body.documents) {
             const docs = Array.isArray(body.documents) ? body.documents : [body.documents];
             // Process each document
-            documentUrls = await Promise.all(docs.map(async (doc: FormDataEntryValue, index: number) => {
-              if (doc instanceof File) {
-                try {
-                  // Generate a unique filename
-                  const uniqueFilename = `${Date.now()}_${index}_${doc.name.replace(/[^a-zA-Z0-9.]/g, '_')}`;
-                  const docPath = `uploads/documents/${uniqueFilename}`;
-                  const publicPath = `/uploads/documents/${uniqueFilename}`;
-                  
-                  // Convert File to Buffer
-                  const arrayBuffer = await doc.arrayBuffer();
-                  const buffer = Buffer.from(arrayBuffer);
-                  
-                  // Ensure directory exists
-                  const dir = path.join(process.cwd(), 'public', 'uploads', 'documents');
-                  await fs.mkdir(dir, { recursive: true });
-                  
-                  // Write file to public directory
-                  await fs.writeFile(path.join(process.cwd(), 'public', docPath), buffer);
-                  
-                  // Return public URL path to store in database
-                  console.log(`Document saved successfully at ${docPath}`);
-                  return publicPath;
-                } catch (fileError) {
-                  console.error(`Error saving document file ${index}:`, fileError);
-                  return "";
+            try {
+              documentUrls = await Promise.all(docs.map(async (doc: FormDataEntryValue, index: number) => {
+                if (doc instanceof File) {
+                  try {
+                    // Generate a unique filename
+                    const uniqueFilename = `${Date.now()}_${index}_${doc.name.replace(/[^a-zA-Z0-9.]/g, '_')}`;
+                    const docPath = `uploads/documents/${uniqueFilename}`;
+                    const publicPath = `/uploads/documents/${uniqueFilename}`;
+                    
+                    // Convert File to Buffer
+                    const arrayBuffer = await doc.arrayBuffer();
+                    const buffer = Buffer.from(arrayBuffer);
+                    
+                    // Ensure directory exists
+                    const dir = path.join(process.cwd(), 'public', 'uploads', 'documents');
+                    await fs.mkdir(dir, { recursive: true });
+                    
+                    // Write file to public directory
+                    await fs.writeFile(path.join(process.cwd(), 'public', docPath), buffer);
+                    
+                    // Return public URL path to store in database
+                    console.log(`Document saved successfully at ${docPath}`);
+                    return publicPath;
+                  } catch (fileError) {
+                    console.error(`Error saving document file ${index}:`, fileError);
+                    return "";
+                  }
                 }
-              }
-              return "";
-            })).then(urls => urls.filter(Boolean));
+                return "";
+              })).then(urls => urls.filter(Boolean));
+            } catch (docError) {
+              console.error("Error processing documents:", docError);
+              // Continue without documents rather than failing the entire request
+              documentUrls = [];
+            }
           }
           
           // First create the company

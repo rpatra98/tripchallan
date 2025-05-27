@@ -164,13 +164,23 @@ export default function CreateCompanyPage() {
         body: formDataObj,
       });
 
+      // Check if response is ok before trying to parse JSON
+      if (!response.ok) {
+        const contentType = response.headers.get("content-type");
+        
+        // If response is JSON, parse it to get the error message
+        if (contentType && contentType.includes("application/json")) {
+          const data = await response.json();
+          throw new Error(data.error || `Failed to create company: ${response.status} ${response.statusText}`);
+        } else {
+          // Not a JSON response, use status text instead
+          throw new Error(`Failed to create company: ${response.status} ${response.statusText}`);
+        }
+      }
+      
+      // Parse response only if status is OK
       const data = await response.json();
       console.log("API response:", data);
-
-      if (!response.ok) {
-        // Display the specific error message from the API if available
-        throw new Error(data.error || "Failed to create company");
-      }
 
       // Show success message
       alert("Company created successfully!");
