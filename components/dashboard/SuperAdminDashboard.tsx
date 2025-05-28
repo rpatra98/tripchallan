@@ -427,10 +427,13 @@ export default function SuperAdminDashboard({ user: initialUser }: SuperAdminDas
       return [];
     }
     
-    return detailedStats.sessions.byStatus.map((status: any) => ({
-      name: status.status,
-      value: status._count
-    }));
+    // Filter out statuses with zero count to prevent empty segments in the chart
+    return detailedStats.sessions.byStatus
+      .filter((status: any) => status._count > 0)
+      .map((status: any) => ({
+        name: status.status,
+        value: status._count
+      }));
   };
 
   const prepareUserRoleData = () => {
@@ -836,6 +839,59 @@ export default function SuperAdminDashboard({ user: initialUser }: SuperAdminDas
                       </Card>
                     </Box>
                   </Box>
+                  
+                  {/* User Statistics Table */}
+                  <Card elevation={2} sx={{ mb: 4 }}>
+                    <CardHeader 
+                      title="User Statistics Summary" 
+                    />
+                    <Divider />
+                    <CardContent>
+                      <Box sx={{ overflowX: 'auto' }}>
+                        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                          <thead>
+                            <tr>
+                              <th style={{ padding: '12px 16px', textAlign: 'left', borderBottom: '1px solid #e0e0e0', fontWeight: 'bold', backgroundColor: '#f5f5f5' }}>Category</th>
+                              <th style={{ padding: '12px 16px', textAlign: 'center', borderBottom: '1px solid #e0e0e0', fontWeight: 'bold', backgroundColor: '#f5f5f5' }}>Count</th>
+                              <th style={{ padding: '12px 16px', textAlign: 'center', borderBottom: '1px solid #e0e0e0', fontWeight: 'bold', backgroundColor: '#f5f5f5' }}>Description</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            <tr>
+                              <td style={{ padding: '12px 16px', borderBottom: '1px solid #e0e0e0', fontWeight: 'bold', color: '#1976d2' }}>
+                                <Box display="flex" alignItems="center">
+                                  <PeopleIcon sx={{ marginRight: 1, color: 'primary.main' }} />
+                                  Total Users
+                                </Box>
+                              </td>
+                              <td style={{ padding: '12px 16px', textAlign: 'center', borderBottom: '1px solid #e0e0e0', fontWeight: 'bold' }}>{stats.totalUsers}</td>
+                              <td style={{ padding: '12px 16px', borderBottom: '1px solid #e0e0e0' }}>All user accounts including SuperAdmins, Admins, Companies, and Employees</td>
+                            </tr>
+                            <tr>
+                              <td style={{ padding: '12px 16px', borderBottom: '1px solid #e0e0e0', fontWeight: 'bold', color: '#0288d1' }}>
+                                <Box display="flex" alignItems="center">
+                                  <BusinessIcon sx={{ marginRight: 1, color: 'info.main' }} />
+                                  Total Companies
+                                </Box>
+                              </td>
+                              <td style={{ padding: '12px 16px', textAlign: 'center', borderBottom: '1px solid #e0e0e0', fontWeight: 'bold' }}>{stats.totalCompanies}</td>
+                              <td style={{ padding: '12px 16px', borderBottom: '1px solid #e0e0e0' }}>Company accounts registered in the system</td>
+                            </tr>
+                            <tr>
+                              <td style={{ padding: '12px 16px', borderBottom: '1px solid #e0e0e0', fontWeight: 'bold', color: '#2e7d32' }}>
+                                <Box display="flex" alignItems="center">
+                                  <BadgeIcon sx={{ marginRight: 1, color: 'success.main' }} />
+                                  Total Employees
+                                </Box>
+                              </td>
+                              <td style={{ padding: '12px 16px', textAlign: 'center', borderBottom: '1px solid #e0e0e0', fontWeight: 'bold' }}>{stats.totalEmployees}</td>
+                              <td style={{ padding: '12px 16px', borderBottom: '1px solid #e0e0e0' }}>Employee accounts belonging to registered companies</td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </Box>
+                    </CardContent>
+                  </Card>
                   
                   {/* Sessions Overview */}
                   <Card elevation={2} sx={{ mb: 4 }}>
