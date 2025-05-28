@@ -64,7 +64,7 @@ async function handler() {
       },
     });
 
-    // Get system stats
+    // Get system stats - Use countAll() to ensure accurate counts
     const totalAdmins = await prisma.user.count({
       where: { role: UserRole.ADMIN },
     });
@@ -76,6 +76,14 @@ async function handler() {
     const totalEmployees = await prisma.user.count({
       where: { role: UserRole.EMPLOYEE },
     });
+
+    // Count SuperAdmins too
+    const totalSuperAdmins = await prisma.user.count({
+      where: { role: UserRole.SUPERADMIN },
+    });
+
+    // Calculate total users
+    const totalUsers = totalAdmins + totalCompanies + totalEmployees + totalSuperAdmins;
 
     // Total coins in the system
     const totalCoins = await prisma.user.aggregate({
@@ -99,9 +107,11 @@ async function handler() {
         totalCoins: totalCoins._sum.coins || 0,
       },
       systemStats: {
+        totalUsers,
         admins: totalAdmins,
         companies: totalCompanies,
         employees: totalEmployees,
+        superadmins: totalSuperAdmins,
       },
     });
   } catch (error) {

@@ -193,12 +193,23 @@ export default function SuperAdminDashboard({ user: initialUser }: SuperAdminDas
   const fetchStats = async () => {
     setLoading(true);
     try {
-      // Use stats endpoint
+      // First try the main stats endpoint
+      console.log("Fetching stats from /api/stats endpoint");
       const response = await fetch(`/api/stats?period=${statsPeriod}`);
       const data = await response.json();
       
       if (data.stats) {
-        setStats(data.stats);
+        console.log("Stats data received:", data.stats);
+        setStats({
+          totalUsers: data.stats.totalUsers || 0,
+          totalAdmins: data.stats.totalAdmins || 0,
+          totalCompanies: data.stats.totalCompanies || 0,
+          totalEmployees: data.stats.totalEmployees || 0,
+          totalCoins: data.stats.totalCoins || 0,
+          totalSessions: data.stats.totalSessions || 0,
+          totalSeals: data.stats.totalSeals || 0
+        });
+        
         setDetailedStats({
           sessions: data.sessions || {},
           users: data.users || {},
@@ -206,31 +217,96 @@ export default function SuperAdminDashboard({ user: initialUser }: SuperAdminDas
           seals: data.seals || {},
           system: data.system || {}
         });
+        
         setLoading(false);
         return;
       }
     } catch (statErr) {
       console.error("Error fetching from /api/stats:", statErr);
+    }
+    
+    // Fallback to superadmin dashboard endpoint
+    try {
+      console.log("Fallback: Fetching stats from /api/dashboard/superadmin endpoint");
+      const fallbackResponse = await fetch("/api/dashboard/superadmin");
+      const fallbackData = await fallbackResponse.json();
       
-      // Fallback to superadmin dashboard endpoint
-      try {
-        const fallbackResponse = await fetch("/api/dashboard/superadmin");
-        const fallbackData = await fallbackResponse.json();
+      if (fallbackData.systemStats) {
+        console.log("Fallback stats data received:", fallbackData.systemStats);
         
-        if (fallbackData.systemStats) {
-          setStats({
-            totalUsers: fallbackData.systemStats.admins + fallbackData.systemStats.companies + fallbackData.systemStats.employees + 1, // +1 for superadmin
-            totalAdmins: fallbackData.systemStats.admins,
-            totalCompanies: fallbackData.systemStats.companies,
-            totalEmployees: fallbackData.systemStats.employees,
-            totalCoins: fallbackData.coinFlow?.totalCoins || 0,
-            totalSessions: 0,
-            totalSeals: 0
-          });
-        }
-      } catch (fallbackErr) {
-        console.error("Error fetching stats (fallback failed):", fallbackErr);
+        // Check if we have totalUsers from the API
+        const totalUsers = fallbackData.systemStats.totalUsers || 
+          (fallbackData.systemStats.admins + 
+           fallbackData.systemStats.companies + 
+           fallbackData.systemStats.employees + 
+           fallbackData.systemStats.superadmins || 1); // +1 for superadmin if not included
+        
+        setStats({
+          totalUsers,
+          totalAdmins: fallbackData.systemStats.admins || 0,
+          totalCompanies: fallbackData.systemStats.companies || 0,
+          totalEmployees: fallbackData.systemStats.employees || 0,
+          totalCoins: fallbackData.coinFlow?.totalCoins || 0,
+          totalSessions: fallbackData.sessions?.stats?.total || 0,
+          totalSeals: 0
+        });
+        
+        // Set minimal detailed stats from fallback
+        setDetailedStats({
+          sessions: {
+            byStatus: fallbackData.sessions?.stats ? [
+              { status: 'PENDING', _count: fallbackData.sessions.stats.pending || 0 },
+              { status: 'IN_PROGRESS', _count: fallbackData.sessions.stats.inProgress || 0 },
+              { status: 'COMPLETED', _count: fallbackData.sessions.stats.completed || 0 }
+            ] : [],
+            completionRate: 0,
+            avgDuration: 0
+          },
+          users: {
+            byRole: [],
+            activeUsers: 0,
+            activePercentage: 0
+          },
+          companies: {
+            active: 0,
+            inactive: 0,
+            activePercentage: 0
+          },
+          seals: {
+            byVerification: [],
+            verifiedPercentage: 0
+          },
+          system: {
+            recentActivity: 0,
+            activityTrend: [],
+            errorRate: 0
+          }
+        });
+      } else {
+        console.warn("No systemStats in fallback response");
+        // Initialize with zeros if no data available
+        setStats({
+          totalUsers: 0,
+          totalAdmins: 0,
+          totalCompanies: 0,
+          totalEmployees: 0,
+          totalCoins: 0,
+          totalSessions: 0,
+          totalSeals: 0
+        });
       }
+    } catch (fallbackErr) {
+      console.error("Error fetching stats (all attempts failed):", fallbackErr);
+      // Initialize with zeros if all attempts failed
+      setStats({
+        totalUsers: 0,
+        totalAdmins: 0,
+        totalCompanies: 0,
+        totalEmployees: 0,
+        totalCoins: 0,
+        totalSessions: 0,
+        totalSeals: 0
+      });
     } finally {
       setLoading(false);
     }

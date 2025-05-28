@@ -10,6 +10,32 @@ async function handler() {
     const lastWeek = subDays(now, 7);
     const lastMonth = subDays(now, 30);
 
+    // Get total users by role with explicit counts
+    const adminsCount = await prisma.user.count({
+      where: { role: UserRole.ADMIN }
+    });
+    
+    const superadminsCount = await prisma.user.count({
+      where: { role: UserRole.SUPERADMIN }
+    });
+    
+    const companiesCount = await prisma.user.count({
+      where: { role: UserRole.COMPANY }
+    });
+    
+    const employeesCount = await prisma.user.count({
+      where: { role: UserRole.EMPLOYEE }
+    });
+    
+    // Calculate total users
+    const totalUsers = adminsCount + superadminsCount + companiesCount + employeesCount;
+    
+    // Get users by role
+    const usersByRole = await prisma.user.groupBy({
+      by: ['role'],
+      _count: true
+    });
+
     // Get total sessions count
     const totalSessions = await prisma.session.count();
     
@@ -40,15 +66,6 @@ async function handler() {
     `;
     const avgSessionDuration = sessionDurations[0]?.avg_duration || 0;
     
-    // Get total users count
-    const totalUsers = await prisma.user.count();
-    
-    // Get users by role
-    const usersByRole = await prisma.user.groupBy({
-      by: ['role'],
-      _count: true
-    });
-    
     // Get active users (users who have logged in within the last 7 days)
     const activeUsers = await prisma.activityLog.groupBy({
       by: ['userId'],
@@ -60,13 +77,6 @@ async function handler() {
       }
     });
     
-    // Get total companies count
-    const totalCompanies = await prisma.user.count({
-      where: {
-        role: UserRole.COMPANY
-      }
-    });
-
     // Get active vs inactive companies
     const activeCompanies = await prisma.company.count({
       where: {
@@ -139,12 +149,20 @@ async function handler() {
 
     const errorRate = totalRequests > 0 ? (errorRequests / totalRequests) * 100 : 0;
 
+    console.log("Stats data:", {
+      totalUsers,
+      adminsCount,
+      companiesCount,
+      employeesCount,
+      totalCoins: totalCoins._sum.coins || 0
+    });
+
     return NextResponse.json({
       stats: {
         totalUsers,
-        totalAdmins: usersByRole.find((u: {role: string, _count: number}) => u.role === UserRole.ADMIN)?._count || 0,
-        totalCompanies,
-        totalEmployees: usersByRole.find((u: {role: string, _count: number}) => u.role === UserRole.EMPLOYEE)?._count || 0,
+        totalAdmins: adminsCount,
+        totalCompanies: companiesCount,
+        totalEmployees: employeesCount,
         totalCoins: totalCoins._sum.coins || 0,
         totalSessions,
         totalSeals,
@@ -160,18 +178,20 @@ async function handler() {
         total: totalUsers,
         byRole: usersByRole,
         activeUsers: activeUsers.length,
-        activePercentage: parseFloat(((activeUsers.length / totalUsers) * 100).toFixed(2))
+        activePercentage: totalUsers > 0 ? parseFloat(((activeUsers.length / totalUsers) * 100).toFixed(2)) : 0
       },
       companies: {
-        total: totalCompanies,
+        total: companiesCount,
         active: activeCompanies,
         inactive: inactiveCompanies,
-        activePercentage: parseFloat(((activeCompanies / (activeCompanies + inactiveCompanies)) * 100).toFixed(2))
+        activePercentage: (activeCompanies + inactiveCompanies) > 0 ? 
+          parseFloat(((activeCompanies / (activeCompanies + inactiveCompanies)) * 100).toFixed(2)) : 0
       },
       seals: {
         total: totalSeals,
         byVerification: sealsByVerification,
-        verifiedPercentage: parseFloat(((sealsByVerification.find((s: {verified: boolean, _count: number}) => s.verified === true)?._count || 0) / totalSeals * 100).toFixed(2))
+        verifiedPercentage: totalSeals > 0 ? 
+          parseFloat(((sealsByVerification.find((s: {verified: boolean, _count: number}) => s.verified === true)?._count || 0) / totalSeals * 100).toFixed(2)) : 0
       },
       system: {
         recentActivity,
