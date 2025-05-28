@@ -76,6 +76,31 @@ interface AdminUser {
   hasCreatedResources: boolean;
 }
 
+// Add interfaces for user, company and employee data
+interface User {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+  createdAt: string;
+}
+
+interface Company {
+  id: string;
+  name: string;
+  email: string;
+  createdAt: string;
+  status: string;
+}
+
+interface Employee {
+  id: string;
+  name: string;
+  email: string;
+  companyName: string;
+  createdAt: string;
+}
+
 export default function SuperAdminDashboard({ user: initialUser }: SuperAdminDashboardProps) {
   const { data: session, update: updateSession } = useSession();
   const { refreshUserSession } = useContext(SessionUpdateContext);
@@ -126,6 +151,11 @@ export default function SuperAdminDashboard({ user: initialUser }: SuperAdminDas
   const [adminToDeleteName, setAdminToDeleteName] = useState("");
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  // Add state for detailed user lists
+  const [usersList, setUsersList] = useState<User[]>([]);
+  const [companiesList, setCompaniesList] = useState<Company[]>([]);
+  const [employeesList, setEmployeesList] = useState<Employee[]>([]);
+  const [usersListLoading, setUsersListLoading] = useState(false);
 
   // Fetch admins if on admins tab
   useEffect(() => {
@@ -459,6 +489,45 @@ export default function SuperAdminDashboard({ user: initialUser }: SuperAdminDas
   };
 
   const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8'];
+
+  // Add function to fetch detailed user lists
+  const fetchDetailedUserLists = async () => {
+    setUsersListLoading(true);
+    try {
+      // Fetch users list
+      const usersResponse = await fetch('/api/users');
+      const usersData = await usersResponse.json();
+      if (usersData.users) {
+        setUsersList(usersData.users);
+      }
+      
+      // Fetch companies list
+      const companiesResponse = await fetch('/api/companies');
+      const companiesData = await companiesResponse.json();
+      if (companiesData.companies) {
+        setCompaniesList(companiesData.companies);
+      }
+      
+      // Fetch employees list
+      const employeesResponse = await fetch('/api/employees');
+      const employeesData = await employeesResponse.json();
+      if (employeesData.employees) {
+        setEmployeesList(employeesData.employees);
+      }
+    } catch (err) {
+      console.error("Error fetching detailed user lists:", err);
+    } finally {
+      setUsersListLoading(false);
+    }
+  };
+
+  // Effect to fetch stats and user lists when stats tab is active
+  useEffect(() => {
+    if (activeTab === "stats") {
+      fetchStats();
+      fetchDetailedUserLists();
+    }
+  }, [activeTab, statsPeriod]);
 
   return (
     <div>
@@ -840,56 +909,149 @@ export default function SuperAdminDashboard({ user: initialUser }: SuperAdminDas
                     </Box>
                   </Box>
                   
-                  {/* User Statistics Table */}
+                  {/* User Statistics Table - REPLACED WITH DETAILED LISTS */}
                   <Card elevation={2} sx={{ mb: 4 }}>
                     <CardHeader 
                       title="User Statistics Summary" 
+                      action={
+                        <Tooltip title="Refresh User Lists">
+                          <IconButton onClick={fetchDetailedUserLists}>
+                            <RefreshIcon />
+                          </IconButton>
+                        </Tooltip>
+                      }
                     />
                     <Divider />
                     <CardContent>
-                      <Box sx={{ overflowX: 'auto' }}>
-                        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                          <thead>
-                            <tr>
-                              <th style={{ padding: '12px 16px', textAlign: 'left', borderBottom: '1px solid #e0e0e0', fontWeight: 'bold', backgroundColor: '#f5f5f5' }}>Category</th>
-                              <th style={{ padding: '12px 16px', textAlign: 'center', borderBottom: '1px solid #e0e0e0', fontWeight: 'bold', backgroundColor: '#f5f5f5' }}>Count</th>
-                              <th style={{ padding: '12px 16px', textAlign: 'center', borderBottom: '1px solid #e0e0e0', fontWeight: 'bold', backgroundColor: '#f5f5f5' }}>Description</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            <tr>
-                              <td style={{ padding: '12px 16px', borderBottom: '1px solid #e0e0e0', fontWeight: 'bold', color: '#1976d2' }}>
-                                <Box display="flex" alignItems="center">
-                                  <PeopleIcon sx={{ marginRight: 1, color: 'primary.main' }} />
-                                  Total Users
-                                </Box>
-                              </td>
-                              <td style={{ padding: '12px 16px', textAlign: 'center', borderBottom: '1px solid #e0e0e0', fontWeight: 'bold' }}>{stats.totalUsers}</td>
-                              <td style={{ padding: '12px 16px', borderBottom: '1px solid #e0e0e0' }}>All user accounts including SuperAdmins, Admins, Companies, and Employees</td>
-                            </tr>
-                            <tr>
-                              <td style={{ padding: '12px 16px', borderBottom: '1px solid #e0e0e0', fontWeight: 'bold', color: '#0288d1' }}>
-                                <Box display="flex" alignItems="center">
-                                  <BusinessIcon sx={{ marginRight: 1, color: 'info.main' }} />
-                                  Total Companies
-                                </Box>
-                              </td>
-                              <td style={{ padding: '12px 16px', textAlign: 'center', borderBottom: '1px solid #e0e0e0', fontWeight: 'bold' }}>{stats.totalCompanies}</td>
-                              <td style={{ padding: '12px 16px', borderBottom: '1px solid #e0e0e0' }}>Company accounts registered in the system</td>
-                            </tr>
-                            <tr>
-                              <td style={{ padding: '12px 16px', borderBottom: '1px solid #e0e0e0', fontWeight: 'bold', color: '#2e7d32' }}>
-                                <Box display="flex" alignItems="center">
-                                  <BadgeIcon sx={{ marginRight: 1, color: 'success.main' }} />
-                                  Total Employees
-                                </Box>
-                              </td>
-                              <td style={{ padding: '12px 16px', textAlign: 'center', borderBottom: '1px solid #e0e0e0', fontWeight: 'bold' }}>{stats.totalEmployees}</td>
-                              <td style={{ padding: '12px 16px', borderBottom: '1px solid #e0e0e0' }}>Employee accounts belonging to registered companies</td>
-                            </tr>
-                          </tbody>
-                        </table>
-                      </Box>
+                      <Tabs
+                        value={statsTab}
+                        onChange={handleStatsTabChange}
+                        variant="fullWidth"
+                        sx={{ mb: 2 }}
+                      >
+                        <Tab label={`All Users (${usersList.length})`} icon={<PeopleIcon />} />
+                        <Tab label={`Companies (${companiesList.length})`} icon={<BusinessIcon />} />
+                        <Tab label={`Employees (${employeesList.length})`} icon={<BadgeIcon />} />
+                      </Tabs>
+                      
+                      {usersListLoading ? (
+                        <Box display="flex" justifyContent="center" p={3}>
+                          <CircularProgress size={30} />
+                        </Box>
+                      ) : (
+                        <>
+                          {statsTab === 0 && (
+                            <Box sx={{ overflowX: 'auto' }}>
+                              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                                <thead>
+                                  <tr>
+                                    <th style={{ padding: '12px 16px', textAlign: 'left', borderBottom: '1px solid #e0e0e0', fontWeight: 'bold', backgroundColor: '#f5f5f5' }}>Name</th>
+                                    <th style={{ padding: '12px 16px', textAlign: 'left', borderBottom: '1px solid #e0e0e0', fontWeight: 'bold', backgroundColor: '#f5f5f5' }}>Email</th>
+                                    <th style={{ padding: '12px 16px', textAlign: 'center', borderBottom: '1px solid #e0e0e0', fontWeight: 'bold', backgroundColor: '#f5f5f5' }}>Role</th>
+                                    <th style={{ padding: '12px 16px', textAlign: 'right', borderBottom: '1px solid #e0e0e0', fontWeight: 'bold', backgroundColor: '#f5f5f5' }}>Created At</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {usersList.length > 0 ? (
+                                    usersList.map(user => (
+                                      <tr key={user.id}>
+                                        <td style={{ padding: '12px 16px', borderBottom: '1px solid #e0e0e0' }}>{user.name}</td>
+                                        <td style={{ padding: '12px 16px', borderBottom: '1px solid #e0e0e0' }}>{user.email}</td>
+                                        <td style={{ padding: '12px 16px', textAlign: 'center', borderBottom: '1px solid #e0e0e0' }}>
+                                          <Box display="inline-flex" bgcolor={
+                                            user.role === 'SUPERADMIN' ? 'error.light' : 
+                                            user.role === 'ADMIN' ? 'primary.light' :
+                                            user.role === 'COMPANY' ? 'info.light' : 'success.light'
+                                          } color={
+                                            user.role === 'SUPERADMIN' ? 'error.dark' : 
+                                            user.role === 'ADMIN' ? 'primary.dark' :
+                                            user.role === 'COMPANY' ? 'info.dark' : 'success.dark'
+                                          } px={1.5} py={0.5} borderRadius={1} fontSize="0.75rem">
+                                            {user.role}
+                                          </Box>
+                                        </td>
+                                        <td style={{ padding: '12px 16px', textAlign: 'right', borderBottom: '1px solid #e0e0e0' }}>{formatDate(user.createdAt)}</td>
+                                      </tr>
+                                    ))
+                                  ) : (
+                                    <tr>
+                                      <td colSpan={4} style={{ padding: '12px 16px', textAlign: 'center', borderBottom: '1px solid #e0e0e0' }}>No users found</td>
+                                    </tr>
+                                  )}
+                                </tbody>
+                              </table>
+                            </Box>
+                          )}
+                          
+                          {statsTab === 1 && (
+                            <Box sx={{ overflowX: 'auto' }}>
+                              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                                <thead>
+                                  <tr>
+                                    <th style={{ padding: '12px 16px', textAlign: 'left', borderBottom: '1px solid #e0e0e0', fontWeight: 'bold', backgroundColor: '#f5f5f5' }}>Company Name</th>
+                                    <th style={{ padding: '12px 16px', textAlign: 'left', borderBottom: '1px solid #e0e0e0', fontWeight: 'bold', backgroundColor: '#f5f5f5' }}>Email</th>
+                                    <th style={{ padding: '12px 16px', textAlign: 'center', borderBottom: '1px solid #e0e0e0', fontWeight: 'bold', backgroundColor: '#f5f5f5' }}>Status</th>
+                                    <th style={{ padding: '12px 16px', textAlign: 'right', borderBottom: '1px solid #e0e0e0', fontWeight: 'bold', backgroundColor: '#f5f5f5' }}>Created At</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {companiesList.length > 0 ? (
+                                    companiesList.map(company => (
+                                      <tr key={company.id}>
+                                        <td style={{ padding: '12px 16px', borderBottom: '1px solid #e0e0e0' }}>{company.name}</td>
+                                        <td style={{ padding: '12px 16px', borderBottom: '1px solid #e0e0e0' }}>{company.email}</td>
+                                        <td style={{ padding: '12px 16px', textAlign: 'center', borderBottom: '1px solid #e0e0e0' }}>
+                                          <Box display="inline-flex" bgcolor={company.status === 'ACTIVE' ? 'success.light' : 'warning.light'} 
+                                               color={company.status === 'ACTIVE' ? 'success.dark' : 'warning.dark'} 
+                                               px={1.5} py={0.5} borderRadius={1} fontSize="0.75rem">
+                                            {company.status}
+                                          </Box>
+                                        </td>
+                                        <td style={{ padding: '12px 16px', textAlign: 'right', borderBottom: '1px solid #e0e0e0' }}>{formatDate(company.createdAt)}</td>
+                                      </tr>
+                                    ))
+                                  ) : (
+                                    <tr>
+                                      <td colSpan={4} style={{ padding: '12px 16px', textAlign: 'center', borderBottom: '1px solid #e0e0e0' }}>No companies found</td>
+                                    </tr>
+                                  )}
+                                </tbody>
+                              </table>
+                            </Box>
+                          )}
+                          
+                          {statsTab === 2 && (
+                            <Box sx={{ overflowX: 'auto' }}>
+                              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                                <thead>
+                                  <tr>
+                                    <th style={{ padding: '12px 16px', textAlign: 'left', borderBottom: '1px solid #e0e0e0', fontWeight: 'bold', backgroundColor: '#f5f5f5' }}>Name</th>
+                                    <th style={{ padding: '12px 16px', textAlign: 'left', borderBottom: '1px solid #e0e0e0', fontWeight: 'bold', backgroundColor: '#f5f5f5' }}>Email</th>
+                                    <th style={{ padding: '12px 16px', textAlign: 'left', borderBottom: '1px solid #e0e0e0', fontWeight: 'bold', backgroundColor: '#f5f5f5' }}>Company</th>
+                                    <th style={{ padding: '12px 16px', textAlign: 'right', borderBottom: '1px solid #e0e0e0', fontWeight: 'bold', backgroundColor: '#f5f5f5' }}>Created At</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {employeesList.length > 0 ? (
+                                    employeesList.map(employee => (
+                                      <tr key={employee.id}>
+                                        <td style={{ padding: '12px 16px', borderBottom: '1px solid #e0e0e0' }}>{employee.name}</td>
+                                        <td style={{ padding: '12px 16px', borderBottom: '1px solid #e0e0e0' }}>{employee.email}</td>
+                                        <td style={{ padding: '12px 16px', borderBottom: '1px solid #e0e0e0' }}>{employee.companyName}</td>
+                                        <td style={{ padding: '12px 16px', textAlign: 'right', borderBottom: '1px solid #e0e0e0' }}>{formatDate(employee.createdAt)}</td>
+                                      </tr>
+                                    ))
+                                  ) : (
+                                    <tr>
+                                      <td colSpan={4} style={{ padding: '12px 16px', textAlign: 'center', borderBottom: '1px solid #e0e0e0' }}>No employees found</td>
+                                    </tr>
+                                  )}
+                                </tbody>
+                              </table>
+                            </Box>
+                          )}
+                        </>
+                      )}
                     </CardContent>
                   </Card>
                   
