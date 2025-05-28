@@ -49,7 +49,7 @@ export const authOptions: AuthOptions = {
           const passwordsMatch = await compare(credentials.password, user.password);
 
           if (!passwordsMatch) {
-            throw new Error("You have entered wrong Email Address or Password");
+            return null;
           }
 
           const userAgent = req?.headers?.["user-agent"] || "unknown";

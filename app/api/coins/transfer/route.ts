@@ -6,6 +6,7 @@ import prisma from "@/lib/prisma";
 import { UserRole, TransactionReason, EmployeeSubrole } from "@/prisma/enums";
 import { addActivityLog } from "@/lib/activity-logger";
 import { ActivityAction } from "@/prisma/enums";
+import { PrismaClient } from "@prisma/client";
 
 async function handler(req: NextRequest) {
   if (req.method !== 'POST') {
@@ -27,7 +28,7 @@ async function handler(req: NextRequest) {
 
     // Parse request body
     const body = await req.json();
-    const { toUserId, amount, reason, notes } = body;
+    const { toUserId, amount, notes } = body;
     
     // Validate request data
     if (!toUserId) {
@@ -118,9 +119,9 @@ async function handler(req: NextRequest) {
     }
     
     // Perform the transaction within a Prisma transaction
-    const transaction = await prisma.$transaction(async (prisma) => {
+    const transaction = await prisma.$transaction(async (prismaTransaction: PrismaClient) => {
       // Deduct coins from sender
-      const updatedSender = await prisma.user.update({
+      const updatedSender = await prismaTransaction.user.update({
         where: { id: fromUserId },
         data: {
           coins: { decrement: amount },
@@ -128,7 +129,7 @@ async function handler(req: NextRequest) {
       });
       
       // Add coins to recipient
-      const updatedRecipient = await prisma.user.update({
+      const updatedRecipient = await prismaTransaction.user.update({
         where: { id: toUserId },
         data: {
           coins: { increment: amount },
@@ -136,7 +137,7 @@ async function handler(req: NextRequest) {
       });
       
       // Record the transaction using COIN_ALLOCATION reason
-      const coinTransaction = await prisma.coinTransaction.create({
+      const coinTransaction = await prismaTransaction.coinTransaction.create({
         data: {
           fromUserId,
           toUserId,

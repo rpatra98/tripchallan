@@ -1,5 +1,3 @@
-// Using any type as a fallback to avoid TypeScript errors
-// @ts-ignore
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-options";
@@ -7,15 +5,16 @@ import { withAuth } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { UserRole } from "@/prisma/enums";
 
-interface RouteParams {
-  params: {
-    id: string;
-  };
-}
-
 export const GET = withAuth(
-  async (req: NextRequest, context: any) => {
+  async (req: NextRequest, context: { params: Record<string, string> } | undefined) => {
     try {
+      if (!context || !context.params) {
+        return NextResponse.json(
+          { error: "Invalid route parameters" },
+          { status: 400 }
+        );
+      }
+      
       const { params } = context;
       const adminId = params.id;
       const session = await getServerSession(authOptions);
@@ -57,8 +56,8 @@ export const GET = withAuth(
       
       // Get the company IDs associated with these users
       const companyIds = companyUsers
-        .filter((user: any) => user.companyId)
-        .map((user: any) => user.companyId);
+        .filter((user: { companyId?: string }) => user.companyId)
+        .map((user: { companyId?: string }) => user.companyId);
       
       // Also find companies where the admin has created any users
       const adminEmployeeCreations = await prisma.user.findMany({
@@ -77,8 +76,8 @@ export const GET = withAuth(
       
       // Add company IDs from employee creation relationships
       const employeeCompanyIds = adminEmployeeCreations
-        .filter((user: any) => user.companyId)
-        .map((user: any) => user.companyId);
+        .filter((user: { companyId?: string }) => user.companyId)
+        .map((user: { companyId?: string }) => user.companyId);
       
       // Combine both sets of company IDs without duplicates
       const uniqueCompanyIds = [...new Set([...companyIds, ...employeeCompanyIds])];
@@ -99,7 +98,7 @@ export const GET = withAuth(
             
           if (customPerms && customPerms.length > 0) {
             // Add these company IDs to the list
-            customPerms.forEach((perm: any) => {
+            customPerms.forEach((perm: { resource_id?: string }) => {
               if (perm.resource_id && !uniqueCompanyIds.includes(perm.resource_id)) {
                 uniqueCompanyIds.push(perm.resource_id);
               }

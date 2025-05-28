@@ -141,7 +141,9 @@ async function handleGet(
     let sessionCount = 0;
     
     // Build the OR condition
-    const sessionWhereClause: any = { OR: [] };
+    const sessionWhereClause: {
+      OR: Array<{ companyId?: { in: string[] }; createdById?: { in: string[] } }>
+    } = { OR: [] };
     
     if (companyIds.length > 0) {
       sessionWhereClause.OR.push({

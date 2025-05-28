@@ -1,5 +1,3 @@
-// Using any type as a fallback to avoid TypeScript errors
-// @ts-ignore
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-options";
@@ -7,15 +5,16 @@ import { withAuth } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { UserRole } from "@/prisma/enums";
 
-interface RouteParams {
-  params: {
-    id: string;
-  };
-}
-
 export const GET = withAuth(
-  async (req: NextRequest, context: any) => {
+  async (req: NextRequest, context: { params: Record<string, string> } | undefined) => {
     try {
+      if (!context || !context.params) {
+        return NextResponse.json(
+          { error: "Invalid route parameters" },
+          { status: 400 }
+        );
+      }
+      
       const { params } = context;
       const adminId = params.id;
       const session = await getServerSession(authOptions);
@@ -58,8 +57,8 @@ export const GET = withAuth(
       });
       
       const companyIds = companyUsersQuery
-        .filter((item: any) => item.companyId)
-        .map((item: any) => item.companyId);
+        .filter((item: { companyId?: string }) => item.companyId)
+        .map((item: { companyId?: string }) => item.companyId);
       
       // Get companies based on these IDs
       let companies = [];

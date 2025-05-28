@@ -90,7 +90,7 @@ export function truncateText(text: string, maxLength: number = 100): string {
  */
 export function deepClone<T>(obj: T): T {
   return JSON.parse(JSON.stringify(obj));
-}
+} 
 
 /**
  * Converts a File object to a base64 string

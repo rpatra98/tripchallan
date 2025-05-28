@@ -3,7 +3,6 @@ import { getToken } from "next-auth/jwt";
 import { ActivityAction } from "@/prisma/enums";
 import { addActivityLog } from "@/lib/activity-logger";
 import { detectDevice } from "@/lib/utils";
-import { cookies } from "next/headers";
 
 // Client-side approach to logout
 // Just returns a simple HTML page with JavaScript to sign out
@@ -18,7 +17,7 @@ export async function GET(request: NextRequest) {
     // Log the logout activity if we have a user token
     if (token?.id) {
       const userAgent = request.headers.get("user-agent") || "unknown";
-      const deviceInfo = detectDevice(userAgent);
+      const deviceType = detectDevice(userAgent);
       
       try {
         await addActivityLog({
@@ -26,8 +25,11 @@ export async function GET(request: NextRequest) {
           action: ActivityAction.LOGOUT,
           details: {
             method: "client-side",
-            device: deviceInfo.type,
-            deviceDetails: deviceInfo
+            device: deviceType,
+            deviceDetails: {
+              deviceType,
+              userAgent
+            }
           },
           ipAddress: request.headers.get("x-forwarded-for") || "unknown",
           userAgent: userAgent

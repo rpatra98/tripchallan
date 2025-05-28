@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { withAuth } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { EmployeeSubrole, UserRole } from "@/prisma/enums";
-import { Prisma } from "@prisma/client";
 
 interface Company {
   id: string;
@@ -138,7 +137,11 @@ async function handler(
     console.log(`🔍 Total unique operators: ${operatorIdsArray.length}`);
 
     // Define the where clause based on available data
-    let whereClause: any = {};
+    let whereClause: {
+      OR?: Array<{ companyId?: { in: string[] }; createdById?: { in: string[] } }>;
+      id?: string;
+      status?: string;
+    } = {};
     
     // Build the OR conditions
     const orConditions = [];

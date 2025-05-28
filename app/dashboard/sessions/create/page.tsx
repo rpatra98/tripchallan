@@ -274,7 +274,7 @@ export default function CreateSessionPage() {
     loaderMobileNumber: "",
     timestamps: {}
   });
-  
+
   // Step 2: Driver Details (new step)
   const [driverDetails, setDriverDetails] = useState<DriverDetailsForm>({
     driverName: "",
@@ -554,7 +554,7 @@ export default function CreateSessionPage() {
   const handleDriverDetailsChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setDriverDetails(prev => ({
-      ...prev,
+            ...prev,
       [name]: value,
       timestamps: {
         ...prev.timestamps,
@@ -677,7 +677,7 @@ export default function CreateSessionPage() {
     setError("");
     
     setSealTags(prev => ({
-      ...prev,
+        ...prev,
       sealTagIds: [...prev.sealTagIds, tagId],
       sealTagImages: {
         ...prev.sealTagImages,
@@ -687,11 +687,11 @@ export default function CreateSessionPage() {
         ...prev.sealTagMethods,
         [tagId]: 'digitally scanned'
       },
-      timestamps: {
-        ...prev.timestamps,
+        timestamps: {
+          ...prev.timestamps,
         [tagId]: new Date().toISOString()
-      }
-    }));
+        }
+      }));
   };
 
   // Update handleAddSealTag for manual entries to require an image and check for existence
@@ -800,14 +800,14 @@ export default function CreateSessionPage() {
   const validateSealTagsStep = (): boolean => {
     const newErrors: Record<string, string> = {};
     
-    if (sealTags.sealTagIds.length === 0) {
-      newErrors.sealTagIds = "At least one seal tag ID is required";
+      if (sealTags.sealTagIds.length === 0) {
+        newErrors.sealTagIds = "At least one seal tag ID is required";
       }
       
-    if (sealTags.sealTagIds.length > 40) {
-      newErrors.sealTagIds = "Maximum of 40 seal tags allowed";
-    }
-    
+      if (sealTags.sealTagIds.length > 40) {
+        newErrors.sealTagIds = "Maximum of 40 seal tags allowed";
+      }
+      
     // Check for minimum number of tags (minimum 20 required)
     if (sealTags.sealTagIds.length < 20) {
       newErrors.sealTagIds = "Minimum of 20 seal tags required";
@@ -1027,19 +1027,19 @@ export default function CreateSessionPage() {
           if (image) {
             try {
               const resizedImage = await resizeImage(image, 1280, 1280, 0.8);
-              const base64Data = await fileToBase64(resizedImage);
+          const base64Data = await fileToBase64(resizedImage);
               
               // Add to base64 data
               imageBase64Data.sealTagImages[tagId] = {
                 data: base64Data.split(',')[1],
-                contentType: resizedImage.type,
+            contentType: resizedImage.type,
                 name: resizedImage.name,
                 method: sealTags.sealTagMethods[tagId] || 'unknown'
-              };
+          };
               
               // Add to form data
               formData.append(`sealTagImages[${tagId}]`, resizedImage);
-            } catch (error) {
+        } catch (error) {
               console.error(`Error processing seal tag image for ${tagId}:`, error);
               throw new Error(`Error processing image for seal tag ${tagId}. Please try with a smaller image.`);
             }
@@ -1085,14 +1085,14 @@ export default function CreateSessionPage() {
         if (loadingDetails.gpsImeiPicture) {
           try {
             const resizedImage = await resizeImage(loadingDetails.gpsImeiPicture, 1280, 1280, 0.8);
-            const base64Data = await fileToBase64(resizedImage);
+          const base64Data = await fileToBase64(resizedImage);
             imageBase64Data.gpsImeiPicture = {
-              data: base64Data.split(',')[1],
-              contentType: resizedImage.type,
-              name: resizedImage.name
-            };
+            data: base64Data.split(',')[1],
+            contentType: resizedImage.type,
+            name: resizedImage.name
+          };
             formData.append('gpsImeiPicture', resizedImage);
-          } catch (error) {
+        } catch (error) {
             console.error("Error processing GPS IMEI image:", error);
             throw new Error("Error processing GPS IMEI image. Please try with a smaller image.");
           }
@@ -1103,15 +1103,15 @@ export default function CreateSessionPage() {
         if (driverDetails.driverPicture) {
           try {
             const resizedImage = await resizeImage(driverDetails.driverPicture, 1280, 1280, 0.8);
-            const base64Data = await fileToBase64(resizedImage);
-            imageBase64Data.driverPicture = {
-              data: base64Data.split(',')[1],
-              contentType: resizedImage.type,
-              name: resizedImage.name
-            };
-            formData.append('driverPicture', resizedImage);
-          } catch (error) {
-            console.error("Error processing driver picture:", error);
+          const base64Data = await fileToBase64(resizedImage);
+          imageBase64Data.driverPicture = {
+            data: base64Data.split(',')[1],
+            contentType: resizedImage.type,
+            name: resizedImage.name
+          };
+          formData.append('driverPicture', resizedImage);
+        } catch (error) {
+          console.error("Error processing driver picture:", error);
             throw new Error("Error processing driver picture. Please try with a smaller image.");
           }
         }
@@ -1122,14 +1122,14 @@ export default function CreateSessionPage() {
           try {
             // Resize the image first
             const resizedImage = await resizeImage(imagesForm.vehicleNumberPlatePicture, 1280, 1280, 0.8);
-            const base64Data = await fileToBase64(resizedImage);
+          const base64Data = await fileToBase64(resizedImage);
             imageBase64Data.vehicleNumberPlatePicture = {
               data: base64Data.split(',')[1], // Remove data URL prefix
-              contentType: resizedImage.type,
-              name: resizedImage.name
+            contentType: resizedImage.type,
+            name: resizedImage.name
             };
             formData.append('vehicleNumberPlatePicture', resizedImage);
-          } catch (error) {
+        } catch (error) {
             console.error("Error processing vehicle number plate image:", error);
             throw new Error("Error processing vehicle number plate image. Please try with a smaller image.");
           }
@@ -1142,40 +1142,40 @@ export default function CreateSessionPage() {
         
         // Add multiple files - limit the number of files to reduce payload size
         const maxImagesPerCategory = 5; // Limit to 5 images per category
-        
-        // Process vehicle images
-        for (let i = 0; i < Math.min(imagesForm.vehicleImages.length, maxImagesPerCategory); i++) {
-          try {
-            const file = imagesForm.vehicleImages[i];
+      
+      // Process vehicle images
+      for (let i = 0; i < Math.min(imagesForm.vehicleImages.length, maxImagesPerCategory); i++) {
+        try {
+          const file = imagesForm.vehicleImages[i];
             const resizedImage = await resizeImage(file, 1280, 1280, 0.8);
-            const base64Data = await fileToBase64(resizedImage);
-            imageBase64Data.vehicleImages.push({
-              data: base64Data.split(',')[1],
-              contentType: resizedImage.type,
-              name: resizedImage.name
-            });
-            formData.append(`vehicleImages[${i}]`, resizedImage);
-          } catch (error) {
-            console.error(`Error processing vehicle image ${i}:`, error);
+          const base64Data = await fileToBase64(resizedImage);
+          imageBase64Data.vehicleImages.push({
+            data: base64Data.split(',')[1],
+            contentType: resizedImage.type,
+            name: resizedImage.name
+          });
+          formData.append(`vehicleImages[${i}]`, resizedImage);
+        } catch (error) {
+          console.error(`Error processing vehicle image ${i}:`, error);
             throw new Error(`Error processing vehicle image ${i+1}. Please try with a smaller image.`);
-          }
         }
-        
+      }
+      
         progressStage = "processing additional images";
         // Process additional images with the same approach
-        for (let i = 0; i < Math.min(imagesForm.additionalImages.length, maxImagesPerCategory); i++) {
-          try {
-            const file = imagesForm.additionalImages[i];
+      for (let i = 0; i < Math.min(imagesForm.additionalImages.length, maxImagesPerCategory); i++) {
+        try {
+          const file = imagesForm.additionalImages[i];
             const resizedImage = await resizeImage(file, 1280, 1280, 0.8);
-            const base64Data = await fileToBase64(resizedImage);
-            imageBase64Data.additionalImages.push({
-              data: base64Data.split(',')[1],
-              contentType: resizedImage.type,
-              name: resizedImage.name
-            });
-            formData.append(`additionalImages[${i}]`, resizedImage);
-          } catch (error) {
-            console.error(`Error processing additional image ${i}:`, error);
+          const base64Data = await fileToBase64(resizedImage);
+          imageBase64Data.additionalImages.push({
+            data: base64Data.split(',')[1],
+            contentType: resizedImage.type,
+            name: resizedImage.name
+          });
+          formData.append(`additionalImages[${i}]`, resizedImage);
+        } catch (error) {
+          console.error(`Error processing additional image ${i}:`, error);
             throw new Error(`Error processing additional image ${i+1}. Please try with a smaller image.`);
           }
         }
@@ -1183,8 +1183,8 @@ export default function CreateSessionPage() {
         console.error(`Error while ${progressStage}:`, error);
         setError(`Error while ${progressStage}: ${error instanceof Error ? error.message : 'Unknown error'}`);
         setErrorDetails("Try using smaller images or fewer images. Each image should be under 5MB.");
-        setIsSubmitting(false);
-        return;
+          setIsSubmitting(false);
+          return;
       }
       
       // Add the base64 image data to the form
@@ -1194,7 +1194,7 @@ export default function CreateSessionPage() {
       formData.append('imagesFormTimestamps', JSON.stringify(imagesForm.timestamps));
 
       console.log("All form data prepared, sending to server");
-      
+
       // Send the request without Content-Type header to allow browser to set correct boundary for FormData
       const response = await fetch("/api/sessions", {
         method: "POST",
@@ -1203,7 +1203,7 @@ export default function CreateSessionPage() {
       });
 
       console.log("API response status:", response.status);
-      
+
       // Handle different error response types
       if (!response.ok) {
         // Try to parse error as JSON first
@@ -1247,17 +1247,17 @@ export default function CreateSessionPage() {
       if (data.sessionId) {
         setLoadingId(data.sessionId);
         generateQRCode(data.sessionId);
-        
-        // Refresh the user session to update coin balance
+
+      // Refresh the user session to update coin balance
         if (refreshUserSession) {
-          await refreshUserSession();
+      await refreshUserSession();
         }
-        
+
         // Show success message
         toast.success("Session created successfully!");
         
         // Redirect to sessions page after successful creation
-        router.push("/dashboard/sessions");
+      router.push("/dashboard/sessions");
         return; // Ensure no further code runs after redirect
       } else {
         console.error("API response missing session ID:", data);
@@ -1271,7 +1271,7 @@ export default function CreateSessionPage() {
       
       // Show error toast for better visibility
       toast.error(error.message || "An error occurred while creating the session");
-    } finally {
+      } finally {
       // Ensure isSubmitting is always set to false after API call completes
       setIsSubmitting(false);
     }
@@ -1514,12 +1514,12 @@ export default function CreateSessionPage() {
                   renderInput={(params) => (
                     <TextField
                       {...params}
-                      fullWidth
-                      label="Vehicle Number"
-                      name="vehicleNumber"
-                      required
-                      placeholder="MH02AB1234"
-                      error={!!validationErrors.vehicleNumber}
+                  fullWidth
+                  label="Vehicle Number"
+                  name="vehicleNumber"
+                  required
+                  placeholder="MH02AB1234"
+                  error={!!validationErrors.vehicleNumber}
                       helperText={
                         validationErrors.vehicleNumber || 
                         "Format: MH02AB1234 (Standard) or TEMP/25/OD/02/1234 (Temporary)"
@@ -1585,13 +1585,13 @@ export default function CreateSessionPage() {
               
               <Box sx={{ width: { xs: '100%', md: '47%' } }}>
                 <Box sx={{ display: 'flex', gap: 1, alignItems: 'flex-start' }}>
-                  <TextField
-                    fullWidth
+                <TextField
+                  fullWidth
                     label="GPS IMEI Number"
                     name="gpsImeiNumber"
                     value={loadingDetails.gpsImeiNumber}
-                    onChange={handleLoadingDetailsChange}
-                    required
+                  onChange={handleLoadingDetailsChange}
+                  required
                     type="number"
                     error={!!validationErrors.gpsImeiNumber}
                     helperText={validationErrors.gpsImeiNumber}
@@ -1862,10 +1862,10 @@ export default function CreateSessionPage() {
               </Box>
               
               <Box sx={{ width: '100%', display: 'flex', flexWrap: 'wrap', gap: 2 }}>
-                <Box sx={{ width: { xs: '100%', md: '47%' } }}>
-                  <Typography variant="subtitle1" gutterBottom>
+              <Box sx={{ width: { xs: '100%', md: '47%' } }}>
+                <Typography variant="subtitle1" gutterBottom>
                     Scan QR/Barcode
-                  </Typography>
+                </Typography>
                   <ClientSideQrScanner
                     onScanWithImage={(data, imageFile) => {
                       // Check if already scanned
@@ -1913,20 +1913,20 @@ export default function CreateSessionPage() {
                   />
                   
                   <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2 }}>
-                    <Button
-                      variant="outlined"
-                      component="label"
-                      startIcon={<PhotoCamera />}
-                      sx={{ height: '56px' }}
-                    >
+                <Button
+                  variant="outlined"
+                  component="label"
+                  startIcon={<PhotoCamera />}
+                  sx={{ height: '56px' }}
+                >
                       {manualEntryImage ? 'Change Image' : 'Upload Image'}
-                      <input
-                        type="file"
-                        hidden
-                        accept="image/*"
+                  <input
+                    type="file"
+                    hidden
+                    accept="image/*"
                         onChange={handleManualSealTagImageChange}
-                      />
-                    </Button>
+                  />
+                </Button>
                     
                     {renderImagePreview(manualEntryImage)}
                   </Box>
@@ -1943,8 +1943,8 @@ export default function CreateSessionPage() {
                   {validationErrors.sealTagImages && (
                     <Typography variant="caption" color="error">
                       {validationErrors.sealTagImages}
-                    </Typography>
-                  )}
+                  </Typography>
+                )}
                 </Typography>
                 
                 {sealTags.sealTagIds.length > 0 ? (
@@ -2164,9 +2164,9 @@ export default function CreateSessionPage() {
               {/* Display GPS IMEI picture from Loading Details */}
               {loadingDetails.gpsImeiPicture && (
                 <Box sx={{ width: '100%', mb: 3 }}>
-                  <Typography variant="subtitle1" gutterBottom>
+                <Typography variant="subtitle1" gutterBottom>
                     GPS IMEI Picture
-                  </Typography>
+                </Typography>
                   <Box 
                     sx={{ 
                       display: 'flex', 
@@ -2262,8 +2262,8 @@ export default function CreateSessionPage() {
                               {sealTags.timestamps[tagId] && (
                                 <Typography variant="caption" color="text.secondary">
                                   {new Date(sealTags.timestamps[tagId]).toLocaleString()}
-                                </Typography>
-                              )}
+                  </Typography>
+                )}
                             </TableCell>
                           </TableRow>
                         ))}
