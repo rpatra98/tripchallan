@@ -3,7 +3,33 @@
 import { useState, useEffect, useContext } from "react";
 import Link from "next/link";
 import { SuperAdminDashboardProps } from "./types";
-import { CircularProgress, Card, CardContent, Typography, Box, Button, Dialog, DialogTitle, DialogContent, DialogContentText, DialogActions } from "@mui/material";
+import { 
+  CircularProgress, 
+  Card, 
+  CardContent, 
+  Typography, 
+  Box, 
+  Button, 
+  Dialog, 
+  DialogTitle, 
+  DialogContent, 
+  DialogContentText, 
+  DialogActions,
+  Tabs,
+  Tab,
+  Paper,
+  Divider,
+  LinearProgress,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  CardHeader,
+  IconButton,
+  Tooltip,
+  SelectChangeEvent
+} from "@mui/material";
+import Grid from "@mui/material/Grid";
 import { format } from "date-fns";
 import TransferCoinsForm from "../coins/TransferCoinsForm";
 import SuperAdminTransferCoinsForm from "../coins/SuperAdminTransferCoinsForm";
@@ -11,6 +37,29 @@ import TransactionHistory from "../coins/TransactionHistory";
 import { useSession } from "next-auth/react";
 import { SessionUpdateContext } from "@/app/dashboard/layout";
 import { toast } from "react-hot-toast";
+import { 
+  BarChart, 
+  Bar, 
+  LineChart, 
+  Line, 
+  XAxis, 
+  YAxis, 
+  CartesianGrid, 
+  Tooltip as RechartsTooltip, 
+  Legend, 
+  ResponsiveContainer,
+  PieChart,
+  Pie,
+  Cell
+} from 'recharts';
+import RefreshIcon from '@mui/icons-material/Refresh';
+import TrendingUpIcon from '@mui/icons-material/TrendingUp';
+import TrendingDownIcon from '@mui/icons-material/TrendingDown';
+import PeopleIcon from '@mui/icons-material/People';
+import BusinessIcon from '@mui/icons-material/Business';
+import BadgeIcon from '@mui/icons-material/Badge';
+import MonetizationOnIcon from '@mui/icons-material/MonetizationOn';
+import ListAltIcon from '@mui/icons-material/ListAlt';
 
 interface AdminUser {
   id: string;
@@ -34,7 +83,37 @@ export default function SuperAdminDashboard({ user: initialUser }: SuperAdminDas
     totalCompanies: 0,
     totalEmployees: 0,
     totalCoins: 0,
+    totalSessions: 0,
+    totalSeals: 0
   });
+  const [detailedStats, setDetailedStats] = useState<any>({
+    sessions: {
+      byStatus: [],
+      completionRate: 0,
+      avgDuration: 0
+    },
+    users: {
+      byRole: [],
+      activeUsers: 0,
+      activePercentage: 0
+    },
+    companies: {
+      active: 0,
+      inactive: 0,
+      activePercentage: 0
+    },
+    seals: {
+      byVerification: [],
+      verifiedPercentage: 0
+    },
+    system: {
+      recentActivity: 0,
+      activityTrend: [],
+      errorRate: 0
+    }
+  });
+  const [statsPeriod, setStatsPeriod] = useState('week');
+  const [statsTab, setStatsTab] = useState(0);
   const [refreshTransactions, setRefreshTransactions] = useState(0);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [adminToDelete, setAdminToDelete] = useState<string | null>(null);
@@ -108,35 +187,44 @@ export default function SuperAdminDashboard({ user: initialUser }: SuperAdminDas
   const fetchStats = async () => {
     setLoading(true);
     try {
-      // Use dashboard/superadmin endpoint as a fallback if stats endpoint fails
-      try {
-        const response = await fetch("/api/stats");
-        const data = await response.json();
-        
-        if (data.stats) {
-          setStats(data.stats);
-          setLoading(false);
-          return;
-        }
-      } catch (statErr) {
-        console.error("Error fetching from /api/stats, trying fallback:", statErr);
+      // Use stats endpoint
+      const response = await fetch(`/api/stats?period=${statsPeriod}`);
+      const data = await response.json();
+      
+      if (data.stats) {
+        setStats(data.stats);
+        setDetailedStats({
+          sessions: data.sessions || {},
+          users: data.users || {},
+          companies: data.companies || {},
+          seals: data.seals || {},
+          system: data.system || {}
+        });
+        setLoading(false);
+        return;
       }
+    } catch (statErr) {
+      console.error("Error fetching from /api/stats:", statErr);
       
       // Fallback to superadmin dashboard endpoint
-      const fallbackResponse = await fetch("/api/dashboard/superadmin");
-      const fallbackData = await fallbackResponse.json();
-      
-      if (fallbackData.systemStats) {
-        setStats({
-          totalUsers: fallbackData.systemStats.admins + fallbackData.systemStats.companies + fallbackData.systemStats.employees + 1, // +1 for superadmin
-          totalAdmins: fallbackData.systemStats.admins,
-          totalCompanies: fallbackData.systemStats.companies,
-          totalEmployees: fallbackData.systemStats.employees,
-          totalCoins: fallbackData.coinFlow?.totalCoins || 0
-        });
+      try {
+        const fallbackResponse = await fetch("/api/dashboard/superadmin");
+        const fallbackData = await fallbackResponse.json();
+        
+        if (fallbackData.systemStats) {
+          setStats({
+            totalUsers: fallbackData.systemStats.admins + fallbackData.systemStats.companies + fallbackData.systemStats.employees + 1, // +1 for superadmin
+            totalAdmins: fallbackData.systemStats.admins,
+            totalCompanies: fallbackData.systemStats.companies,
+            totalEmployees: fallbackData.systemStats.employees,
+            totalCoins: fallbackData.coinFlow?.totalCoins || 0,
+            totalSessions: 0,
+            totalSeals: 0
+          });
+        }
+      } catch (fallbackErr) {
+        console.error("Error fetching stats (fallback failed):", fallbackErr);
       }
-    } catch (err) {
-      console.error("Error fetching stats (all attempts failed):", err);
     } finally {
       setLoading(false);
     }
@@ -234,12 +322,58 @@ export default function SuperAdminDashboard({ user: initialUser }: SuperAdminDas
     }
   }, [session?.user?.coins]);
 
-  // Initial load of stats if that's the active tab
+  // Effect to update stats when period changes
   useEffect(() => {
     if (activeTab === "stats") {
       fetchStats();
     }
-  }, []);
+  }, [statsPeriod]);
+
+  // Handle stats period change
+  const handleStatsPeriodChange = (event: SelectChangeEvent) => {
+    setStatsPeriod(event.target.value as string);
+  };
+
+  // Handle stats tab change
+  const handleStatsTabChange = (event: React.SyntheticEvent, newValue: number) => {
+    setStatsTab(newValue);
+  };
+
+  // Prepare data for charts
+  const prepareSessionStatusData = () => {
+    if (!detailedStats.sessions.byStatus || detailedStats.sessions.byStatus.length === 0) {
+      return [];
+    }
+    
+    return detailedStats.sessions.byStatus.map((status: any) => ({
+      name: status.status,
+      value: status._count
+    }));
+  };
+
+  const prepareUserRoleData = () => {
+    if (!detailedStats.users.byRole || detailedStats.users.byRole.length === 0) {
+      return [];
+    }
+    
+    return detailedStats.users.byRole.map((role: any) => ({
+      name: role.role,
+      value: role._count
+    }));
+  };
+
+  const prepareActivityTrendData = () => {
+    if (!detailedStats.system.activityTrend || detailedStats.system.activityTrend.length === 0) {
+      return [];
+    }
+    
+    return detailedStats.system.activityTrend.map((day: any) => ({
+      date: format(new Date(day.day), 'MMM dd'),
+      activities: day.count
+    }));
+  };
+
+  const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8'];
 
   return (
     <div>
@@ -417,58 +551,401 @@ export default function SuperAdminDashboard({ user: initialUser }: SuperAdminDas
           {/* Stats Tab Content */}
           {activeTab === "stats" && (
             <div>
-              <h3 className="text-lg font-medium mb-4">System Statistics</h3>
+              <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
+                <Typography variant="h5" fontWeight="medium">System Statistics</Typography>
+                <Box display="flex" alignItems="center">
+                  <FormControl variant="outlined" size="small" sx={{ mr: 2, minWidth: 120 }}>
+                    <InputLabel id="stats-period-label">Time Period</InputLabel>
+                    <Select
+                      labelId="stats-period-label"
+                      id="stats-period"
+                      value={statsPeriod}
+                      onChange={handleStatsPeriodChange}
+                      label="Time Period"
+                    >
+                      <MenuItem value="day">Last 24 Hours</MenuItem>
+                      <MenuItem value="week">Last 7 Days</MenuItem>
+                      <MenuItem value="month">Last 30 Days</MenuItem>
+                      <MenuItem value="all">All Time</MenuItem>
+                    </Select>
+                  </FormControl>
+                  <Tooltip title="Refresh Statistics">
+                    <IconButton onClick={fetchStats} color="primary">
+                      <RefreshIcon />
+                    </IconButton>
+                  </Tooltip>
+                </Box>
+              </Box>
               
               {loading ? (
-                <div className="flex justify-center p-6">
-                  <CircularProgress />
-                </div>
+                <Box display="flex" flexDirection="column" alignItems="center" p={4}>
+                  <CircularProgress size={40} />
+                  <Typography variant="body2" color="text.secondary" mt={2}>
+                    Loading system statistics...
+                  </Typography>
+                </Box>
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                  <Card variant="outlined">
+                <>
+                  {/* Summary Cards */}
+                  <Grid container spacing={3} sx={{ mb: 4 }}>
+                    {/* Users Card */}
+                    <Grid item xs={12} sm={6} md={3}>
+                      <Card elevation={2}>
+                        <CardContent>
+                          <Box display="flex" justifyContent="space-between" alignItems="center">
+                            <Box>
+                              <Typography variant="body2" color="text.secondary">
+                                Total Users
+                              </Typography>
+                              <Typography variant="h4" fontWeight="medium">
+                                {stats.totalUsers}
+                              </Typography>
+                            </Box>
+                            <Box
+                              sx={{
+                                backgroundColor: 'primary.light',
+                                borderRadius: '50%',
+                                width: 48,
+                                height: 48,
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                              }}
+                            >
+                              <PeopleIcon sx={{ color: 'primary.main' }} />
+                            </Box>
+                          </Box>
+                          {detailedStats.users.activePercentage > 0 && (
+                            <Box mt={2}>
+                              <Box display="flex" justifyContent="space-between" alignItems="center">
+                                <Typography variant="caption" color="text.secondary">
+                                  Active Users
+                                </Typography>
+                                <Typography variant="caption" color="primary">
+                                  {detailedStats.users.activeUsers} ({detailedStats.users.activePercentage}%)
+                                </Typography>
+                              </Box>
+                              <LinearProgress 
+                                variant="determinate" 
+                                value={detailedStats.users.activePercentage} 
+                                sx={{ mt: 0.5, height: 5, borderRadius: 1 }}
+                              />
+                            </Box>
+                          )}
+                        </CardContent>
+                      </Card>
+                    </Grid>
+                    
+                    {/* Companies Card */}
+                    <Grid item xs={12} sm={6} md={3}>
+                      <Card elevation={2}>
+                        <CardContent>
+                          <Box display="flex" justifyContent="space-between" alignItems="center">
+                            <Box>
+                              <Typography variant="body2" color="text.secondary">
+                                Total Companies
+                              </Typography>
+                              <Typography variant="h4" fontWeight="medium">
+                                {stats.totalCompanies}
+                              </Typography>
+                            </Box>
+                            <Box
+                              sx={{
+                                backgroundColor: 'info.light',
+                                borderRadius: '50%',
+                                width: 48,
+                                height: 48,
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                              }}
+                            >
+                              <BusinessIcon sx={{ color: 'info.main' }} />
+                            </Box>
+                          </Box>
+                          {detailedStats.companies.activePercentage > 0 && (
+                            <Box mt={2}>
+                              <Box display="flex" justifyContent="space-between" alignItems="center">
+                                <Typography variant="caption" color="text.secondary">
+                                  Active Companies
+                                </Typography>
+                                <Typography variant="caption" color="info.main">
+                                  {detailedStats.companies.active} ({detailedStats.companies.activePercentage}%)
+                                </Typography>
+                              </Box>
+                              <LinearProgress 
+                                variant="determinate" 
+                                value={detailedStats.companies.activePercentage} 
+                                sx={{ mt: 0.5, height: 5, borderRadius: 1, color: 'info.main', '& .MuiLinearProgress-bar': { bgcolor: 'info.main' } }}
+                              />
+                            </Box>
+                          )}
+                        </CardContent>
+                      </Card>
+                    </Grid>
+                    
+                    {/* Employees Card */}
+                    <Grid item xs={12} sm={6} md={3}>
+                      <Card elevation={2}>
+                        <CardContent>
+                          <Box display="flex" justifyContent="space-between" alignItems="center">
+                            <Box>
+                              <Typography variant="body2" color="text.secondary">
+                                Total Employees
+                              </Typography>
+                              <Typography variant="h4" fontWeight="medium">
+                                {stats.totalEmployees}
+                              </Typography>
+                            </Box>
+                            <Box
+                              sx={{
+                                backgroundColor: 'success.light',
+                                borderRadius: '50%',
+                                width: 48,
+                                height: 48,
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                              }}
+                            >
+                              <BadgeIcon sx={{ color: 'success.main' }} />
+                            </Box>
+                          </Box>
+                        </CardContent>
+                      </Card>
+                    </Grid>
+                    
+                    {/* Coins Card */}
+                    <Grid item xs={12} sm={6} md={3}>
+                      <Card elevation={2}>
+                        <CardContent>
+                          <Box display="flex" justifyContent="space-between" alignItems="center">
+                            <Box>
+                              <Typography variant="body2" color="text.secondary">
+                                Total Coins
+                              </Typography>
+                              <Typography variant="h4" fontWeight="medium">
+                                {stats.totalCoins}
+                              </Typography>
+                            </Box>
+                            <Box
+                              sx={{
+                                backgroundColor: 'warning.light',
+                                borderRadius: '50%',
+                                width: 48,
+                                height: 48,
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                              }}
+                            >
+                              <MonetizationOnIcon sx={{ color: 'warning.main' }} />
+                            </Box>
+                          </Box>
+                        </CardContent>
+                      </Card>
+                    </Grid>
+                  </Grid>
+                  
+                  {/* Sessions Overview */}
+                  <Card elevation={2} sx={{ mb: 4 }}>
+                    <CardHeader 
+                      title="Sessions Overview" 
+                      subheader={`Total Sessions: ${stats.totalSessions}`}
+                    />
+                    <Divider />
                     <CardContent>
-                      <Typography variant="h6" color="text.secondary" gutterBottom>
-                        Total Users
-                      </Typography>
-                      <Typography variant="h4">
-                        {stats.totalUsers}
-                      </Typography>
+                      <Grid container spacing={3}>
+                        <Grid item xs={12} md={4}>
+                          <Box mb={2}>
+                            <Typography variant="body2" color="text.secondary" gutterBottom>
+                              Session Completion Rate
+                            </Typography>
+                            <Box display="flex" alignItems="center">
+                              <Typography variant="h5" fontWeight="medium" color="primary" mr={1}>
+                                {detailedStats.sessions.completionRate || 0}%
+                              </Typography>
+                              {detailedStats.sessions.completionRate > 70 ? (
+                                <TrendingUpIcon color="success" />
+                              ) : (
+                                <TrendingDownIcon color="error" />
+                              )}
+                            </Box>
+                            <LinearProgress 
+                              variant="determinate" 
+                              value={detailedStats.sessions.completionRate || 0} 
+                              sx={{ mt: 1, height: 8, borderRadius: 1 }}
+                            />
+                          </Box>
+                          
+                          <Box>
+                            <Typography variant="body2" color="text.secondary" gutterBottom>
+                              Average Session Duration
+                            </Typography>
+                            <Typography variant="h5" fontWeight="medium" color="primary">
+                              {detailedStats.sessions.avgDuration ? `${Math.floor(detailedStats.sessions.avgDuration / 3600)}h ${Math.floor((detailedStats.sessions.avgDuration % 3600) / 60)}m` : 'N/A'}
+                            </Typography>
+                          </Box>
+                        </Grid>
+                        
+                        <Grid item xs={12} md={8}>
+                          <Typography variant="body2" color="text.secondary" gutterBottom>
+                            Sessions by Status
+                          </Typography>
+                          <Box height={240}>
+                            <ResponsiveContainer width="100%" height="100%">
+                              <PieChart>
+                                <Pie
+                                  data={prepareSessionStatusData()}
+                                  cx="50%"
+                                  cy="50%"
+                                  innerRadius={60}
+                                  outerRadius={90}
+                                  fill="#8884d8"
+                                  paddingAngle={2}
+                                  dataKey="value"
+                                  nameKey="name"
+                                  label={(entry) => entry.name}
+                                >
+                                  {prepareSessionStatusData().map((entry: any, index: number) => (
+                                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                                  ))}
+                                </Pie>
+                                <RechartsTooltip formatter={(value, name) => [`${value} Sessions`, name]} />
+                                <Legend />
+                              </PieChart>
+                            </ResponsiveContainer>
+                          </Box>
+                        </Grid>
+                      </Grid>
                     </CardContent>
                   </Card>
                   
-                  <Card variant="outlined">
-                    <CardContent>
-                      <Typography variant="h6" color="text.secondary" gutterBottom>
-                        Total Companies
-                      </Typography>
-                      <Typography variant="h4">
-                        {stats.totalCompanies}
-                      </Typography>
-                    </CardContent>
-                  </Card>
+                  {/* Users & Activity */}
+                  <Grid container spacing={3} sx={{ mb: 4 }}>
+                    <Grid item xs={12} md={6}>
+                      <Card elevation={2} sx={{ height: '100%' }}>
+                        <CardHeader title="User Distribution" />
+                        <Divider />
+                        <CardContent>
+                          <Box height={300}>
+                            <ResponsiveContainer width="100%" height="100%">
+                              <BarChart data={prepareUserRoleData()}>
+                                <CartesianGrid strokeDasharray="3 3" />
+                                <XAxis dataKey="name" />
+                                <YAxis />
+                                <RechartsTooltip formatter={(value) => [`${value} Users`]} />
+                                <Bar dataKey="value" fill="#8884d8" name="Users" />
+                              </BarChart>
+                            </ResponsiveContainer>
+                          </Box>
+                        </CardContent>
+                      </Card>
+                    </Grid>
+                    
+                    <Grid item xs={12} md={6}>
+                      <Card elevation={2} sx={{ height: '100%' }}>
+                        <CardHeader 
+                          title="System Activity" 
+                          subheader={`${detailedStats.system.recentActivity || 0} activities in the last 24 hours`}
+                        />
+                        <Divider />
+                        <CardContent>
+                          <Box height={300}>
+                            <ResponsiveContainer width="100%" height="100%">
+                              <LineChart data={prepareActivityTrendData()}>
+                                <CartesianGrid strokeDasharray="3 3" />
+                                <XAxis dataKey="date" />
+                                <YAxis />
+                                <RechartsTooltip formatter={(value) => [`${value} Activities`]} />
+                                <Line type="monotone" dataKey="activities" stroke="#8884d8" activeDot={{ r: 8 }} name="Activities" />
+                              </LineChart>
+                            </ResponsiveContainer>
+                          </Box>
+                        </CardContent>
+                      </Card>
+                    </Grid>
+                  </Grid>
                   
-                  <Card variant="outlined">
+                  {/* System Health */}
+                  <Card elevation={2}>
+                    <CardHeader title="System Health" />
+                    <Divider />
                     <CardContent>
-                      <Typography variant="h6" color="text.secondary" gutterBottom>
-                        Total Employees
-                      </Typography>
-                      <Typography variant="h4">
-                        {stats.totalEmployees}
-                      </Typography>
+                      <Grid container spacing={3}>
+                        <Grid item xs={12} md={6}>
+                          <Box mb={3}>
+                            <Typography variant="body2" color="text.secondary" gutterBottom>
+                              Error Rate (Last 7 days)
+                            </Typography>
+                            <Box display="flex" alignItems="center">
+                              <Typography 
+                                variant="h5" 
+                                fontWeight="medium" 
+                                color={detailedStats.system.errorRate < 1 ? 'success.main' : detailedStats.system.errorRate < 5 ? 'warning.main' : 'error.main'} 
+                                mr={1}
+                              >
+                                {detailedStats.system.errorRate || 0}%
+                              </Typography>
+                              {detailedStats.system.errorRate < 1 ? (
+                                <TrendingDownIcon color="success" />
+                              ) : (
+                                <TrendingUpIcon color="error" />
+                              )}
+                            </Box>
+                            <LinearProgress 
+                              variant="determinate" 
+                              value={detailedStats.system.errorRate || 0} 
+                              sx={{ 
+                                mt: 1, 
+                                height: 8, 
+                                borderRadius: 1,
+                                '& .MuiLinearProgress-bar': { 
+                                  bgcolor: detailedStats.system.errorRate < 1 ? 'success.main' : detailedStats.system.errorRate < 5 ? 'warning.main' : 'error.main'
+                                }
+                              }}
+                            />
+                          </Box>
+                        </Grid>
+                        
+                        <Grid item xs={12} md={6}>
+                          <Box mb={3}>
+                            <Typography variant="body2" color="text.secondary" gutterBottom>
+                              Seal Verification Rate
+                            </Typography>
+                            <Box display="flex" alignItems="center">
+                              <Typography 
+                                variant="h5" 
+                                fontWeight="medium" 
+                                color={detailedStats.seals.verifiedPercentage > 80 ? 'success.main' : 'warning.main'} 
+                                mr={1}
+                              >
+                                {detailedStats.seals.verifiedPercentage || 0}%
+                              </Typography>
+                              {detailedStats.seals.verifiedPercentage > 80 ? (
+                                <TrendingUpIcon color="success" />
+                              ) : (
+                                <TrendingDownIcon color="warning" />
+                              )}
+                            </Box>
+                            <LinearProgress 
+                              variant="determinate" 
+                              value={detailedStats.seals.verifiedPercentage || 0} 
+                              sx={{ 
+                                mt: 1, 
+                                height: 8, 
+                                borderRadius: 1,
+                                '& .MuiLinearProgress-bar': { 
+                                  bgcolor: detailedStats.seals.verifiedPercentage > 80 ? 'success.main' : 'warning.main'
+                                }
+                              }}
+                            />
+                          </Box>
+                        </Grid>
+                      </Grid>
                     </CardContent>
                   </Card>
-                  
-                  <Card variant="outlined">
-                    <CardContent>
-                      <Typography variant="h6" color="text.secondary" gutterBottom>
-                        Total Coins in System
-                      </Typography>
-                      <Typography variant="h4">
-                        {stats.totalCoins}
-                      </Typography>
-                    </CardContent>
-                  </Card>
-                </div>
+                </>
               )}
             </div>
           )}
