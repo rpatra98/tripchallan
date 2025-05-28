@@ -97,7 +97,8 @@ interface Employee {
   id: string;
   name: string;
   email: string;
-  companyName: string;
+  companyName?: string;
+  companyId?: string;
   createdAt: string;
 }
 
@@ -518,8 +519,50 @@ export default function SuperAdminDashboard({ user: initialUser }: SuperAdminDas
         const companies = usersData.users.filter((user: User) => user.role === 'COMPANY');
         const employees = usersData.users.filter((user: User) => user.role === 'EMPLOYEE');
         
+        // Enhanced employees with company information
+        const enhancedEmployees = await Promise.all(employees.map(async (employee: any) => {
+          // If employee already has companyName, use it
+          if (employee.companyName) {
+            return employee;
+          }
+          
+          // Try to get company information if employee has companyId
+          if (employee.companyId) {
+            try {
+              // First check if company exists in our already fetched companies list
+              const companyFromList = companies.find((c: any) => c.id === employee.companyId);
+              if (companyFromList) {
+                return {
+                  ...employee,
+                  companyName: companyFromList.name
+                };
+              }
+              
+              // If not found in our list, fetch from API
+              const companyResponse = await fetch(`/api/companies/${employee.companyId}`);
+              if (companyResponse.ok) {
+                const companyData = await companyResponse.json();
+                if (companyData.company && companyData.company.name) {
+                  return {
+                    ...employee,
+                    companyName: companyData.company.name
+                  };
+                }
+              }
+            } catch (error) {
+              console.error(`Error fetching company for employee ${employee.id}:`, error);
+            }
+          }
+          
+          // Default fallback
+          return {
+            ...employee,
+            companyName: employee.companyId ? 'Unknown Company' : 'No Company'
+          };
+        }));
+        
         setCompaniesList(companies);
-        setEmployeesList(employees);
+        setEmployeesList(enhancedEmployees);
       }
     } catch (err) {
       console.error("Error fetching detailed user lists:", err);
@@ -1075,7 +1118,21 @@ export default function SuperAdminDashboard({ user: initialUser }: SuperAdminDas
                                       <tr key={employee.id}>
                                         <td style={{ padding: '12px 16px', borderBottom: '1px solid #e0e0e0' }}>{employee.name}</td>
                                         <td style={{ padding: '12px 16px', borderBottom: '1px solid #e0e0e0' }}>{employee.email}</td>
-                                        <td style={{ padding: '12px 16px', borderBottom: '1px solid #e0e0e0' }}>{employee.companyName}</td>
+                                        <td style={{ padding: '12px 16px', borderBottom: '1px solid #e0e0e0' }}>
+                                          {employee.companyName ? (
+                                            <Box component="span" sx={{ 
+                                              display: 'inline-flex', 
+                                              bgcolor: 'info.light',
+                                              color: 'info.dark',
+                                              px: 1.5,
+                                              py: 0.5,
+                                              borderRadius: 1,
+                                              fontSize: '0.75rem'
+                                            }}>
+                                              {employee.companyName}
+                                            </Box>
+                                          ) : 'No Company'}
+                                        </td>
                                         <td style={{ padding: '12px 16px', textAlign: 'right', borderBottom: '1px solid #e0e0e0' }}>{formatDate(employee.createdAt)}</td>
                                       </tr>
                                     ))
