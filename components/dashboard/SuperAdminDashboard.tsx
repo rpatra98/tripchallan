@@ -499,8 +499,24 @@ export default function SuperAdminDashboard({ user: initialUser }: SuperAdminDas
       const usersData = await usersResponse.json();
       if (usersData.users) {
         setUsersList(usersData.users);
+        
+        // Update summary stats with actual counts from fetched data
+        const companiesCount = usersData.users.filter((user: User) => user.role === 'COMPANY').length;
+        const employeesCount = usersData.users.filter((user: User) => user.role === 'EMPLOYEE').length;
+        
+        setStats(prevStats => ({
+          ...prevStats,
+          totalUsers: usersData.users.length,
+          totalCompanies: companiesCount,
+          totalEmployees: employeesCount
+        }));
       }
       
+      // We'll use the users endpoint as the source of truth, so we don't need separate API calls
+      // for companies and employees if they're already included in the users response
+      
+      // But if your API is structured differently, you can keep these separate calls:
+      /*
       // Fetch companies list
       const companiesResponse = await fetch('/api/companies');
       const companiesData = await companiesResponse.json();
@@ -514,6 +530,15 @@ export default function SuperAdminDashboard({ user: initialUser }: SuperAdminDas
       if (employeesData.employees) {
         setEmployeesList(employeesData.employees);
       }
+      */
+      
+      // Instead, we'll extract companies and employees from the users list
+      const companies = usersData.users.filter((user: User) => user.role === 'COMPANY');
+      const employees = usersData.users.filter((user: User) => user.role === 'EMPLOYEE');
+      
+      setCompaniesList(companies);
+      setEmployeesList(employees);
+      
     } catch (err) {
       console.error("Error fetching detailed user lists:", err);
     } finally {
@@ -524,8 +549,10 @@ export default function SuperAdminDashboard({ user: initialUser }: SuperAdminDas
   // Effect to fetch stats and user lists when stats tab is active
   useEffect(() => {
     if (activeTab === "stats") {
-      fetchStats();
+      // First fetch detailed user lists to ensure counts are accurate
       fetchDetailedUserLists();
+      // Then fetch other stats that don't affect user counts
+      fetchStats();
     }
   }, [activeTab, statsPeriod]);
 
