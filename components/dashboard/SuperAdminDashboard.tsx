@@ -1480,7 +1480,8 @@ export default function SuperAdminDashboard({ user: initialUser }: SuperAdminDas
                     </CardContent>
                   </Card>
                   
-                  {/* Users & Activity */}
+                  {/* HIDDEN: Users & Activity */}
+                  {/* 
                   <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 3, mb: 4 }}>
                     <Box sx={{ flex: '1 1 300px', minWidth: { xs: '100%', md: '45%' } }}>
                       <Card elevation={2} sx={{ height: '100%' }}>
@@ -1525,8 +1526,10 @@ export default function SuperAdminDashboard({ user: initialUser }: SuperAdminDas
                       </Card>
                     </Box>
                   </Box>
+                  */}
                   
-                  {/* System Health */}
+                  {/* HIDDEN: System Health */}
+                  {/*
                   <Card elevation={2}>
                     <CardHeader title="System Health" />
                     <Divider />
@@ -1604,6 +1607,7 @@ export default function SuperAdminDashboard({ user: initialUser }: SuperAdminDas
                       </Box>
                     </CardContent>
                   </Card>
+                  */}
                 </>
               )}
             </div>
