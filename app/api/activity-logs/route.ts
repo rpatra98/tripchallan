@@ -5,13 +5,12 @@ import { withAuth } from "@/lib/auth";
 import { UserRole, ActivityAction } from "@/prisma/enums";
 import { getActivityLogs } from "@/lib/activity-logger";
 import prisma from "@/lib/prisma";
-import { PrismaClient } from "@prisma/client";
 
 // Define the ActivityLog type here to match what's returned from the database
 type ActivityLog = {
   id: string;
   action: string;
-  details: any;
+  details: Record<string, unknown>;
   targetResourceType?: string;
   targetResourceId?: string;
   userId: string;
@@ -217,7 +216,7 @@ async function handler(req: NextRequest) {
     // Always fetch logs for SUPERADMIN or when in debug mode, even if userIds array is empty
     if (userIds.length > 0 || session.user.role === UserRole.SUPERADMIN || bypassPermissions) {
       // Custom filtering for deviceType if provided
-      let customWhere: any = undefined;
+      let customWhere: Record<string, unknown> | undefined = undefined;
       
       if (deviceType && (deviceType === 'mobile' || deviceType === 'desktop')) {
         // We need a custom where clause for this because it's within JSON
