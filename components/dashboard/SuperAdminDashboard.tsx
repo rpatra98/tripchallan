@@ -27,9 +27,11 @@ import {
   CardHeader,
   IconButton,
   Tooltip,
-  SelectChangeEvent
+  SelectChangeEvent,
+  Stack,
+  Container,
+  Grid as MuiGrid
 } from "@mui/material";
-import Grid from "@mui/material/Grid";
 import { format } from "date-fns";
 import TransferCoinsForm from "../coins/TransferCoinsForm";
 import SuperAdminTransferCoinsForm from "../coins/SuperAdminTransferCoinsForm";
@@ -60,6 +62,10 @@ import BusinessIcon from '@mui/icons-material/Business';
 import BadgeIcon from '@mui/icons-material/Badge';
 import MonetizationOnIcon from '@mui/icons-material/MonetizationOn';
 import ListAltIcon from '@mui/icons-material/ListAlt';
+
+// Fix for TypeScript errors with Grid
+// @ts-ignore
+const Grid = MuiGrid;
 
 interface AdminUser {
   id: string;
@@ -587,9 +593,9 @@ export default function SuperAdminDashboard({ user: initialUser }: SuperAdminDas
               ) : (
                 <>
                   {/* Summary Cards */}
-                  <Grid container spacing={3} sx={{ mb: 4 }}>
+                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 3, mb: 4 }}>
                     {/* Users Card */}
-                    <Grid item xs={12} sm={6} md={3}>
+                    <Box sx={{ flex: '1 1 200px', minWidth: { xs: '100%', sm: 'calc(50% - 12px)', md: 'calc(25% - 18px)' } }}>
                       <Card elevation={2}>
                         <CardContent>
                           <Box display="flex" justifyContent="space-between" alignItems="center">
@@ -634,10 +640,10 @@ export default function SuperAdminDashboard({ user: initialUser }: SuperAdminDas
                           )}
                         </CardContent>
                       </Card>
-                    </Grid>
+                    </Box>
                     
                     {/* Companies Card */}
-                    <Grid item xs={12} sm={6} md={3}>
+                    <Box sx={{ flex: '1 1 200px', minWidth: { xs: '100%', sm: 'calc(50% - 12px)', md: 'calc(25% - 18px)' } }}>
                       <Card elevation={2}>
                         <CardContent>
                           <Box display="flex" justifyContent="space-between" alignItems="center">
@@ -682,10 +688,10 @@ export default function SuperAdminDashboard({ user: initialUser }: SuperAdminDas
                           )}
                         </CardContent>
                       </Card>
-                    </Grid>
+                    </Box>
                     
                     {/* Employees Card */}
-                    <Grid item xs={12} sm={6} md={3}>
+                    <Box sx={{ flex: '1 1 200px', minWidth: { xs: '100%', sm: 'calc(50% - 12px)', md: 'calc(25% - 18px)' } }}>
                       <Card elevation={2}>
                         <CardContent>
                           <Box display="flex" justifyContent="space-between" alignItems="center">
@@ -713,10 +719,10 @@ export default function SuperAdminDashboard({ user: initialUser }: SuperAdminDas
                           </Box>
                         </CardContent>
                       </Card>
-                    </Grid>
+                    </Box>
                     
                     {/* Coins Card */}
-                    <Grid item xs={12} sm={6} md={3}>
+                    <Box sx={{ flex: '1 1 200px', minWidth: { xs: '100%', sm: 'calc(50% - 12px)', md: 'calc(25% - 18px)' } }}>
                       <Card elevation={2}>
                         <CardContent>
                           <Box display="flex" justifyContent="space-between" alignItems="center">
@@ -744,8 +750,8 @@ export default function SuperAdminDashboard({ user: initialUser }: SuperAdminDas
                           </Box>
                         </CardContent>
                       </Card>
-                    </Grid>
-                  </Grid>
+                    </Box>
+                  </Box>
                   
                   {/* Sessions Overview */}
                   <Card elevation={2} sx={{ mb: 4 }}>
@@ -755,8 +761,8 @@ export default function SuperAdminDashboard({ user: initialUser }: SuperAdminDas
                     />
                     <Divider />
                     <CardContent>
-                      <Grid container spacing={3}>
-                        <Grid item xs={12} md={4}>
+                      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
+                        <Box sx={{ flex: '1 1 300px', minWidth: { xs: '100%', md: '30%' } }}>
                           <Box mb={2}>
                             <Typography variant="body2" color="text.secondary" gutterBottom>
                               Session Completion Rate
@@ -786,9 +792,9 @@ export default function SuperAdminDashboard({ user: initialUser }: SuperAdminDas
                               {detailedStats.sessions.avgDuration ? `${Math.floor(detailedStats.sessions.avgDuration / 3600)}h ${Math.floor((detailedStats.sessions.avgDuration % 3600) / 60)}m` : 'N/A'}
                             </Typography>
                           </Box>
-                        </Grid>
+                        </Box>
                         
-                        <Grid item xs={12} md={8}>
+                        <Box sx={{ flex: '1 1 300px', minWidth: { xs: '100%', md: '60%' } }}>
                           <Typography variant="body2" color="text.secondary" gutterBottom>
                             Sessions by Status
                           </Typography>
@@ -816,14 +822,14 @@ export default function SuperAdminDashboard({ user: initialUser }: SuperAdminDas
                               </PieChart>
                             </ResponsiveContainer>
                           </Box>
-                        </Grid>
-                      </Grid>
+                        </Box>
+                      </Box>
                     </CardContent>
                   </Card>
                   
                   {/* Users & Activity */}
-                  <Grid container spacing={3} sx={{ mb: 4 }}>
-                    <Grid item xs={12} md={6}>
+                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 3, mb: 4 }}>
+                    <Box sx={{ flex: '1 1 300px', minWidth: { xs: '100%', md: '45%' } }}>
                       <Card elevation={2} sx={{ height: '100%' }}>
                         <CardHeader title="User Distribution" />
                         <Divider />
@@ -841,9 +847,9 @@ export default function SuperAdminDashboard({ user: initialUser }: SuperAdminDas
                           </Box>
                         </CardContent>
                       </Card>
-                    </Grid>
+                    </Box>
                     
-                    <Grid item xs={12} md={6}>
+                    <Box sx={{ flex: '1 1 300px', minWidth: { xs: '100%', md: '45%' } }}>
                       <Card elevation={2} sx={{ height: '100%' }}>
                         <CardHeader 
                           title="System Activity" 
@@ -864,16 +870,16 @@ export default function SuperAdminDashboard({ user: initialUser }: SuperAdminDas
                           </Box>
                         </CardContent>
                       </Card>
-                    </Grid>
-                  </Grid>
+                    </Box>
+                  </Box>
                   
                   {/* System Health */}
                   <Card elevation={2}>
                     <CardHeader title="System Health" />
                     <Divider />
                     <CardContent>
-                      <Grid container spacing={3}>
-                        <Grid item xs={12} md={6}>
+                      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
+                        <Box sx={{ flex: '1 1 300px', minWidth: { xs: '100%', md: '45%' } }}>
                           <Box mb={3}>
                             <Typography variant="body2" color="text.secondary" gutterBottom>
                               Error Rate (Last 7 days)
@@ -906,9 +912,9 @@ export default function SuperAdminDashboard({ user: initialUser }: SuperAdminDas
                               }}
                             />
                           </Box>
-                        </Grid>
+                        </Box>
                         
-                        <Grid item xs={12} md={6}>
+                        <Box sx={{ flex: '1 1 300px', minWidth: { xs: '100%', md: '45%' } }}>
                           <Box mb={3}>
                             <Typography variant="body2" color="text.secondary" gutterBottom>
                               Seal Verification Rate
@@ -941,8 +947,8 @@ export default function SuperAdminDashboard({ user: initialUser }: SuperAdminDas
                               }}
                             />
                           </Box>
-                        </Grid>
-                      </Grid>
+                        </Box>
+                      </Box>
                     </CardContent>
                   </Card>
                 </>
