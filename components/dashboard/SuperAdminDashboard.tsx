@@ -522,9 +522,12 @@ export default function SuperAdminDashboard({ user: initialUser }: SuperAdminDas
               <div className="bg-gray-100 p-6 rounded-md mb-4">
                 <div className="flex justify-between items-center">
                   <div>
-                    <h4 className="font-medium mb-2">Your Coin Balance</h4>
+                    <h4 className="font-medium mb-2">Your Personal Coin Balance</h4>
                     <p className="text-3xl font-bold text-yellow-600">
                       {session?.user?.coins} Coins
+                    </p>
+                    <p className="text-xs text-gray-600 mt-1">
+                      This is your balance, separate from the system-wide total
                     </p>
                   </div>
                   <Button 
@@ -804,10 +807,15 @@ export default function SuperAdminDashboard({ user: initialUser }: SuperAdminDas
                           <Box display="flex" justifyContent="space-between" alignItems="center">
                             <Box>
                               <Typography variant="body2" color="text.secondary">
-                                Total Coins
+                                System-wide Coins
                               </Typography>
-                              <Typography variant="h4" fontWeight="medium">
-                                {stats.totalCoins}
+                              <Tooltip title="Total coins across all users in the system, including your personal balance">
+                                <Typography variant="h4" fontWeight="medium" sx={{ display: 'flex', alignItems: 'center', cursor: 'help' }}>
+                                  {stats.totalCoins}
+                                </Typography>
+                              </Tooltip>
+                              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
+                                (All users combined)
                               </Typography>
                             </Box>
                             <Box
