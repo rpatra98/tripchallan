@@ -58,10 +58,43 @@ declare global {
   var prisma: PrismaClient | undefined;
 }
 
-// Create PrismaClient with error handling
+// Create PrismaClient with error handling for prepared statements issues
 const prismaClientCreator = (): any => {
   try {
-    return new PrismaClient();
+    // Create client with logging in development
+    const client = new PrismaClient({
+      log: process.env.NODE_ENV === 'development' ? ['query', 'error', 'warn'] : ['error'],
+    });
+
+    // Add middleware to handle prepared statement errors
+    client.$use(async (params, next) => {
+      try {
+        return await next(params);
+      } catch (error: any) {
+        // Check if this is a prepared statement error
+        if (
+          error.message && 
+          (error.message.includes('prepared statement') || 
+           (error.code === '42P05'))
+        ) {
+          console.warn('Prepared statement error detected, retrying with new connection');
+          
+          // For this specific error, try reconnecting and retrying once
+          try {
+            await client.$disconnect();
+            await client.$connect();
+            return await next(params);
+          } catch (retryError) {
+            console.error('Error on retry after prepared statement issue:', retryError);
+            throw retryError;
+          }
+        }
+        
+        throw error;
+      }
+    });
+    
+    return client;
   } catch (error: any) {
     console.error("Error initializing PrismaClient:", error.message);
     
