@@ -2,6 +2,7 @@ import prisma from './prisma';
 
 // Create a single PrismaClient instance for all helpers
 let hasDisconnectedOnce = false;
+let lastReconnectTime = 0;
 
 /**
  * Execute a Prisma query with automatic retry on prepared statement errors
@@ -10,15 +11,14 @@ let hasDisconnectedOnce = false;
  */
 export async function executePrismaWithRetry<T>(operation: () => Promise<T>): Promise<T> {
   try {
-    // If we've had connection issues before, reconnect first
-    if (hasDisconnectedOnce) {
-      try {
-        await prisma.$disconnect();
-        await prisma.$connect();
-      } catch (connErr) {
-        console.error('Error during reconnect:', connErr);
-        // Continue even if reconnect fails
-      }
+    // If we've had connection issues before or it's been more than 30 seconds since reconnect,
+    // reset the connection proactively
+    const currentTime = Date.now();
+    const reconnectInterval = 30 * 1000; // 30 seconds
+    
+    if (hasDisconnectedOnce || (currentTime - lastReconnectTime > reconnectInterval)) {
+      await resetConnection();
+      lastReconnectTime = currentTime;
     }
     
     return await operation();
@@ -34,9 +34,7 @@ export async function executePrismaWithRetry<T>(operation: () => Promise<T>): Pr
       
       // Try to fix the connection
       try {
-        await prisma.$disconnect();
-        await new Promise(resolve => setTimeout(resolve, 500)); // Wait 500ms
-        await prisma.$connect();
+        await resetConnection();
         
         // Try once more
         return await operation();
@@ -50,9 +48,7 @@ export async function executePrismaWithRetry<T>(operation: () => Promise<T>): Pr
           console.warn('Still getting prepared statement error, trying final reconnect');
           
           try {
-            await prisma.$disconnect();
-            await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1s
-            await prisma.$connect();
+            await resetConnection(2000); // Longer wait on second retry
             return await operation();
           } catch (finalError) {
             console.error('Error on final retry:', finalError);
@@ -128,14 +124,28 @@ export async function findFirstUser(criteria: any, select?: any) {
   });
 }
 
-// Reset connection if we get the prepared statement error
-export async function resetConnection() {
+/**
+ * Completely resets the Prisma connection to resolve prepared statement issues
+ * @param delayMs Optional delay before reconnecting (in milliseconds)
+ */
+export async function resetConnection(delayMs = 1000) {
+  console.log(`Resetting Prisma connection with ${delayMs}ms delay`);
   try {
+    // First disconnect
     await prisma.$disconnect();
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    
+    // Wait for the specified delay
+    if (delayMs > 0) {
+      await new Promise(resolve => setTimeout(resolve, delayMs));
+    }
+    
+    // Then reconnect
     await prisma.$connect();
+    console.log('Prisma connection reset successful');
   } catch (error) {
     console.error('Error resetting Prisma connection:', error);
+    // If reconnection fails, we need to ensure we still attempt to reconnect next time
+    hasDisconnectedOnce = true;
   }
 }
 

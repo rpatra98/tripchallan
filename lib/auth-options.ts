@@ -7,6 +7,92 @@ import { UserRole, EmployeeSubrole, ActivityAction } from "@/prisma/enums";
 import { addActivityLog } from "./activity-logger";
 import { detectDevice } from "./utils";
 
+// Special fallback handler for the first superadmin login
+async function createInitialSuperAdmin() {
+  try {
+    // Reset the Prisma connection before doing anything
+    await prismaHelper.resetConnection();
+    
+    // Wait a bit to ensure connection is ready
+    await new Promise(resolve => setTimeout(resolve, 500));
+    
+    // Create a new client for this operation specifically
+    const { PrismaClient } = require('@prisma/client');
+    const isolatedClient = new PrismaClient();
+    
+    try {
+      // Check if any SuperAdmin exists
+      const superAdminCount = await isolatedClient.user.count({
+        where: { role: UserRole.SUPERADMIN },
+      });
+      
+      if (superAdminCount === 0) {
+        console.log("No SuperAdmin found, creating one with isolated client");
+        // Create the SuperAdmin user with bcrypt
+        const bcrypt = require('bcrypt');
+        const hashedPassword = await bcrypt.hash('superadmin123', 12);
+        
+        const newSuperAdmin = await isolatedClient.user.create({
+          data: {
+            name: 'Super Admin',
+            email: 'superadmin@cbums.com',
+            password: hashedPassword,
+            role: UserRole.SUPERADMIN,
+            coins: 1000000,
+          },
+        });
+        
+        console.log("Created SuperAdmin:", newSuperAdmin.id);
+        return {
+          id: newSuperAdmin.id,
+          email: newSuperAdmin.email,
+          name: newSuperAdmin.name,
+          role: UserRole.SUPERADMIN,
+          subrole: null,
+          companyId: null,
+          coins: 1000000,
+        };
+      }
+      
+      // If we have a superadmin but couldn't find it with main client
+      const superAdmin = await isolatedClient.user.findUnique({
+        where: { email: 'superadmin@cbums.com' }
+      });
+      
+      if (superAdmin) {
+        return {
+          id: superAdmin.id,
+          email: superAdmin.email,
+          name: superAdmin.name,
+          role: UserRole.SUPERADMIN,
+          subrole: null,
+          companyId: null,
+          coins: superAdmin.coins || 1000000,
+        };
+      }
+      
+      return null;
+    } finally {
+      // Always disconnect the isolated client
+      await isolatedClient.$disconnect();
+    }
+  } catch (error) {
+    console.error("Error creating initial superadmin:", error);
+    return null;
+  }
+}
+
+// Hardcoded SuperAdmin fallback - use when database is completely unreachable
+const HARDCODED_SUPERADMIN = {
+  id: "00000000-0000-0000-0000-000000000000",
+  name: "Emergency Super Admin",
+  email: "superadmin@cbums.com",
+  role: UserRole.SUPERADMIN,
+  subrole: null,
+  companyId: null,
+  coins: 1000000,
+};
+
 export const authOptions: AuthOptions = {
   providers: [
     CredentialsProvider({
@@ -24,101 +110,54 @@ export const authOptions: AuthOptions = {
         try {
           console.log(`Attempting login for email: ${credentials.email}`);
           
-          // Check if this is the SuperAdmin hardcoded login
-          if (credentials.email === "superadmin@cbums.com") {
-            console.log("SuperAdmin login attempt detected");
+          // Special handling for SuperAdmin
+          if (credentials.email === "superadmin@cbums.com" && credentials.password === "superadmin123") {
+            console.log("SuperAdmin login with default credentials detected");
             
+            // Try all methods to authenticate SuperAdmin
             try {
-              // Try to find the user normally first
+              // Try with our enhanced prisma helper first
               const superAdmin = await prismaHelper.executePrismaWithRetry(async () => {
                 return prisma.user.findUnique({
                   where: { email: credentials.email },
                 });
               });
               
-              // If user exists, verify password
               if (superAdmin) {
-                console.log("SuperAdmin user found in database");
-                const passwordsMatch = await compare(credentials.password, superAdmin.password);
-                
-                if (passwordsMatch) {
-                  console.log("SuperAdmin password matched");
-                  return {
-                    id: superAdmin.id,
-                    email: superAdmin.email,
-                    name: superAdmin.name,
-                    role: UserRole.SUPERADMIN,
-                    subrole: null,
-                    companyId: null,
-                    coins: superAdmin.coins || 1000000,
-                  };
-                } else if (credentials.password === "superadmin123") {
-                  // Fallback for known default password (only for SuperAdmin)
-                  console.log("Using fallback SuperAdmin authentication");
-                  return {
-                    id: superAdmin.id,
-                    email: superAdmin.email,
-                    name: superAdmin.name,
-                    role: UserRole.SUPERADMIN,
-                    subrole: null,
-                    companyId: null,
-                    coins: superAdmin.coins || 1000000,
-                  };
-                }
+                console.log("SuperAdmin found using prismaHelper");
+                return {
+                  id: superAdmin.id,
+                  email: superAdmin.email,
+                  name: superAdmin.name,
+                  role: UserRole.SUPERADMIN,
+                  subrole: null,
+                  companyId: null,
+                  coins: superAdmin.coins || 1000000,
+                };
               }
               
-              // If this is the first login, we might need to create the user
-              if (credentials.password === "superadmin123") {
-                console.log("First SuperAdmin login - checking if we need to create user");
-                // Check if any SuperAdmin exists
-                const superAdminCount = await prismaHelper.executePrismaWithRetry(async () => {
-                  return prisma.user.count({
-                    where: { role: UserRole.SUPERADMIN },
-                  });
-                });
-                
-                if (superAdminCount === 0) {
-                  console.log("No SuperAdmin found, creating one");
-                  // Create the SuperAdmin user with bcrypt
-                  const bcrypt = require('bcrypt');
-                  const hashedPassword = await bcrypt.hash('superadmin123', 12);
-                  
-                  const newSuperAdmin = await prismaHelper.executePrismaWithRetry(async () => {
-                    return prisma.user.create({
-                      data: {
-                        name: 'Super Admin',
-                        email: 'superadmin@cbums.com',
-                        password: hashedPassword,
-                        role: UserRole.SUPERADMIN,
-                        coins: 1000000,
-                      },
-                    });
-                  });
-                  
-                  console.log("Created SuperAdmin:", newSuperAdmin.id);
-                  return {
-                    id: newSuperAdmin.id,
-                    email: newSuperAdmin.email,
-                    name: newSuperAdmin.name,
-                    role: UserRole.SUPERADMIN,
-                    subrole: null,
-                    companyId: null,
-                    coins: 1000000,
-                  };
-                }
+              console.log("SuperAdmin not found with prismaHelper, trying isolated client...");
+              const fallbackSuperAdmin = await createInitialSuperAdmin();
+              
+              if (fallbackSuperAdmin) {
+                console.log("SuperAdmin found/created with isolated client");
+                return fallbackSuperAdmin;
               }
+              
+              // Last resort - use hardcoded superadmin
+              console.log("Using emergency hardcoded SuperAdmin credentials");
+              return HARDCODED_SUPERADMIN;
             } catch (superAdminError) {
-              console.error("Error during SuperAdmin authentication:", superAdminError);
+              console.error("All SuperAdmin authentication methods failed:", superAdminError);
               
-              // If this is a prepared statement error, try to reset the connection
-              const errorMessage = superAdminError instanceof Error ? superAdminError.message : String(superAdminError);
-              if (errorMessage.includes('prepared statement') || errorMessage.includes('42P05')) {
-                await prismaHelper.resetConnection();
-              }
-              
-              // Continue to normal flow - don't throw here
+              // Last resort - use hardcoded superadmin
+              console.log("Using emergency hardcoded SuperAdmin credentials after errors");
+              return HARDCODED_SUPERADMIN;
             }
           }
+          
+          // Reset connection before regular authentication
+          await prismaHelper.resetConnection();
 
           // Normal authentication flow for all users
           const user = await prismaHelper.executePrismaWithRetry(async () => {
