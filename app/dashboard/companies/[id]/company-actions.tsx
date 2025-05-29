@@ -24,7 +24,9 @@ export default function CompanyActions({ companyId, companyName, isActive }: Com
 
     try {
       console.log(`Toggling activation for company ID: ${companyId}`);
-      const response = await fetch(`/api/companies/${companyId}`, {
+      
+      // First try with simple fetch
+      let response = await fetch(`/api/companies/${companyId}`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -32,15 +34,36 @@ export default function CompanyActions({ companyId, companyName, isActive }: Com
         body: JSON.stringify({
           isActive: !isActive
         }),
+        cache: 'no-store'
       });
+
+      // If there's an error, retry with a delay
+      if (!response.ok) {
+        console.log("First attempt failed, retrying after delay...");
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        
+        response = await fetch(`/api/companies/${companyId}`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            isActive: !isActive
+          }),
+          cache: 'no-store'
+        });
+      }
 
       if (!response.ok) {
         const data = await response.json();
-        throw new Error(data.error || 'Failed to update company');
+        throw new Error(data.error || data.details || 'Failed to update company');
       }
 
       // Refresh the current page to reflect changes
-      router.refresh();
+      console.log("Company activation toggled successfully, refreshing...");
+      
+      // Force a hard refresh to avoid cache issues
+      window.location.href = window.location.href;
     } catch (err) {
       console.error('Error toggling company activation:', err);
       setError(err instanceof Error ? err.message : 'An error occurred');
@@ -76,16 +99,18 @@ export default function CompanyActions({ companyId, companyName, isActive }: Com
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ password }),
+        cache: 'no-store'
       });
 
       if (!verifyResponse.ok) {
         const verifyData = await verifyResponse.json();
-        throw new Error(verifyData.error || 'Password verification failed');
+        throw new Error(verifyData.error || verifyData.details || 'Password verification failed');
       }
 
       // If password is verified, proceed with company deletion
       console.log(`Deleting company ID: ${companyId}`);
-      const deleteResponse = await fetch(`/api/companies/${companyId}`, {
+      
+      let deleteResponse = await fetch(`/api/companies/${companyId}`, {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json',
@@ -93,17 +118,35 @@ export default function CompanyActions({ companyId, companyName, isActive }: Com
         body: JSON.stringify({
           confirmed: true
         }),
+        cache: 'no-store'
       });
+
+      // If there's an error, retry with a delay
+      if (!deleteResponse.ok) {
+        console.log("First delete attempt failed, retrying after delay...");
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        
+        deleteResponse = await fetch(`/api/companies/${companyId}`, {
+          method: 'DELETE',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            confirmed: true
+          }),
+          cache: 'no-store'
+        });
+      }
 
       if (!deleteResponse.ok) {
         const deleteData = await deleteResponse.json();
-        throw new Error(deleteData.error || 'Failed to delete company');
+        throw new Error(deleteData.error || deleteData.details || 'Failed to delete company');
       }
 
       // Close the modal and redirect to dashboard
       setShowDeleteModal(false);
-      router.push('/dashboard?tab=companies');
-      router.refresh();
+      console.log("Company deleted successfully, redirecting...");
+      window.location.href = '/dashboard?tab=companies';
     } catch (err) {
       console.error('Error deleting company:', err);
       setPasswordError(err instanceof Error ? err.message : 'An error occurred');

@@ -48,6 +48,9 @@ export default async function CompanyDetailPage({ params }: { params: { id: stri
   let companyId = params.id;
   
   try {
+    // Reset connection before doing anything
+    await prismaHelper.resetConnection();
+    
     const session = await getServerSession(authOptions);
 
     if (!session) {
@@ -73,18 +76,26 @@ export default async function CompanyDetailPage({ params }: { params: { id: stri
     let isSynthetic = false;
     
     try {
+      // Reset connection again before complex queries
+      await prismaHelper.resetConnection();
+      
       // First check if this is a company user (which has role = COMPANY)
-      const companyUser = await prismaHelper.findFirstUser({
-        id: companyId,
-        role: UserRole.COMPANY
-      }, {
-        id: true,
-        name: true,
-        email: true,
-        companyId: true,
-        coins: true,
-        createdAt: true,
-        updatedAt: true
+      const companyUser = await prismaHelper.executePrismaWithRetry(async () => {
+        return prisma.user.findUnique({
+          where: { 
+            id: companyId,
+            role: UserRole.COMPANY
+          },
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            companyId: true,
+            coins: true,
+            createdAt: true,
+            updatedAt: true
+          }
+        });
       });
       
       // If this is a company user, try to get the actual company record
@@ -167,6 +178,9 @@ export default async function CompanyDetailPage({ params }: { params: { id: stri
       
       // If we still have no company record, check for users with this companyId
       if (!company) {
+        // Reset connection one more time before final attempt
+        await prismaHelper.resetConnection();
+        
         // See if any users have this as their companyId
         const companyEmployees = await prismaHelper.findUsers({
           companyId: companyId,
@@ -199,6 +213,17 @@ export default async function CompanyDetailPage({ params }: { params: { id: stri
       }
     } catch (dbError) {
       console.error("Database error:", dbError);
+      
+      // If this is a prepared statement error, try to reset the connection
+      const errorMsg = dbError instanceof Error ? dbError.message : String(dbError);
+      if (errorMsg.includes('prepared statement') || errorMsg.includes('42P05')) {
+        try {
+          await prismaHelper.resetConnection(2000); // Wait 2 seconds
+        } catch (resetError) {
+          console.error("Failed to reset connection during DB error handling:", resetError);
+        }
+      }
+      
       error = dbError instanceof Error ? dbError.message : String(dbError);
     }
 
@@ -381,8 +406,8 @@ export default async function CompanyDetailPage({ params }: { params: { id: stri
     
     if (isPreparedStatementError) {
       try {
-        // Try to reset the connection
-        await prismaHelper.resetConnection();
+        // Try to reset the connection with a longer delay
+        await prismaHelper.resetConnection(3000);
       } catch (resetError) {
         console.error("Failed to reset connection:", resetError);
       }
