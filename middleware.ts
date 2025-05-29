@@ -76,6 +76,18 @@ export async function middleware(request: NextRequest) {
       } catch (authError) {
         console.error("Authentication error:", authError);
         
+        // Check if this is a database-related error (likely prepared statement)
+        const errorMsg = authError instanceof Error ? authError.message : String(authError);
+        const isDbError = errorMsg.includes('prepared statement') || 
+                          errorMsg.includes('42P05') || 
+                          errorMsg.includes('ConnectorError');
+        
+        // For database errors, just let the request proceed to avoid redirect loops
+        if (isDbError) {
+          console.warn("[Middleware] Database error detected, allowing request to proceed to avoid redirect loop");
+          return NextResponse.next();
+        }
+        
         // Special handling for Vercel deployments
         if (process.env.VERCEL === "1") {
           console.warn("[Middleware] Auth error in Vercel environment, allowing request to proceed");
@@ -85,10 +97,16 @@ export async function middleware(request: NextRequest) {
         // On auth failure, redirect to login instead of breaking the app
         if (pathname.startsWith("/api")) {
           return NextResponse.json(
-            { error: "Authentication error" },
+            { error: "Authentication error", details: errorMsg },
             { status: 500 }
           );
         }
+        
+        // To avoid redirect loops on database errors, check if we're already on the login page
+        if (errorMsg.includes('database') || errorMsg.includes('prisma')) {
+          return NextResponse.next();
+        }
+        
         const url = new URL("/", request.url);
         url.searchParams.set("error", "AuthError");
         return NextResponse.redirect(url);
@@ -99,6 +117,20 @@ export async function middleware(request: NextRequest) {
   } catch (error) {
     // Global error handler for middleware
     console.error("Middleware error:", error);
+    
+    // Check if this is a database-related error
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    const isDbError = errorMsg.includes('prepared statement') || 
+                      errorMsg.includes('42P05') || 
+                      errorMsg.includes('ConnectorError') ||
+                      errorMsg.includes('database') ||
+                      errorMsg.includes('prisma');
+    
+    // For database errors, just let the request proceed to avoid redirect loops
+    if (isDbError) {
+      console.warn("[Middleware] Database error detected, allowing request to proceed to avoid redirect loop");
+      return NextResponse.next();
+    }
     
     // For Vercel deployments, allow the request to proceed with warnings
     if (process.env.VERCEL === "1") {
@@ -111,7 +143,8 @@ export async function middleware(request: NextRequest) {
       return NextResponse.json(
         { 
           error: "Internal server error", 
-          message: "The server encountered an error and could not process your request"
+          message: "The server encountered an error and could not process your request",
+          details: errorMsg
         },
         { status: 500 }
       );

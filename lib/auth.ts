@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-options";
 import { UserRole } from "@/prisma/enums";
+import prismaHelper from "@/lib/prisma-helper";
 
 // Type definition for our withAuth middleware
 type WithAuthHandlerFn = (
@@ -43,8 +44,24 @@ export function withAuth(handler: WithAuthHandlerFn, allowedRoles: UserRole[]) {
       return handler(req, context);
     } catch (error) {
       console.error("Auth middleware error:", error);
+      
+      // Check if this is a prepared statement error and try to handle it
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      const isPreparedStatementError = 
+        errorMessage.includes('prepared statement') || 
+        errorMessage.includes('42P05');
+      
+      if (isPreparedStatementError) {
+        try {
+          // Try to reset the connection
+          await prismaHelper.resetConnection();
+        } catch (resetError) {
+          console.error("Failed to reset connection in auth middleware:", resetError);
+        }
+      }
+      
       return NextResponse.json(
-        { error: "Authentication error occurred" },
+        { error: "Authentication error occurred", details: errorMessage },
         { status: 500 }
       );
     }

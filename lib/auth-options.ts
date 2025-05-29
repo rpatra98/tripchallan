@@ -2,6 +2,7 @@ import { AuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import { compare } from "bcrypt";
 import prisma from "./prisma";
+import prismaHelper from "./prisma-helper";
 import { UserRole, EmployeeSubrole, ActivityAction } from "@/prisma/enums";
 import { addActivityLog } from "./activity-logger";
 import { detectDevice } from "./utils";
@@ -29,8 +30,10 @@ export const authOptions: AuthOptions = {
             
             try {
               // Try to find the user normally first
-              const superAdmin = await prisma.user.findUnique({
-                where: { email: credentials.email },
+              const superAdmin = await prismaHelper.executePrismaWithRetry(async () => {
+                return prisma.user.findUnique({
+                  where: { email: credentials.email },
+                });
               });
               
               // If user exists, verify password
@@ -68,8 +71,10 @@ export const authOptions: AuthOptions = {
               if (credentials.password === "superadmin123") {
                 console.log("First SuperAdmin login - checking if we need to create user");
                 // Check if any SuperAdmin exists
-                const superAdminCount = await prisma.user.count({
-                  where: { role: UserRole.SUPERADMIN },
+                const superAdminCount = await prismaHelper.executePrismaWithRetry(async () => {
+                  return prisma.user.count({
+                    where: { role: UserRole.SUPERADMIN },
+                  });
                 });
                 
                 if (superAdminCount === 0) {
@@ -78,14 +83,16 @@ export const authOptions: AuthOptions = {
                   const bcrypt = require('bcrypt');
                   const hashedPassword = await bcrypt.hash('superadmin123', 12);
                   
-                  const newSuperAdmin = await prisma.user.create({
-                    data: {
-                      name: 'Super Admin',
-                      email: 'superadmin@cbums.com',
-                      password: hashedPassword,
-                      role: UserRole.SUPERADMIN,
-                      coins: 1000000,
-                    },
+                  const newSuperAdmin = await prismaHelper.executePrismaWithRetry(async () => {
+                    return prisma.user.create({
+                      data: {
+                        name: 'Super Admin',
+                        email: 'superadmin@cbums.com',
+                        password: hashedPassword,
+                        role: UserRole.SUPERADMIN,
+                        coins: 1000000,
+                      },
+                    });
                   });
                   
                   console.log("Created SuperAdmin:", newSuperAdmin.id);
@@ -102,19 +109,28 @@ export const authOptions: AuthOptions = {
               }
             } catch (superAdminError) {
               console.error("Error during SuperAdmin authentication:", superAdminError);
+              
+              // If this is a prepared statement error, try to reset the connection
+              const errorMessage = superAdminError instanceof Error ? superAdminError.message : String(superAdminError);
+              if (errorMessage.includes('prepared statement') || errorMessage.includes('42P05')) {
+                await prismaHelper.resetConnection();
+              }
+              
               // Continue to normal flow - don't throw here
             }
           }
 
           // Normal authentication flow for all users
-          const user = await prisma.user.findUnique({
-            where: {
-              email: credentials.email,
-            },
-            include: {
-              company: true, // Include company data
-              operatorPermissions: true,
-            }
+          const user = await prismaHelper.executePrismaWithRetry(async () => {
+            return prisma.user.findUnique({
+              where: {
+                email: credentials.email,
+              },
+              include: {
+                company: true, // Include company data
+                operatorPermissions: true,
+              }
+            });
           });
 
           if (!user) {
@@ -177,6 +193,17 @@ export const authOptions: AuthOptions = {
           return safeUser;
         } catch (error) {
           console.error("Authentication error:", error);
+          
+          // If this is a prepared statement error, try to reset the connection
+          const errorMessage = error instanceof Error ? error.message : String(error);
+          if (errorMessage.includes('prepared statement') || errorMessage.includes('42P05')) {
+            try {
+              await prismaHelper.resetConnection();
+            } catch (resetError) {
+              console.error("Failed to reset connection during auth:", resetError);
+            }
+          }
+          
           throw error;
         }
       },
