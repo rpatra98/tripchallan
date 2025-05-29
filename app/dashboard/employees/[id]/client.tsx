@@ -54,22 +54,46 @@ export default function EmployeeDetailClient({
     setDeleteLoading(true);
     
     try {
-      const response = await fetch(`/api/employees/${employee.id}`, {
+      // First attempt
+      console.log(`Attempting to delete employee: ${employee.id}`);
+      let response = await fetch(`/api/employees/${employee.id}`, {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json'
-        }
+        },
+        cache: 'no-store'
       });
+      
+      // If there's an error, retry with a delay
+      if (!response.ok) {
+        console.log("First delete attempt failed, retrying after delay...");
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        
+        response = await fetch(`/api/employees/${employee.id}`, {
+          method: 'DELETE',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          cache: 'no-store'
+        });
+      }
       
       const data = await response.json();
       
       if (!response.ok) {
-        throw new Error(data.error || 'Failed to delete employee');
+        throw new Error(data.error || data.details || 'Failed to delete employee');
       }
       
       // Success - redirect back to employees list
-      alert('Employee deleted successfully');
-      router.push('/dashboard/employees');
+      console.log('Employee deleted successfully, redirecting...');
+      setDeleteDialogOpen(false);
+      
+      // Use hard redirect to avoid caching issues
+      if (source === "company" && companyIdFromQuery) {
+        window.location.href = `/dashboard/companies/${companyIdFromQuery}`;
+      } else {
+        window.location.href = isCompany ? '/dashboard?tab=employees' : '/dashboard/employees';
+      }
     } catch (error) {
       console.error('Error deleting employee:', error);
       setDeleteError(error instanceof Error ? error.message : 'An unknown error occurred');
@@ -84,7 +108,7 @@ export default function EmployeeDetailClient({
         <Link 
           href={
             source === "company" && companyIdFromQuery 
-              ? `/dashboard/companies/${companyIdFromQuery}/employees` 
+              ? `/dashboard/companies/${companyIdFromQuery}` 
               : isCompany 
                 ? "/dashboard?tab=employees" 
                 : "/dashboard/employees"
@@ -93,7 +117,7 @@ export default function EmployeeDetailClient({
         >
           &larr; {
             source === "company" && companyIdFromQuery 
-              ? "Back to Company Employees" 
+              ? "Back to Company Details" 
               : isCompany 
                 ? "Back to Dashboard" 
                 : "Back to Employees"
@@ -253,19 +277,15 @@ export default function EmployeeDetailClient({
           )}
         </DialogContent>
         <DialogActions>
-          <Button 
-            onClick={handleCloseDeleteDialog} 
-            disabled={deleteLoading}
-          >
+          <Button onClick={handleCloseDeleteDialog} disabled={deleteLoading}>
             Cancel
           </Button>
           <Button 
             onClick={confirmDeleteEmployee} 
             color="error" 
             disabled={deleteLoading}
-            variant="contained"
           >
-            {deleteLoading ? 'Deleting...' : 'Delete'}
+            {deleteLoading ? "Deleting..." : "Delete"}
           </Button>
         </DialogActions>
       </Dialog>
