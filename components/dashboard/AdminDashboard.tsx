@@ -107,9 +107,39 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
     setError("");
     
     try {
-      const response = await fetch("/api/companies");
-      if (!response.ok) {
-        throw new Error("Failed to fetch companies");
+      // First attempt
+      console.log("Fetching companies from API...");
+      let retryCount = 0;
+      const maxRetries = 3;
+      let response;
+      
+      while (retryCount < maxRetries) {
+        try {
+          response = await fetch("/api/companies", {
+            cache: 'no-store',
+            headers: {
+              'pragma': 'no-cache',
+              'cache-control': 'no-cache'
+            }
+          });
+          
+          if (response.ok) {
+            break; // Success, exit the retry loop
+          } else {
+            // If response not OK, wait and retry
+            console.log(`Attempt ${retryCount + 1} failed, status: ${response.status}. Retrying...`);
+            await new Promise(resolve => setTimeout(resolve, 1000 * (retryCount + 1)));
+            retryCount++;
+          }
+        } catch (fetchError) {
+          console.error(`Fetch error on attempt ${retryCount + 1}:`, fetchError);
+          await new Promise(resolve => setTimeout(resolve, 1000 * (retryCount + 1)));
+          retryCount++;
+        }
+      }
+      
+      if (!response || !response.ok) {
+        throw new Error(response ? `API returned ${response.status}` : "Failed to fetch companies");
       }
       
       const data = await response.json();
@@ -120,6 +150,15 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
     } catch (err) {
       console.error("Error fetching companies:", err);
       setError(err instanceof Error ? err.message : "Failed to load companies");
+      
+      // If there's an error, try to show any companies we might have from before
+      // This prevents a blank screen if the refresh fails
+      if (companies.length > 0) {
+        console.log("Using cached company data from previous fetch");
+      } else {
+        // If we have no companies at all, set an empty array to show "no companies" message
+        setCompanies([]);
+      }
     } finally {
       setLoading(false);
     }
@@ -133,15 +172,44 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
     
     try {
       console.log("Fetching all employees for admin...");
-      // Use the improved API endpoint that allows admins to fetch all employees
-      const response = await fetch("/api/employees?limit=100");
       
-      console.log("Response status:", response.status);
+      // Use retry logic with exponential backoff
+      let retryCount = 0;
+      const maxRetries = 3;
+      let response;
       
-      if (!response.ok) {
-        const errorText = await response.text();
+      while (retryCount < maxRetries) {
+        try {
+          // Use the improved API endpoint that allows admins to fetch all employees
+          response = await fetch("/api/employees?limit=100", {
+            cache: 'no-store',
+            headers: {
+              'pragma': 'no-cache',
+              'cache-control': 'no-cache'
+            }
+          });
+          
+          if (response.ok) {
+            break; // Success, exit the retry loop
+          } else {
+            // If response not OK, wait and retry
+            console.log(`Attempt ${retryCount + 1} failed, status: ${response.status}. Retrying...`);
+            await new Promise(resolve => setTimeout(resolve, 1000 * (retryCount + 1)));
+            retryCount++;
+          }
+        } catch (fetchError) {
+          console.error(`Fetch error on attempt ${retryCount + 1}:`, fetchError);
+          await new Promise(resolve => setTimeout(resolve, 1000 * (retryCount + 1)));
+          retryCount++;
+        }
+      }
+      
+      console.log("Response status:", response?.status);
+      
+      if (!response || !response.ok) {
+        const errorText = response ? await response.text() : "No response";
         console.error("Error response:", errorText);
-        throw new Error(`Failed to fetch employees: ${response.status} ${errorText}`);
+        throw new Error(`Failed to fetch employees: ${response?.status || 'No response'} ${errorText}`);
       }
       
       const employeeData = await response.json();
@@ -152,6 +220,15 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
     } catch (err) {
       console.error("Error fetching employees:", err);
       setError(err instanceof Error ? err.message : "Failed to load employees");
+      
+      // If there's an error, try to show any employees we might have from before
+      // This prevents a blank screen if the refresh fails
+      if (employees.length > 0) {
+        console.log("Using cached employee data from previous fetch");
+      } else {
+        // If we have no employees at all, set an empty array to show "no employees" message
+        setEmployees([]);
+      }
     } finally {
       setLoading(false);
     }
@@ -159,13 +236,41 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
 
   const fetchCurrentUser = async () => {
     try {
-      const response = await fetch(`/api/users/${session?.user?.id || user.id}`, {
-        cache: 'no-store',
-        headers: {
-          'pragma': 'no-cache',
-          'cache-control': 'no-cache'
+      // Use retry logic with exponential backoff
+      let retryCount = 0;
+      const maxRetries = 3;
+      let response;
+      
+      while (retryCount < maxRetries) {
+        try {
+          response = await fetch(`/api/users/${session?.user?.id || user.id}`, {
+            cache: 'no-store',
+            headers: {
+              'pragma': 'no-cache',
+              'cache-control': 'no-cache'
+            }
+          });
+          
+          if (response.ok) {
+            break; // Success, exit the retry loop
+          } else {
+            // If response not OK, wait and retry
+            console.log(`Attempt ${retryCount + 1} failed, status: ${response.status}. Retrying...`);
+            await new Promise(resolve => setTimeout(resolve, 1000 * (retryCount + 1)));
+            retryCount++;
+          }
+        } catch (fetchError) {
+          console.error(`Fetch error on attempt ${retryCount + 1}:`, fetchError);
+          await new Promise(resolve => setTimeout(resolve, 1000 * (retryCount + 1)));
+          retryCount++;
         }
-      });
+      }
+      
+      if (!response || !response.ok) {
+        console.error(`Failed to fetch user data: ${response?.status}`);
+        return;
+      }
+      
       const data = await response.json();
       
       if (data.user) {
@@ -186,6 +291,8 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
       }
     } catch (err) {
       console.error("Error fetching current user:", err);
+      // Don't show an error message to the user for this one,
+      // just silently log it - this keeps the UX cleaner
     }
   };
 
@@ -293,13 +400,42 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
     
     try {
       console.log(`Fetching employees for company ${companyId} (actual company ID: ${actualCompanyId})`);
-      // The companyId in the database is stored on employees, we need to pass it correctly
-      const response = await fetch(`/api/employees?companyId=${actualCompanyId}`);
       
-      if (!response.ok) {
-        const errorText = await response.text();
+      // Use retry logic with exponential backoff
+      let retryCount = 0;
+      const maxRetries = 3;
+      let response;
+      
+      while (retryCount < maxRetries) {
+        try {
+          // The companyId in the database is stored on employees, we need to pass it correctly
+          response = await fetch(`/api/employees?companyId=${actualCompanyId}`, {
+            cache: 'no-store',
+            headers: {
+              'pragma': 'no-cache',
+              'cache-control': 'no-cache'
+            }
+          });
+          
+          if (response.ok) {
+            break; // Success, exit the retry loop
+          } else {
+            // If response not OK, wait and retry
+            console.log(`Attempt ${retryCount + 1} failed, status: ${response.status}. Retrying...`);
+            await new Promise(resolve => setTimeout(resolve, 1000 * (retryCount + 1)));
+            retryCount++;
+          }
+        } catch (fetchError) {
+          console.error(`Fetch error on attempt ${retryCount + 1}:`, fetchError);
+          await new Promise(resolve => setTimeout(resolve, 1000 * (retryCount + 1)));
+          retryCount++;
+        }
+      }
+      
+      if (!response || !response.ok) {
+        const errorText = response ? await response.text() : "No response";
         console.error("Error response:", errorText);
-        throw new Error(`Failed to fetch company employees: ${response.status} ${errorText}`);
+        throw new Error(`Failed to fetch company employees: ${response?.status || 'No response'} ${errorText}`);
       }
       
       const data = await response.json();
@@ -311,6 +447,11 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
       console.error("Error fetching company employees:", err);
       setError(err instanceof Error ? err.message : "Failed to load company employees");
       setViewingCompanyEmployees(false);
+      
+      // If we have existing employees data, maintain it
+      if (employees.length > 0) {
+        console.log("Keeping existing employee data");
+      }
     } finally {
       setLoading(false);
     }
