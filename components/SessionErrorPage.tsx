@@ -3,7 +3,15 @@
 import React from 'react';
 import { signOut } from 'next-auth/react';
 
-const SessionErrorPage = () => {
+interface SessionErrorPageProps {
+  redirectLoopDetected?: boolean;
+  invalidRole?: boolean;
+}
+
+const SessionErrorPage: React.FC<SessionErrorPageProps> = ({ 
+  redirectLoopDetected = false,
+  invalidRole = false
+}) => {
   const handleClearSession = async () => {
     // Redirect to our custom logout page
     window.location.href = "/api/auth/logout?callbackUrl=/";
@@ -13,9 +21,21 @@ const SessionErrorPage = () => {
     <div className="flex flex-col items-center justify-center min-h-screen bg-gray-900 text-white p-4">
       <div className="bg-gray-800 p-8 rounded-lg shadow-lg max-w-md w-full text-center">
         <h1 className="text-2xl font-bold mb-4 text-red-400">Session Error</h1>
-        <p className="mb-6">
-          Your session is invalid or has expired. The user account associated with your session could not be found.
-        </p>
+        
+        {redirectLoopDetected ? (
+          <p className="mb-6">
+            Too many redirects detected. This usually happens when there's an issue with your authentication session.
+          </p>
+        ) : invalidRole ? (
+          <p className="mb-6">
+            Your user account has an invalid role. Please contact the administrator.
+          </p>
+        ) : (
+          <p className="mb-6">
+            Your session is invalid or has expired. The user account associated with your session could not be found.
+          </p>
+        )}
+        
         <p className="mb-6">
           Please clear your cookies and sign in again.
         </p>

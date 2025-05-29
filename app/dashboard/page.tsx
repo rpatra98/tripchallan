@@ -1,64 +1,61 @@
-import { redirect } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-options";
 import prisma from "@/lib/prisma";
+import prismaHelper from "@/lib/prisma-helper";
 import { UserRole } from "@/prisma/enums";
-import dynamic from "next/dynamic";
 import SessionErrorPage from "@/components/SessionErrorPage";
 
-// Use dynamic imports to prevent chunk loading errors
-const SuperAdminDashboard = dynamic(() => import("@/components/dashboard/SuperAdminDashboard"), {
-  ssr: true,
-  loading: () => <div className="text-center p-8">Loading dashboard...</div>
-});
+// Dynamically import dashboard components
+import SuperAdminDashboard from "@/components/dashboard/SuperAdminDashboard";
+import AdminDashboard from "@/components/dashboard/AdminDashboard";
+import CompanyDashboard from "@/components/dashboard/CompanyDashboard";
+import EmployeeDashboard from "@/components/dashboard/EmployeeDashboard";
 
-const AdminDashboard = dynamic(() => import("@/components/dashboard/AdminDashboard"), {
-  ssr: true,
-  loading: () => <div className="text-center p-8">Loading dashboard...</div>
-});
-
-const CompanyDashboard = dynamic(() => import("@/components/dashboard/CompanyDashboard"), {
-  ssr: true,
-  loading: () => <div className="text-center p-8">Loading dashboard...</div>
-});
-
-const EmployeeDashboard = dynamic(() => import("@/components/dashboard/EmployeeDashboard"), {
-  ssr: true,
-  loading: () => <div className="text-center p-8">Loading dashboard...</div>
-});
+// Add dynamic export to ensure Next.js treats this as a dynamic route
+export const dynamic = 'force-dynamic';
+export const fetchCache = 'force-no-store';
+export const revalidate = 0;
 
 export default async function DashboardPage({
   searchParams,
 }: {
   searchParams?: { [key: string]: string | string[] | undefined };
 }) {
+  // Reset Prisma connection before any operations
+  await prismaHelper.resetConnection();
+  
   // Get session data
   const session = await getServerSession(authOptions);
   
   // Extract tab parameter if present
   const tab = searchParams?.tab as string | undefined;
+  
+  // If there's a reset parameter, clear session errors
+  const isReset = searchParams?.reset === 'true';
 
-  // If no session or user ID, redirect to login
+  // If no session or user ID, show session error instead of redirect
   if (!session || !session.user || !session.user.id) {
-    console.log("No valid session found, redirecting to login");
-    return redirect("/?error=NotAuthenticated");
+    console.log("No valid session found, showing session error page");
+    return <SessionErrorPage />;
   }
 
   try {
     console.log(`Fetching user with ID: ${session.user.id}`);
     
-    // Get user with additional info
-    const dbUser = await prisma.user.findUnique({
-      where: {
-        id: session.user.id,
-      },
-      include: {
-        company: true,
-      },
+    // Get user with additional info using prisma helper
+    const dbUser = await prismaHelper.executePrismaWithRetry(async () => {
+      return prisma.user.findUnique({
+        where: {
+          id: session.user.id,
+        },
+        include: {
+          company: true,
+        },
+      });
     });
 
-    // If user not found in database, show error page instead of redirecting
-    // This breaks the redirect loop
+    // If user not found in database, show error page
     if (!dbUser) {
       console.log(`User with ID ${session.user.id} not found in database`);
       return <SessionErrorPage />;
@@ -84,10 +81,41 @@ export default async function DashboardPage({
         return <EmployeeDashboard user={user} />;
       default:
         console.log(`Invalid role: ${dbUser.role}`);
-        return redirect("/?error=InvalidRole");
+        return <SessionErrorPage invalidRole={true} />;
     }
   } catch (error) {
     console.error("Dashboard error:", error);
-    return redirect("/?error=ServerError");
+    
+    // Check if this is a prepared statement error and try to handle it
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    const isPreparedStatementError = 
+      errorMessage.includes('prepared statement') || 
+      errorMessage.includes('42P05');
+    
+    if (isPreparedStatementError) {
+      try {
+        // Try to reset the connection with a longer delay
+        await prismaHelper.resetConnection(3000);
+      } catch (resetError) {
+        console.error("Failed to reset connection:", resetError);
+      }
+    }
+    
+    // Show a specific error component
+    return (
+      <div className="container mx-auto px-4 py-8 bg-red-50 p-6 rounded-lg">
+        <h1 className="text-2xl font-bold text-red-700">Dashboard Error</h1>
+        <p className="mt-2">An error occurred while trying to load your dashboard.</p>
+        <p className="mt-2 text-red-500">{errorMessage}</p>
+        <div className="mt-4 flex space-x-4">
+          <a href="/dashboard" className="text-blue-600 hover:underline">
+            Try Again
+          </a>
+          <a href="/" className="text-blue-600 hover:underline">
+            Go to Homepage
+          </a>
+        </div>
+      </div>
+    );
   }
 } 
