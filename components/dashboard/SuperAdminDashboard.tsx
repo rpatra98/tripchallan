@@ -877,10 +877,10 @@ export default function SuperAdminDashboard({ user: initialUser }: SuperAdminDas
 
       <div className="bg-white shadow rounded-lg overflow-hidden">
         <div className="border-b border-gray-200">
-          <nav className="-mb-px flex">
+          <nav className="-mb-px flex overflow-x-auto scrollbar-hide">
             <button
               onClick={() => setActiveTab("admins")}
-              className={`py-4 px-6 ${
+              className={`py-4 px-6 whitespace-nowrap ${
                 activeTab === "admins"
                   ? "border-b-2 border-blue-500 text-blue-600"
                   : "text-gray-500 hover:text-gray-700 hover:border-gray-300"
@@ -890,7 +890,7 @@ export default function SuperAdminDashboard({ user: initialUser }: SuperAdminDas
             </button>
             <button
               onClick={() => setActiveTab("stats")}
-              className={`py-4 px-6 ${
+              className={`py-4 px-6 whitespace-nowrap ${
                 activeTab === "stats"
                   ? "border-b-2 border-blue-500 text-blue-600"
                   : "text-gray-500 hover:text-gray-700 hover:border-gray-300"
@@ -900,13 +900,13 @@ export default function SuperAdminDashboard({ user: initialUser }: SuperAdminDas
             </button>
             <Link
               href="/dashboard/sessions"
-              className={`py-4 px-6 text-gray-500 hover:text-gray-700 hover:border-gray-300`}
+              className={`py-4 px-6 whitespace-nowrap text-gray-500 hover:text-gray-700 hover:border-gray-300`}
             >
               Session Management
             </Link>
             <button
               onClick={() => setActiveTab("coins")}
-              className={`py-4 px-6 ${
+              className={`py-4 px-6 whitespace-nowrap ${
                 activeTab === "coins"
                   ? "border-b-2 border-blue-500 text-blue-600"
                   : "text-gray-500 hover:text-gray-700 hover:border-gray-300"
@@ -916,7 +916,7 @@ export default function SuperAdminDashboard({ user: initialUser }: SuperAdminDas
             </button>
             <Link 
               href="/dashboard/activity-logs"
-              className="py-4 px-6 text-gray-500 hover:text-gray-700 hover:border-gray-300"
+              className="py-4 px-6 whitespace-nowrap text-gray-500 hover:text-gray-700 hover:border-gray-300"
             >
               Activity Logs
             </Link>
