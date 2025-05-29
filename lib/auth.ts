@@ -59,4 +59,6 @@ export function hasRole(role: UserRole, session: any) {
 // Check if user has any of the specified roles
 export function hasAnyRole(roles: UserRole[], session: any) {
   return session?.user?.role && roles.includes(session.user.role as UserRole);
-} 
+}
+
+// This is a placeholder to check if the file exists 

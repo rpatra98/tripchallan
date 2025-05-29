@@ -372,11 +372,27 @@ export default async function CompanyDetailPage({ params }: { params: { id: stri
     );
   } catch (error) {
     console.error("Error in company details page:", error);
+    
+    // Check if this is a prepared statement error and try to handle it
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    const isPreparedStatementError = 
+      errorMessage.includes('prepared statement') || 
+      errorMessage.includes('42P05');
+    
+    if (isPreparedStatementError) {
+      try {
+        // Try to reset the connection
+        await prismaHelper.resetConnection();
+      } catch (resetError) {
+        console.error("Failed to reset connection:", resetError);
+      }
+    }
+    
     return (
       <div className="container mx-auto px-4 py-8 bg-red-50 p-6 rounded-lg">
         <h1 className="text-2xl font-bold text-red-700">Error</h1>
         <p className="mt-2">An error occurred while trying to fetch company details.</p>
-        <p className="mt-2 text-red-500">{error instanceof Error ? error.message : String(error)}</p>
+        <p className="mt-2 text-red-500">{errorMessage}</p>
         <div className="mt-4 flex space-x-4">
           <Link href="/dashboard" className="text-blue-600 hover:underline">
             &larr; Go back to Dashboard

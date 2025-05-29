@@ -107,10 +107,26 @@ export async function GET(
     return NextResponse.json(company);
   } catch (error) {
     console.error("Error fetching company details:", error);
+    
+    // Check if this is a prepared statement error and try to handle it
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    const isPreparedStatementError = 
+      errorMessage.includes('prepared statement') || 
+      errorMessage.includes('42P05');
+    
+    if (isPreparedStatementError) {
+      try {
+        // Try to reset the connection
+        await prismaHelper.resetConnection();
+      } catch (resetError) {
+        console.error("Failed to reset connection:", resetError);
+      }
+    }
+    
     return NextResponse.json(
       { 
         error: "Error fetching company details",
-        details: error instanceof Error ? error.message : String(error)
+        details: errorMessage
       },
       { status: 500 }
     );
@@ -243,8 +259,24 @@ export async function PATCH(
     });
   } catch (error) {
     console.error("Error updating company:", error);
+    
+    // Check if this is a prepared statement error and try to handle it
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    const isPreparedStatementError = 
+      errorMessage.includes('prepared statement') || 
+      errorMessage.includes('42P05');
+    
+    if (isPreparedStatementError) {
+      try {
+        // Try to reset the connection
+        await prismaHelper.resetConnection();
+      } catch (resetError) {
+        console.error("Failed to reset connection:", resetError);
+      }
+    }
+    
     return NextResponse.json(
-      { error: "Failed to update company", details: error instanceof Error ? error.message : String(error) },
+      { error: "Failed to update company", details: errorMessage },
       { status: 500 }
     );
   }
@@ -396,8 +428,24 @@ export async function DELETE(
     });
   } catch (error) {
     console.error("Error deleting company:", error);
+    
+    // Check if this is a prepared statement error and try to handle it
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    const isPreparedStatementError = 
+      errorMessage.includes('prepared statement') || 
+      errorMessage.includes('42P05');
+    
+    if (isPreparedStatementError) {
+      try {
+        // Try to reset the connection
+        await prismaHelper.resetConnection();
+      } catch (resetError) {
+        console.error("Failed to reset connection:", resetError);
+      }
+    }
+    
     return NextResponse.json(
-      { error: "Failed to delete company", details: error instanceof Error ? error.message : String(error) },
+      { error: "Failed to delete company", details: errorMessage },
       { status: 500 }
     );
   }
