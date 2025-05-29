@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-options";
 import prisma from "@/lib/prisma";
+import prismaHelper from "@/lib/prisma-helper";
 import { withAuth } from "@/lib/auth";
 import { UserRole } from "@/prisma/enums";
 
@@ -52,9 +53,11 @@ export const GET = withAuth(
       
       if (!canAccessUser && requesterRole === UserRole.ADMIN) {
         // Check if the target user was created by this admin
-        const targetUser = await prisma.user.findUnique({
-          where: { id: targetUserId },
-          select: { createdById: true, companyId: true, role: true }
+        const targetUser = await prismaHelper.executePrismaWithRetry(async () => {
+          return prisma.user.findUnique({
+            where: { id: targetUserId },
+            select: { createdById: true, companyId: true, role: true }
+          });
         });
         
         if (targetUser?.createdById === requesterId) {
@@ -64,9 +67,11 @@ export const GET = withAuth(
         // Also allow access to employees of companies the admin manages
         if (!canAccessUser && targetUser?.role === UserRole.EMPLOYEE) {
           // First check if the company was created by this admin
-          const company = await prisma.user.findUnique({
-            where: { id: targetUser.companyId || "" },
-            select: { createdById: true }
+          const company = await prismaHelper.executePrismaWithRetry(async () => {
+            return prisma.user.findUnique({
+              where: { id: targetUser.companyId || "" },
+              select: { createdById: true }
+            });
           });
           
           if (company?.createdById === requesterId) {
@@ -77,9 +82,11 @@ export const GET = withAuth(
       
       if (!canAccessUser && requesterRole === UserRole.COMPANY) {
         // Companies can access their employees
-        const targetUser = await prisma.user.findUnique({
-          where: { id: targetUserId },
-          select: { companyId: true, role: true }
+        const targetUser = await prismaHelper.executePrismaWithRetry(async () => {
+          return prisma.user.findUnique({
+            where: { id: targetUserId },
+            select: { companyId: true, role: true }
+          });
         });
         
         if (targetUser?.role === UserRole.EMPLOYEE && targetUser?.companyId === requesterId) {
@@ -95,19 +102,21 @@ export const GET = withAuth(
       }
       
       // Fetch the user with appropriate related data
-      const user = await prisma.user.findUnique({
-        where: { id: targetUserId },
-        include: {
-          company: {
-            select: {
-              id: true,
-              name: true,
-              email: true,
-              createdAt: true,
-              updatedAt: true
+      const user = await prismaHelper.executePrismaWithRetry(async () => {
+        return prisma.user.findUnique({
+          where: { id: targetUserId },
+          include: {
+            company: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+                createdAt: true,
+                updatedAt: true
+              }
             }
           }
-        }
+        });
       });
       
       if (!user) {
@@ -123,8 +132,24 @@ export const GET = withAuth(
       return NextResponse.json({ user: userWithoutPassword });
     } catch (error) {
       console.error("Error fetching user by ID:", error);
+      
+      // Check if this is a prepared statement error and try to handle it
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      const isPreparedStatementError = 
+        errorMessage.includes('prepared statement') || 
+        errorMessage.includes('42P05');
+      
+      if (isPreparedStatementError) {
+        try {
+          // Try to reset the connection
+          await prismaHelper.resetConnection();
+        } catch (resetError) {
+          console.error("Failed to reset connection:", resetError);
+        }
+      }
+      
       return NextResponse.json(
-        { error: "Failed to fetch user" },
+        { error: "Failed to fetch user", details: errorMessage },
         { status: 500 }
       );
     }
