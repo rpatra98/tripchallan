@@ -1,81 +1,90 @@
 import { AuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import { compare } from "bcrypt";
-import prisma from "./prisma";
-import prismaHelper from "./prisma-helper";
 import { UserRole, EmployeeSubrole, ActivityAction } from "@/prisma/enums";
 import { addActivityLog } from "./activity-logger";
 import { detectDevice } from "./utils";
+import supabase from "./supabase";
+import * as supabaseHelper from "./supabase-helper";
 
 // Special fallback handler for the first superadmin login
 async function createInitialSuperAdmin() {
   try {
-    // Reset the Prisma connection before doing anything
-    await prismaHelper.resetConnection();
+    // Check if any SuperAdmin exists
+    const { data: superAdmins, error: countError } = await supabase
+      .from('users')
+      .select('count')
+      .eq('role', UserRole.SUPERADMIN);
     
-    // Wait a bit to ensure connection is ready
-    await new Promise(resolve => setTimeout(resolve, 500));
-    
-    // Create a new client for this operation specifically
-    const { PrismaClient } = require('@prisma/client');
-    const isolatedClient = new PrismaClient();
-    
-    try {
-      // Check if any SuperAdmin exists
-      const superAdminCount = await isolatedClient.user.count({
-        where: { role: UserRole.SUPERADMIN },
-      });
-      
-      if (superAdminCount === 0) {
-        console.log("No SuperAdmin found, creating one with isolated client");
-        // Create the SuperAdmin user with bcrypt
-        const bcrypt = require('bcrypt');
-        const hashedPassword = await bcrypt.hash('superadmin123', 12);
-        
-        const newSuperAdmin = await isolatedClient.user.create({
-          data: {
-            name: 'Super Admin',
-            email: 'superadmin@cbums.com',
-            password: hashedPassword,
-            role: UserRole.SUPERADMIN,
-            coins: 1000000,
-          },
-        });
-        
-        console.log("Created SuperAdmin:", newSuperAdmin.id);
-        return {
-          id: newSuperAdmin.id,
-          email: newSuperAdmin.email,
-          name: newSuperAdmin.name,
-          role: UserRole.SUPERADMIN,
-          subrole: null,
-          companyId: null,
-          coins: 1000000,
-        };
-      }
-      
-      // If we have a superadmin but couldn't find it with main client
-      const superAdmin = await isolatedClient.user.findUnique({
-        where: { email: 'superadmin@cbums.com' }
-      });
-      
-      if (superAdmin) {
-        return {
-          id: superAdmin.id,
-          email: superAdmin.email,
-          name: superAdmin.name,
-          role: UserRole.SUPERADMIN,
-          subrole: null,
-          companyId: null,
-          coins: superAdmin.coins || 1000000,
-        };
-      }
-      
+    if (countError) {
+      console.error("Error checking for SuperAdmin:", countError);
       return null;
-    } finally {
-      // Always disconnect the isolated client
-      await isolatedClient.$disconnect();
     }
+    
+    const superAdminCount = superAdmins.length;
+    
+    if (superAdminCount === 0) {
+      console.log("No SuperAdmin found, creating one");
+      // Create the SuperAdmin user with bcrypt
+      const bcrypt = require('bcrypt');
+      const hashedPassword = await bcrypt.hash('superadmin123', 12);
+      
+      const { data: newSuperAdmin, error: createError } = await supabase
+        .from('users')
+        .insert({
+          name: 'Super Admin',
+          email: 'superadmin@cbums.com',
+          password: hashedPassword,
+          role: UserRole.SUPERADMIN,
+          coins: 1000000,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        })
+        .select()
+        .single();
+      
+      if (createError) {
+        console.error("Error creating SuperAdmin:", createError);
+        return null;
+      }
+      
+      console.log("Created SuperAdmin:", newSuperAdmin.id);
+      return {
+        id: newSuperAdmin.id,
+        email: newSuperAdmin.email,
+        name: newSuperAdmin.name,
+        role: UserRole.SUPERADMIN,
+        subrole: null,
+        companyId: null,
+        coins: 1000000,
+      };
+    }
+    
+    // If we have a superadmin but couldn't find it with main client
+    const { data: superAdmin, error: findError } = await supabase
+      .from('users')
+      .select('*')
+      .eq('email', 'superadmin@cbums.com')
+      .single();
+    
+    if (findError) {
+      console.error("Error finding SuperAdmin:", findError);
+      return null;
+    }
+    
+    if (superAdmin) {
+      return {
+        id: superAdmin.id,
+        email: superAdmin.email,
+        name: superAdmin.name,
+        role: UserRole.SUPERADMIN,
+        subrole: null,
+        companyId: null,
+        coins: superAdmin.coins || 1000000,
+      };
+    }
+    
+    return null;
   } catch (error) {
     console.error("Error creating initial superadmin:", error);
     return null;
@@ -116,15 +125,15 @@ export const authOptions: AuthOptions = {
             
             // Try all methods to authenticate SuperAdmin
             try {
-              // Try with our enhanced prisma helper first
-              const superAdmin = await prismaHelper.executePrismaWithRetry(async () => {
-                return prisma.user.findUnique({
-                  where: { email: credentials.email },
-                });
-              });
+              // Try with Supabase first
+              const { data: superAdmin, error } = await supabase
+                .from('users')
+                .select('*')
+                .eq('email', credentials.email)
+                .single();
               
-              if (superAdmin) {
-                console.log("SuperAdmin found using prismaHelper");
+              if (!error && superAdmin) {
+                console.log("SuperAdmin found using Supabase");
                 return {
                   id: superAdmin.id,
                   email: superAdmin.email,
@@ -136,11 +145,11 @@ export const authOptions: AuthOptions = {
                 };
               }
               
-              console.log("SuperAdmin not found with prismaHelper, trying isolated client...");
+              console.log("SuperAdmin not found, trying to create...");
               const fallbackSuperAdmin = await createInitialSuperAdmin();
               
               if (fallbackSuperAdmin) {
-                console.log("SuperAdmin found/created with isolated client");
+                console.log("SuperAdmin found/created");
                 return fallbackSuperAdmin;
               }
               
@@ -156,23 +165,17 @@ export const authOptions: AuthOptions = {
             }
           }
           
-          // Reset connection before regular authentication
-          await prismaHelper.resetConnection();
-
           // Normal authentication flow for all users
-          const user = await prismaHelper.executePrismaWithRetry(async () => {
-            return prisma.user.findUnique({
-              where: {
-                email: credentials.email,
-              },
-              include: {
-                company: true, // Include company data
-                operatorPermissions: true,
-              }
-            });
-          });
-
-          if (!user) {
+          const { data: user, error } = await supabase
+            .from('users')
+            .select(`
+              *,
+              company:companies(*)
+            `)
+            .eq('email', credentials.email)
+            .single();
+          
+          if (error || !user) {
             console.log(`No user found for email: ${credentials.email}`);
             return null;
           }
@@ -232,17 +235,6 @@ export const authOptions: AuthOptions = {
           return safeUser;
         } catch (error) {
           console.error("Authentication error:", error);
-          
-          // If this is a prepared statement error, try to reset the connection
-          const errorMessage = error instanceof Error ? error.message : String(error);
-          if (errorMessage.includes('prepared statement') || errorMessage.includes('42P05')) {
-            try {
-              await prismaHelper.resetConnection();
-            } catch (resetError) {
-              console.error("Failed to reset connection during auth:", resetError);
-            }
-          }
-          
           throw error;
         }
       },

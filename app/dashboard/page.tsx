@@ -1,10 +1,9 @@
 import { notFound, redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-options";
-import prisma from "@/lib/prisma";
-import prismaHelper from "@/lib/prisma-helper";
 import { UserRole } from "@/prisma/enums";
 import SessionErrorPage from "@/components/SessionErrorPage";
+import supabase from "@/lib/supabase";
 
 // Dynamically import dashboard components
 import SuperAdminDashboard from "@/components/dashboard/SuperAdminDashboard";
@@ -22,9 +21,6 @@ export default async function DashboardPage({
 }: {
   searchParams?: { [key: string]: string | string[] | undefined };
 }) {
-  // Reset Prisma connection before any operations
-  await prismaHelper.resetConnection();
-  
   // Get session data
   const session = await getServerSession(authOptions);
   
@@ -43,17 +39,20 @@ export default async function DashboardPage({
   try {
     console.log(`Fetching user with ID: ${session.user.id}`);
     
-    // Get user with additional info using prisma helper
-    const dbUser = await prismaHelper.executePrismaWithRetry(async () => {
-      return prisma.user.findUnique({
-        where: {
-          id: session.user.id,
-        },
-        include: {
-          company: true,
-        },
-      });
-    });
+    // Get user with additional info using Supabase
+    const { data: dbUser, error } = await supabase
+      .from('users')
+      .select(`
+        *,
+        company:companies(*)
+      `)
+      .eq('id', session.user.id)
+      .single();
+
+    if (error) {
+      console.error("Error fetching user from Supabase:", error);
+      return <SessionErrorPage />;
+    }
 
     // If user not found in database, show error page
     if (!dbUser) {
@@ -64,7 +63,6 @@ export default async function DashboardPage({
     console.log(`User found with role: ${dbUser.role}`);
     
     // Cast the user object to handle type compatibility issues
-    // This is necessary because there might be differences between Prisma's enums and our local enums
     const user = dbUser as any;
     
     // Render appropriate dashboard based on user role
@@ -86,20 +84,7 @@ export default async function DashboardPage({
   } catch (error) {
     console.error("Dashboard error:", error);
     
-    // Check if this is a prepared statement error and try to handle it
     const errorMessage = error instanceof Error ? error.message : String(error);
-    const isPreparedStatementError = 
-      errorMessage.includes('prepared statement') || 
-      errorMessage.includes('42P05');
-    
-    if (isPreparedStatementError) {
-      try {
-        // Try to reset the connection with a longer delay
-        await prismaHelper.resetConnection(3000);
-      } catch (resetError) {
-        console.error("Failed to reset connection:", resetError);
-      }
-    }
     
     // Show a specific error component
     return (

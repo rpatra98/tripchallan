@@ -1,10 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-options";
-import prisma from "@/lib/prisma";
-import prismaHelper from "@/lib/prisma-helper";
 import { withAuth } from "@/lib/auth";
 import { UserRole } from "@/lib/types";
+import supabase from "@/lib/supabase";
 
 export const GET = withAuth(
   async () => {
@@ -18,15 +17,23 @@ export const GET = withAuth(
         );
       }
       
-      // Get user details with company info
-      const user = await prismaHelper.executePrismaWithRetry(async () => {
-        return prisma.user.findUnique({
-          where: { id: session.user.id },
-          include: {
-            company: true
-          }
-        });
-      });
+      // Get user details with company info using Supabase
+      const { data: user, error } = await supabase
+        .from('users')
+        .select(`
+          *,
+          company:companies(*)
+        `)
+        .eq('id', session.user.id)
+        .single();
+      
+      if (error) {
+        console.error("Error fetching user from Supabase:", error);
+        return NextResponse.json(
+          { error: "User not found", details: error.message },
+          { status: 404 }
+        );
+      }
       
       if (!user) {
         return NextResponse.json(
@@ -42,20 +49,7 @@ export const GET = withAuth(
     } catch (error) {
       console.error("Error fetching user details:", error);
       
-      // Check if this is a prepared statement error and try to handle it
       const errorMessage = error instanceof Error ? error.message : String(error);
-      const isPreparedStatementError = 
-        errorMessage.includes('prepared statement') || 
-        errorMessage.includes('42P05');
-      
-      if (isPreparedStatementError) {
-        try {
-          // Try to reset the connection
-          await prismaHelper.resetConnection();
-        } catch (resetError) {
-          console.error("Failed to reset connection:", resetError);
-        }
-      }
       
       return NextResponse.json(
         { error: "Failed to fetch user details", details: errorMessage },

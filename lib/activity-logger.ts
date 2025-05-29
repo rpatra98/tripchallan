@@ -1,6 +1,6 @@
-import prisma from "@/lib/prisma";
-import prismaHelper from "@/lib/prisma-helper";
+import supabase from "@/lib/supabase";
 import { ActivityAction } from "@/prisma/enums";
+import { executeSupabaseQuery } from "./supabase-helper";
 
 type ActivityLogParams = {
   userId: string;
@@ -27,35 +27,30 @@ export async function addActivityLog({
   userAgent,
 }: ActivityLogParams) {
   try {
-    const log = await prismaHelper.executePrismaWithRetry(async () => {
-      return prisma.activityLog.create({
-        data: {
-          userId,
-          action,
-          details,
-          targetUserId,
-          targetResourceId,
-          targetResourceType,
-          ipAddress,
-          userAgent,
-        },
-      });
-    });
+    const { data, error } = await supabase
+      .from('activity_logs')
+      .insert({
+        userId,
+        action,
+        details,
+        targetUserId,
+        targetResourceId,
+        targetResourceType,
+        ipAddress,
+        userAgent,
+        createdAt: new Date().toISOString()
+      })
+      .select()
+      .single();
     
-    return log;
-  } catch (error) {
-    console.error("Failed to create activity log:", error);
-    
-    // If this is a prepared statement error, try to reset the connection
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    if (errorMessage.includes('prepared statement') || errorMessage.includes('42P05')) {
-      try {
-        await prismaHelper.resetConnection();
-      } catch (resetError) {
-        console.error("Failed to reset connection in activity logger:", resetError);
-      }
+    if (error) {
+      console.error("Failed to create activity log:", error);
+      return null;
     }
     
+    return data;
+  } catch (error) {
+    console.error("Failed to create activity log:", error);
     // We don't want to fail the main operation if logging fails
     return null;
   }
@@ -120,123 +115,114 @@ export async function getActivityLogs({
   try {
     const skip = (page - 1) * limit;
     
-    const whereClause: any = {};
+    // Start with a basic query
+    let query = supabase
+      .from('activity_logs')
+      .select(`
+        *,
+        user:users!userId(id, name, email, role),
+        targetUser:users!targetUserId(id, name, email, role)
+      `)
+      .order('createdAt', { ascending: false })
+      .range(skip, skip + limit - 1);
     
-    // Handle user ID filtering - either single ID or multiple IDs
+    // Apply filters
     if (userId) {
-      whereClause.userId = userId;
+      query = query.eq('userId', userId);
     } else if (userIds && userIds.length > 0) {
-      whereClause.userId = {
-        in: userIds
-      };
+      query = query.in('userId', userIds);
     }
     
-    // Special handling for action to ensure LOGIN/LOGOUT are included
     if (action) {
-      whereClause.action = action;
+      query = query.eq('action', action);
     } else if (!includeAuthActivities) {
-      // If includeAuthActivities is false, exclude LOGIN/LOGOUT activities
-      whereClause.action = {
-        notIn: [ActivityAction.LOGIN, ActivityAction.LOGOUT]
-      };
+      query = query.not('action', 'in', `(${ActivityAction.LOGIN},${ActivityAction.LOGOUT})`);
     }
-    // Otherwise, if includeAuthActivities is true and no specific action is requested,
-    // don't add any action filter - this allows all action types including LOGIN/LOGOUT
     
     if (targetUserId) {
-      whereClause.targetUserId = targetUserId;
+      query = query.eq('targetUserId', targetUserId);
     }
     
     if (targetResourceId) {
-      whereClause.targetResourceId = targetResourceId;
+      query = query.eq('targetResourceId', targetResourceId);
     }
     
     if (targetResourceType) {
-      whereClause.targetResourceType = targetResourceType;
+      query = query.eq('targetResourceType', targetResourceType);
     }
     
-    if (fromDate || toDate) {
-      whereClause.createdAt = {};
-      
-      if (fromDate) {
-        whereClause.createdAt.gte = fromDate;
-      }
-      
-      if (toDate) {
-        whereClause.createdAt.lte = toDate;
-      }
+    if (fromDate) {
+      query = query.gte('createdAt', fromDate.toISOString());
     }
     
-    // If we have a custom where clause, merge it with our existing conditions
-    let finalWhereClause = whereClause;
-    if (customWhere) {
-      finalWhereClause = {
-        AND: [
-          whereClause,
-          customWhere
-        ]
-      };
+    if (toDate) {
+      query = query.lte('createdAt', toDate.toISOString());
     }
     
-    // Log the final query for debugging
-    console.log("Final activity logs query:", JSON.stringify(finalWhereClause, null, 2));
+    // Note: customWhere is not directly supported in Supabase
+    // This would need a more complex implementation or stored procedures
     
-    // Additional debug to check for LOGIN/LOGOUT activities regardless of filters
-    const loginActivitiesCount = await prismaHelper.executePrismaWithRetry(async () => {
-      return prisma.activityLog.count({
-        where: { action: ActivityAction.LOGIN },
-      });
-    });
+    // Execute the query to get logs
+    const { data: logs, error } = await query;
     
-    const logoutActivitiesCount = await prismaHelper.executePrismaWithRetry(async () => {
-      return prisma.activityLog.count({
-        where: { action: ActivityAction.LOGOUT },
-      });
-    });
+    if (error) {
+      console.error("Error fetching activity logs:", error);
+      throw error;
+    }
     
-    console.log(`Database contains: ${loginActivitiesCount} LOGIN and ${logoutActivitiesCount} LOGOUT activities`);
+    // Count query for pagination
+    let countQuery = supabase
+      .from('activity_logs')
+      .select('count');
     
-    const [logs, totalCount] = await Promise.all([
-      prismaHelper.executePrismaWithRetry(async () => {
-        return prisma.activityLog.findMany({
-          where: finalWhereClause,
-          orderBy: {
-            createdAt: "desc",
-          },
-          skip,
-          take: limit,
-          include: {
-            user: {
-              select: {
-                id: true,
-                name: true,
-                email: true,
-                role: true,
-              },
-            },
-            targetUser: {
-              select: {
-                id: true,
-                name: true,
-                email: true,
-                role: true,
-              },
-            },
-          },
-        });
-      }),
-      prismaHelper.executePrismaWithRetry(async () => {
-        return prisma.activityLog.count({ where: finalWhereClause });
-      }),
-    ]);
+    // Apply the same filters to the count query
+    if (userId) {
+      countQuery = countQuery.eq('userId', userId);
+    } else if (userIds && userIds.length > 0) {
+      countQuery = countQuery.in('userId', userIds);
+    }
     
-    // Log what we found for debugging
-    console.log(`Found ${logs.length} logs, actions:`, logs.map((log: any) => log.action));
+    if (action) {
+      countQuery = countQuery.eq('action', action);
+    } else if (!includeAuthActivities) {
+      countQuery = countQuery.not('action', 'in', `(${ActivityAction.LOGIN},${ActivityAction.LOGOUT})`);
+    }
     
+    if (targetUserId) {
+      countQuery = countQuery.eq('targetUserId', targetUserId);
+    }
+    
+    if (targetResourceId) {
+      countQuery = countQuery.eq('targetResourceId', targetResourceId);
+    }
+    
+    if (targetResourceType) {
+      countQuery = countQuery.eq('targetResourceType', targetResourceType);
+    }
+    
+    if (fromDate) {
+      countQuery = countQuery.gte('createdAt', fromDate.toISOString());
+    }
+    
+    if (toDate) {
+      countQuery = countQuery.lte('createdAt', toDate.toISOString());
+    }
+    
+    const { data: countData, error: countError } = await countQuery;
+    
+    if (countError) {
+      console.error("Error counting activity logs:", countError);
+      throw countError;
+    }
+    
+    const totalCount = countData?.[0]?.count || 0;
     const totalPages = Math.ceil(totalCount / limit);
     
+    // Debug logs for visibility
+    console.log(`Found ${logs?.length || 0} logs, total count: ${totalCount}`);
+    
     return {
-      logs,
+      logs: logs || [],
       meta: {
         currentPage: page,
         totalPages,
@@ -248,16 +234,6 @@ export async function getActivityLogs({
     };
   } catch (error) {
     console.error("Error fetching activity logs:", error);
-    
-    // If this is a prepared statement error, try to reset the connection
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    if (errorMessage.includes('prepared statement') || errorMessage.includes('42P05')) {
-      try {
-        await prismaHelper.resetConnection();
-      } catch (resetError) {
-        console.error("Failed to reset connection in activity logger:", resetError);
-      }
-    }
     
     // Return empty result rather than failing
     return {
