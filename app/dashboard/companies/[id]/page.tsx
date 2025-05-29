@@ -7,6 +7,7 @@ import Link from "next/link";
 import { cookies } from "next/headers";
 import CompanyActions from "./company-actions";
 import CompanyLogo from "@/components/CompanyLogo";
+import prismaHelper from "@/lib/prisma-helper";
 
 // Add dynamic export to ensure Next.js treats this as a dynamic route
 export const dynamic = 'force-dynamic';
@@ -54,11 +55,7 @@ export default async function CompanyDetailPage({ params }: { params: { id: stri
     }
 
     // Get user with detailed information
-    const dbUser = await prisma.user.findUnique({
-      where: {
-        id: session.user.id,
-      },
-    });
+    const dbUser = await prismaHelper.findUserById(session.user.id);
 
     if (!dbUser) {
       redirect("/");
@@ -77,20 +74,17 @@ export default async function CompanyDetailPage({ params }: { params: { id: stri
     
     try {
       // First check if this is a company user (which has role = COMPANY)
-      const companyUser = await prisma.user.findFirst({
-        where: {
-          id: companyId,
-          role: UserRole.COMPANY
-        },
-        select: {
-          id: true,
-          name: true,
-          email: true,
-          companyId: true,
-          coins: true,
-          createdAt: true,
-          updatedAt: true
-        }
+      const companyUser = await prismaHelper.findFirstUser({
+        id: companyId,
+        role: UserRole.COMPANY
+      }, {
+        id: true,
+        name: true,
+        email: true,
+        companyId: true,
+        coins: true,
+        createdAt: true,
+        updatedAt: true
       });
       
       // If this is a company user, try to get the actual company record
@@ -100,21 +94,7 @@ export default async function CompanyDetailPage({ params }: { params: { id: stri
       }
       
       // Try to get the actual company record with the updated ID
-      const dbCompany = await prisma.company.findUnique({
-        where: { id: actualCompanyId },
-        include: {
-          employees: {
-            select: {
-              id: true,
-              name: true,
-              email: true,
-              role: true,
-              subrole: true,
-              coins: true,
-            }
-          }
-        }
-      });
+      const dbCompany = await prismaHelper.findCompanyById(actualCompanyId, true);
       
       if (dbCompany) {
         // We found the actual company record
@@ -130,22 +110,19 @@ export default async function CompanyDetailPage({ params }: { params: { id: stri
         const realCompanyId = companyUser.companyId || companyUser.id;
         
         // Get all employees associated with this company, regardless of whether we found the company record
-        const employees = await prisma.user.findMany({
-          where: {
-            OR: [
-              { companyId: companyUser.id },
-              { companyId: companyUser.companyId }
-            ],
-            role: UserRole.EMPLOYEE
-          },
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            role: true,
-            subrole: true,
-            coins: true,
-          }
+        const employees = await prismaHelper.findUsers({
+          OR: [
+            { companyId: companyUser.id },
+            { companyId: companyUser.companyId }
+          ],
+          role: UserRole.EMPLOYEE
+        }, {
+          id: true,
+          name: true,
+          email: true,
+          role: true,
+          subrole: true,
+          coins: true,
         });
             
         company = {
@@ -163,25 +140,20 @@ export default async function CompanyDetailPage({ params }: { params: { id: stri
         isSynthetic = true;
       } else {
         // Last attempt - try to find the company directly
-        const directCompany = await prisma.company.findUnique({
-          where: { id: companyId }
-        });
+        const directCompany = await prismaHelper.findCompanyById(companyId, false);
         
         if (directCompany) {
           // Get employees for this company
-          const employees = await prisma.user.findMany({
-            where: {
-              companyId: directCompany.id,
-              role: UserRole.EMPLOYEE
-            },
-            select: {
-              id: true,
-              name: true,
-              email: true,
-              role: true,
-              subrole: true,
-              coins: true,
-            }
+          const employees = await prismaHelper.findUsers({
+            companyId: directCompany.id,
+            role: UserRole.EMPLOYEE
+          }, {
+            id: true,
+            name: true,
+            email: true,
+            role: true,
+            subrole: true,
+            coins: true,
           });
           
           company = {
@@ -196,19 +168,16 @@ export default async function CompanyDetailPage({ params }: { params: { id: stri
       // If we still have no company record, check for users with this companyId
       if (!company) {
         // See if any users have this as their companyId
-        const companyEmployees = await prisma.user.findMany({
-          where: {
-            companyId: companyId,
-            role: UserRole.EMPLOYEE
-          },
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            role: true,
-            subrole: true,
-            coins: true,
-          }
+        const companyEmployees = await prismaHelper.findUsers({
+          companyId: companyId,
+          role: UserRole.EMPLOYEE
+        }, {
+          id: true,
+          name: true,
+          email: true,
+          role: true,
+          subrole: true,
+          coins: true,
         });
         
         if (companyEmployees.length > 0) {
