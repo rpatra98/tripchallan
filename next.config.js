@@ -21,6 +21,9 @@ const nextConfig = {
   // Configure which pages should not be statically generated
   output: 'standalone',
   
+  // Set a custom output directory without spaces
+  distDir: 'build',
+  
   // Skip static generation for routes that access the database
   skipTrailingSlashRedirect: true,
   skipMiddlewareUrlNormalize: true,

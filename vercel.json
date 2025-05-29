@@ -1,5 +1,6 @@
 {
   "buildCommand": "npm run vercel-build",
+  "outputDirectory": "build",
   "functions": {
     "app/api/**/*.ts": {
       "memory": 1024,
