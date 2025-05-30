@@ -15,37 +15,55 @@ if (!supabaseUrl || !supabaseKey) {
 }
 
 // Create Supabase client
-const supabase = createClient(supabaseUrl, supabaseKey);
-
-// Fixed ID for SuperAdmin (zero UUID)
-const SUPERADMIN_ID = '00000000-0000-0000-0000-000000000000';
+const supabase = createClient(supabaseUrl, supabaseKey, {
+  auth: {
+    persistSession: false,
+    autoRefreshToken: false
+  }
+});
 
 async function seedSuperAdmin() {
   try {
-    console.log("Starting SuperAdmin seeding process...");
+    console.log("🔄 Starting SuperAdmin seeding process...");
+
+    // Check database connection first
+    const { error: connectionError } = await supabase.from('users').select('count').limit(1);
+    if (connectionError && connectionError.code !== '42P01') { // If error is not "table doesn't exist"
+      console.error('❌ Database connection failed:', connectionError);
+      return { success: false, error: connectionError };
+    }
 
     // Check if SuperAdmin already exists
     console.log("Checking for existing SuperAdmin...");
     const { data: existingSuperAdmin, error: findError } = await supabase
       .from('users')
       .select('*')
-      .eq('role', 'SUPERADMIN')
+      .eq('email', 'superadmin@cbums.com')
       .limit(1);
 
-    // If SuperAdmin exists, we're done
+    // If SuperAdmin exists, we'll delete and recreate it
     if (!findError && existingSuperAdmin && existingSuperAdmin.length > 0) {
-      console.log("SuperAdmin already exists with ID:", existingSuperAdmin[0].id);
-      return { success: true, id: existingSuperAdmin[0].id };
+      console.log("SuperAdmin exists with ID:", existingSuperAdmin[0].id);
+      console.log("Deleting existing SuperAdmin to create a fresh one...");
+      
+      const { error: deleteError } = await supabase
+        .from('users')
+        .delete()
+        .eq('email', 'superadmin@cbums.com');
+        
+      if (deleteError) {
+        console.error("Error deleting existing SuperAdmin:", deleteError);
+        // Continue anyway, the insert might still work
+      }
     }
 
-    // SuperAdmin doesn't exist, create one
-    console.log("No SuperAdmin found, creating new one...");
+    // Create SuperAdmin
+    console.log("Creating new SuperAdmin...");
     const hashedPassword = await bcrypt.hash('superadmin123', 12);
     
     const { data: newSuperAdmin, error: createError } = await supabase
       .from('users')
       .insert({
-        id: SUPERADMIN_ID, // Use fixed ID for SuperAdmin
         name: 'Super Admin',
         email: 'superadmin@cbums.com',
         password: hashedPassword,
@@ -58,14 +76,14 @@ async function seedSuperAdmin() {
       .single();
 
     if (createError) {
-      console.error("Error creating SuperAdmin:", createError);
+      console.error("❌ Error creating SuperAdmin:", createError);
       return { success: false, error: createError };
     }
 
-    console.log("Successfully created SuperAdmin with ID:", newSuperAdmin.id);
+    console.log("✅ Successfully created SuperAdmin with ID:", newSuperAdmin.id);
     return { success: true, id: newSuperAdmin.id };
   } catch (error) {
-    console.error("Error seeding SuperAdmin:", error);
+    console.error("❌ Error seeding SuperAdmin:", error);
     return { success: false, error };
   }
 }
@@ -74,11 +92,16 @@ async function seedSuperAdmin() {
 if (require.main === module) {
   seedSuperAdmin()
     .then(result => {
-      console.log("SuperAdmin seed result:", result);
-      process.exit(result.success ? 0 : 1);
+      if (result.success) {
+        console.log("✅ SuperAdmin seed completed successfully");
+        process.exit(0);
+      } else {
+        console.error("❌ SuperAdmin seed failed");
+        process.exit(1);
+      }
     })
     .catch(error => {
-      console.error("Fatal error seeding SuperAdmin:", error);
+      console.error("❌ Fatal error seeding SuperAdmin:", error);
       process.exit(1);
     });
 }

@@ -1,0 +1,30 @@
+[2025-05-30T14:18:38.795Z] 🔄 Starting database reset and initialization...
+[2025-05-30T14:18:38.798Z] Connecting to PostgreSQL at aws-0-us-east-1.pooler.supabase.com:5432/postgres
+[2025-05-30T14:18:40.286Z] ✅ Connected to PostgreSQL database
+[2025-05-30T14:18:40.286Z] Dropping existing tables...
+[2025-05-30T14:18:40.634Z] Dropped table: activity_logs
+[2025-05-30T14:18:40.879Z] Dropped table: coin_transactions
+[2025-05-30T14:18:41.126Z] Dropped table: operator_permissions
+[2025-05-30T14:18:41.382Z] Dropped table: seals
+[2025-05-30T14:18:41.625Z] Dropped table: comments
+[2025-05-30T14:18:41.872Z] Dropped table: sessions
+[2025-05-30T14:18:42.119Z] Dropped table: vehicles
+[2025-05-30T14:18:42.365Z] Dropped table: users
+[2025-05-30T14:18:42.610Z] Dropped table: companies
+[2025-05-30T14:18:42.610Z] Creating tables...
+[2025-05-30T14:18:42.888Z] Created companies table
+[2025-05-30T14:18:43.148Z] Created users table
+[2025-05-30T14:18:43.407Z] Created vehicles table
+[2025-05-30T14:18:43.665Z] Created sessions table
+[2025-05-30T14:18:43.918Z] Created comments table
+[2025-05-30T14:18:44.173Z] Created seals table
+[2025-05-30T14:18:44.430Z] Created operator_permissions table
+[2025-05-30T14:18:44.684Z] Created coin_transactions table
+[2025-05-30T14:18:44.942Z] Created activity_logs table
+[2025-05-30T14:18:44.943Z] Creating SuperAdmin user...
+[2025-05-30T14:18:45.384Z] ✅ SuperAdmin created successfully with ID: b2ffad6c-741d-4f3c-a7a6-52b45bbf009d
+[2025-05-30T14:18:45.384Z] Setting up database permissions...
+[2025-05-30T14:18:46.112Z] ✅ Database permissions set up successfully
+[2025-05-30T14:18:46.113Z] ✅ Database initialization completed successfully
+[2025-05-30T14:18:46.351Z] Database connection closed
+[2025-05-30T14:18:46.351Z] ✅ Database reset and initialization completed successfully

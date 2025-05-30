@@ -1,7 +1,8 @@
 const { createClient } = require('@supabase/supabase-js');
 const dotenv = require('dotenv');
 const bcrypt = require('bcrypt');
-const { exec } = require('child_process');
+const runMigrations = require('./supabase-migrate');
+const seedSuperAdmin = require('./seed-superadmin');
 
 // Load environment variables
 dotenv.config();
@@ -33,7 +34,8 @@ const tablesToWipe = [
   'sessions',               // Delete sessions as they reference companies and users
   'vehicles',               // Delete vehicles as they reference companies and users
   'users',                  // Delete users next
-  'companies'               // Delete companies last
+  'companies',              // Delete companies last
+  'migrations'              // Delete migrations tracking so they are reapplied
 ];
 
 // Function to wipe all data from the database
@@ -43,7 +45,7 @@ async function wipeDatabase() {
   try {
     // Check database connection first
     const { data: connectionTest, error: connectionError } = await supabase.from('users').select('count').limit(1);
-    if (connectionError) {
+    if (connectionError && connectionError.code !== '42P01') { // If error is not "table doesn't exist"
       console.error('❌ Database connection failed:', connectionError);
       return false;
     }
@@ -58,8 +60,6 @@ async function wipeDatabase() {
       if (!error || error.code !== '42P01') { // 42P01 is the error code for table not found
         existingTables.push(table);
         console.log(`Table found: ${table}`);
-      } else {
-        console.log(`Table not found: ${table} (will be skipped)`);
       }
     }
     
@@ -87,70 +87,31 @@ async function wipeDatabase() {
   }
 }
 
-// Function to create the SuperAdmin user directly
-async function createSuperAdmin() {
-  console.log('Creating SuperAdmin user...');
-  
-  try {
-    // First check if SuperAdmin already exists
-    const { data: existingSuperAdmin, error: findError } = await supabase
-      .from('users')
-      .select('*')
-      .eq('email', 'superadmin@cbums.com')
-      .limit(1);
-    
-    // Delete existing SuperAdmin if it exists
-    if (!findError && existingSuperAdmin && existingSuperAdmin.length > 0) {
-      console.log('Existing SuperAdmin found, deleting...');
-      await supabase.from('users').delete().eq('email', 'superadmin@cbums.com');
-    }
-    
-    // Hash the password
-    const hashedPassword = await bcrypt.hash('superadmin123', 12);
-    
-    // Create the SuperAdmin user
-    const { data, error } = await supabase
-      .from('users')
-      .insert({
-        name: 'Super Admin',
-        email: 'superadmin@cbums.com',
-        password: hashedPassword,
-        role: 'SUPERADMIN',
-        coins: 1000000,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      })
-      .select()
-      .single();
-    
-    if (error) {
-      console.error('Error creating SuperAdmin:', error);
-      return false;
-    }
-    
-    console.log('SuperAdmin created successfully with ID:', data.id);
-    return true;
-  } catch (error) {
-    console.error('Error creating SuperAdmin:', error);
-    return false;
-  }
-}
-
-// Main function to run the wipe and seed
-async function resetAndStartApp() {
+// Main function to run the wipe, migrate, and seed processes
+async function resetDatabase() {
   try {
     console.log('🔄 Starting Supabase database reset process...');
     
     // First wipe the database
     const wipeSuccess = await wipeDatabase();
     if (!wipeSuccess) {
-      console.error('Database wipe failed, continuing with seed operation anyway');
+      console.error('⚠️ Database wipe failed, continuing with migration operation anyway');
     }
     
-    // Then create the SuperAdmin
-    const createSuccess = await createSuperAdmin();
-    if (!createSuccess) {
-      console.error('SuperAdmin creation failed');
+    // Run migrations to recreate the schema
+    console.log('Running migrations to recreate schema...');
+    try {
+      await runMigrations();
+    } catch (migrationError) {
+      console.error('❌ Migration failed:', migrationError);
+      process.exit(1);
+    }
+    
+    // Seed the SuperAdmin user
+    console.log('Seeding SuperAdmin user...');
+    const seedResult = await seedSuperAdmin();
+    if (!seedResult.success) {
+      console.error('❌ SuperAdmin creation failed');
       process.exit(1);
     }
     
@@ -158,10 +119,14 @@ async function resetAndStartApp() {
     console.log('🚀 You can now start the development server with: npm run dev');
     process.exit(0);
   } catch (error) {
-    console.error('Fatal error during reset operation:', error);
+    console.error('❌ Fatal error during reset operation:', error);
     process.exit(1);
   }
 }
 
-// Run the reset and start operation
-resetAndStartApp(); 
+// Run the database reset operation
+if (require.main === module) {
+  resetDatabase();
+}
+
+module.exports = resetDatabase; 

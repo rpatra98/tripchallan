@@ -13,14 +13,13 @@ A role-based application with 4 major roles: SuperAdmin, Admin, Company, and Emp
 
 - **Frontend**: Next.js with App Router, React, TailwindCSS
 - **Backend**: Next.js API Routes
-- **Database**: PostgreSQL
-- **ORM**: Prisma
-- **Authentication**: NextAuth.js
+- **Database**: PostgreSQL with Supabase
+- **Authentication**: NextAuth.js with Supabase
 
 ## Prerequisites
 
 - Node.js 18+
-- PostgreSQL database
+- Supabase account with PostgreSQL database
 
 ## Getting Started
 
@@ -45,19 +44,40 @@ Copy the `.env.example` file to `.env` and update the values:
 cp .env.example .env
 ```
 
-Make sure to set your PostgreSQL connection string in the `DATABASE_URL` environment variable.
+Make sure to set your Supabase credentials:
 
-### 4. Set up the database
-
-```bash
-# Run migrations to create database tables
-npm run migrate
-
-# Seed the database with initial data (creates a SuperAdmin user)
-npm run db:seed
+```
+NEXT_PUBLIC_SUPABASE_URL=your-supabase-url
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your-supabase-anon-key
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
 ```
 
-### 5. Start the development server
+### 4. Set up Supabase
+
+Before running any other commands, you need to set up the Supabase exec function:
+
+```bash
+# This only needs to be run once when setting up a new Supabase project
+npm run setup:supabase
+```
+
+### 5. Set up the database
+
+```bash
+# Initialize the database (creates schema and initial SuperAdmin)
+npm run db:init
+
+# OR, to run migrations only
+npm run migrate
+
+# OR, to seed the SuperAdmin user only
+npm run db:seed
+
+# To reset the database (WARNING: This deletes all data)
+npm run db:reset
+```
+
+### 6. Start the development server
 
 ```bash
 npm run dev
@@ -80,12 +100,17 @@ cbums/
 │   ├── auth/              # Authentication components
 │   └── dashboard/         # Dashboard components
 ├── lib/                   # Utilities and helpers
-│   ├── prisma.ts          # Prisma client
+│   ├── supabase.ts        # Supabase client
 │   ├── auth.ts            # Auth utilities
 │   └── types.ts           # TypeScript types
-└── prisma/                # Prisma ORM
-    ├── schema.prisma      # Database schema
-    └── seed.ts            # Database seed
+├── scripts/               # Utility scripts
+│   ├── supabase-migrate.js # Migration script
+│   ├── supabase-reset.js  # Database reset script
+│   ├── seed-superadmin.js # SuperAdmin seeding script
+│   ├── supabase-init.js   # Database initialization script
+│   └── setup-exec-function.js # Supabase exec function setup
+└── migrations/            # Database migrations
+    └── *.sql              # SQL migration files
 ```
 
 ## Role Hierarchy and Permissions
@@ -106,6 +131,16 @@ Companies in CBUMS now include additional fields:
 - **Active Status**: Companies can be activated/deactivated by admins
 
 These fields help with better organization and management of companies in the system.
+
+## Working with Migrations
+
+To create a new database migration:
+
+1. Create a new SQL file in the `migrations` folder with a timestamp prefix (e.g., `20250601_add_new_field.sql`)
+2. Write your SQL migration commands
+3. Run `npm run migrate` to apply the migration
+
+For more details, see the [migrations README](migrations/README.md).
 
 ## License
 
