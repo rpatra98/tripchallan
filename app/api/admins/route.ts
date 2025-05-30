@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { withAuth } from "@/lib/auth";
-import { supabase } from "@/lib/supabase";
+import supabase from "@/lib/supabase";
 import { UserRole } from "@/lib/enums";
 
 async function handler() {
@@ -15,8 +15,7 @@ async function handler() {
         role, 
         coins, 
         createdAt, 
-        updatedAt,
-        createdUsers:users!users_createdById_fkey(id)
+        updatedAt
       `)
       .eq('role', UserRole.ADMIN)
       .order('createdAt', { ascending: false });
@@ -29,13 +28,8 @@ async function handler() {
       );
     }
 
-    // Process the data to include hasCreatedResources
-    const admins = data.map(admin => ({
-      ...admin,
-      hasCreatedResources: admin.createdUsers ? admin.createdUsers.length > 0 : false
-    }));
-
-    return NextResponse.json({ admins });
+    // Return the admin list directly without createdUsers/hasCreatedResources
+    return NextResponse.json({ admins: data });
   } catch (error: unknown) {
     console.error("Error fetching admin users:", error);
     return NextResponse.json(

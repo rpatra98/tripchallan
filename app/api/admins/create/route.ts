@@ -167,8 +167,7 @@ async function handler(req: NextRequest) {
           role: UserRole.ADMIN,
           coins,
           createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-          createdById: superAdmin.id
+          updatedAt: new Date().toISOString()
         })
         .select()
         .single();

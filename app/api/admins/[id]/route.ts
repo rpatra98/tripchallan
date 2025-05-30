@@ -79,33 +79,8 @@ async function deleteHandler(
 
     const id = context.params.id;
 
-    // First check if this admin has created any resources
-    const { data: resources, error: countError } = await supabase
-      .from('users')
-      .select('id')
-      .eq('createdById', id)
-      .limit(1);
-
-    if (countError) {
-      console.error("Error checking admin resources:", countError);
-      return NextResponse.json(
-        { error: "Failed to check admin resources" },
-        { status: 500 }
-      );
-    }
-
-    // If admin has created resources, don't delete
-    if (resources && resources.length > 0) {
-      return NextResponse.json(
-        { 
-          error: "Cannot delete admin with associated resources", 
-          resourceCount: resources.length 
-        },
-        { status: 400 }
-      );
-    }
-
-    // Delete the admin
+    // Delete the admin directly without checking for created resources
+    // since we're not tracking createdById anymore
     const { error: deleteError } = await supabaseAdmin
       .from('users')
       .delete()
