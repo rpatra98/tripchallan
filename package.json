@@ -24,6 +24,7 @@
     "@mui/system": "^7.1.0",
     "@prisma/client": "^6.7.0",
     "@prisma/extension-accelerate": "^0.6.3",
+    "@supabase/supabase-js": "^2.49.8",
     "@tanstack/react-query": "^5.17.19",
     "@types/pdfkit": "^0.13.9",
     "@types/puppeteer": "^5.4.7",

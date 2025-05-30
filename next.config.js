@@ -5,8 +5,10 @@ const nextConfig = {
     serverActions: {
       allowedOrigins: ["localhost:3000"],
     },
-    serverComponentsExternalPackages: ['@prisma/client', 'bcrypt'],
   },
+  
+  // External packages configuration
+  serverExternalPackages: ['@prisma/client', 'bcrypt'],
   
   // Temporarily disable TypeScript checking
   typescript: {
