@@ -2,14 +2,20 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-options";
 import { withAuth } from "@/lib/auth";
-import prisma from "@/lib/prisma";
+import supabase from "@/lib/supabase";
 import { ActivityAction, EmployeeSubrole, SessionStatus, TransactionReason, UserRole } from "@/prisma/enums";
-import { Prisma } from "@prisma/client";
 import { addActivityLog } from "@/lib/activity-logger";
 
 async function handler(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
+    if (!session || !session.user) {
+      return NextResponse.json(
+        { error: "Authentication required" },
+        { status: 401 }
+      );
+    }
+
     const body = await req.json();
     const { source, destination, barcode } = body;
 
@@ -22,7 +28,7 @@ async function handler(req: NextRequest) {
     }
 
     // Only operators can create sessions
-    if (session?.user.subrole !== EmployeeSubrole.OPERATOR) {
+    if (session.user.subrole !== 'OPERATOR') {
       return NextResponse.json(
         { error: "Only operators can create sessions" },
         { status: 403 }
@@ -30,12 +36,13 @@ async function handler(req: NextRequest) {
     }
 
     // Get operator details
-    const operator = await prisma.user.findUnique({
-      where: { id: session.user.id },
-      include: { company: true }
-    });
+    const { data: operator, error: operatorError } = await supabase
+      .from('users')
+      .select('*, company:companies(*)')
+      .eq('id', session.user.id)
+      .single();
 
-    if (!operator || !operator.companyId) {
+    if (operatorError || !operator || !operator.companyId) {
       return NextResponse.json(
         { error: "Operator must belong to a company" },
         { status: 400 }
@@ -51,112 +58,127 @@ async function handler(req: NextRequest) {
       );
     }
 
-    // Use a transaction to ensure all operations succeed or fail together
-    const result = await prisma.$transaction(async (tx) => {
-      // Deduct coin from operator
-      await tx.user.update({
-        where: { id: session.user.id },
-        data: { coins: { decrement: 1 } }
-      });
+    // Start a Supabase transaction with multiple operations
+    // We'll use a client-side transaction pattern since Supabase doesn't have server-side transactions
 
-      // Create the session first to get its ID
-      const newSession = await tx.session.create({
-        data: {
-          createdById: session.user.id,
-          companyId: operator.companyId as string,
-          source,
-          destination,
-          status: SessionStatus.PENDING,
-          seal: {
-            create: {
-              barcode
-            }
-          }
-        },
-        include: { seal: true }
-      });
+    // Step 1: Deduct coin from operator
+    const { error: updateError } = await supabase
+      .from('users')
+      .update({ coins: operatorCoins - 1 })
+      .eq('id', session.user.id);
 
-      // Create coin transaction record with session reference - coin is spent, not transferred
-      const coinTransaction = await tx.coinTransaction.create({
-        data: {
-          fromUserId: session.user.id,
-          toUserId: session.user.id, // Operator spends the coin (not transferred to another user)
-          amount: 1,
-          reason: TransactionReason.SESSION_CREATION as any,
-          reasonText: `Session ID: ${newSession.id} - From ${source} to ${destination} with barcode ${barcode}`
-        }
-      });
+    if (updateError) {
+      return NextResponse.json(
+        { error: "Failed to update operator coins" },
+        { status: 500 }
+      );
+    }
 
-      // Log the activity
-      await addActivityLog({
-        userId: session.user.id,
-        action: ActivityAction.CREATE,
-        details: {
-          entityType: "SESSION",
-          sessionId: newSession.id,
-          source,
-          destination,
-          barcode,
-          cost: "1 coin"
-        },
-        targetResourceId: newSession.id,
-        targetResourceType: "SESSION"
-      });
+    // Step 2: Create the session
+    const { data: newSession, error: sessionError } = await supabase
+      .from('sessions')
+      .insert({
+        createdById: session.user.id,
+        companyId: operator.companyId,
+        source,
+        destination,
+        status: SessionStatus.PENDING
+      })
+      .select()
+      .single();
 
-      // Create activity log for session creation
-      await tx.activityLog.create({
-        data: {
-          action: 'CREATE',
-          targetResourceType: 'session',
-          targetResourceId: newSession.id,
-          userId: session.user.id,
-          details: {
-            tripDetails: {
-              transporterName: body.transporterName,
-              materialName: body.materialName,
-              vehicleNumber: body.vehicleNumber,
-              gpsImeiNumber: body.gpsImeiNumber,
-              driverName: body.driverName,
-              driverContactNumber: body.driverContactNumber,
-              loaderName: body.loaderName,
-              loaderMobileNumber: body.loaderMobileNumber,
-              challanRoyaltyNumber: body.challanRoyaltyNumber,
-              doNumber: body.doNumber,
-              tpNumber: body.tpNumber,
-              qualityOfMaterials: body.qualityOfMaterials,
-              freight: body.freight,
-              grossWeight: body.grossWeight,
-              tareWeight: body.tareWeight,
-              netMaterialWeight: body.netMaterialWeight,
-              loadingSite: body.loadingSite,
-              receiverPartyName: body.receiverPartyName
-            }
-          }
-        }
-      });
+    if (sessionError || !newSession) {
+      // Rollback coin update
+      await supabase
+        .from('users')
+        .update({ coins: operatorCoins })
+        .eq('id', session.user.id);
 
-      return { 
-        session: newSession, 
-        transaction: coinTransaction,
-        operator: {
-          id: operator.id,
-          remainingCoins: operator.coins! - 1
-        }
-      };
+      return NextResponse.json(
+        { error: "Failed to create session" },
+        { status: 500 }
+      );
+    }
+
+    // Step 3: Create the seal
+    const { data: seal, error: sealError } = await supabase
+      .from('seals')
+      .insert({
+        sessionId: newSession.id,
+        barcode
+      })
+      .select()
+      .single();
+
+    if (sealError) {
+      // Rollback previous operations
+      await supabase.from('sessions').delete().eq('id', newSession.id);
+      await supabase
+        .from('users')
+        .update({ coins: operatorCoins })
+        .eq('id', session.user.id);
+
+      return NextResponse.json(
+        { error: "Failed to create seal" },
+        { status: 500 }
+      );
+    }
+
+    // Step 4: Create coin transaction record
+    const { data: coinTransaction, error: transactionError } = await supabase
+      .from('coin_transactions')
+      .insert({
+        fromUserId: session.user.id,
+        toUserId: session.user.id, // Operator spends the coin (not transferred)
+        amount: 1,
+        reason: TransactionReason.SESSION_CREATION,
+        reasonText: `Session ID: ${newSession.id} - From ${source} to ${destination} with barcode ${barcode}`,
+        createdAt: new Date().toISOString()
+      })
+      .select()
+      .single();
+
+    if (transactionError) {
+      // Log error but continue, as this is not critical
+      console.error("Failed to create coin transaction:", transactionError);
+    }
+
+    // Log the activity
+    await addActivityLog({
+      userId: session.user.id,
+      action: ActivityAction.CREATE,
+      details: {
+        entityType: "SESSION",
+        sessionId: newSession.id,
+        source,
+        destination,
+        barcode,
+        cost: "1 coin"
+      },
+      targetResourceId: newSession.id,
+      targetResourceType: "SESSION"
     });
+
+    // Return the result with the updated session including seal
+    const result = { 
+      session: { ...newSession, seal },
+      transaction: coinTransaction,
+      operator: {
+        id: operator.id,
+        remainingCoins: operatorCoins - 1
+      }
+    };
 
     return NextResponse.json(result, { status: 201 });
   } catch (error) {
     console.error("Error creating session:", error);
     
-    // Check for specific error types
-    if (error instanceof Prisma.PrismaClientKnownRequestError) {
-      if (error.code === 'P2002') {
-        return NextResponse.json(
-          { error: "Duplicate barcode detected" },
-          { status: 400 }
-        );
-      }
+    // Check for Supabase-specific errors (like duplicate constraint violations)
+    if (error instanceof Error && error.message.includes('duplicate key value')) {
+      return NextResponse.json(
+        { error: "Duplicate barcode detected" },
+        { status: 400 }
+      );
     }
     
     return NextResponse.json(
