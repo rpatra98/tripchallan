@@ -21,6 +21,24 @@ async function createInitialSuperAdmin() {
     
     if (!findError && existingSuperAdmin) {
       console.log("Found existing SuperAdmin:", existingSuperAdmin.id);
+      
+      // Update the password for the existing SuperAdmin to ensure it works
+      // This is a critical fix to ensure admin access
+      const bcrypt = require('bcrypt');
+      const hashedPassword = await bcrypt.hash('superadmin123', 12);
+      
+      console.log("Updating SuperAdmin password to ensure access");
+      const { error: updateError } = await supabase
+        .from('users')
+        .update({ password: hashedPassword })
+        .eq('id', existingSuperAdmin.id);
+      
+      if (updateError) {
+        console.error("Error updating SuperAdmin password:", updateError);
+      } else {
+        console.log("SuperAdmin password updated successfully");
+      }
+      
       return {
         id: existingSuperAdmin.id,
         email: existingSuperAdmin.email,
@@ -80,6 +98,17 @@ async function createInitialSuperAdmin() {
   }
 }
 
+// Update the SuperAdmin password on server start to ensure it works
+(async function initializeSuperAdmin() {
+  try {
+    console.log("🔐 Initializing SuperAdmin access...");
+    await createInitialSuperAdmin();
+    console.log("✅ SuperAdmin initialization complete");
+  } catch (error) {
+    console.error("❌ Error initializing SuperAdmin:", error);
+  }
+})();
+
 export const authOptions: AuthOptions = {
   providers: [
     CredentialsProvider({
@@ -101,46 +130,62 @@ export const authOptions: AuthOptions = {
           if (credentials.email === "superadmin@cbums.com") {
             console.log("SuperAdmin login attempt detected");
             
-            try {
-              // IMPORTANT: Direct access for SuperAdmin - bypassing all normal auth
-              console.log("Querying SuperAdmin directly from Supabase");
-              const { data: superAdminUser, error: superAdminError } = await supabase
-                .from('users')
-                .select('*')
-                .eq('email', 'superadmin@cbums.com')
-                .single();
-              
-              if (superAdminError) {
-                console.error("Error querying SuperAdmin:", superAdminError);
-                return null;
+            // First try to find SuperAdmin in database
+            const { data: superAdmin, error } = await supabase
+              .from('users')
+              .select('*')
+              .eq('email', 'superadmin@cbums.com')
+              .single();
+            
+            if (error) {
+              console.error("Error fetching SuperAdmin:", error);
+              return null;
+            }
+            
+            if (!superAdmin) {
+              console.log("No SuperAdmin found, creating one");
+              // This will create and update password if needed
+              const newSuperAdmin = await createInitialSuperAdmin();
+              if (newSuperAdmin) {
+                return newSuperAdmin;
               }
+              return null;
+            }
+            
+            // Direct password check for superadmin (just comparing with expected value)
+            // This is an emergency bypass to ensure superadmin can log in
+            if (credentials.password === 'superadmin123') {
+              console.log("Direct superadmin password check passed");
               
-              if (superAdminUser) {
-                console.log("Found SuperAdmin in database, ID:", superAdminUser.id);
-                
-                // DIRECT BYPASS: For SuperAdmin, always allow login
-                // This is a special case for this account to ensure admin access
-                // Remove once login issues are resolved
-                console.log("DIRECT LOGIN: SuperAdmin account bypass activated");
+              // Return user with forced SUPERADMIN role
+              return {
+                id: superAdmin.id,
+                email: superAdmin.email,
+                name: superAdmin.name || 'Super Admin',
+                role: 'SUPERADMIN',
+                subrole: null,
+                companyId: null,
+                coins: superAdmin.coins || 1000000,
+              };
+            }
+            
+            // For safety, also try normal bcrypt compare as fallback
+            try {
+              const passwordsMatch = await compare(credentials.password, superAdmin.password);
+              if (passwordsMatch) {
+                console.log("Bcrypt password verification succeeded for SuperAdmin");
                 return {
-                  id: superAdminUser.id,
-                  email: superAdminUser.email,
-                  name: superAdminUser.name || 'Super Admin',
+                  id: superAdmin.id,
+                  email: superAdmin.email,
+                  name: superAdmin.name || 'Super Admin',
                   role: 'SUPERADMIN',
                   subrole: null,
                   companyId: null,
-                  coins: superAdminUser.coins || 1000000,
+                  coins: superAdmin.coins || 1000000,
                 };
-              } else {
-                console.log("SuperAdmin not found in database, attempting to create");
-                const superAdmin = await createInitialSuperAdmin();
-                if (superAdmin) {
-                  console.log("Created new SuperAdmin, ID:", superAdmin.id);
-                  return superAdmin;
-                }
               }
-            } catch (error) {
-              console.error("SuperAdmin authentication error:", error);
+            } catch (pwError) {
+              console.error("Error during SuperAdmin password verification:", pwError);
             }
             
             console.log("SuperAdmin authentication failed");
