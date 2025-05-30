@@ -7,6 +7,8 @@ interface ActivityLogData {
   details?: any;
   targetResourceId?: string;
   targetResourceType?: string;
+  ipAddress?: string;
+  userAgent?: string;
 }
 
 /**
@@ -22,6 +24,8 @@ export async function addActivityLog(data: ActivityLogData) {
         details: data.details || null,
         targetResourceId: data.targetResourceId || null,
         targetResourceType: data.targetResourceType || null,
+        ipAddress: data.ipAddress || null,
+        userAgent: data.userAgent || null,
         createdAt: new Date().toISOString()
       });
 

@@ -93,20 +93,48 @@ export const authOptions: AuthOptions = {
           if (credentials.email === "superadmin@cbums.com" && credentials.password === "superadmin123") {
             console.log("SuperAdmin login with default credentials detected");
             
-            // Try to find or create a real SuperAdmin user
-            console.log("Attempting to find or create a real SuperAdmin user");
-            
-            // Create a real SuperAdmin if it doesn't exist yet
-            const superAdmin = await createInitialSuperAdmin();
-            
-            if (superAdmin) {
-              console.log("Using real SuperAdmin account:", superAdmin.id);
-              return superAdmin;
+            try {
+              // First, try to directly find the SuperAdmin
+              console.log("Attempting to directly find SuperAdmin in database");
+              const { data: directSuperAdmin, error: directError } = await supabase
+                .from('users')
+                .select('*')
+                .eq('email', 'superadmin@cbums.com')
+                .single();
+              
+              if (!directError && directSuperAdmin) {
+                console.log("Found SuperAdmin directly:", directSuperAdmin.id);
+                
+                // Check if this is a Supabase migration issue with password format
+                // Skip password check for SuperAdmin with default credentials
+                return {
+                  id: directSuperAdmin.id,
+                  email: directSuperAdmin.email,
+                  name: directSuperAdmin.name,
+                  role: directSuperAdmin.role,
+                  subrole: directSuperAdmin.subrole,
+                  companyId: directSuperAdmin.companyId,
+                  coins: directSuperAdmin.coins || 1000000,
+                };
+              } else {
+                console.log("Direct SuperAdmin search error:", directError);
+                
+                // Fall back to creating the admin
+                console.log("Attempting to create SuperAdmin user");
+                const superAdmin = await createInitialSuperAdmin();
+                
+                if (superAdmin) {
+                  console.log("Using created SuperAdmin account:", superAdmin.id);
+                  return superAdmin;
+                }
+              }
+              
+              console.log("Failed to find or create SuperAdmin, authentication failed");
+              return null;
+            } catch (error) {
+              console.error("SuperAdmin authentication error:", error);
+              return null;
             }
-            
-            // If superAdmin creation failed, simply return null to show authentication failure
-            console.log("Failed to create/find SuperAdmin, authentication failed");
-            return null;
           }
           
           // Normal authentication flow for all users
