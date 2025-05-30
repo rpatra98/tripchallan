@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { withAuth } from "@/lib/auth";
-import { supabase } from "@/lib/supabase";
+import supabase from "@/lib/supabase";
+import supabaseAdmin from "@/lib/supabase-admin";
 import { UserRole } from "@/lib/enums";
 
 type RouteHandlerContext = {
@@ -31,7 +32,6 @@ async function getHandler(
         email, 
         role, 
         coins, 
-        active,
         createdAt, 
         updatedAt
       `)
@@ -106,7 +106,7 @@ async function deleteHandler(
     }
 
     // Delete the admin
-    const { error: deleteError } = await supabase
+    const { error: deleteError } = await supabaseAdmin
       .from('users')
       .delete()
       .eq('id', id)
@@ -145,10 +145,10 @@ async function updateHandler(
 
     const id = context.params.id;
     const body = await req.json();
-    const { name, email, coins, active } = body;
+    const { name, email, coins } = body;
 
     // Validate the data
-    if (!name && !email && coins === undefined && active === undefined) {
+    if (!name && !email && coins === undefined) {
       return NextResponse.json(
         { error: "No data provided for update" },
         { status: 400 }
@@ -188,10 +188,9 @@ async function updateHandler(
     if (name) updateData.name = name;
     if (email) updateData.email = email;
     if (coins !== undefined) updateData.coins = coins;
-    if (active !== undefined) updateData.active = active;
 
     // Update the admin
-    const { data: updatedAdmin, error: updateError } = await supabase
+    const { data: updatedAdmin, error: updateError } = await supabaseAdmin
       .from('users')
       .update(updateData)
       .eq('id', id)

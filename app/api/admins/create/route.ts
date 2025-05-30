@@ -156,7 +156,7 @@ async function handler(req: NextRequest) {
       const hashedPassword = await bcrypt.hash(password, 12);
       console.log("Password hashed successfully");
 
-      // Create the admin user
+      // Create the admin user - removed 'active' field which doesn't exist in the schema
       console.log("Creating new admin user");
       const { data: newAdmin, error: createError } = await supabaseAdmin
         .from('users')
@@ -166,7 +166,6 @@ async function handler(req: NextRequest) {
           password: hashedPassword,
           role: UserRole.ADMIN,
           coins,
-          active: true,
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
           createdById: superAdmin.id
