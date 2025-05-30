@@ -6,6 +6,11 @@ import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { Box, Tabs, Tab, Typography, CircularProgress, Alert, Card, CardContent, Button } from "@mui/material";
 import { testSupabaseConnection } from "@/lib/supabase";
+import AdminManagement from "@/components/superadmin/AdminManagement";
+import SystemStats from "@/components/superadmin/SystemStats";
+import TripManagement from "@/components/superadmin/TripManagement";
+import CoinManagement from "@/components/superadmin/CoinManagement";
+import ActivityLogsTab from "@/components/superadmin/ActivityLogsTab";
 
 export default function SuperAdminPage() {
   const { data: session } = useSession();
@@ -100,113 +105,11 @@ export default function SuperAdminPage() {
 
       {/* Tab panels */}
       <Box sx={{ mt: 3 }}>
-        {activeTab === 0 && (
-          <iframe
-            src="/dashboard/admins"
-            style={{ width: '100%', height: 'calc(100vh - 200px)', border: 'none' }}
-            title="Admin Management"
-          />
-        )}
-        
-        {activeTab === 1 && (
-          <Box>
-            <Typography variant="h5" component="h2" sx={{ mb: 3, fontWeight: 'medium' }}>
-              System Statistics
-            </Typography>
-            
-            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 3, mb: 4 }}>
-              <Card sx={{ minWidth: 250, flex: '1 1 250px' }}>
-                <CardContent>
-                  <Typography variant="h6" component="div">
-                    Total Users
-                  </Typography>
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mt: 2 }}>
-                    <Typography variant="h4" color="primary">
-                      Loading...
-                    </Typography>
-                  </Box>
-                </CardContent>
-              </Card>
-              
-              <Card sx={{ minWidth: 250, flex: '1 1 250px' }}>
-                <CardContent>
-                  <Typography variant="h6" component="div">
-                    Total Companies
-                  </Typography>
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mt: 2 }}>
-                    <Typography variant="h4" color="success.main">
-                      Loading...
-                    </Typography>
-                  </Box>
-                </CardContent>
-              </Card>
-              
-              <Card sx={{ minWidth: 250, flex: '1 1 250px' }}>
-                <CardContent>
-                  <Typography variant="h6" component="div">
-                    Total Trips
-                  </Typography>
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mt: 2 }}>
-                    <Typography variant="h4" color="info.main">
-                      Loading...
-                    </Typography>
-                  </Box>
-                </CardContent>
-              </Card>
-            </Box>
-            
-            <Button
-              variant="contained"
-              onClick={() => router.push('/dashboard/stats')}
-              sx={{ mt: 2 }}
-            >
-              View Full Statistics
-            </Button>
-          </Box>
-        )}
-        
-        {activeTab === 2 && (
-          <iframe
-            src="/dashboard/sessions"
-            style={{ width: '100%', height: 'calc(100vh - 200px)', border: 'none' }}
-            title="Trip Management"
-          />
-        )}
-        
-        {activeTab === 3 && (
-          <Box>
-            <Typography variant="h5" component="h2" sx={{ mb: 3, fontWeight: 'medium' }}>
-              Coin Management
-            </Typography>
-            
-            <Card sx={{ mb: 4 }}>
-              <CardContent>
-                <Typography variant="h6" color="warning.main">
-                  Your Coin Balance
-                </Typography>
-                <Typography variant="h3" sx={{ mt: 2, fontWeight: 'bold', color: 'warning.main' }}>
-                  {session.user.coins?.toLocaleString() || "Loading..."}
-                </Typography>
-              </CardContent>
-            </Card>
-            
-            <Button
-              variant="contained" 
-              color="primary"
-              onClick={() => router.push('/dashboard/coins')}
-            >
-              Manage Coins
-            </Button>
-          </Box>
-        )}
-        
-        {activeTab === 4 && (
-          <iframe
-            src="/dashboard/activity-logs"
-            style={{ width: '100%', height: 'calc(100vh - 200px)', border: 'none' }}
-            title="Activity Logs"
-          />
-        )}
+        {activeTab === 0 && <AdminManagement />}
+        {activeTab === 1 && <SystemStats />}
+        {activeTab === 2 && <TripManagement />}
+        {activeTab === 3 && <CoinManagement />}
+        {activeTab === 4 && <ActivityLogsTab />}
       </Box>
     </div>
   );

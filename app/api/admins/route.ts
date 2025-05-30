@@ -1,40 +1,41 @@
 import { NextResponse } from "next/server";
 import { withAuth } from "@/lib/auth";
-import prisma from "@/lib/prisma";
-import { UserRole } from "@/prisma/enums";
+import { supabase } from "@/lib/supabase";
+import { UserRole } from "@/lib/enums";
 
 async function handler() {
   try {
-    // Fetch all admin users
-    const admins = await prisma.user.findMany({
-      where: {
-        role: UserRole.ADMIN
-      },
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        role: true,
-        coins: true,
-        createdAt: true,
-        updatedAt: true,
-        _count: {
-          select: {
-            createdUsers: true
-          }
-        }
-      },
-      orderBy: {
-        createdAt: 'desc'
-      }
-    });
+    // Fetch all admin users using Supabase
+    const { data, error } = await supabase
+      .from('users')
+      .select(`
+        id, 
+        name, 
+        email, 
+        role, 
+        coins, 
+        createdAt, 
+        updatedAt,
+        createdUsers:users!users_createdById_fkey(id)
+      `)
+      .eq('role', UserRole.ADMIN)
+      .order('createdAt', { ascending: false });
+    
+    if (error) {
+      console.error("Error fetching admin users:", error);
+      return NextResponse.json(
+        { error: error.message },
+        { status: 500 }
+      );
+    }
 
-    return NextResponse.json({
-      admins: admins.map(admin => ({
-        ...admin,
-        hasCreatedResources: admin._count.createdUsers > 0
-      }))
-    });
+    // Process the data to include hasCreatedResources
+    const admins = data.map(admin => ({
+      ...admin,
+      hasCreatedResources: admin.createdUsers ? admin.createdUsers.length > 0 : false
+    }));
+
+    return NextResponse.json({ admins });
   } catch (error: unknown) {
     console.error("Error fetching admin users:", error);
     return NextResponse.json(

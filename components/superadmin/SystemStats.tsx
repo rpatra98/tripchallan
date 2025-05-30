@@ -278,7 +278,7 @@ export default function SystemStats() {
           {/* Summary Cards */}
           <MuiGrid container spacing={3} sx={{ mb: 4 }}>
             {/* Users Card */}
-            <MuiGrid item xs={12} sm={6} md={4}>
+            <MuiGrid size={{ xs: 12, sm: 6, md: 4 }}>
               <Card elevation={2}>
                 <CardContent>
                   <Box display="flex" justifyContent="space-between" alignItems="center">
@@ -312,7 +312,7 @@ export default function SystemStats() {
             </MuiGrid>
             
             {/* Companies Card */}
-            <MuiGrid item xs={12} sm={6} md={4}>
+            <MuiGrid size={{ xs: 12, sm: 6, md: 4 }}>
               <Card elevation={2}>
                 <CardContent>
                   <Box display="flex" justifyContent="space-between" alignItems="center">
@@ -346,7 +346,7 @@ export default function SystemStats() {
             </MuiGrid>
             
             {/* Sessions Card */}
-            <MuiGrid item xs={12} sm={6} md={4}>
+            <MuiGrid size={{ xs: 12, sm: 6, md: 4 }}>
               <Card elevation={2}>
                 <CardContent>
                   <Box display="flex" justifyContent="space-between" alignItems="center">
@@ -380,7 +380,7 @@ export default function SystemStats() {
             </MuiGrid>
             
             {/* Coins Card */}
-            <MuiGrid item xs={12} sm={6} md={6}>
+            <MuiGrid size={{ xs: 12, sm: 6, md: 6 }}>
               <Card elevation={2}>
                 <CardContent>
                   <Box display="flex" justifyContent="space-between" alignItems="center">
@@ -414,7 +414,7 @@ export default function SystemStats() {
             </MuiGrid>
             
             {/* System Health Card */}
-            <MuiGrid item xs={12} sm={6} md={6}>
+            <MuiGrid size={{ xs: 12, sm: 6, md: 6 }}>
               <Card elevation={2}>
                 <CardContent>
                   <Box display="flex" justifyContent="space-between" alignItems="center">

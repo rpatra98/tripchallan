@@ -1,14 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth-options";
 import { withAuth } from "@/lib/auth";
-import prisma from "@/lib/prisma";
-import { ActivityAction, UserRole } from "@/prisma/enums";
-import { addActivityLog } from "@/lib/activity-logger";
+import { supabase } from "@/lib/supabase";
+import { UserRole } from "@/lib/enums";
 
-async function handleGet(
+type RouteHandlerContext = {
+  params: Record<string, string>;
+};
+
+// GET admin by ID
+async function getHandler(
   req: NextRequest,
-  context?: { params: Record<string, string> }
+  context?: RouteHandlerContext
 ) {
   try {
     if (!context || !context.params.id) {
@@ -18,192 +20,56 @@ async function handleGet(
       );
     }
 
-    const adminId = context.params.id;
+    const id = context.params.id;
 
-    // First check if a user with this ID exists at all
-    const userExists = await prisma.user.findUnique({
-      where: { id: adminId },
-      select: { id: true, role: true }
-    });
+    // Get admin by ID
+    const { data: admin, error } = await supabase
+      .from('users')
+      .select(`
+        id, 
+        name, 
+        email, 
+        role, 
+        coins, 
+        active,
+        createdAt, 
+        updatedAt
+      `)
+      .eq('id', id)
+      .eq('role', UserRole.ADMIN)
+      .single();
 
-    if (!userExists) {
-      return NextResponse.json(
-        { error: "User not found" },
-        { status: 404 }
-      );
-    }
-
-    // If user exists but is not an admin
-    if (userExists.role !== UserRole.ADMIN) {
-      return NextResponse.json(
-        { error: "User exists but is not an admin" },
-        { status: 400 }
-      );
-    }
-
-    // Get admin user details
-    const admin = await prisma.user.findUnique({
-      where: { 
-        id: adminId,
-        role: UserRole.ADMIN 
-      },
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        role: true,
-        coins: true,
-        createdAt: true,
-        updatedAt: true,
-      },
-    });
-
-    if (!admin) {
-      return NextResponse.json(
-        { error: "Admin user not found" },
-        { status: 404 }
-      );
-    }
-
-    // Find companies created by this admin by querying users with createdById field
-    const companies = await prisma.user.findMany({
-      where: {
-        role: UserRole.COMPANY,
-        createdById: adminId,
-      },
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        createdAt: true,
-        company: {
-          select: {
-            id: true,
-            name: true,
-          }
-        }
-      },
-      orderBy: { createdAt: "desc" },
-    }).catch((err: Error) => {
-      console.error("Error fetching companies:", err);
-      return [];
-    });
-
-    // Find employees created by this admin by querying users with createdById field
-    const employees = await prisma.user.findMany({
-      where: {
-        role: UserRole.EMPLOYEE,
-        createdById: adminId,
-      },
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        createdAt: true,
-        coins: true,
-        role: true,
-        subrole: true,
-        company: {
-          select: {
-            id: true,
-            name: true,
-          }
-        }
-      },
-      orderBy: { createdAt: "desc" },
-    }).catch((err: Error) => {
-      console.error("Error fetching employees:", err);
-      return [];
-    });
-
-    // Get company IDs for all companies created by this admin
-    const companyIds = companies.map((company: { id: string }) => company.id);
-    
-    // Find operators created by this admin
-    const operators = await prisma.user.findMany({
-      where: {
-        role: UserRole.EMPLOYEE,
-        subrole: "OPERATOR",
-        createdById: adminId,
-      },
-      select: {
-        id: true,
-      },
-    }).catch((err: Error) => {
-      console.error("Error fetching operators:", err);
-      return [];
-    });
-
-    const operatorIds = operators.map((operator: { id: string }) => operator.id);
-    
-    // Count sessions for companies created by this admin
-    // OR sessions created by operators created by this admin
-    let sessionCount = 0;
-    
-    // Build the OR condition
-    const sessionWhereClause: {
-      OR: Array<{ companyId?: { in: string[] }; createdById?: { in: string[] } }>
-    } = { OR: [] };
-    
-    if (companyIds.length > 0) {
-      sessionWhereClause.OR.push({
-        companyId: {
-          in: companyIds
-        }
-      });
-    }
-    
-    if (operatorIds.length > 0) {
-      sessionWhereClause.OR.push({
-        createdById: {
-          in: operatorIds
-        }
-      });
-    }
-    
-    // Only run the query if we have actual OR conditions
-    if (sessionWhereClause.OR.length > 0) {
-      sessionCount = await prisma.session.count({
-        where: sessionWhereClause
-      }).catch((err: Error) => {
-        console.error("Error counting sessions:", err);
-        return 0;
-      });
-    }
-
-    return NextResponse.json({
-      ...admin,
-      createdCompanies: companies,
-      createdEmployees: employees,
-      stats: {
-        totalCompanies: companies.length,
-        totalEmployees: employees.length,
-        totalSessions: sessionCount
+    if (error) {
+      if (error.code === 'PGRST116') {
+        return NextResponse.json(
+          { error: "Admin not found" },
+          { status: 404 }
+        );
       }
-    });
-  } catch (error) {
-    console.error("Error fetching admin details:", error);
-    const errorMessage = error instanceof Error ? error.message : "Unknown error occurred";
+      
+      console.error("Error fetching admin:", error);
+      return NextResponse.json(
+        { error: error.message },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json({ admin });
+  } catch (error: unknown) {
+    console.error("Error fetching admin:", error);
     return NextResponse.json(
-      { error: `Failed to fetch admin details: ${errorMessage}` },
+      { error: "Failed to fetch admin" },
       { status: 500 }
     );
   }
 }
 
-async function handleDelete(
+// DELETE admin by ID
+async function deleteHandler(
   req: NextRequest,
-  context?: { params: Record<string, string> }
+  context?: RouteHandlerContext
 ) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json(
-        { error: "Unauthorized" },
-        { status: 401 }
-      );
-    }
-
     if (!context || !context.params.id) {
       return NextResponse.json(
         { error: "Admin ID is required" },
@@ -211,84 +77,148 @@ async function handleDelete(
       );
     }
 
-    const adminId = context.params.id;
-    console.log(`API: Attempting to delete admin with ID: ${adminId}`);
+    const id = context.params.id;
 
-    // Check if the admin exists and is actually an ADMIN
-    const admin = await prisma.user.findUnique({
-      where: {
-        id: adminId,
-        role: UserRole.ADMIN
-      },
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        _count: {
-          select: {
-            createdUsers: true
-          }
-        }
-      }
-    });
+    // First check if this admin has created any resources
+    const { data: resources, error: countError } = await supabase
+      .from('users')
+      .select('id')
+      .eq('createdById', id)
+      .limit(1);
 
-    if (!admin) {
-      console.log(`API: Admin with ID ${adminId} not found`);
+    if (countError) {
+      console.error("Error checking admin resources:", countError);
       return NextResponse.json(
-        { error: "Admin user not found" },
-        { status: 404 }
+        { error: "Failed to check admin resources" },
+        { status: 500 }
       );
     }
 
-    console.log(`API: Found admin ${admin.name}, resource count: ${admin._count.createdUsers}`);
-
-    // Check if admin has created any resources (companies, employees)
-    if (admin._count.createdUsers > 0) {
-      console.log(`API: Cannot delete - admin has ${admin._count.createdUsers} resources`);
+    // If admin has created resources, don't delete
+    if (resources && resources.length > 0) {
       return NextResponse.json(
         { 
-          error: "Cannot delete admin user with created resources. Reassign or delete their resources first.",
-          resourceCount: admin._count.createdUsers
+          error: "Cannot delete admin with associated resources", 
+          resourceCount: resources.length 
         },
         { status: 400 }
       );
     }
 
-    // Delete the admin user
-    await prisma.user.delete({
-      where: {
-        id: adminId
-      }
-    });
+    // Delete the admin
+    const { error: deleteError } = await supabase
+      .from('users')
+      .delete()
+      .eq('id', id)
+      .eq('role', UserRole.ADMIN);
 
-    console.log(`API: Successfully deleted admin ${admin.name}`);
-
-    // Log the activity
-    await addActivityLog({
-      userId: session.user.id,
-      action: ActivityAction.DELETE,
-      details: {
-        entityType: "USER",
-        entityRole: "ADMIN",
-        entityName: admin.name,
-        entityEmail: admin.email
-      },
-      targetResourceId: adminId,
-      targetResourceType: "USER"
-    });
+    if (deleteError) {
+      console.error("Error deleting admin:", deleteError);
+      return NextResponse.json(
+        { error: deleteError.message },
+        { status: 500 }
+      );
+    }
 
     return NextResponse.json({ success: true });
-  } catch (error) {
+  } catch (error: unknown) {
     console.error("Error deleting admin:", error);
     return NextResponse.json(
-      { error: "Failed to delete admin user" },
+      { error: "Failed to delete admin" },
       { status: 500 }
     );
   }
 }
 
-// Only SuperAdmin can access admin details
-export const GET = withAuth(handleGet, [UserRole.SUPERADMIN]);
+// PATCH/PUT admin by ID
+async function updateHandler(
+  req: NextRequest,
+  context?: RouteHandlerContext
+) {
+  try {
+    if (!context || !context.params.id) {
+      return NextResponse.json(
+        { error: "Admin ID is required" },
+        { status: 400 }
+      );
+    }
 
-// Only SuperAdmin can delete admin
-export const DELETE = withAuth(handleDelete, [UserRole.SUPERADMIN]); 
+    const id = context.params.id;
+    const body = await req.json();
+    const { name, email, coins, active } = body;
+
+    // Validate the data
+    if (!name && !email && coins === undefined && active === undefined) {
+      return NextResponse.json(
+        { error: "No data provided for update" },
+        { status: 400 }
+      );
+    }
+
+    // Check if email is taken by another user
+    if (email) {
+      const { data: existingUser, error: checkError } = await supabase
+        .from('users')
+        .select('id')
+        .eq('email', email)
+        .neq('id', id)
+        .single();
+
+      if (checkError && checkError.code !== 'PGRST116') {
+        console.error("Error checking email uniqueness:", checkError);
+        return NextResponse.json(
+          { error: "Failed to validate email uniqueness" },
+          { status: 500 }
+        );
+      }
+
+      if (existingUser) {
+        return NextResponse.json(
+          { error: "Email already in use" },
+          { status: 400 }
+        );
+      }
+    }
+
+    // Prepare update data
+    const updateData: any = {
+      updatedAt: new Date().toISOString()
+    };
+
+    if (name) updateData.name = name;
+    if (email) updateData.email = email;
+    if (coins !== undefined) updateData.coins = coins;
+    if (active !== undefined) updateData.active = active;
+
+    // Update the admin
+    const { data: updatedAdmin, error: updateError } = await supabase
+      .from('users')
+      .update(updateData)
+      .eq('id', id)
+      .eq('role', UserRole.ADMIN)
+      .select()
+      .single();
+
+    if (updateError) {
+      console.error("Error updating admin:", updateError);
+      return NextResponse.json(
+        { error: updateError.message },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json({ admin: updatedAdmin });
+  } catch (error: unknown) {
+    console.error("Error updating admin:", error);
+    return NextResponse.json(
+      { error: "Failed to update admin" },
+      { status: 500 }
+    );
+  }
+}
+
+// Only SuperAdmin can access admin endpoints
+export const GET = withAuth(getHandler, [UserRole.SUPERADMIN]);
+export const DELETE = withAuth(deleteHandler, [UserRole.SUPERADMIN]);
+export const PATCH = withAuth(updateHandler, [UserRole.SUPERADMIN]);
+export const PUT = withAuth(updateHandler, [UserRole.SUPERADMIN]); 

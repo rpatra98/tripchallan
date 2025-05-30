@@ -201,7 +201,7 @@ export default function AdminManagement() {
       ) : (
         <MuiGrid container spacing={3}>
           {admins.map((admin) => (
-            <MuiGrid item xs={12} sm={6} md={4} key={admin.id}>
+            <MuiGrid size={{ xs: 12, sm: 6, md: 4 }} key={admin.id}>
               <Card variant="outlined" sx={{ height: '100%' }}>
                 <CardContent>
                   <Box sx={{ mb: 2 }}>
