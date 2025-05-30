@@ -72,17 +72,6 @@ async function createInitialSuperAdmin() {
   }
 }
 
-// Hardcoded SuperAdmin fallback - use only when database is completely unreachable
-const HARDCODED_SUPERADMIN = {
-  id: "00000000-0000-0000-0000-000000000000",
-  name: "Emergency Super Admin",
-  email: "superadmin@cbums.com",
-  role: 'SUPERADMIN',
-  subrole: null,
-  companyId: null,
-  coins: 1000000,
-};
-
 export const authOptions: AuthOptions = {
   providers: [
     CredentialsProvider({
@@ -104,28 +93,20 @@ export const authOptions: AuthOptions = {
           if (credentials.email === "superadmin@cbums.com" && credentials.password === "superadmin123") {
             console.log("SuperAdmin login with default credentials detected");
             
-            try {
-              // Try to find or create a real SuperAdmin user (not the emergency one)
-              console.log("Attempting to find or create a real SuperAdmin user");
-              
-              // Create a real SuperAdmin if it doesn't exist yet
-              const superAdmin = await createInitialSuperAdmin();
-              
-              if (superAdmin) {
-                console.log("Using real SuperAdmin account:", superAdmin.id);
-                return superAdmin;
-              }
-              
-              // Last resort - use hardcoded superadmin
-              console.log("Failed to create/find SuperAdmin, using emergency hardcoded SuperAdmin credentials");
-              return HARDCODED_SUPERADMIN;
-            } catch (superAdminError) {
-              console.error("All SuperAdmin authentication methods failed:", superAdminError);
-              
-              // Last resort - use hardcoded superadmin
-              console.log("Using emergency hardcoded SuperAdmin credentials after errors");
-              return HARDCODED_SUPERADMIN;
+            // Try to find or create a real SuperAdmin user
+            console.log("Attempting to find or create a real SuperAdmin user");
+            
+            // Create a real SuperAdmin if it doesn't exist yet
+            const superAdmin = await createInitialSuperAdmin();
+            
+            if (superAdmin) {
+              console.log("Using real SuperAdmin account:", superAdmin.id);
+              return superAdmin;
             }
+            
+            // If superAdmin creation failed, simply return null to show authentication failure
+            console.log("Failed to create/find SuperAdmin, authentication failed");
+            return null;
           }
           
           // Normal authentication flow for all users
