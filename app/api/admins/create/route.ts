@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { withAuth } from "@/lib/auth";
 import supabase from "@/lib/supabase";
+import supabaseAdmin from "@/lib/supabase-admin";
 import { UserRole } from "@/lib/enums";
 import * as bcrypt from "bcrypt";
 import { ActivityAction } from "@/lib/enums";
@@ -46,23 +47,31 @@ async function handler(req: NextRequest) {
       );
     }
 
-    // Get SuperAdmin user details to check coins
+    // Get SuperAdmin user details to check coins - using regular client for read operation is fine
     console.log("Fetching SuperAdmin details for email:", session.user.email);
     const { data: superAdmin, error: superAdminError } = await supabase
       .from('users')
-      .select('id, coins')
+      .select('id, email, coins')
       .eq('email', session.user.email)
       .single();
 
     if (superAdminError) {
       console.error("Error fetching SuperAdmin:", superAdminError);
       return NextResponse.json(
-        { error: "Failed to verify SuperAdmin balance" },
+        { error: "Failed to verify SuperAdmin balance", details: superAdminError.message },
         { status: 500 }
       );
     }
 
-    console.log("SuperAdmin found:", superAdmin.id, "Coins:", superAdmin.coins);
+    if (!superAdmin) {
+      console.error("SuperAdmin not found for email:", session.user.email);
+      return NextResponse.json(
+        { error: "SuperAdmin user not found in database" },
+        { status: 404 }
+      );
+    }
+
+    console.log("SuperAdmin found:", superAdmin.id, "Email:", superAdmin.email, "Coins:", superAdmin.coins);
 
     // Check if SuperAdmin has enough coins
     if (superAdmin.coins < coins) {
@@ -98,97 +107,132 @@ async function handler(req: NextRequest) {
     }
 
     // Start a transaction to ensure both operations succeed or fail together
-    // First deduct coins from SuperAdmin
+    // First deduct coins from SuperAdmin - use admin client for write operations
     console.log("Deducting coins from SuperAdmin:", coins);
-    const { data: updatedSuperAdmin, error: updateError } = await supabase
-      .from('users')
-      .update({ 
-        coins: superAdmin.coins - coins,
-        updatedAt: new Date().toISOString()
-      })
-      .eq('id', superAdmin.id)
-      .select('coins')
-      .single();
-
-    if (updateError) {
-      console.error("Error updating SuperAdmin coins:", updateError);
-      return NextResponse.json(
-        { error: "Failed to allocate coins from SuperAdmin" },
-        { status: 500 }
-      );
-    }
-
-    console.log("SuperAdmin coins updated. New balance:", updatedSuperAdmin.coins);
-
-    // Hash the password
-    const hashedPassword = await bcrypt.hash(password, 12);
-    console.log("Password hashed successfully");
-
-    // Create the admin user
-    console.log("Creating new admin user");
-    const { data: newAdmin, error: createError } = await supabase
-      .from('users')
-      .insert({
-        name,
-        email,
-        password: hashedPassword,
-        role: UserRole.ADMIN,
-        coins,
-        active: true,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        createdById: superAdmin.id
-      })
-      .select()
-      .single();
-
-    if (createError) {
-      // If admin creation fails, revert the coin deduction
-      console.error("Error creating admin:", createError);
-      console.log("Reverting coin deduction due to error");
-      await supabase
-        .from('users')
-        .update({ coins: superAdmin.coins })
-        .eq('id', superAdmin.id);
-
-      return NextResponse.json(
-        { error: createError.message },
-        { status: 500 }
-      );
-    }
-
-    console.log("Admin created successfully:", newAdmin.id);
-
-    // Log the activity
+    console.log("SuperAdmin current coins:", superAdmin.coins);
+    console.log("New balance will be:", superAdmin.coins - coins);
+    
+    // Debug statement to log the exact update operation
+    const newCoinBalance = superAdmin.coins - coins;
+    console.log("UPDATE users SET coins =", newCoinBalance, "WHERE id =", superAdmin.id);
+    
     try {
-      console.log("Logging admin creation activity");
-      await addActivityLog({
-        userId: superAdmin.id,
-        action: ActivityAction.CREATE,
-        targetResourceType: 'Admin',
-        targetResourceId: newAdmin.id,
-        details: {
-          name: newAdmin.name,
-          email: newAdmin.email,
-          coinsAllocated: coins
-        }
-      });
-    } catch (logError) {
-      console.error("Error logging activity:", logError);
-      // Don't fail the request if logging fails
-    }
+      const { data: updatedSuperAdmin, error: updateError } = await supabaseAdmin
+        .from('users')
+        .update({ 
+          coins: newCoinBalance,
+          updatedAt: new Date().toISOString()
+        })
+        .eq('id', superAdmin.id)
+        .select('id, coins')
+        .single();
 
-    // Return the new admin without the password and with updated SuperAdmin coins
-    const { password: _, ...adminWithoutPassword } = newAdmin;
-    console.log("Admin creation successful. Returning response with new SuperAdmin balance:", updatedSuperAdmin.coins);
-    return NextResponse.json({
-      admin: adminWithoutPassword,
-      superAdminCoins: updatedSuperAdmin.coins
-    }, { status: 201 });
+      if (updateError) {
+        console.error("Error updating SuperAdmin coins:", updateError);
+        console.error("Error code:", updateError.code);
+        console.error("Error message:", updateError.message);
+        console.error("Error details:", updateError.details);
+        return NextResponse.json(
+          { 
+            error: "Failed to allocate coins from SuperAdmin", 
+            details: updateError.message,
+            code: updateError.code
+          },
+          { status: 500 }
+        );
+      }
+
+      if (!updatedSuperAdmin) {
+        console.error("Update succeeded but no data returned");
+        return NextResponse.json(
+          { error: "Failed to update SuperAdmin coins: No data returned" },
+          { status: 500 }
+        );
+      }
+
+      console.log("SuperAdmin coins updated. New balance:", updatedSuperAdmin.coins);
+
+      // Hash the password
+      const hashedPassword = await bcrypt.hash(password, 12);
+      console.log("Password hashed successfully");
+
+      // Create the admin user
+      console.log("Creating new admin user");
+      const { data: newAdmin, error: createError } = await supabaseAdmin
+        .from('users')
+        .insert({
+          name,
+          email,
+          password: hashedPassword,
+          role: UserRole.ADMIN,
+          coins,
+          active: true,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          createdById: superAdmin.id
+        })
+        .select()
+        .single();
+
+      if (createError) {
+        // If admin creation fails, revert the coin deduction
+        console.error("Error creating admin:", createError);
+        console.log("Reverting coin deduction due to error");
+        
+        const { error: revertError } = await supabaseAdmin
+          .from('users')
+          .update({ coins: superAdmin.coins })
+          .eq('id', superAdmin.id);
+          
+        if (revertError) {
+          console.error("Failed to revert coin deduction:", revertError);
+        }
+
+        return NextResponse.json(
+          { error: createError.message },
+          { status: 500 }
+        );
+      }
+
+      console.log("Admin created successfully:", newAdmin.id);
+
+      // Log the activity
+      try {
+        console.log("Logging admin creation activity");
+        await addActivityLog({
+          userId: superAdmin.id,
+          action: ActivityAction.CREATE,
+          targetResourceType: 'Admin',
+          targetResourceId: newAdmin.id,
+          details: {
+            name: newAdmin.name,
+            email: newAdmin.email,
+            coinsAllocated: coins
+          }
+        });
+      } catch (logError) {
+        console.error("Error logging activity:", logError);
+        // Don't fail the request if logging fails
+      }
+
+      // Return the new admin without the password and with updated SuperAdmin coins
+      const { password: _, ...adminWithoutPassword } = newAdmin;
+      console.log("Admin creation successful. Returning response with new SuperAdmin balance:", updatedSuperAdmin.coins);
+      return NextResponse.json({
+        admin: adminWithoutPassword,
+        superAdminCoins: updatedSuperAdmin.coins
+      }, { status: 201 });
+    } catch (updateException) {
+      console.error("Exception during coin update:", updateException);
+      return NextResponse.json(
+        { error: "Failed to allocate coins from SuperAdmin due to an exception", details: String(updateException) },
+        { status: 500 }
+      );
+    }
   } catch (error: unknown) {
     console.error("Unexpected error in admin creation:", error);
     return NextResponse.json(
-      { error: "Failed to create admin" },
+      { error: "Failed to create admin", details: error instanceof Error ? error.message : String(error) },
       { status: 500 }
     );
   }

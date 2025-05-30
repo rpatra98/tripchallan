@@ -1,5 +1,6 @@
 import { ActivityAction } from '@/lib/enums';
 import supabase from './supabase';
+import supabaseAdmin from './supabase-admin';
 
 interface ActivityLogData {
   userId: string;
@@ -16,7 +17,8 @@ interface ActivityLogData {
  */
 export async function addActivityLog(data: ActivityLogData) {
   try {
-    const { error } = await supabase
+    // Use the admin client for writing logs to ensure we have proper permissions
+    const { error } = await supabaseAdmin
       .from('activity_logs')
       .insert({
         userId: data.userId,
@@ -59,6 +61,7 @@ export async function getActivityLogs({
   targetResourceType?: string;
 }) {
   try {
+    // Reading logs can be done with the regular client
     let query = supabase
       .from('activity_logs')
       .select(`
