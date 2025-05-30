@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-options";
 import { withAuth } from "@/lib/auth";
-import { UserRole } from "@/lib/types";
 import supabase from "@/lib/supabase";
 
 export const GET = withAuth(
@@ -57,5 +56,5 @@ export const GET = withAuth(
       );
     }
   },
-  [UserRole.SUPERADMIN, UserRole.ADMIN, UserRole.COMPANY, UserRole.EMPLOYEE]
+  ["SUPERADMIN", "ADMIN", "COMPANY", "EMPLOYEE"]
 ); 

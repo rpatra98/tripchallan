@@ -14,7 +14,7 @@ async function createInitialSuperAdmin() {
     const { data: superAdmins, error: countError } = await supabase
       .from('users')
       .select('count')
-      .eq('role', UserRole.SUPERADMIN);
+      .eq('role', 'SUPERADMIN');
     
     if (countError) {
       console.error("Error checking for SuperAdmin:", countError);
@@ -35,7 +35,7 @@ async function createInitialSuperAdmin() {
           name: 'Super Admin',
           email: 'superadmin@cbums.com',
           password: hashedPassword,
-          role: UserRole.SUPERADMIN,
+          role: 'SUPERADMIN',
           coins: 1000000,
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString()
@@ -53,7 +53,7 @@ async function createInitialSuperAdmin() {
         id: newSuperAdmin.id,
         email: newSuperAdmin.email,
         name: newSuperAdmin.name,
-        role: UserRole.SUPERADMIN,
+        role: 'SUPERADMIN',
         subrole: null,
         companyId: null,
         coins: 1000000,
@@ -77,7 +77,7 @@ async function createInitialSuperAdmin() {
         id: superAdmin.id,
         email: superAdmin.email,
         name: superAdmin.name,
-        role: UserRole.SUPERADMIN,
+        role: 'SUPERADMIN',
         subrole: null,
         companyId: null,
         coins: superAdmin.coins || 1000000,
@@ -96,7 +96,7 @@ const HARDCODED_SUPERADMIN = {
   id: "00000000-0000-0000-0000-000000000000",
   name: "Emergency Super Admin",
   email: "superadmin@cbums.com",
-  role: UserRole.SUPERADMIN,
+  role: 'SUPERADMIN',
   subrole: null,
   companyId: null,
   coins: 1000000,
@@ -123,7 +123,6 @@ export const authOptions: AuthOptions = {
           if (credentials.email === "superadmin@cbums.com" && credentials.password === "superadmin123") {
             console.log("SuperAdmin login with default credentials detected");
             
-            // Try all methods to authenticate SuperAdmin
             try {
               // Try with Supabase first
               const { data: superAdmin, error } = await supabase
@@ -138,7 +137,7 @@ export const authOptions: AuthOptions = {
                   id: superAdmin.id,
                   email: superAdmin.email,
                   name: superAdmin.name,
-                  role: UserRole.SUPERADMIN,
+                  role: 'SUPERADMIN',
                   subrole: null,
                   companyId: null,
                   coins: superAdmin.coins || 1000000,
@@ -181,7 +180,7 @@ export const authOptions: AuthOptions = {
           }
 
           // If user is a COMPANY, check if it's active
-          if (user.role === UserRole.COMPANY && user.company && !user.company.isActive) {
+          if (user.role === 'COMPANY' && user.company && !user.company.isActive) {
             throw new Error("The Company you are accessing is deactivated by your Admin. Contact Admin for reactivation.");
           }
 
@@ -226,8 +225,8 @@ export const authOptions: AuthOptions = {
             id: user.id,
             email: user.email,
             name: user.name,
-            role: user.role as unknown as UserRole,
-            subrole: user.subrole as unknown as EmployeeSubrole | null,
+            role: user.role,
+            subrole: user.subrole,
             companyId: user.companyId,
             coins: user.coins,
           };
@@ -254,8 +253,8 @@ export const authOptions: AuthOptions = {
     async session({ session, token }) {
       if (token && session.user) {
         session.user.id = token.id as string;
-        session.user.role = token.role as UserRole;
-        session.user.subrole = token.subrole as EmployeeSubrole | null;
+        session.user.role = token.role;
+        session.user.subrole = token.subrole;
         session.user.companyId = token.companyId as string | null;
         session.user.coins = token.coins as number;
       }
