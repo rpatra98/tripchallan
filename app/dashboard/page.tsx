@@ -46,6 +46,12 @@ export default async function DashboardPage({
     return <SessionErrorPage />;
   }
 
+  // Special handling for SuperAdmin user
+  if (session.user.email === "superadmin@cbums.com") {
+    console.log("SuperAdmin detected, redirecting to SuperAdmin dashboard");
+    redirect("/dashboard/superadmin");
+  }
+
   try {
     console.log(`Fetching user with ID: ${session.user.id}`);
     

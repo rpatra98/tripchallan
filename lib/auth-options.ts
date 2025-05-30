@@ -6,6 +6,7 @@ import { addActivityLog } from "./activity-logger";
 import { detectDevice } from "./utils";
 import supabase from "./supabase";
 import * as supabaseHelper from "./supabase-helper";
+import { cookies } from 'next/headers';
 
 export const authOptions: AuthOptions = {
   providers: [
@@ -37,7 +38,8 @@ export const authOptions: AuthOptions = {
               role: "SUPERADMIN",
               subrole: null,
               companyId: null,
-              coins: 1000000
+              coins: 1000000,
+              isSuperAdmin: true // Special flag to identify SuperAdmin in callbacks
             };
           }
           
@@ -124,6 +126,11 @@ export const authOptions: AuthOptions = {
         token.subrole = user.subrole;
         token.companyId = user.companyId;
         token.coins = user.coins;
+        
+        // Add SuperAdmin flag if present
+        if (user.isSuperAdmin) {
+          token.isSuperAdmin = true;
+        }
       }
       return token;
     },
@@ -134,6 +141,11 @@ export const authOptions: AuthOptions = {
         session.user.subrole = token.subrole;
         session.user.companyId = token.companyId as string | null;
         session.user.coins = token.coins as number;
+        
+        // Add SuperAdmin flag if present
+        if (token.isSuperAdmin) {
+          session.user.isSuperAdmin = true;
+        }
       }
       return session;
     },

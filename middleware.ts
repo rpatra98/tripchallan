@@ -15,6 +15,20 @@ export async function middleware(request: NextRequest) {
   try {
     const { pathname } = request.nextUrl;
     
+    // Check for SuperAdmin in the session token
+    const token = await getToken({ 
+      req: request,
+      secureCookie: process.env.NODE_ENV === "production" ? false : undefined
+    });
+    
+    const isSuperAdmin = token?.email === "superadmin@cbums.com";
+    
+    // Special bypass for SuperAdmin
+    if (isSuperAdmin) {
+      console.log(`[Middleware] SuperAdmin bypass active - allowing access to ${pathname}`);
+      return NextResponse.next();
+    }
+    
     // Skip auth checks if explicitly disabled for troubleshooting
     if (DISABLE_AUTH_CHECKS_FOR_TROUBLESHOOTING) {
       console.log(`[Middleware] Auth checks disabled for troubleshooting - allowing access to ${pathname}`);
