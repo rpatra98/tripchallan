@@ -1,4 +1,3 @@
-import { UserRole, EmployeeSubrole } from "@/prisma/enums";
 import NextAuth from "next-auth";
 
 declare module "next-auth" {
@@ -10,8 +9,8 @@ declare module "next-auth" {
       id: string;
       name: string;
       email: string;
-      role: UserRole;
-      subrole: EmployeeSubrole | null;
+      role: string;
+      subrole: string | null;
       companyId: string | null;
       coins: number;
       image?: string;
@@ -22,8 +21,8 @@ declare module "next-auth" {
     id: string;
     name: string;
     email: string;
-    role: UserRole;
-    subrole: EmployeeSubrole | null;
+    role: string;
+    subrole: string | null;
     companyId: string | null;
     coins: number;
   }
@@ -33,8 +32,8 @@ declare module "next-auth/jwt" {
   /** Returned by the `jwt` callback and `getToken`, when using JWT sessions */
   interface JWT {
     id: string;
-    role: UserRole;
-    subrole: EmployeeSubrole | null;
+    role: string;
+    subrole: string | null;
     companyId: string | null;
     coins: number;
     // Standard JWT claims

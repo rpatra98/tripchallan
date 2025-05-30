@@ -1,7 +1,6 @@
 import { notFound, redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-options";
-import { UserRole } from "@/prisma/enums";
 import SessionErrorPage from "@/components/SessionErrorPage";
 import supabase from "@/lib/supabase";
 

@@ -1,11 +1,9 @@
-import { EmployeeSubrole, UserRole } from '@/prisma/enums';
-
 export interface UserWithCompany {
   id: string;
   name: string;
   email: string;
-  role: UserRole;
-  subrole: EmployeeSubrole | null;
+  role: string;
+  subrole: string | null;
   companyId: string | null;
   coins: number;
   createdById: string | null;
