@@ -125,6 +125,7 @@ export default function DashboardLayout({
   const refreshUserSession = async () => {
     try {
       // First, fetch updated user data directly from API using cache: 'no-store' to ensure fresh data
+      console.log("Refreshing user session data...");
       const response = await fetch('/api/users/me', { 
         cache: 'no-store',
         headers: {
@@ -135,6 +136,7 @@ export default function DashboardLayout({
       
       if (response.ok) {
         const userData = await response.json();
+        console.log("User data fetched successfully:", userData.role);
         
         // Immediately update the local state with the latest coin balance
         setCurrentCoinBalance(userData.coins);
@@ -144,6 +146,7 @@ export default function DashboardLayout({
           ...session,
           user: {
             ...session?.user,
+            name: userData.name || session?.user?.name,
             coins: userData.coins,
           }
         });
@@ -153,11 +156,41 @@ export default function DashboardLayout({
         
         return userData.coins;
       } else {
-        console.error('Failed to fetch updated user data');
+        console.error('Failed to fetch updated user data:', response.status);
+        
+        // For SuperAdmin, show proper name even if API call fails
+        if (session?.user?.role === 'SUPERADMIN') {
+          await updateSession({
+            ...session,
+            user: {
+              ...session?.user,
+              name: 'Super Admin',
+              coins: 1000000,
+            }
+          });
+          setCurrentCoinBalance(1000000);
+          setLastBalanceUpdate(Date.now());
+        }
+        
         return null;
       }
     } catch (error) {
       console.error('Error refreshing user session:', error);
+      
+      // For SuperAdmin, show proper name even if API call fails
+      if (session?.user?.role === 'SUPERADMIN') {
+        await updateSession({
+          ...session,
+          user: {
+            ...session?.user,
+            name: 'Super Admin',
+            coins: 1000000,
+          }
+        });
+        setCurrentCoinBalance(1000000);
+        setLastBalanceUpdate(Date.now());
+      }
+      
       return null;
     }
   };

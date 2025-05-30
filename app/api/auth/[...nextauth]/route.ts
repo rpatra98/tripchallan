@@ -14,6 +14,7 @@ console.log('NextAuth route initializing with auth options:', {
   session: authOptions.session
 });
 
+// Simple NextAuth handler with more initialization logging
 const handler = NextAuth(authOptions);
 
 export { handler as GET, handler as POST }; 

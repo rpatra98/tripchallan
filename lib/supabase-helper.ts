@@ -1,4 +1,6 @@
 import supabase from './supabase';
+import { createClient } from '@supabase/supabase-js';
+import { UserRole } from '@/prisma/enums';
 
 /**
  * Generic function to execute Supabase queries with error handling
@@ -121,10 +123,171 @@ export async function findFirstUser(criteria: any, select?: string) {
   });
 }
 
+// Function to get a user by email
+export const getUserByEmail = async (email: string) => {
+  const { data, error } = await supabase
+    .from('users')
+    .select(`
+      *,
+      company:companies(*)
+    `)
+    .eq('email', email)
+    .single();
+
+  if (error) {
+    console.error('Error fetching user by email:', error);
+    return null;
+  }
+
+  return data;
+};
+
+// Function to get a user by ID
+export const getUserById = async (id: string) => {
+  const { data, error } = await supabase
+    .from('users')
+    .select(`
+      *,
+      company:companies(*)
+    `)
+    .eq('id', id)
+    .single();
+
+  if (error) {
+    console.error('Error fetching user by ID:', error);
+    return null;
+  }
+
+  return data;
+};
+
+// Function to create a new user
+export const createUser = async (userData: any) => {
+  const { data, error } = await supabase
+    .from('users')
+    .insert([userData])
+    .select()
+    .single();
+
+  if (error) {
+    console.error('Error creating user:', error);
+    throw error;
+  }
+
+  return data;
+};
+
+// Function to update a user
+export const updateUser = async (id: string, userData: any) => {
+  const { data, error } = await supabase
+    .from('users')
+    .update(userData)
+    .eq('id', id)
+    .select()
+    .single();
+
+  if (error) {
+    console.error('Error updating user:', error);
+    throw error;
+  }
+
+  return data;
+};
+
+// Function to delete a user
+export const deleteUser = async (id: string) => {
+  const { error } = await supabase
+    .from('users')
+    .delete()
+    .eq('id', id);
+
+  if (error) {
+    console.error('Error deleting user:', error);
+    throw error;
+  }
+
+  return true;
+};
+
+// Function to update user coins
+export const updateUserCoins = async (userId: string, amount: number) => {
+  // First get current coins
+  const { data: user, error: fetchError } = await supabase
+    .from('users')
+    .select('coins')
+    .eq('id', userId)
+    .single();
+
+  if (fetchError) {
+    console.error('Error fetching user coins:', fetchError);
+    throw fetchError;
+  }
+
+  // Calculate new coin balance
+  const newBalance = (user?.coins || 0) + amount;
+  
+  // Update with new balance
+  const { data, error } = await supabase
+    .from('users')
+    .update({ coins: newBalance })
+    .eq('id', userId)
+    .select()
+    .single();
+
+  if (error) {
+    console.error('Error updating user coins:', error);
+    throw error;
+  }
+
+  return data;
+};
+
+// Safely convert ID to string if it exists
+export const safeId = (id: any): string | null => {
+  if (!id) return null;
+  return String(id);
+};
+
+// Get company users
+export const getCompanyUsers = async (companyId: string) => {
+  const { data, error } = await supabase
+    .from('users')
+    .select('*')
+    .eq('companyId', companyId)
+    .eq('role', UserRole.EMPLOYEE);
+
+  if (error) {
+    console.error('Error fetching company users:', error);
+    return [];
+  }
+
+  return data || [];
+};
+
+// Check if database is accessible
+export const checkDatabaseConnection = async () => {
+  try {
+    const { data, error } = await supabase.from('users').select('count').limit(1);
+    if (error) return false;
+    return true;
+  } catch (e) {
+    return false;
+  }
+};
+
 export default {
   executeSupabaseQuery,
   findCompanyById,
   findUserById,
   findUsers,
-  findFirstUser
+  findFirstUser,
+  getUserByEmail,
+  getUserById,
+  createUser,
+  updateUser,
+  deleteUser,
+  updateUserCoins,
+  safeId,
+  getCompanyUsers,
+  checkDatabaseConnection
 }; 

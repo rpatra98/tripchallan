@@ -4,8 +4,8 @@
   "private": true,
   "description": "Updated for Vercel deployment with React 19.1.0",
   "scripts": {
-    "dev": "node scripts/check-directories.js && next dev",
-    "build": "node scripts/check-directories.js && prisma generate && prisma migrate deploy && node prisma/seed.js && next build",
+    "dev": "node scripts/check-directories.js && node scripts/db/fix-permissions.js && next dev",
+    "build": "node scripts/check-directories.js && node scripts/db/fix-permissions.js && prisma generate && prisma migrate deploy && node prisma/seed.js && next build",
     "start": "node scripts/check-directories.js && next start",
     "lint": "next lint",
     "migrate": "prisma migrate dev",
@@ -13,7 +13,8 @@
     "db:seed": "npx ts-node --compiler-options {\\\"module\\\":\\\"CommonJS\\\"} prisma/seed.ts",
     "db:seed:js": "node prisma/seed.js",
     "seed-superadmin": "node scripts/seed-superadmin.js",
-    "vercel-build": "prisma generate && next build",
+    "fix-permissions": "node scripts/db/fix-permissions.js",
+    "vercel-build": "node scripts/db/fix-permissions.js && next build",
     "check-dirs": "node scripts/check-directories.js",
     "fix-images": "node scripts/fix-image-paths.js"
   },

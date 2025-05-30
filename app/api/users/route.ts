@@ -1,23 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
-import prisma from "@/lib/prisma";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-options";
 import { withAuth } from "@/lib/auth";
 import { UserRole, ActivityAction } from "@/prisma/enums";
 import { addActivityLog } from "@/lib/activity-logger";
-import { Prisma } from "@prisma/client";
+import supabase from "@/lib/supabase";
 
-interface WhereClause {
-  role?: UserRole;
-  companyId?: string | { in: string[] };
+interface WhereCondition {
+  role?: string;
+  companyId?: string;
   createdById?: string;
-  OR?: Array<{
-    role?: UserRole;
-    companyId?: string | { in: string[] };
-    createdById?: string;
-    name?: { contains: string; mode: 'insensitive' };
-    email?: { contains: string; mode: 'insensitive' };
-  }>;
 }
 
 async function handler(req: NextRequest) {
@@ -41,24 +33,40 @@ async function handler(req: NextRequest) {
     const role = searchParams.get('role') as UserRole | null;
     const search = searchParams.get('search');
     
-    // Build where clause based on user role
-    const whereClause: WhereClause = {};
+    // Calculate offset for pagination
+    const offset = (page - 1) * limit;
     
+    // Initialize query to count total records
+    let countQuery = supabase.from('users').select('id', { count: 'exact', head: true });
+    
+    // Initialize query to fetch users
+    let query = supabase.from('users').select(`
+      *,
+      company:companies(id, name, email)
+    `);
+    
+    // Apply filters based on user role
     if (userRole === UserRole.SUPERADMIN) {
       // SuperAdmin can see all users
-      whereClause.role = role || undefined;
+      if (role) {
+        countQuery = countQuery.eq('role', role);
+        query = query.eq('role', role);
+      }
     } else if (userRole === UserRole.ADMIN) {
       // Admin can only see users from companies they created
-      const companiesCreatedByAdmin = await prisma.user.findMany({
-        where: {
-          role: UserRole.COMPANY,
-          createdById: userId,
-        },
-        select: {
-          id: true,
-          companyId: true,
-        }
-      });
+      const { data: companiesCreatedByAdmin, error: companyError } = await supabase
+        .from('users')
+        .select('id, companyId')
+        .eq('role', 'COMPANY')
+        .eq('createdById', userId);
+      
+      if (companyError) {
+        console.error("Error fetching companies:", companyError);
+        return NextResponse.json(
+          { error: "Failed to fetch users" },
+          { status: 500 }
+        );
+      }
       
       const companyIds = companiesCreatedByAdmin
         .filter(company => company.companyId)
@@ -66,51 +74,58 @@ async function handler(req: NextRequest) {
         
       const companyUserIds = companiesCreatedByAdmin.map(company => company.id);
       
-      whereClause.OR = [
-        { role: UserRole.COMPANY, createdById: userId },
-        { role: UserRole.EMPLOYEE, companyId: { in: [...new Set([...companyIds, ...companyUserIds])].filter(Boolean) as string[] } }
-      ];
+      // Combine IDs into a unique set, removing nulls
+      const validIds = [...new Set([...companyIds, ...companyUserIds])].filter(Boolean);
       
-      if (role) {
-        whereClause.role = role;
+      if (role === UserRole.COMPANY) {
+        // If looking for companies, filter by createdById
+        countQuery = countQuery.eq('role', UserRole.COMPANY).eq('createdById', userId);
+        query = query.eq('role', UserRole.COMPANY).eq('createdById', userId);
+      } else if (role === UserRole.EMPLOYEE) {
+        // If looking for employees, filter by companyId
+        countQuery = countQuery.eq('role', UserRole.EMPLOYEE).in('companyId', validIds);
+        query = query.eq('role', UserRole.EMPLOYEE).in('companyId', validIds);
+      } else {
+        // If no specific role, use OR filter with multiple conditions
+        countQuery = countQuery.or(`role.eq.${UserRole.COMPANY},createdById.eq.${userId},role.eq.${UserRole.EMPLOYEE},companyId.in.(${validIds.join(',')})`);
+        query = query.or(`role.eq.${UserRole.COMPANY},createdById.eq.${userId},role.eq.${UserRole.EMPLOYEE},companyId.in.(${validIds.join(',')})`);
       }
     } else if (userRole === UserRole.COMPANY) {
       // Company can only see their employees
-      whereClause.role = UserRole.EMPLOYEE;
-      whereClause.companyId = userId;
+      countQuery = countQuery.eq('role', UserRole.EMPLOYEE).eq('companyId', userId);
+      query = query.eq('role', UserRole.EMPLOYEE).eq('companyId', userId);
     }
     
     // Add search filter if provided
     if (search) {
-      whereClause.OR = [
-        { name: { contains: search, mode: 'insensitive' } },
-        { email: { contains: search, mode: 'insensitive' } }
-      ];
+      // Using Supabase's ILIKE for case-insensitive search
+      countQuery = countQuery.or(`name.ilike.%${search}%,email.ilike.%${search}%`);
+      query = query.or(`name.ilike.%${search}%,email.ilike.%${search}%`);
     }
     
     // Get total count for pagination
-    const total = await prisma.user.count({
-      where: whereClause
-    });
+    const { count, error: countError } = await countQuery;
+    
+    if (countError) {
+      console.error("Error counting users:", countError);
+      return NextResponse.json(
+        { error: "Failed to fetch users count" },
+        { status: 500 }
+      );
+    }
     
     // Get users with pagination
-    const users = await prisma.user.findMany({
-      where: whereClause,
-      include: {
-        company: {
-          select: {
-            id: true,
-            name: true,
-            email: true
-          }
-        }
-      },
-      orderBy: {
-        createdAt: 'desc'
-      },
-      skip: (page - 1) * limit,
-      take: limit
-    });
+    const { data: users, error: usersError } = await query
+      .order('createdAt', { ascending: false })
+      .range(offset, offset + limit - 1);
+    
+    if (usersError) {
+      console.error("Error fetching users:", usersError);
+      return NextResponse.json(
+        { error: "Failed to fetch users" },
+        { status: 500 }
+      );
+    }
     
     // Remove sensitive fields
     const usersWithoutPassword = users.map(user => {
@@ -131,7 +146,7 @@ async function handler(req: NextRequest) {
           limit
         },
         resultCount: users.length,
-        totalCount: total
+        totalCount: count
       },
       targetResourceType: "USER_LIST"
     });
@@ -139,10 +154,10 @@ async function handler(req: NextRequest) {
     return NextResponse.json({
       users: usersWithoutPassword,
       pagination: {
-        total,
+        total: count,
         page,
         limit,
-        pages: Math.ceil(total / limit)
+        pages: Math.ceil(count! / limit)
       }
     });
   } catch (error) {

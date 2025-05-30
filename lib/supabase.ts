@@ -26,23 +26,53 @@ export const supabase = createClient<Database>(
     db: {
       schema: 'public',
     },
+    global: {
+      headers: {
+        'x-application-name': 'cbums',
+      },
+    }
   }
 );
 
-// Add helper method to test connection
-export const testSupabaseConnection = async () => {
-  try {
-    const { data, error } = await supabase.from('users').select('count').limit(1);
-    if (error) {
-      console.error('Supabase connection test failed:', error);
+// Add helper method to test connection with retry logic
+export const testSupabaseConnection = async (retries = 3): Promise<boolean> => {
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      console.log(`Testing Supabase connection, attempt ${attempt}/${retries}`);
+      const { data, error } = await supabase.from('users').select('count').limit(1);
+      
+      if (error) {
+        console.error(`Supabase connection test failed (attempt ${attempt}/${retries}):`, error);
+        
+        if (attempt < retries) {
+          // Exponential backoff with jitter
+          const delay = Math.min(Math.pow(2, attempt) * 200 + Math.random() * 200, 2000);
+          console.log(`Retrying in ${Math.round(delay)}ms...`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+          continue;
+        }
+        
+        return false;
+      }
+      
+      console.log('Supabase connection test successful');
+      return true;
+    } catch (e) {
+      console.error(`Supabase connection test exception (attempt ${attempt}/${retries}):`, e);
+      
+      if (attempt < retries) {
+        // Exponential backoff with jitter for exceptions
+        const delay = Math.min(Math.pow(2, attempt) * 300 + Math.random() * 300, 3000);
+        console.log(`Retrying in ${Math.round(delay)}ms...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+        continue;
+      }
+      
       return false;
     }
-    console.log('Supabase connection test successful');
-    return true;
-  } catch (e) {
-    console.error('Supabase connection test exception:', e);
-    return false;
   }
+  
+  return false;
 };
 
 export default supabase; 

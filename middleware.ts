@@ -3,10 +3,10 @@ import type { NextRequest } from "next/server";
 import { getToken } from "next-auth/jwt";
 
 // Path patterns that should be protected
-const protectedPaths = ["/dashboard", "/api/users", "/api/coins", "/api/admins"];
+const protectedPaths = ["/dashboard", "/api/coins", "/api/admins"];
 
-// Paths that are public
-const publicPaths = ["/", "/api/auth"];
+// Paths that are public or handled separately
+const publicPaths = ["/", "/api/auth", "/api/users/me", "/api/ping"];
 
 // Flag to disable auth checks during deployment issues
 const DISABLE_AUTH_CHECKS_FOR_TROUBLESHOOTING = process.env.DISABLE_AUTH === "1";
@@ -21,8 +21,11 @@ export async function middleware(request: NextRequest) {
       return NextResponse.next();
     }
     
-    // Always allow access to auth-related paths
-    if (publicPaths.some(path => pathname.startsWith(path))) {
+    // Always allow access to auth-related paths, /api/users/me endpoint, and ping API
+    if (publicPaths.some(path => pathname.startsWith(path)) || 
+        pathname === "/api/users/me" || 
+        pathname === "/api/ping") {
+      console.log(`[Middleware] Allowing access to public path: ${pathname}`);
       return NextResponse.next();
     }
 
