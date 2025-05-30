@@ -25,94 +25,63 @@ export const authOptions: AuthOptions = {
           console.log(`Attempting login for email: ${credentials.email}`);
           
           // Special handling for SuperAdmin
-          if (credentials.email === "superadmin@cbums.com" && credentials.password === "superadmin123") {
-            console.log("🔑 DIRECT SUPERADMIN LOGIN DETECTED");
+          if (credentials.email === "superadmin@cbums.com") {
+            console.log("SuperAdmin login attempt detected");
             
-            // First try to find SuperAdmin in database to get the ID
-            const { data: existingSuperAdmin, error: findError } = await supabase
+            // Get the SuperAdmin from the database
+            const { data: superAdmin, error } = await supabase
               .from('users')
               .select('*')
               .eq('email', 'superadmin@cbums.com')
               .single();
             
-            // If found in database, use that ID
-            if (!findError && existingSuperAdmin) {
-              console.log("✅ Using existing SuperAdmin ID:", existingSuperAdmin.id);
-              
-              // CRITICAL: Bypass all normal auth flow for SuperAdmin
-              return {
-                id: existingSuperAdmin.id,
-                email: "superadmin@cbums.com",
-                name: "Super Admin",
-                role: "SUPERADMIN",
-                subrole: null,
-                companyId: null,
-                coins: 1000000,
-              };
-            } 
+            if (error) {
+              console.error("Error fetching SuperAdmin:", error);
+              return null;
+            }
             
-            // If not found in database, create a new one with default credentials
-            console.log("⚠️ SuperAdmin not found, creating new one");
-            try {
-              const bcrypt = require('bcrypt');
-              const hashedPassword = await bcrypt.hash('superadmin123', 12);
+            if (!superAdmin) {
+              console.log("SuperAdmin not found in database");
+              return null;
+            }
+            
+            // For default password, allow authentication
+            if (credentials.password === 'superadmin123') {
+              console.log("SuperAdmin authenticated using default credentials");
               
-              const { data: newSuperAdmin, error: createError } = await supabase
-                .from('users')
-                .insert({
-                  name: 'Super Admin',
-                  email: 'superadmin@cbums.com',
-                  password: hashedPassword,
-                  role: 'SUPERADMIN',
-                  coins: 1000000,
-                  createdAt: new Date().toISOString(),
-                  updatedAt: new Date().toISOString()
-                })
-                .select()
-                .single();
-              
-              if (createError) {
-                console.error("❌ Failed to create SuperAdmin:", createError);
-                
-                // EMERGENCY FALLBACK: Hardcoded SuperAdmin ID
-                // This ensures login works even if database operations fail
-                console.log("🚨 Using emergency fallback SuperAdmin ID");
-                return {
-                  id: "3c439996-c6c5-4541-9c5c-20a41a542a68", // Hardcoded ID from your database
-                  email: "superadmin@cbums.com",
-                  name: "Super Admin",
-                  role: "SUPERADMIN",
-                  subrole: null,
-                  companyId: null,
-                  coins: 1000000,
-                };
-              }
-              
-              console.log("✅ Created new SuperAdmin with ID:", newSuperAdmin.id);
+              // Return the user exactly as found in the database
               return {
-                id: newSuperAdmin.id,
-                email: "superadmin@cbums.com",
-                name: "Super Admin",
-                role: "SUPERADMIN",
-                subrole: null,
-                companyId: null,
-                coins: 1000000,
-              };
-            } catch (error) {
-              console.error("❌ SuperAdmin creation error:", error);
-              
-              // EMERGENCY FALLBACK: Hardcoded SuperAdmin ID
-              console.log("🚨 Using emergency fallback SuperAdmin ID after error");
-              return {
-                id: "3c439996-c6c5-4541-9c5c-20a41a542a68", // Hardcoded ID from your database
-                email: "superadmin@cbums.com",
-                name: "Super Admin",
-                role: "SUPERADMIN",
-                subrole: null,
-                companyId: null,
-                coins: 1000000,
+                id: superAdmin.id,
+                email: superAdmin.email,
+                name: superAdmin.name,
+                role: superAdmin.role,
+                subrole: superAdmin.subrole,
+                companyId: superAdmin.companyId,
+                coins: superAdmin.coins
               };
             }
+            
+            // Try normal password verification
+            try {
+              const passwordsMatch = await compare(credentials.password, superAdmin.password);
+              if (passwordsMatch) {
+                console.log("SuperAdmin authenticated with stored password");
+                return {
+                  id: superAdmin.id,
+                  email: superAdmin.email,
+                  name: superAdmin.name,
+                  role: superAdmin.role,
+                  subrole: superAdmin.subrole,
+                  companyId: superAdmin.companyId,
+                  coins: superAdmin.coins
+                };
+              }
+            } catch (error) {
+              console.error("Error verifying SuperAdmin password:", error);
+            }
+            
+            console.log("SuperAdmin authentication failed");
+            return null;
           }
           
           // Normal authentication flow for all users
