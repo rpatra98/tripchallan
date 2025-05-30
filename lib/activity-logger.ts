@@ -1,4 +1,4 @@
-import { ActivityAction } from '@/prisma/enums';
+import { ActivityAction } from '@/lib/enums';
 import supabase from './supabase';
 
 interface ActivityLogData {

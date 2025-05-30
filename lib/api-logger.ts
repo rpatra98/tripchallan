@@ -1,7 +1,8 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import { NextRequest, NextResponse } from "next/server";
 import { getToken } from "next-auth/jwt";
-import { ActivityAction } from "@/prisma/enums";
+import { getServerSession } from "next-auth";
+import { ActivityAction } from "@/lib/enums";
 import { addActivityLog } from "./activity-logger";
 
 type ApiHandlerFunction = (

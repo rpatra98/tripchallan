@@ -1,5 +1,5 @@
-// Import the manually defined enums
-import { UserRole, EmployeeSubrole } from '@/prisma/enums';
+import { Session } from "next-auth";
+import { UserRole, EmployeeSubrole } from '@/lib/enums';
 
 // Re-export for easier usage throughout the app
 export { UserRole, EmployeeSubrole };

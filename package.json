@@ -15,7 +15,11 @@
     "vercel-build": "node scripts/db/fix-permissions.js && next build",
     "check-dirs": "node scripts/check-directories.js",
     "fix-images": "node scripts/fix-image-paths.js",
-    "supabase:reset": "node scripts/supabase-reset.js"
+    "supabase:reset": "node scripts/supabase-reset.js",
+    "manual-db-reset": "node scripts/manual-db-reset.js",
+    "db:init": "node scripts/db-init.js",
+    "migrate": "node scripts/db-init.js",
+    "db:seed": "node scripts/db-init.js"
   },
   "dependencies": {
     "@emotion/react": "^11.14.0",

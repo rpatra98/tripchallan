@@ -1,7 +1,7 @@
 import { AuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import { compare } from "bcrypt";
-import { UserRole, EmployeeSubrole, ActivityAction } from "@/prisma/enums";
+import { UserRole, EmployeeSubrole, ActivityAction } from "@/lib/enums";
 import { addActivityLog } from "./activity-logger";
 import { detectDevice } from "./utils";
 import supabase from "./supabase";

@@ -1,6 +1,6 @@
 import supabase from './supabase';
 import { createClient } from '@supabase/supabase-js';
-import { UserRole } from '@/prisma/enums';
+import { UserRole } from '@/lib/enums';
 
 /**
  * Generic function to execute Supabase queries with error handling
