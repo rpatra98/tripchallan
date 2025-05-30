@@ -21,14 +21,14 @@ export async function addActivityLog(data: ActivityLogData) {
     const { error } = await supabaseAdmin
       .from('activity_logs')
       .insert({
-        userId: data.userId,
+        user_id: data.userId,
         action: data.action,
         details: data.details || null,
-        targetResourceId: data.targetResourceId || null,
-        targetResourceType: data.targetResourceType || null,
-        ipAddress: data.ipAddress || null,
-        userAgent: data.userAgent || null,
-        createdAt: new Date().toISOString()
+        target_resource_id: data.targetResourceId || null,
+        target_resource_type: data.targetResourceType || null,
+        ip_address: data.ipAddress || null,
+        user_agent: data.userAgent || null,
+        created_at: new Date().toISOString()
       });
 
     if (error) {
@@ -66,13 +66,13 @@ export async function getActivityLogs({
       .from('activity_logs')
       .select(`
         *,
-        user:users(id, name, email, role)
+        user:users!activity_logs_user_id_fkey(id, name, email, role)
       `)
-      .order('createdAt', { ascending: false });
+      .order('created_at', { ascending: false });
     
     // Apply filters
     if (userId) {
-      query = query.eq('userId', userId);
+      query = query.eq('user_id', userId);
     }
     
     if (action) {
@@ -80,21 +80,21 @@ export async function getActivityLogs({
     }
     
     if (targetResourceType) {
-      query = query.eq('targetResourceType', targetResourceType);
+      query = query.eq('target_resource_type', targetResourceType);
     }
     
     if (startDate) {
-      query = query.gte('createdAt', startDate.toISOString());
+      query = query.gte('created_at', startDate.toISOString());
     }
     
     if (endDate) {
-      query = query.lte('createdAt', endDate.toISOString());
+      query = query.lte('created_at', endDate.toISOString());
     }
     
     // Apply pagination
     const { data, error, count } = await query
       .range(offset, offset + limit - 1)
-      .order('createdAt', { ascending: false });
+      .order('created_at', { ascending: false });
     
     if (error) {
       console.error('Failed to fetch activity logs:', error);

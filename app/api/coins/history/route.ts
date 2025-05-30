@@ -1,137 +1,69 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth-options";
 import { withAuth } from "@/lib/auth";
-import prisma from "@/lib/prisma";
-import { UserRole, TransactionReason } from "@/prisma/enums";
+import supabase from "@/lib/supabase";
+import { UserRole } from "@/lib/enums";
 
 async function handler(req: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    
-    if (!session?.user) {
-      return NextResponse.json(
-        { error: "Authentication required" },
-        { status: 401 }
-      );
-    }
-
-    // Parse query parameters
+    // Get query parameters
     const url = new URL(req.url);
-    const userId = url.searchParams.get("userId") || session.user.id;
-    const page = parseInt(url.searchParams.get("page") || "1");
-    const limit = parseInt(url.searchParams.get("limit") || "10");
-    const skip = (page - 1) * limit;
-
-    const userRole = session.user.role;
-    const currentUserId = session.user.id;
-
-    // Check if the user has permission to see this user's transactions
-    if (userId !== currentUserId && userRole !== UserRole.SUPERADMIN && userRole !== UserRole.ADMIN) {
+    const limit = parseInt(url.searchParams.get('limit') || '20');
+    const offset = parseInt(url.searchParams.get('offset') || '0');
+    const userId = url.searchParams.get('userId');
+    
+    // Build query
+    let query = supabase
+      .from('coin_transactions')
+      .select(`
+        *,
+        fromUser:users!coin_transactions_from_user_id_fkey(id, name, email),
+        toUser:users!coin_transactions_to_user_id_fkey(id, name, email)
+      `)
+      .order('created_at', { ascending: false })
+      .limit(limit)
+      .range(offset, offset + limit - 1);
+    
+    // Add user filter if specified
+    if (userId) {
+      query = query.or(`from_user_id.eq.${userId},to_user_id.eq.${userId}`);
+    }
+    
+    const { data, error, count } = await query;
+    
+    if (error) {
+      console.error("Error fetching coin transactions:", error);
       return NextResponse.json(
-        { error: "You don't have permission to view this user's transactions" },
-        { status: 403 }
+        { error: error.message },
+        { status: 500 }
       );
     }
-
-    // For ADMIN users, filter out SESSION_CREATION transactions where fromUser === toUser
-    // These are "reserved session credits" transactions that should not appear in ADMIN history
-    let whereClause = {};
     
-    if (userRole === UserRole.ADMIN) {
-      whereClause = {
-        OR: [
-          { fromUserId: userId },
-          { toUserId: userId }
-        ],
-        // Filter out the session credits transactions
-        NOT: {
-          AND: [
-            { fromUserId: userId },
-            { toUserId: userId },
-            { reason: TransactionReason.SESSION_CREATION }
-          ]
-        }
-      };
-    } else {
-      // For other users, just show all their transactions
-      whereClause = {
-        OR: [
-          { fromUserId: userId },
-          { toUserId: userId }
-        ]
-      };
-    }
-
-    // Get total count for pagination
-    const totalCount = await prisma.coinTransaction.count({
-      where: whereClause,
-    });
-
-    // Get transactions with pagination
-    const transactions = await prisma.coinTransaction.findMany({
-      where: whereClause,
-      include: {
-        fromUser: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            role: true,
-          },
-        },
-        toUser: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            role: true,
-          },
-        },
-      },
-      orderBy: { createdAt: "desc" },
-      skip,
-      take: limit,
-    });
-
-    // Calculate pagination metadata
-    const totalPages = Math.ceil(totalCount / limit);
-
+    // Transform the data to match the expected format
+    const transactions = data?.map(transaction => ({
+      id: transaction.id,
+      amount: transaction.amount,
+      fromUserId: transaction.from_user_id,
+      toUserId: transaction.to_user_id,
+      reason: transaction.reason,
+      notes: transaction.notes,
+      createdAt: transaction.created_at,
+      updatedAt: transaction.updated_at,
+      fromUser: transaction.fromUser,
+      toUser: transaction.toUser
+    })) || [];
+    
     return NextResponse.json({
       transactions,
-      pagination: {
-        page,
-        limit,
-        totalItems: totalCount,
-        totalPages,
-        hasNextPage: page < totalPages,
-        hasPrevPage: page > 1,
-      },
+      count
     });
-  } catch (error) {
-    console.error("Error fetching coin transaction history:", error);
+  } catch (error: unknown) {
+    console.error("Error fetching coin transactions:", error);
     return NextResponse.json(
-      { 
-        error: "Failed to fetch coin transaction history",
-        transactions: [],
-        pagination: {
-          page: 1,
-          limit: 10,
-          totalItems: 0,
-          totalPages: 0,
-          hasNextPage: false,
-          hasPrevPage: false,
-        }
-      },
+      { error: "Failed to fetch coin transactions" },
       { status: 500 }
     );
   }
 }
 
-// Allow all authenticated users to access transaction history
-export const GET = withAuth(handler, [
-  UserRole.SUPERADMIN,
-  UserRole.ADMIN,
-  UserRole.COMPANY,
-  UserRole.EMPLOYEE,
-]); 
+// SuperAdmin and Admin can view transaction history
+export const GET = withAuth(handler, [UserRole.SUPERADMIN, UserRole.ADMIN]); 

@@ -194,19 +194,39 @@ async function handler(req: NextRequest) {
 
       console.log("Admin created successfully:", newAdmin.id);
 
+      // Record the transaction using the transaction enum from our API
+      const { data: coinTransaction, error: transactionError } = await supabaseAdmin
+        .from('coin_transactions')
+        .insert({
+          from_user_id: superAdmin.id,
+          to_user_id: newAdmin.id,
+          amount: coins,
+          reason: 'ADMIN_CREATION',
+          notes: `Initial coin allocation for new admin: ${name}`,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        })
+        .select();
+
+      if (transactionError) {
+        console.error("Error recording coin transaction:", transactionError);
+        // Don't fail the admin creation if just the transaction record fails
+      }
+
       // Log the activity
       try {
         console.log("Logging admin creation activity");
         await addActivityLog({
           userId: superAdmin.id,
           action: ActivityAction.CREATE,
-          targetResourceType: 'Admin',
-          targetResourceId: newAdmin.id,
           details: {
             name: newAdmin.name,
             email: newAdmin.email,
-            coinsAllocated: coins
-          }
+            coinsAllocated: coins,
+            transactionId: coinTransaction?.[0]?.id
+          },
+          targetResourceId: newAdmin.id,
+          targetResourceType: "Admin"
         });
       } catch (logError) {
         console.error("Error logging activity:", logError);

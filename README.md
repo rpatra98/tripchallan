@@ -46,7 +46,7 @@ cp .env.example .env
 
 Make sure to set your Supabase credentials:
 
-```
+```bash
 NEXT_PUBLIC_SUPABASE_URL=your-supabase-url
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your-supabase-anon-key
 SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
@@ -145,3 +145,71 @@ For more details, see the [migrations README](migrations/README.md).
 ## License
 
 [MIT](LICENSE)
+
+# CBUMS - Supabase Version
+
+This project has been migrated from Neon/Prisma to Supabase.
+
+## Setup Instructions
+
+### 1. Environment Variables
+
+Create a `.env` file with the following variables:
+
+```
+# Supabase connection
+NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
+SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_key
+
+# NextAuth config
+NEXTAUTH_URL=http://localhost:3000
+NEXTAUTH_SECRET=your_nextauth_secret
+
+# Other configuration
+NODE_ENV=development
+```
+
+### 2. Setup Supabase Database
+
+1. Create a new Supabase project
+2. Setup the database functions required for migrations:
+
+```bash
+npm run setup:supabase
+```
+
+3. Reset and seed the database:
+
+```bash
+npm run db:reset
+```
+
+This will:
+- Create all necessary tables
+- Create the SuperAdmin user with email: `superadmin@cbums.com` and password: `superadmin123`
+
+### 3. Start the Development Server
+
+```bash
+npm run dev
+```
+
+## Available Scripts
+
+- `npm run dev` - Start the development server
+- `npm run build` - Build the application for production
+- `npm run start` - Start the production server
+- `npm run db:reset` - Reset and seed the database
+- `npm run migrate` - Run migrations (same as db:reset)
+- `npm run db:seed` - Seed the database (same as db:reset)
+- `npm run setup:supabase` - Setup the Supabase exec_sql function needed for migrations
+
+## Supabase Migration Notes
+
+This project has been migrated from Neon/Prisma to Supabase with the following changes:
+
+1. All database operations now use Supabase client instead of Prisma
+2. Database schemas are defined in SQL migrations in the `migrations` folder
+3. All column names follow Supabase snake_case convention
+4. Authentication uses NextAuth with Supabase as the database provider
