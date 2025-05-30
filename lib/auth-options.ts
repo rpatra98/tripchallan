@@ -90,51 +90,95 @@ export const authOptions: AuthOptions = {
           console.log(`Attempting login for email: ${credentials.email}`);
           
           // Special handling for SuperAdmin
-          if (credentials.email === "superadmin@cbums.com" && credentials.password === "superadmin123") {
-            console.log("SuperAdmin login with default credentials detected");
+          if (credentials.email === "superadmin@cbums.com") {
+            console.log("SuperAdmin login attempt detected");
             
             try {
-              // First, try to directly find the SuperAdmin
-              console.log("Attempting to directly find SuperAdmin in database");
-              const { data: directSuperAdmin, error: directError } = await supabase
+              // First, try to directly find the SuperAdmin in the database
+              console.log("Querying SuperAdmin from Supabase");
+              const { data: superAdminUser, error: superAdminError } = await supabase
                 .from('users')
                 .select('*')
                 .eq('email', 'superadmin@cbums.com')
+                .eq('role', 'SUPERADMIN')
                 .single();
               
-              if (!directError && directSuperAdmin) {
-                console.log("Found SuperAdmin directly:", directSuperAdmin.id);
+              if (superAdminError) {
+                console.error("Error querying SuperAdmin:", superAdminError);
+                return null;
+              }
+              
+              if (superAdminUser) {
+                console.log("Found SuperAdmin in database, ID:", superAdminUser.id);
                 
-                // Check if this is a Supabase migration issue with password format
-                // Skip password check for SuperAdmin with default credentials
-                return {
-                  id: directSuperAdmin.id,
-                  email: directSuperAdmin.email,
-                  name: directSuperAdmin.name,
-                  role: directSuperAdmin.role,
-                  subrole: directSuperAdmin.subrole,
-                  companyId: directSuperAdmin.companyId,
-                  coins: directSuperAdmin.coins || 1000000,
-                };
+                // For default credentials, bypass password check
+                if (credentials.password === 'superadmin123') {
+                  console.log("Using default credentials for SuperAdmin, bypassing password check");
+                  return {
+                    id: superAdminUser.id,
+                    email: superAdminUser.email,
+                    name: superAdminUser.name || 'Super Admin',
+                    role: superAdminUser.role,
+                    subrole: superAdminUser.subrole,
+                    companyId: superAdminUser.companyId,
+                    coins: superAdminUser.coins || 1000000,
+                  };
+                }
+                
+                // If not using default password, try normal password verification
+                try {
+                  console.log("Verifying SuperAdmin password");
+                  const passwordsMatch = await compare(credentials.password, superAdminUser.password);
+                  
+                  if (passwordsMatch) {
+                    console.log("SuperAdmin password verified successfully");
+                    return {
+                      id: superAdminUser.id,
+                      email: superAdminUser.email,
+                      name: superAdminUser.name || 'Super Admin',
+                      role: superAdminUser.role,
+                      subrole: superAdminUser.subrole,
+                      companyId: superAdminUser.companyId,
+                      coins: superAdminUser.coins || 1000000,
+                    };
+                  } else {
+                    console.log("SuperAdmin password verification failed");
+                    return null;
+                  }
+                } catch (pwError) {
+                  console.error("Error verifying SuperAdmin password:", pwError);
+                  
+                  // If password check throws an error but using default password, allow login anyway
+                  if (credentials.password === 'superadmin123') {
+                    console.log("Falling back to default credentials despite password check error");
+                    return {
+                      id: superAdminUser.id,
+                      email: superAdminUser.email,
+                      name: superAdminUser.name || 'Super Admin',
+                      role: superAdminUser.role,
+                      subrole: superAdminUser.subrole,
+                      companyId: superAdminUser.companyId,
+                      coins: superAdminUser.coins || 1000000,
+                    };
+                  }
+                  
+                  return null;
+                }
               } else {
-                console.log("Direct SuperAdmin search error:", directError);
-                
-                // Fall back to creating the admin
-                console.log("Attempting to create SuperAdmin user");
+                console.log("SuperAdmin not found, attempting to create");
+                // Try to create a SuperAdmin as a fallback
                 const superAdmin = await createInitialSuperAdmin();
-                
                 if (superAdmin) {
-                  console.log("Using created SuperAdmin account:", superAdmin.id);
+                  console.log("Created new SuperAdmin, ID:", superAdmin.id);
                   return superAdmin;
                 }
               }
-              
-              console.log("Failed to find or create SuperAdmin, authentication failed");
-              return null;
             } catch (error) {
               console.error("SuperAdmin authentication error:", error);
-              return null;
             }
+            
+            console.log("SuperAdmin authentication failed");
+            return null;
           }
           
           // Normal authentication flow for all users
