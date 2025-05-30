@@ -1,9 +1,13 @@
 const { createClient } = require('@supabase/supabase-js');
 const bcrypt = require('bcrypt');
+const dotenv = require('dotenv');
+
+// Load environment variables
+dotenv.config();
 
 // Get Supabase credentials from environment variables
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
 if (!supabaseUrl || !supabaseKey) {
   console.error('Missing Supabase environment variables');
@@ -12,6 +16,9 @@ if (!supabaseUrl || !supabaseKey) {
 
 // Create Supabase client
 const supabase = createClient(supabaseUrl, supabaseKey);
+
+// Fixed ID for SuperAdmin (zero UUID)
+const SUPERADMIN_ID = '00000000-0000-0000-0000-000000000000';
 
 async function seedSuperAdmin() {
   try {
@@ -22,13 +29,13 @@ async function seedSuperAdmin() {
     const { data: existingSuperAdmin, error: findError } = await supabase
       .from('users')
       .select('*')
-      .eq('email', 'superadmin@cbums.com')
-      .single();
+      .eq('role', 'SUPERADMIN')
+      .limit(1);
 
     // If SuperAdmin exists, we're done
-    if (!findError && existingSuperAdmin) {
-      console.log("SuperAdmin already exists with ID:", existingSuperAdmin.id);
-      return { success: true, id: existingSuperAdmin.id };
+    if (!findError && existingSuperAdmin && existingSuperAdmin.length > 0) {
+      console.log("SuperAdmin already exists with ID:", existingSuperAdmin[0].id);
+      return { success: true, id: existingSuperAdmin[0].id };
     }
 
     // SuperAdmin doesn't exist, create one
@@ -38,6 +45,7 @@ async function seedSuperAdmin() {
     const { data: newSuperAdmin, error: createError } = await supabase
       .from('users')
       .insert({
+        id: SUPERADMIN_ID, // Use fixed ID for SuperAdmin
         name: 'Super Admin',
         email: 'superadmin@cbums.com',
         password: hashedPassword,

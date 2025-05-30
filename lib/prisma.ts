@@ -1,68 +1,28 @@
-// Simplify the approach to avoid TypeScript errors during build
-// @ts-ignore
-import { PrismaClient } from '@prisma/client';
-// Add Prisma Accelerate extension
-// @ts-ignore
-import { withAccelerate } from '@prisma/extension-accelerate';
+/**
+ * DEPRECATED: This file is no longer used.
+ * 
+ * The application has been migrated from Prisma to Supabase.
+ * Use the Supabase client from @/lib/supabase.ts instead.
+ * 
+ * Example:
+ * import supabase from '@/lib/supabase';
+ * 
+ * This file is kept only for compatibility with old imports.
+ */
 
-// This is important - it prevents Prisma from trying to connect during build time
-const globalForPrisma = global as unknown as { prisma: any };
+console.warn(
+  "DEPRECATED: @/lib/prisma is no longer used. The application has been migrated to Supabase. " +
+  "Please update your imports to use @/lib/supabase instead."
+);
 
-// Always use mock client since we've migrated to Supabase
-const createMockPrismaClient = () => {
-  console.warn("Using mock PrismaClient since the app has migrated to Supabase");
-  
-  // This creates a proxy that returns empty results for queries
-  // but doesn't throw errors that would break the application
-  return new Proxy({}, {
-    get: function(target, prop) {
-      if (prop === "$disconnect") {
-        return async () => {};
-      }
-      
-      // For any model property (user, session, etc)
-      return new Proxy({}, {
-        get: function(target, method) {
-          return async () => {
-            console.log(`Mock Prisma Client: ${String(prop)}.${String(method)} called`);
-            
-            // Methods that return a single item
-            if (["findUnique", "findFirst", "create", "update", "delete"].includes(String(method))) {
-              return null;
-            }
-            
-            // Methods that return arrays
-            if (["findMany"].includes(String(method))) {
-              return [];
-            }
-            
-            // Methods that return counts
-            if (["count"].includes(String(method))) {
-              return 0;
-            }
-            
-            return null;
-          };
-        }
-      });
-    }
-  });
-};
+// Return a mock object that logs warnings when used
+const mockPrisma = new Proxy({}, {
+  get(_, prop) {
+    console.warn(`DEPRECATED: Attempt to use prisma.${String(prop)}. Use Supabase client instead.`);
+    return () => {
+      throw new Error(`Prisma client has been removed. Use Supabase client instead.`);
+    };
+  }
+});
 
-// Use global to share a single instance across modules in dev
-// but prevent sharing across hot reloads
-declare global {
-  var prisma: any;
-}
-
-// Always use mock client since we've migrated to Supabase
-export const prisma = global.prisma || createMockPrismaClient();
-
-if (process.env.NODE_ENV !== "production") {
-  global.prisma = prisma;
-}
-
-// Export Prisma-generated types and enums
-// export * from '@prisma/client'; // Or be more specific about what's re-exported
-
-export default prisma; 
+export default mockPrisma; 

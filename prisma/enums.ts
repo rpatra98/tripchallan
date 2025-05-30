@@ -1,16 +1,45 @@
-// Manually define the Prisma enums to avoid TypeScript issues
+// Enum values for user roles and other application enums
+// (No longer Prisma-specific)
+
 export enum UserRole {
-  SUPERADMIN = "SUPERADMIN",
-  ADMIN = "ADMIN",
-  COMPANY = "COMPANY",
-  EMPLOYEE = "EMPLOYEE"
+  SUPERADMIN = 'SUPERADMIN',
+  ADMIN = 'ADMIN',
+  COMPANY = 'COMPANY',
+  EMPLOYEE = 'EMPLOYEE'
 }
 
 export enum EmployeeSubrole {
-  OPERATOR = "OPERATOR",
-  DRIVER = "DRIVER",
-  TRANSPORTER = "TRANSPORTER",
-  GUARD = "GUARD"
+  MANAGER = 'MANAGER',
+  SUPERVISOR = 'SUPERVISOR',
+  GUARD = 'GUARD',
+  STAFF = 'STAFF'
+}
+
+export enum ActivityAction {
+  CREATE = 'CREATE',
+  UPDATE = 'UPDATE',
+  DELETE = 'DELETE',
+  LOGIN = 'LOGIN',
+  LOGOUT = 'LOGOUT',
+  VIEW = 'VIEW',
+  DOWNLOAD = 'DOWNLOAD',
+  UPLOAD = 'UPLOAD',
+  PAYMENT = 'PAYMENT'
+}
+
+export enum CoinTransactionType {
+  PURCHASE = 'PURCHASE',
+  USAGE = 'USAGE',
+  REFUND = 'REFUND',
+  BONUS = 'BONUS',
+  ADJUSTMENT = 'ADJUSTMENT'
+}
+
+export enum CoinTransactionStatus {
+  PENDING = 'PENDING',
+  COMPLETED = 'COMPLETED',
+  FAILED = 'FAILED',
+  CANCELLED = 'CANCELLED'
 }
 
 export enum SessionStatus {
@@ -31,17 +60,6 @@ export enum TransactionReason {
   OPERATOR_CREATION = "OPERATOR_CREATION",
   COIN_ALLOCATION = "COIN_ALLOCATION",
   SESSION_CREATION = "SESSION_CREATION"
-}
-
-export enum ActivityAction {
-  CREATE = "CREATE",
-  UPDATE = "UPDATE",
-  DELETE = "DELETE",
-  LOGIN = "LOGIN",
-  LOGOUT = "LOGOUT",
-  TRANSFER = "TRANSFER",
-  ALLOCATE = "ALLOCATE",
-  VIEW = "VIEW"
 }
 
 export enum VehicleStatus {
