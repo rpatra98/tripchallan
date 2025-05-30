@@ -155,16 +155,8 @@ async function resetAndStartApp() {
     }
     
     console.log('✅ Database reset and seed completed successfully');
-    
-    // Start the development server
-    console.log('🚀 Starting development server...');
-    exec('npm run dev', (err, stdout, stderr) => {
-      if (err) {
-        console.error('Error starting development server:', err);
-        return;
-      }
-      console.log(stdout);
-    });
+    console.log('🚀 You can now start the development server with: npm run dev');
+    process.exit(0);
   } catch (error) {
     console.error('Fatal error during reset operation:', error);
     process.exit(1);

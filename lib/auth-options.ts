@@ -25,63 +25,20 @@ export const authOptions: AuthOptions = {
           console.log(`Attempting login for email: ${credentials.email}`);
           
           // Special handling for SuperAdmin
-          if (credentials.email === "superadmin@cbums.com") {
-            console.log("SuperAdmin login attempt detected");
+          if (credentials.email === "superadmin@cbums.com" && credentials.password === "superadmin123") {
+            console.log("SuperAdmin login with hardcoded credentials detected");
             
-            // Get the SuperAdmin from the database
-            const { data: superAdmin, error } = await supabase
-              .from('users')
-              .select('*')
-              .eq('email', 'superadmin@cbums.com')
-              .single();
-            
-            if (error) {
-              console.error("Error fetching SuperAdmin:", error);
-              return null;
-            }
-            
-            if (!superAdmin) {
-              console.log("SuperAdmin not found in database");
-              return null;
-            }
-            
-            // For default password, allow authentication
-            if (credentials.password === 'superadmin123') {
-              console.log("SuperAdmin authenticated using default credentials");
-              
-              // Return the user exactly as found in the database
-              return {
-                id: superAdmin.id,
-                email: superAdmin.email,
-                name: superAdmin.name,
-                role: superAdmin.role,
-                subrole: superAdmin.subrole,
-                companyId: superAdmin.companyId,
-                coins: superAdmin.coins
-              };
-            }
-            
-            // Try normal password verification
-            try {
-              const passwordsMatch = await compare(credentials.password, superAdmin.password);
-              if (passwordsMatch) {
-                console.log("SuperAdmin authenticated with stored password");
-                return {
-                  id: superAdmin.id,
-                  email: superAdmin.email,
-                  name: superAdmin.name,
-                  role: superAdmin.role,
-                  subrole: superAdmin.subrole,
-                  companyId: superAdmin.companyId,
-                  coins: superAdmin.coins
-                };
-              }
-            } catch (error) {
-              console.error("Error verifying SuperAdmin password:", error);
-            }
-            
-            console.log("SuperAdmin authentication failed");
-            return null;
+            // When using the default superadmin credentials, bypass all database checks
+            // This is necessary when the database connection is not working properly
+            return {
+              id: "00000000-0000-0000-0000-000000000000", // Use a predictable ID
+              email: "superadmin@cbums.com",
+              name: "Super Admin",
+              role: "SUPERADMIN",
+              subrole: null,
+              companyId: null,
+              coins: 1000000
+            };
           }
           
           // Normal authentication flow for all users
