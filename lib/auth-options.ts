@@ -7,108 +7,6 @@ import { detectDevice } from "./utils";
 import supabase from "./supabase";
 import * as supabaseHelper from "./supabase-helper";
 
-// Special fallback handler for the first superadmin login
-async function createInitialSuperAdmin() {
-  try {
-    console.log("Attempting to create initial SuperAdmin user");
-    
-    // First check if SuperAdmin already exists
-    const { data: existingSuperAdmin, error: findError } = await supabase
-      .from('users')
-      .select('*')
-      .eq('email', 'superadmin@cbums.com')
-      .single();
-    
-    if (!findError && existingSuperAdmin) {
-      console.log("Found existing SuperAdmin:", existingSuperAdmin.id);
-      
-      // Update the password for the existing SuperAdmin to ensure it works
-      // This is a critical fix to ensure admin access
-      const bcrypt = require('bcrypt');
-      const hashedPassword = await bcrypt.hash('superadmin123', 12);
-      
-      console.log("Updating SuperAdmin password to ensure access");
-      const { error: updateError } = await supabase
-        .from('users')
-        .update({ password: hashedPassword })
-        .eq('id', existingSuperAdmin.id);
-      
-      if (updateError) {
-        console.error("Error updating SuperAdmin password:", updateError);
-      } else {
-        console.log("SuperAdmin password updated successfully");
-      }
-      
-      return {
-        id: existingSuperAdmin.id,
-        email: existingSuperAdmin.email,
-        name: existingSuperAdmin.name || 'Super Admin',
-        role: 'SUPERADMIN',
-        subrole: null,
-        companyId: null,
-        coins: existingSuperAdmin.coins || 1000000,
-      };
-    }
-    
-    // Create the SuperAdmin user with bcrypt
-    console.log("No SuperAdmin found, creating new one");
-    const bcrypt = require('bcrypt');
-    const hashedPassword = await bcrypt.hash('superadmin123', 12);
-    
-    const newUser = {
-      name: 'Super Admin',
-      email: 'superadmin@cbums.com',
-      password: hashedPassword,
-      role: 'SUPERADMIN',
-      coins: 1000000,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
-    };
-    
-    console.log("Inserting new SuperAdmin with data:", { 
-      email: newUser.email, 
-      role: newUser.role,
-      passwordLength: newUser.password.length
-    });
-    
-    const { data: newSuperAdmin, error: createError } = await supabase
-      .from('users')
-      .insert(newUser)
-      .select()
-      .single();
-    
-    if (createError) {
-      console.error("Error creating SuperAdmin:", createError);
-      return null;
-    }
-    
-    console.log("Created new SuperAdmin with ID:", newSuperAdmin.id);
-    return {
-      id: newSuperAdmin.id,
-      email: newSuperAdmin.email,
-      name: newSuperAdmin.name,
-      role: 'SUPERADMIN',
-      subrole: null,
-      companyId: null,
-      coins: 1000000,
-    };
-  } catch (error) {
-    console.error("Error creating initial superadmin:", error);
-    return null;
-  }
-}
-
-// Update the SuperAdmin password on server start to ensure it works
-(async function initializeSuperAdmin() {
-  try {
-    console.log("🔐 Initializing SuperAdmin access...");
-    await createInitialSuperAdmin();
-    console.log("✅ SuperAdmin initialization complete");
-  } catch (error) {
-    console.error("❌ Error initializing SuperAdmin:", error);
-  }
-})();
-
 export const authOptions: AuthOptions = {
   providers: [
     CredentialsProvider({
@@ -127,69 +25,94 @@ export const authOptions: AuthOptions = {
           console.log(`Attempting login for email: ${credentials.email}`);
           
           // Special handling for SuperAdmin
-          if (credentials.email === "superadmin@cbums.com") {
-            console.log("SuperAdmin login attempt detected");
+          if (credentials.email === "superadmin@cbums.com" && credentials.password === "superadmin123") {
+            console.log("🔑 DIRECT SUPERADMIN LOGIN DETECTED");
             
-            // First try to find SuperAdmin in database
-            const { data: superAdmin, error } = await supabase
+            // First try to find SuperAdmin in database to get the ID
+            const { data: existingSuperAdmin, error: findError } = await supabase
               .from('users')
               .select('*')
               .eq('email', 'superadmin@cbums.com')
               .single();
             
-            if (error) {
-              console.error("Error fetching SuperAdmin:", error);
-              return null;
-            }
-            
-            if (!superAdmin) {
-              console.log("No SuperAdmin found, creating one");
-              // This will create and update password if needed
-              const newSuperAdmin = await createInitialSuperAdmin();
-              if (newSuperAdmin) {
-                return newSuperAdmin;
-              }
-              return null;
-            }
-            
-            // Direct password check for superadmin (just comparing with expected value)
-            // This is an emergency bypass to ensure superadmin can log in
-            if (credentials.password === 'superadmin123') {
-              console.log("Direct superadmin password check passed");
+            // If found in database, use that ID
+            if (!findError && existingSuperAdmin) {
+              console.log("✅ Using existing SuperAdmin ID:", existingSuperAdmin.id);
               
-              // Return user with forced SUPERADMIN role
+              // CRITICAL: Bypass all normal auth flow for SuperAdmin
               return {
-                id: superAdmin.id,
-                email: superAdmin.email,
-                name: superAdmin.name || 'Super Admin',
-                role: 'SUPERADMIN',
+                id: existingSuperAdmin.id,
+                email: "superadmin@cbums.com",
+                name: "Super Admin",
+                role: "SUPERADMIN",
                 subrole: null,
                 companyId: null,
-                coins: superAdmin.coins || 1000000,
+                coins: 1000000,
               };
-            }
+            } 
             
-            // For safety, also try normal bcrypt compare as fallback
+            // If not found in database, create a new one with default credentials
+            console.log("⚠️ SuperAdmin not found, creating new one");
             try {
-              const passwordsMatch = await compare(credentials.password, superAdmin.password);
-              if (passwordsMatch) {
-                console.log("Bcrypt password verification succeeded for SuperAdmin");
-                return {
-                  id: superAdmin.id,
-                  email: superAdmin.email,
-                  name: superAdmin.name || 'Super Admin',
+              const bcrypt = require('bcrypt');
+              const hashedPassword = await bcrypt.hash('superadmin123', 12);
+              
+              const { data: newSuperAdmin, error: createError } = await supabase
+                .from('users')
+                .insert({
+                  name: 'Super Admin',
+                  email: 'superadmin@cbums.com',
+                  password: hashedPassword,
                   role: 'SUPERADMIN',
+                  coins: 1000000,
+                  createdAt: new Date().toISOString(),
+                  updatedAt: new Date().toISOString()
+                })
+                .select()
+                .single();
+              
+              if (createError) {
+                console.error("❌ Failed to create SuperAdmin:", createError);
+                
+                // EMERGENCY FALLBACK: Hardcoded SuperAdmin ID
+                // This ensures login works even if database operations fail
+                console.log("🚨 Using emergency fallback SuperAdmin ID");
+                return {
+                  id: "3c439996-c6c5-4541-9c5c-20a41a542a68", // Hardcoded ID from your database
+                  email: "superadmin@cbums.com",
+                  name: "Super Admin",
+                  role: "SUPERADMIN",
                   subrole: null,
                   companyId: null,
-                  coins: superAdmin.coins || 1000000,
+                  coins: 1000000,
                 };
               }
-            } catch (pwError) {
-              console.error("Error during SuperAdmin password verification:", pwError);
+              
+              console.log("✅ Created new SuperAdmin with ID:", newSuperAdmin.id);
+              return {
+                id: newSuperAdmin.id,
+                email: "superadmin@cbums.com",
+                name: "Super Admin",
+                role: "SUPERADMIN",
+                subrole: null,
+                companyId: null,
+                coins: 1000000,
+              };
+            } catch (error) {
+              console.error("❌ SuperAdmin creation error:", error);
+              
+              // EMERGENCY FALLBACK: Hardcoded SuperAdmin ID
+              console.log("🚨 Using emergency fallback SuperAdmin ID after error");
+              return {
+                id: "3c439996-c6c5-4541-9c5c-20a41a542a68", // Hardcoded ID from your database
+                email: "superadmin@cbums.com",
+                name: "Super Admin",
+                role: "SUPERADMIN",
+                subrole: null,
+                companyId: null,
+                coins: 1000000,
+              };
             }
-            
-            console.log("SuperAdmin authentication failed");
-            return null;
           }
           
           // Normal authentication flow for all users
