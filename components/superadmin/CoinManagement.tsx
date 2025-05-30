@@ -52,11 +52,12 @@ interface AdminUser {
 interface Transaction {
   id: string;
   amount: number;
-  fromUserId: string;
-  toUserId: string;
+  from_user_id: string;
+  to_user_id: string;
   reason: string;
   notes?: string;
-  createdAt: string;
+  created_at: string;
+  updated_at: string;
   fromUser?: {
     name: string;
     email: string;
@@ -155,10 +156,10 @@ export default function CoinManagement() {
         .from('coin_transactions')
         .select(`
           *,
-          fromUser:users!coin_transactions_fromUserId_fkey(id, name, email),
-          toUser:users!coin_transactions_toUserId_fkey(id, name, email)
+          fromUser:users!coin_transactions_from_user_id_fkey(id, name, email),
+          toUser:users!coin_transactions_to_user_id_fkey(id, name, email)
         `)
-        .order('createdAt', { ascending: false })
+        .order('created_at', { ascending: false })
         .limit(20);
       
       if (error) throw new Error(error.message);
@@ -184,8 +185,8 @@ export default function CoinManagement() {
       // Prepare the payload
       const transactionData = {
         amount: values.amount,
-        fromUserId: isTakingCoins ? values.adminId : session.user.id,
-        toUserId: isTakingCoins ? session.user.id : values.adminId,
+        from_user_id: isTakingCoins ? values.adminId : session.user.id,
+        to_user_id: isTakingCoins ? session.user.id : values.adminId,
         reason: values.reason,
         notes: values.notes || undefined
       };
@@ -246,19 +247,19 @@ export default function CoinManagement() {
   };
 
   const getTransactionDescription = (transaction: Transaction): string => {
-    const isReceived = transaction.toUserId === session?.user?.id;
+    const isReceived = transaction.to_user_id === session?.user?.id;
     const otherParty = isReceived ? transaction.fromUser : transaction.toUser;
     
     return `${isReceived ? 'Received from' : 'Sent to'} ${otherParty?.name || 'Unknown'}`;
   };
 
   const getTransactionAmount = (transaction: Transaction): string => {
-    const isReceived = transaction.toUserId === session?.user?.id;
+    const isReceived = transaction.to_user_id === session?.user?.id;
     return `${isReceived ? '+' : '-'}${transaction.amount}`;
   };
 
   const getTransactionColor = (transaction: Transaction): string => {
-    const isReceived = transaction.toUserId === session?.user?.id;
+    const isReceived = transaction.to_user_id === session?.user?.id;
     return isReceived ? 'success.main' : 'error.main';
   };
 
@@ -499,7 +500,7 @@ export default function CoinManagement() {
                         <Box sx={{ display: 'flex', alignItems: 'center' }}>
                           <Calendar size={14} style={{ marginRight: '4px' }} />
                           <Typography variant="body2">
-                            {formatDate(transaction.createdAt)}
+                            {formatDate(transaction.created_at)}
                           </Typography>
                         </Box>
                       </TableCell>

@@ -44,10 +44,13 @@ async function handler(req: NextRequest) {
       amount: transaction.amount,
       fromUserId: transaction.from_user_id,
       toUserId: transaction.to_user_id,
+      from_user_id: transaction.from_user_id,
+      to_user_id: transaction.to_user_id,
       reason: transaction.reason,
       notes: transaction.notes,
       createdAt: transaction.created_at,
-      updatedAt: transaction.updated_at,
+      created_at: transaction.created_at,
+      updated_at: transaction.updated_at,
       fromUser: transaction.fromUser,
       toUser: transaction.toUser
     })) || [];

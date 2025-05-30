@@ -37,14 +37,14 @@ import { supabase } from "@/lib/supabase";
 
 interface ActivityLog {
   id: string;
-  userId: string;
+  user_id: string;
   action: string;
-  targetResourceType: string;
-  targetResourceId: string;
+  target_resource_type: string;
+  target_resource_id: string;
   details: any;
-  ipAddress: string;
-  userAgent: string;
-  createdAt: string;
+  ip_address: string;
+  user_agent: string;
+  created_at: string;
   user?: {
     id: string;
     name: string;
@@ -82,9 +82,9 @@ export default function ActivityLogsTab() {
         .from('activity_logs')
         .select(`
           *,
-          user:users(*)
+          user:users!activity_logs_user_id_fkey(*)
         `, { count: 'exact' })
-        .order('createdAt', { ascending: false })
+        .order('created_at', { ascending: false })
         .range(page * rowsPerPage, (page + 1) * rowsPerPage - 1);
       
       // Apply action filter
@@ -94,7 +94,7 @@ export default function ActivityLogsTab() {
       
       // Apply resource type filter
       if (filterResourceType !== "all") {
-        query = query.eq('targetResourceType', filterResourceType);
+        query = query.eq('target_resource_type', filterResourceType);
       }
       
       // Apply search if provided
@@ -132,12 +132,12 @@ export default function ActivityLogsTab() {
       // Fetch unique resource types
       const { data: resourceTypeData, error: resourceTypeError } = await supabase
         .from('activity_logs')
-        .select('targetResourceType')
-        .order('targetResourceType');
+        .select('target_resource_type')
+        .order('target_resource_type');
       
       if (resourceTypeError) throw new Error(resourceTypeError.message);
       
-      const uniqueResourceTypes = Array.from(new Set(resourceTypeData?.map(item => item.targetResourceType).filter(Boolean) || []));
+      const uniqueResourceTypes = Array.from(new Set(resourceTypeData?.map(item => item.target_resource_type).filter(Boolean) || []));
       setResourceTypes(uniqueResourceTypes);
     } catch (err) {
       console.error('Error fetching filter options:', err);
@@ -376,10 +376,10 @@ export default function ActivityLogsTab() {
                   </TableCell>
                   <TableCell>
                     <Typography variant="body2">
-                      {log.targetResourceType || "N/A"}
+                      {log.target_resource_type || "N/A"}
                     </Typography>
                     <Typography variant="caption" color="text.secondary">
-                      ID: {log.targetResourceId ? log.targetResourceId.substring(0, 8) + '...' : "N/A"}
+                      ID: {log.target_resource_id ? log.target_resource_id.substring(0, 8) + '...' : "N/A"}
                     </Typography>
                   </TableCell>
                   <TableCell>
@@ -397,17 +397,17 @@ export default function ActivityLogsTab() {
                       <Calendar size={14} style={{ marginRight: '4px' }} />
                       <Box>
                         <Typography variant="body2">
-                          {formatDate(log.createdAt)}
+                          {formatDate(log.created_at)}
                         </Typography>
                         <Typography variant="caption" color="text.secondary">
-                          {formatTimeAgo(log.createdAt)}
+                          {formatTimeAgo(log.created_at)}
                         </Typography>
                       </Box>
                     </Box>
                   </TableCell>
                   <TableCell>
                     <Typography variant="body2">
-                      {log.ipAddress || "N/A"}
+                      {log.ip_address || "N/A"}
                     </Typography>
                   </TableCell>
                 </TableRow>
