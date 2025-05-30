@@ -23,6 +23,17 @@ export default async function DashboardPage({
   // Get session data
   const session = await getServerSession(authOptions);
   
+  // Debug session data
+  console.log("Dashboard page - Session data:", {
+    hasSession: !!session,
+    user: session?.user ? {
+      id: session.user.id,
+      name: session.user.name,
+      email: session.user.email,
+      role: session.user.role
+    } : null
+  });
+  
   // Extract tab parameter if present
   const tab = searchParams?.tab as string | undefined;
   

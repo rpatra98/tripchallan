@@ -12,6 +12,15 @@ export default async function Home({
   // Get authentication session
   const session = await getServerSession(authOptions);
   
+  // Debug session issues
+  console.log("Home page - Session check:", {
+    hasSession: !!session,
+    user: session?.user ? {
+      id: session.user.id,
+      role: session.user.role
+    } : null
+  });
+  
   // Extract searchParams using correct async method
   const callbackUrl = typeof searchParams?.callbackUrl === 'string' 
     ? searchParams.callbackUrl 

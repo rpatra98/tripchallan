@@ -125,14 +125,23 @@ export const authOptions: AuthOptions = {
             
             try {
               // Try with Supabase first
+              console.log("Attempting to find SuperAdmin in Supabase");
               const { data: superAdmin, error } = await supabase
                 .from('users')
                 .select('*')
                 .eq('email', credentials.email)
                 .single();
               
+              if (error) {
+                console.error("Error finding SuperAdmin in Supabase:", error);
+              }
+              
               if (!error && superAdmin) {
-                console.log("SuperAdmin found using Supabase");
+                console.log("SuperAdmin found using Supabase:", {
+                  id: superAdmin.id, 
+                  role: superAdmin.role,
+                  name: superAdmin.name
+                });
                 return {
                   id: superAdmin.id,
                   email: superAdmin.email,
@@ -148,7 +157,7 @@ export const authOptions: AuthOptions = {
               const fallbackSuperAdmin = await createInitialSuperAdmin();
               
               if (fallbackSuperAdmin) {
-                console.log("SuperAdmin found/created");
+                console.log("SuperAdmin found/created:", fallbackSuperAdmin);
                 return fallbackSuperAdmin;
               }
               

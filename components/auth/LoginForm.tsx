@@ -66,12 +66,20 @@ export default function LoginForm({ callbackUrl, initialError, forceLogout, need
     setIsLoading(true);
 
     try {
+      console.log("Attempting login for:", email);
       // Explicitly stringify and encode credentials to avoid JSON parsing issues
       const result = await signIn("credentials", {
         email,
         password,
         redirect: false,
         callbackUrl: callbackUrl || "/dashboard"
+      });
+
+      console.log("Login result:", {
+        success: !!result?.ok,
+        hasError: !!result?.error,
+        error: result?.error || "none",
+        url: result?.url || "none"
       });
 
       if (result?.error) {
