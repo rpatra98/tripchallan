@@ -10,88 +10,69 @@ import * as supabaseHelper from "./supabase-helper";
 // Special fallback handler for the first superadmin login
 async function createInitialSuperAdmin() {
   try {
-    // Check if any SuperAdmin exists
-    const { data: superAdmins, error: countError } = await supabase
-      .from('users')
-      .select('count')
-      .eq('role', 'SUPERADMIN');
+    console.log("Attempting to create initial SuperAdmin user");
     
-    if (countError) {
-      console.error("Error checking for SuperAdmin:", countError);
-      return null;
-    }
-    
-    const superAdminCount = superAdmins.length;
-    
-    if (superAdminCount === 0) {
-      console.log("No SuperAdmin found, creating one");
-      // Create the SuperAdmin user with bcrypt
-      const bcrypt = require('bcrypt');
-      const hashedPassword = await bcrypt.hash('superadmin123', 12);
-      
-      const { data: newSuperAdmin, error: createError } = await supabase
-        .from('users')
-        .insert({
-          name: 'Super Admin',
-          email: 'superadmin@cbums.com',
-          password: hashedPassword,
-          role: 'SUPERADMIN',
-          coins: 1000000,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString()
-        })
-        .select()
-        .single();
-      
-      if (createError) {
-        console.error("Error creating SuperAdmin:", createError);
-        return null;
-      }
-      
-      console.log("Created SuperAdmin:", newSuperAdmin.id);
-      return {
-        id: newSuperAdmin.id,
-        email: newSuperAdmin.email,
-        name: newSuperAdmin.name,
-        role: 'SUPERADMIN',
-        subrole: null,
-        companyId: null,
-        coins: 1000000,
-      };
-    }
-    
-    // If we have a superadmin but couldn't find it with main client
-    const { data: superAdmin, error: findError } = await supabase
+    // First check if SuperAdmin already exists
+    const { data: existingSuperAdmin, error: findError } = await supabase
       .from('users')
       .select('*')
       .eq('email', 'superadmin@cbums.com')
       .single();
     
-    if (findError) {
-      console.error("Error finding SuperAdmin:", findError);
-      return null;
-    }
-    
-    if (superAdmin) {
+    if (!findError && existingSuperAdmin) {
+      console.log("Found existing SuperAdmin:", existingSuperAdmin.id);
       return {
-        id: superAdmin.id,
-        email: superAdmin.email,
-        name: superAdmin.name,
+        id: existingSuperAdmin.id,
+        email: existingSuperAdmin.email,
+        name: existingSuperAdmin.name,
         role: 'SUPERADMIN',
         subrole: null,
         companyId: null,
-        coins: superAdmin.coins || 1000000,
+        coins: existingSuperAdmin.coins || 1000000,
       };
     }
     
-    return null;
+    // Create the SuperAdmin user with bcrypt
+    console.log("No SuperAdmin found, creating new one");
+    const bcrypt = require('bcrypt');
+    const hashedPassword = await bcrypt.hash('superadmin123', 12);
+    
+    const { data: newSuperAdmin, error: createError } = await supabase
+      .from('users')
+      .insert({
+        name: 'Super Admin',
+        email: 'superadmin@cbums.com',
+        password: hashedPassword,
+        role: 'SUPERADMIN',
+        coins: 1000000,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      })
+      .select()
+      .single();
+    
+    if (createError) {
+      console.error("Error creating SuperAdmin:", createError);
+      return null;
+    }
+    
+    console.log("Created new SuperAdmin with ID:", newSuperAdmin.id);
+    return {
+      id: newSuperAdmin.id,
+      email: newSuperAdmin.email,
+      name: newSuperAdmin.name,
+      role: 'SUPERADMIN',
+      subrole: null,
+      companyId: null,
+      coins: 1000000,
+    };
   } catch (error) {
     console.error("Error creating initial superadmin:", error);
     return null;
   }
 }
 
-// Hardcoded SuperAdmin fallback - use when database is completely unreachable
+// Hardcoded SuperAdmin fallback - use only when database is completely unreachable
 const HARDCODED_SUPERADMIN = {
   id: "00000000-0000-0000-0000-000000000000",
   name: "Emergency Super Admin",
@@ -124,45 +105,19 @@ export const authOptions: AuthOptions = {
             console.log("SuperAdmin login with default credentials detected");
             
             try {
-              // Try with Supabase first
-              console.log("Attempting to find SuperAdmin in Supabase");
-              const { data: superAdmin, error } = await supabase
-                .from('users')
-                .select('*')
-                .eq('email', credentials.email)
-                .single();
+              // Try to find or create a real SuperAdmin user (not the emergency one)
+              console.log("Attempting to find or create a real SuperAdmin user");
               
-              if (error) {
-                console.error("Error finding SuperAdmin in Supabase:", error);
-              }
+              // Create a real SuperAdmin if it doesn't exist yet
+              const superAdmin = await createInitialSuperAdmin();
               
-              if (!error && superAdmin) {
-                console.log("SuperAdmin found using Supabase:", {
-                  id: superAdmin.id, 
-                  role: superAdmin.role,
-                  name: superAdmin.name
-                });
-                return {
-                  id: superAdmin.id,
-                  email: superAdmin.email,
-                  name: superAdmin.name,
-                  role: 'SUPERADMIN',
-                  subrole: null,
-                  companyId: null,
-                  coins: superAdmin.coins || 1000000,
-                };
-              }
-              
-              console.log("SuperAdmin not found, trying to create...");
-              const fallbackSuperAdmin = await createInitialSuperAdmin();
-              
-              if (fallbackSuperAdmin) {
-                console.log("SuperAdmin found/created:", fallbackSuperAdmin);
-                return fallbackSuperAdmin;
+              if (superAdmin) {
+                console.log("Using real SuperAdmin account:", superAdmin.id);
+                return superAdmin;
               }
               
               // Last resort - use hardcoded superadmin
-              console.log("Using emergency hardcoded SuperAdmin credentials");
+              console.log("Failed to create/find SuperAdmin, using emergency hardcoded SuperAdmin credentials");
               return HARDCODED_SUPERADMIN;
             } catch (superAdminError) {
               console.error("All SuperAdmin authentication methods failed:", superAdminError);
