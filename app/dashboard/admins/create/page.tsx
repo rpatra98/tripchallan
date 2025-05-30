@@ -2,7 +2,7 @@
 
 import { useState, useContext } from "react";
 import { useRouter } from "next/navigation";
-import { UserRole } from "@/prisma/enums";
+import { UserRole } from "@/lib/enums";
 import { FaEye, FaEyeSlash } from "react-icons/fa";
 import { useSession } from "next-auth/react";
 import { SessionUpdateContext } from "@/app/dashboard/layout";
@@ -54,7 +54,7 @@ export default function CreateAdminPage() {
     }
 
     try {
-      const response = await fetch("/api/users/create", {
+      const response = await fetch("/api/admins/create", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -63,7 +63,6 @@ export default function CreateAdminPage() {
           name: formData.name,
           email: formData.email,
           password: formData.password,
-          role: UserRole.ADMIN,
           coins: formData.coins, // Include coins in the request
         }),
       });
@@ -74,35 +73,28 @@ export default function CreateAdminPage() {
         throw new Error(data.error || "Failed to create admin");
       }
 
-      // Refresh the session to update the balance in the navbar
-      if (formData.coins > 0) {
-        // First directly fetch the updated user data
-        const userResponse = await fetch('/api/users/me');
-        const userData = await userResponse.json();
-        
-        // Update the NextAuth session explicitly with the new coin balance
-        if (session && updateSession) {
-          await updateSession({
-            ...session,
-            user: {
-              ...session.user,
-              coins: userData.coins,
-            }
-          });
-        }
+      // Update the session with new coin balance from response
+      if (session && updateSession && data.superAdminCoins !== undefined) {
+        await updateSession({
+          ...session,
+          user: {
+            ...session.user,
+            coins: data.superAdminCoins,
+          }
+        });
         
         // Also call the refreshUserSession to ensure UI updates
         await refreshUserSession();
         
         // Show success message with coin details
-        alert(`Admin created successfully!\n\nEmail: ${data.user.email}\nPassword: ${formData.password}\n\nYou allocated ${formData.coins} coins to ${formData.name}.\nYour current balance: ${userData.coins} coins.`);
+        alert(`Admin created successfully!\n\nEmail: ${data.admin.email}\nPassword: ${formData.password}\n\nYou allocated ${formData.coins} coins to ${formData.name}.\nYour current balance: ${data.superAdminCoins} coins.`);
       } else {
         // Show regular success message
-        alert(`Admin created successfully!\n\nEmail: ${data.user.email}\nPassword: ${formData.password}`);
+        alert(`Admin created successfully!\n\nEmail: ${data.admin.email}\nPassword: ${formData.password}`);
       }
 
-      // Redirect to dashboard on success - use window.location for a full refresh
-      window.location.href = "/dashboard";
+      // Redirect to dashboard
+      router.push("/dashboard/superadmin");
     } catch (err) {
       setError(err instanceof Error ? err.message : "An unknown error occurred");
     } finally {
