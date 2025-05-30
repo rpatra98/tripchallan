@@ -14,7 +14,8 @@
     "fix-permissions": "node scripts/db/fix-permissions.js",
     "vercel-build": "node scripts/db/fix-permissions.js && next build",
     "check-dirs": "node scripts/check-directories.js",
-    "fix-images": "node scripts/fix-image-paths.js"
+    "fix-images": "node scripts/fix-image-paths.js",
+    "supabase:reset": "node scripts/supabase-reset.js"
   },
   "dependencies": {
     "@emotion/react": "^11.14.0",

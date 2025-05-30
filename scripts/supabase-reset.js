@@ -1,6 +1,7 @@
 const { createClient } = require('@supabase/supabase-js');
 const dotenv = require('dotenv');
 const bcrypt = require('bcrypt');
+const { exec } = require('child_process');
 
 // Load environment variables
 dotenv.config();
@@ -136,9 +137,9 @@ async function createSuperAdmin() {
 }
 
 // Main function to run the wipe and seed
-async function wipeAndSeed() {
+async function resetAndStartApp() {
   try {
-    console.log('🔄 Starting database reset process...');
+    console.log('🔄 Starting Supabase database reset process...');
     
     // First wipe the database
     const wipeSuccess = await wipeDatabase();
@@ -153,13 +154,22 @@ async function wipeAndSeed() {
       process.exit(1);
     }
     
-    console.log('✅ Database wipe and seed completed successfully');
-    process.exit(0);
+    console.log('✅ Database reset and seed completed successfully');
+    
+    // Start the development server
+    console.log('🚀 Starting development server...');
+    exec('npm run dev', (err, stdout, stderr) => {
+      if (err) {
+        console.error('Error starting development server:', err);
+        return;
+      }
+      console.log(stdout);
+    });
   } catch (error) {
-    console.error('Fatal error during wipe and seed operation:', error);
+    console.error('Fatal error during reset operation:', error);
     process.exit(1);
   }
 }
 
-// Run the wipe and seed operation
-wipeAndSeed(); 
+// Run the reset and start operation
+resetAndStartApp(); 
