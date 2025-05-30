@@ -1,29 +1,45 @@
 import { NextRequest, NextResponse } from "next/server";
 import { withAuth } from "@/lib/auth";
-import { supabase } from "@/lib/supabase";
+import supabase from "@/lib/supabase";
 import { UserRole } from "@/lib/enums";
 import * as bcrypt from "bcrypt";
 import { ActivityAction } from "@/lib/enums";
 import { addActivityLog } from "@/lib/activity-logger";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth-options";
 
 async function handler(req: NextRequest) {
   try {
-    const body = await req.json();
-    const { name, email, password, coins = 0 } = body;
+    console.log("Admin creation handler - starting request");
     
-    // Get the current session/user making the request
-    const { data: sessionData } = await supabase.auth.getSession();
-    const session = sessionData?.session;
-
-    if (!session) {
+    // Get session from NextAuth instead of Supabase
+    const session = await getServerSession(authOptions);
+    console.log("Session obtained:", session ? "Yes" : "No", "User:", session?.user?.email);
+    
+    if (!session || !session.user) {
+      console.log("Authentication failed: No session or user");
       return NextResponse.json(
-        { error: "Unauthorized" },
+        { error: "Authentication required" },
         { status: 401 }
       );
     }
 
+    // Make sure this is the SuperAdmin
+    if (session.user.role !== UserRole.SUPERADMIN) {
+      console.log(`Authorization failed: User role ${session.user.role} is not SUPERADMIN`);
+      return NextResponse.json(
+        { error: "Only SuperAdmin can create admin users" },
+        { status: 403 }
+      );
+    }
+
+    const body = await req.json();
+    const { name, email, password, coins = 0 } = body;
+    console.log("Request body parsed:", { name, email, passwordLength: password?.length, coins });
+
     // Validate required fields
     if (!name || !email || !password) {
+      console.log("Validation failed: Missing required fields");
       return NextResponse.json(
         { error: "Name, email, and password are required" },
         { status: 400 }
@@ -31,10 +47,11 @@ async function handler(req: NextRequest) {
     }
 
     // Get SuperAdmin user details to check coins
+    console.log("Fetching SuperAdmin details for email:", session.user.email);
     const { data: superAdmin, error: superAdminError } = await supabase
       .from('users')
       .select('id, coins')
-      .eq('email', 'superadmin@cbums.com')
+      .eq('email', session.user.email)
       .single();
 
     if (superAdminError) {
@@ -45,8 +62,11 @@ async function handler(req: NextRequest) {
       );
     }
 
+    console.log("SuperAdmin found:", superAdmin.id, "Coins:", superAdmin.coins);
+
     // Check if SuperAdmin has enough coins
     if (superAdmin.coins < coins) {
+      console.log(`Insufficient coins: ${superAdmin.coins} available, ${coins} requested`);
       return NextResponse.json(
         { error: `Insufficient coins. You have ${superAdmin.coins} coins, but ${coins} are needed.` },
         { status: 400 }
@@ -54,6 +74,7 @@ async function handler(req: NextRequest) {
     }
 
     // Check if email already exists
+    console.log("Checking if email already exists:", email);
     const { data: existingUser, error: checkError } = await supabase
       .from('users')
       .select('id')
@@ -69,6 +90,7 @@ async function handler(req: NextRequest) {
     }
 
     if (existingUser) {
+      console.log("Email already in use:", email);
       return NextResponse.json(
         { error: "Email already in use" },
         { status: 400 }
@@ -77,6 +99,7 @@ async function handler(req: NextRequest) {
 
     // Start a transaction to ensure both operations succeed or fail together
     // First deduct coins from SuperAdmin
+    console.log("Deducting coins from SuperAdmin:", coins);
     const { data: updatedSuperAdmin, error: updateError } = await supabase
       .from('users')
       .update({ 
@@ -95,10 +118,14 @@ async function handler(req: NextRequest) {
       );
     }
 
+    console.log("SuperAdmin coins updated. New balance:", updatedSuperAdmin.coins);
+
     // Hash the password
     const hashedPassword = await bcrypt.hash(password, 12);
+    console.log("Password hashed successfully");
 
     // Create the admin user
+    console.log("Creating new admin user");
     const { data: newAdmin, error: createError } = await supabase
       .from('users')
       .insert({
@@ -117,20 +144,24 @@ async function handler(req: NextRequest) {
 
     if (createError) {
       // If admin creation fails, revert the coin deduction
+      console.error("Error creating admin:", createError);
+      console.log("Reverting coin deduction due to error");
       await supabase
         .from('users')
         .update({ coins: superAdmin.coins })
         .eq('id', superAdmin.id);
 
-      console.error("Error creating admin:", createError);
       return NextResponse.json(
         { error: createError.message },
         { status: 500 }
       );
     }
 
+    console.log("Admin created successfully:", newAdmin.id);
+
     // Log the activity
     try {
+      console.log("Logging admin creation activity");
       await addActivityLog({
         userId: superAdmin.id,
         action: ActivityAction.CREATE,
@@ -149,12 +180,13 @@ async function handler(req: NextRequest) {
 
     // Return the new admin without the password and with updated SuperAdmin coins
     const { password: _, ...adminWithoutPassword } = newAdmin;
+    console.log("Admin creation successful. Returning response with new SuperAdmin balance:", updatedSuperAdmin.coins);
     return NextResponse.json({
       admin: adminWithoutPassword,
       superAdminCoins: updatedSuperAdmin.coins
     }, { status: 201 });
   } catch (error: unknown) {
-    console.error("Error creating admin:", error);
+    console.error("Unexpected error in admin creation:", error);
     return NextResponse.json(
       { error: "Failed to create admin" },
       { status: 500 }
