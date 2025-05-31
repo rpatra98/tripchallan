@@ -40,7 +40,7 @@ import {
   Delete
 } from "@mui/icons-material";
 import Link from "next/link";
-import { EmployeeSubrole } from "@/prisma/enums";
+import { EmployeeSubrole } from "@/lib/enums";
 import { SessionUpdateContext } from "@/app/dashboard/layout";
 import ClientSideQrScanner from "@/app/components/ClientSideQrScanner";
 import SimpleQrScanner from "@/app/components/SimpleQrScanner";

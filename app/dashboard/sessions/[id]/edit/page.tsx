@@ -31,7 +31,7 @@ import {
   Clear
 } from "@mui/icons-material";
 import Link from "next/link";
-import { EmployeeSubrole } from "@/prisma/enums";
+import { EmployeeSubrole } from "@/lib/enums";
 import { SessionUpdateContext } from "@/app/dashboard/layout";
 
 type SessionDetails = {

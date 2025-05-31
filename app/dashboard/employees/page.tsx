@@ -32,7 +32,7 @@ import {
   DialogTitle
 } from "@mui/material";
 import { Add, Person, Search, Delete } from "@mui/icons-material";
-import { UserRole } from "@/prisma/enums";
+import { UserRole } from "@/lib/enums";
 
 interface Employee {
   id: string;
