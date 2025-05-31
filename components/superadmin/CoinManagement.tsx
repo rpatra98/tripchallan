@@ -52,11 +52,11 @@ interface AdminUser {
 interface Transaction {
   id: string;
   amount: number;
-  fromUserId: string;
-  toUserId: string;
+  from_user_id: string;
+  to_user_id: string;
   notes?: string;
-  createdAt: string;
-  updatedAt: string;
+  created_at: string;
+  updated_at: string;
   fromUser?: {
     name: string;
     email: string;
@@ -253,7 +253,7 @@ export default function CoinManagement() {
       const { data: transactionData, error: transactionError } = await supabase
         .from('coin_transactions')
         .select('*')
-        .order('createdAt', { ascending: false })
+        .order('created_at', { ascending: false })
         .limit(20);
       
       console.log('Transaction query response:', { data: transactionData, error: transactionError });
@@ -277,8 +277,8 @@ export default function CoinManagement() {
       // Collect all user IDs from transactions
       const userIds = new Set<string>();
       transactionData.forEach(transaction => {
-        if (transaction.fromUserId) userIds.add(transaction.fromUserId);
-        if (transaction.toUserId) userIds.add(transaction.toUserId);
+        if (transaction.from_user_id) userIds.add(transaction.from_user_id);
+        if (transaction.to_user_id) userIds.add(transaction.to_user_id);
       });
       
       console.log('Collecting user details for IDs:', Array.from(userIds));
@@ -303,8 +303,8 @@ export default function CoinManagement() {
       
       // Combine transaction data with user details
       const enrichedTransactions = transactionData.map(transaction => {
-        const fromUser = transaction.fromUserId ? userMap.get(transaction.fromUserId) : null;
-        const toUser = transaction.toUserId ? userMap.get(transaction.toUserId) : null;
+        const fromUser = transaction.from_user_id ? userMap.get(transaction.from_user_id) : null;
+        const toUser = transaction.to_user_id ? userMap.get(transaction.to_user_id) : null;
         
         return {
           ...transaction,
@@ -336,8 +336,8 @@ export default function CoinManagement() {
       // Prepare the payload
       const transactionData = {
         amount: values.amount,
-        fromUserId: isTakingCoins ? values.adminId : session.user.id,
-        toUserId: isTakingCoins ? session.user.id : values.adminId,
+        from_user_id: isTakingCoins ? values.adminId : session.user.id,
+        to_user_id: isTakingCoins ? session.user.id : values.adminId,
         notes: values.notes || undefined
       };
 
@@ -394,6 +394,32 @@ export default function CoinManagement() {
     } catch (error) {
       return dateString;
     }
+  };
+
+  // Helper function to determine transaction type
+  const getTransactionType = (transaction: Transaction) => {
+    // System transaction (same from/to)
+    if (transaction.from_user_id === transaction.to_user_id) {
+      return { type: "System", color: "info" as const };
+    } 
+    // Admin creation
+    else if (transaction.notes && transaction.notes.toLowerCase().includes('initial coin allocation')) {
+      return { type: "Admin Creation", color: "secondary" as const };
+    }
+    // Bonus allocation
+    else if (transaction.notes && transaction.notes.toLowerCase().includes('bonus')) {
+      return { type: "Bonus", color: "success" as const };
+    }
+    // Reclaiming coins
+    else if (transaction.notes && transaction.notes.toLowerCase().includes('reclaim')) {
+      return { type: "Reclaim", color: "warning" as const };
+    }
+    // Large allocation
+    else if (transaction.amount >= 50000) {
+      return { type: "Allocation", color: "primary" as const };
+    }
+    // Default
+    return { type: "Transfer", color: "default" as const };
   };
 
   if (!session?.user) {
@@ -607,29 +633,12 @@ export default function CoinManagement() {
                 </TableHead>
                 <TableBody>
                   {transactions.map((transaction) => {
-                    // Determine transaction type
-                    let transactionType = "Transfer";
-                    let chipColor: "default" | "primary" | "secondary" | "error" | "info" | "success" | "warning" = "default";
-                    
-                    // System transaction (same from/to)
-                    if (transaction.fromUserId === transaction.toUserId) {
-                      transactionType = "System";
-                      chipColor = "info";
-                    } 
-                    // Admin creation (check note content)
-                    else if (transaction.notes && transaction.notes.toLowerCase().includes('admin creation')) {
-                      transactionType = "Admin Creation";
-                      chipColor = "secondary";
-                    }
-                    // Large allocation
-                    else if (transaction.amount >= 50000) {
-                      transactionType = "Allocation";
-                      chipColor = "primary";
-                    }
+                    // Use the helper function to determine transaction type
+                    const { type: transactionType, color: chipColor } = getTransactionType(transaction);
                     
                     // Determine if the transaction is incoming or outgoing relative to the current user
-                    const isReceived = transaction.toUserId === session?.user?.id;
-                    const isOutgoing = transaction.fromUserId === session?.user?.id;
+                    const isReceived = transaction.to_user_id === session?.user?.id;
+                    const isOutgoing = transaction.from_user_id === session?.user?.id;
                     
                     // Get the other party in the transaction
                     const otherPartyUser = isReceived ? transaction.fromUser : transaction.toUser;
@@ -650,6 +659,11 @@ export default function CoinManagement() {
                              isOutgoing ? `To: ${otherParty}` : 
                              transactionType === "System" ? "System Adjustment" : otherParty}
                           </Typography>
+                          {transaction.notes && (
+                            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
+                              {transaction.notes}
+                            </Typography>
+                          )}
                         </TableCell>
                         <TableCell>
                           <Typography 
@@ -664,7 +678,7 @@ export default function CoinManagement() {
                           <Box sx={{ display: 'flex', alignItems: 'center' }}>
                             <Calendar size={14} style={{ marginRight: '4px' }} />
                             <Typography variant="body2">
-                              {formatDate(transaction.createdAt)}
+                              {formatDate(transaction.created_at)}
                             </Typography>
                           </Box>
                         </TableCell>

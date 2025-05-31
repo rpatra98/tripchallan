@@ -70,17 +70,17 @@ async function createTestAdmin() {
     
     console.log(`Created admin user: ${adminEmail} with ID: ${newAdmin.id}`);
     
-    // Record the transaction for admin creation - NOTE: coin_transactions table uses camelCase
+    // Record the transaction for admin creation - NOTE: coin_transactions table uses snake_case
     const now = new Date().toISOString();
     const { data: transaction, error: transactionError } = await supabase
       .from('coin_transactions')
       .insert({
-        fromUserId: superAdmin.id,
-        toUserId: newAdmin.id,
+        from_user_id: superAdmin.id,
+        to_user_id: newAdmin.id,
         amount: 50000,
         notes: 'Initial coin allocation for new admin creation',
-        createdAt: now,
-        updatedAt: now
+        created_at: now,
+        updated_at: now
       })
       .select()
       .single();

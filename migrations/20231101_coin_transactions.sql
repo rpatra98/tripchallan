@@ -2,17 +2,17 @@
 CREATE TABLE IF NOT EXISTS coin_transactions (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   amount INTEGER NOT NULL,
-  fromUserId UUID REFERENCES users(id),
-  toUserId UUID REFERENCES users(id),
+  from_user_id UUID REFERENCES users(id),
+  to_user_id UUID REFERENCES users(id),
   notes TEXT,
-  createdAt TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  updatedAt TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
 -- Create indexes
-CREATE INDEX IF NOT EXISTS idx_coin_transactions_from_user ON coin_transactions(fromUserId);
-CREATE INDEX IF NOT EXISTS idx_coin_transactions_to_user ON coin_transactions(toUserId);
-CREATE INDEX IF NOT EXISTS idx_coin_transactions_created_at ON coin_transactions(createdAt);
+CREATE INDEX IF NOT EXISTS idx_coin_transactions_from_user ON coin_transactions(from_user_id);
+CREATE INDEX IF NOT EXISTS idx_coin_transactions_to_user ON coin_transactions(to_user_id);
+CREATE INDEX IF NOT EXISTS idx_coin_transactions_created_at ON coin_transactions(created_at);
 
 -- Add foreign key constraints if not already present
 DO $$ 
@@ -20,21 +20,21 @@ BEGIN
   IF NOT EXISTS (
     SELECT 1 
     FROM information_schema.table_constraints 
-    WHERE constraint_name = 'coin_transactions_fromUserId_fkey'
+    WHERE constraint_name = 'coin_transactions_from_user_id_fkey'
   ) THEN
     ALTER TABLE coin_transactions
-    ADD CONSTRAINT coin_transactions_fromUserId_fkey
-    FOREIGN KEY (fromUserId) REFERENCES users(id) ON DELETE SET NULL;
+    ADD CONSTRAINT coin_transactions_from_user_id_fkey
+    FOREIGN KEY (from_user_id) REFERENCES users(id) ON DELETE SET NULL;
   END IF;
   
   IF NOT EXISTS (
     SELECT 1 
     FROM information_schema.table_constraints 
-    WHERE constraint_name = 'coin_transactions_toUserId_fkey'
+    WHERE constraint_name = 'coin_transactions_to_user_id_fkey'
   ) THEN
     ALTER TABLE coin_transactions
-    ADD CONSTRAINT coin_transactions_toUserId_fkey
-    FOREIGN KEY (toUserId) REFERENCES users(id) ON DELETE SET NULL;
+    ADD CONSTRAINT coin_transactions_to_user_id_fkey
+    FOREIGN KEY (to_user_id) REFERENCES users(id) ON DELETE SET NULL;
   END IF;
 END $$;
 
