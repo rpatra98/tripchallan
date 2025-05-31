@@ -40,7 +40,6 @@ import {
 import { toast } from "react-hot-toast";
 import { supabase } from "@/lib/supabase";
 import { UserRole } from "@/lib/enums";
-import FixCoinsButton from "./FixCoinsButton";
 
 interface AdminUser {
   id: string;
@@ -406,29 +405,11 @@ export default function CoinManagement() {
 
   return (
     <Box>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+      <Box sx={{ mb: 3 }}>
         <Typography variant="h5" component="h2" sx={{ fontWeight: 'medium' }}>
           Coin Management
         </Typography>
-        
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-          <Button 
-            variant="outlined" 
-            startIcon={<RefreshCcw size={16} />} 
-            onClick={() => {
-              fetchAdmins();
-              fetchTransactions();
-              fetchCurrentUser();
-            }}
-            disabled={loading}
-          >
-            Refresh
-          </Button>
-        </Box>
       </Box>
-
-      {/* Add the fix coins button for SuperAdmin */}
-      {session?.user?.role === 'SUPERADMIN' && <FixCoinsButton />}
 
       {/* Current Coins Display */}
       <Card sx={{ mb: 4 }}>
@@ -456,31 +437,18 @@ export default function CoinManagement() {
                 </>
               )}
             </Box>
-            <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-              <Box
-                sx={{
-                  backgroundColor: 'warning.light',
-                  borderRadius: '50%',
-                  width: 56,
-                  height: 56,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  mb: 1
-                }}
-              >
-                <Coins color="#ed6c02" size={28} />
-              </Box>
-              <Button
-                variant="outlined"
-                color="warning"
-                size="small"
-                startIcon={<RefreshCcw size={14} />}
-                onClick={fetchCurrentUser}
-                disabled={loading}
-              >
-                Refresh
-              </Button>
+            <Box
+              sx={{
+                backgroundColor: 'warning.light',
+                borderRadius: '50%',
+                width: 56,
+                height: 56,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}
+            >
+              <Coins color="#ed6c02" size={28} />
             </Box>
           </Box>
         </CardContent>
