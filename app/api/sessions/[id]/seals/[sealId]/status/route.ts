@@ -93,43 +93,57 @@ export async function PATCH(
     }
 
     // Update the seal status
-    const updatedSeal = await supabase.from('seals').update( {
+    const { data: updatedSeal, error: updateError } = await supabase
+      .from('seals')
+      .update({
         status,
-        statusComment: comment,
-        statusUpdatedAt: new Date(),
-        statusEvidence: evidence ? JSON.stringify(evidence) : null,
-        // If we're marking as VERIFIED, also set the verified flag
-        verified: status === SealStatus.VERIFIED ? true : existingSeal.verified,
-        // If not already verified and marking as VERIFIED, set the verifiedBy
-        verifiedById: status === SealStatus.VERIFIED && !existingSeal.verified 
-          ? user.id 
-          : existingSeal.verifiedById,
-        // If not already scanned and marking as VERIFIED, set the scannedAt
-        scannedAt: status === SealStatus.VERIFIED && !existingSeal.scannedAt 
-          ? new Date() 
+        statusComment: comment || null,
+        statusUpdatedAt: status !== existingSeal.status
+          ? new Date()
           : existingSeal.scannedAt
-      },
-      include: {
-        session: true,
-        verifiedBy: true
-      }
-    });
+      })
+      .eq('id', params.sealId)
+      .select(`
+        *,
+        session:sessionId(*),
+        verifiedBy:verifiedById(*)
+      `)
+      .single();
+    
+    if (updateError) {
+      console.error('Error updating seal status:', updateError);
+      return NextResponse.json({ error: 'Failed to update seal status' }, { status: 500 });
+    }
 
     // Create activity log
-    await supabase.from('activityLogs').insert( {
-        action: ActivityAction.UPDATE,
-        details: {
-          previousStatus: existingSeal.status,
-          newStatus: status,
-          comment,
-          evidence: evidence ? true : false,
-          timestamp: new Date().toISOString()
-        },
+    const { error: logError } = await supabase
+      .from('activityLogs')
+      .insert({
         userId: user.id,
+        action: "UPDATE",
         targetResourceId: params.sealId,
-        targetResourceType: 'seal'
-      }
-    });
+        targetResourceType: 'seal',
+        details: {
+          sealStatus: {
+            previous: existingSeal.status,
+            current: status,
+            comment: comment || null,
+            evidence: evidence || null,
+            updatedAt: new Date().toISOString(),
+            updatedBy: {
+              id: user.id,
+              name: user.name,
+              role: user.role,
+              subrole: user.subrole
+            }
+          }
+        }
+      });
+    
+    if (logError) {
+      console.error('Error creating activity log:', logError);
+      // Continue without logging
+    }
 
     return NextResponse.json({ 
       success: true, 

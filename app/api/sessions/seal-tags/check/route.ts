@@ -20,11 +20,16 @@ export async function GET(request: NextRequest) {
     }
 
     // Check if the seal tag exists in any session
-    const existingSealTag = await supabase.from('seals')Tag.findFirst({
-      where: {
-        tagId: tagId,
-      },
-    });
+    const { data: existingSealTag, error: sealError } = await supabase
+      .from('seals')
+      .select('*')
+      .eq('barcode', tagId)
+      .single();
+    
+    if (sealError && !sealError.message?.includes('No rows found')) {
+      console.error('Error checking seal tag:', sealError);
+      return NextResponse.json({ error: 'Failed to check seal tag' }, { status: 500 });
+    }
 
     // Return whether the tag exists
     return NextResponse.json({ exists: !!existingSealTag });

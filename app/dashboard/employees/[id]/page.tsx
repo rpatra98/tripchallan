@@ -182,36 +182,23 @@ export default async function EmployeeDetailPage({ params, searchParams }: { par
     
     // Get transaction history for this employee
     const transactions = await prismaHelper.executePrismaWithRetry(async () => {
-      return supabase.from('coinTransactions').select('*').{
-        where: {
-          OR: [
-            { fromUserId: employee.id },
-            { toUserId: employee.id }
-          ]
-        },
-        include: {
-          fromUser: {
-            select: {
-              id: true,
-              name: true,
-              email: true,
-              role: true,
-            }
-          },
-          toUser: {
-            select: {
-              id: true,
-              name: true,
-              email: true,
-              role: true,
-            }
-          }
-        },
-        orderBy: {
-          createdAt: "desc"
-        },
-        take: 10, // Limit to most recent 10 transactions
-      });
+      const { data: transactionsData, error: transactionsError } = await supabase
+        .from('coinTransactions')
+        .select(`
+          *,
+          fromUser:fromUserId(id, name, email, role),
+          toUser:toUserId(id, name, email, role)
+        `)
+        .or(`fromUserId.eq.${employee.id},toUserId.eq.${employee.id}`)
+        .order('createdAt', { ascending: false })
+        .limit(10);
+      
+      if (transactionsError) {
+        console.error('Error fetching transactions:', transactionsError);
+        return [];
+      }
+      
+      return transactionsData || [];
     });
 
     // Render the client component with all the data

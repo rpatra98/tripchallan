@@ -203,35 +203,24 @@ export async function GET(req: NextRequest) {
     console.log("Fetching employees for company:", companyId);
 
     // Fetch employees for the company
-    const employees = await supabase.from('users').select('*').{
-      where: {
-        role: UserRole.EMPLOYEE,
-        companyId: companyId,
-      },
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        role: true,
-        subrole: true,
-        createdAt: true,
-        coins: true,
-        company: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-          },
-        },
-      },
-      orderBy: {
-        createdAt: "desc",
-      },
-    });
+    const { data: employees, error } = await supabase
+      .from('users')
+      .select(`
+        id, name, email, role, subrole, createdAt, coins,
+        company:companyId(id, name, email)
+      `)
+      .eq('role', UserRole.EMPLOYEE)
+      .eq('companyId', companyId)
+      .order('createdAt', { ascending: false });
 
-    console.log(`Found ${employees.length} employees for company ${companyId}`);
+    if (error) {
+      console.error('Error fetching employees:', error);
+      return NextResponse.json({ error: 'Failed to fetch employees' }, { status: 500 });
+    }
     
-    return NextResponse.json(employees);
+    console.log(`Found ${employees ? employees.length : 0} employees for company ${companyId}`);
+    
+    return NextResponse.json({ employees: employees || [] });
   } catch (error) {
     console.error("Error fetching employees:", error);
     return NextResponse.json(

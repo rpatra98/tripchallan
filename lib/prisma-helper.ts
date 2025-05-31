@@ -1,12 +1,18 @@
-import prisma from './prisma';
+import { createClient } from '@supabase/supabase-js';
 
-// Create a single PrismaClient instance for all helpers
+// Set up Supabase client
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL || '',
+  process.env.SUPABASE_SERVICE_ROLE_KEY || ''
+);
+
+// Track connection state
 let hasDisconnectedOnce = false;
 let lastReconnectTime = 0;
 
 /**
- * Execute a Prisma query with automatic retry on prepared statement errors
- * @param operation Function that performs the Prisma operation
+ * Execute a Supabase query with automatic retry on connection errors
+ * @param operation Function that performs the Supabase operation
  * @returns Result of the operation
  */
 export async function executePrismaWithRetry<T>(operation: () => Promise<T>): Promise<T> {
@@ -23,29 +29,29 @@ export async function executePrismaWithRetry<T>(operation: () => Promise<T>): Pr
     
     return await operation();
   } catch (error: any) {
-    // Check if this is a prepared statement error
+    // Check if this is a connection error
     if (
       error.message && 
-      (error.message.includes('prepared statement') || 
-       (error.code === '42P05'))
+      (error.message.includes('connection') || 
+       error.code === 'ECONNREFUSED')
     ) {
-      console.warn('Prepared statement error detected, retrying with new connection');
+      console.warn('Connection error detected, retrying with delay');
       hasDisconnectedOnce = true;
       
-      // Try to fix the connection
+      // Try to wait and retry
       try {
         await resetConnection();
         
         // Try once more
         return await operation();
       } catch (retryError: any) {
-        // If we still get a prepared statement error, try one more time with delay
+        // If we still get a connection error, try one more time with longer delay
         if (
           retryError.message && 
-          (retryError.message.includes('prepared statement') || 
-           (retryError.code === '42P05'))
+          (retryError.message.includes('connection') || 
+           retryError.code === 'ECONNREFUSED')
         ) {
-          console.warn('Still getting prepared statement error, trying final reconnect');
+          console.warn('Still getting connection error, trying final reconnect');
           
           try {
             await resetConnection(2000); // Longer wait on second retry
@@ -56,89 +62,117 @@ export async function executePrismaWithRetry<T>(operation: () => Promise<T>): Pr
           }
         }
         
-        console.error('Error on retry after prepared statement issue:', retryError);
+        console.error('Error on retry after connection issue:', retryError);
         throw retryError;
       }
     }
     
-    // If it's not a prepared statement error, just rethrow
+    // If it's not a connection error, just rethrow
     throw error;
   }
 }
 
 /**
- * Safely finds a company by ID with retry logic for prepared statement errors
+ * Safely finds a company by ID with retry logic for connection errors
  */
 export async function findCompanyById(id: string, includeEmployees = true) {
   return executePrismaWithRetry(async () => {
-    return supabase.from('companys').findUnique({
-      where: { id },
-      include: includeEmployees ? {
-        employees: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            role: true,
-            subrole: true,
-            coins: true,
-          }
-        }
-      } : undefined
-    });
+    const selectQuery = includeEmployees 
+      ? `*, employees:users(id, name, email, role, subrole, coins)`
+      : '*';
+    
+    const { data: company, error } = await supabase
+      .from('companies')
+      .select(selectQuery)
+      .eq('id', id)
+      .single();
+    
+    if (error) {
+      console.error('Error finding company by ID:', error);
+      return null;
+    }
+    
+    return company;
   });
 }
 
 /**
- * Safely finds a user by ID with retry logic for prepared statement errors
+ * Safely finds a user by ID with retry logic for connection errors
  */
 export async function findUserById(id: string) {
   return executePrismaWithRetry(async () => {
-    return supabase.from('users').select('*').eq('id }
-    });
+    const { data: user, error } = await supabase
+      .from('users')
+      .select('*')
+      .eq('id', id)
+      .single();
+    
+    if (error) {
+      console.error('Error finding user by ID:', error);
+      return null;
+    }
+    
+    return user;
   });
 }
 
 /**
- * Safely finds users with specific criteria and retry logic for prepared statement errors
+ * Safely finds users with specific criteria and retry logic for connection errors
  */
-export async function findUsers(criteria', any).single()
-    });
+export async function findUsers(criteria: any) {
+  return executePrismaWithRetry(async () => {
+    const { data: users, error } = await supabase
+      .from('users')
+      .select('*')
+      .match(criteria);
+    
+    if (error) {
+      console.error('Error finding users:', error);
+      return [];
+    }
+    
+    return users;
   });
 }
 
 /**
- * Safely finds first user with specific criteria and retry logic for prepared statement errors
+ * Safely finds first user with specific criteria and retry logic for connection errors
  */
 export async function findFirstUser(criteria: any, select?: any) {
   return executePrismaWithRetry(async () => {
-    return supabase.from('users').findFirst({
-      where: criteria,
-      ...(select ? { select } : {})
-    });
+    const selectClause = select ? select.join(', ') : '*';
+    
+    const { data: user, error } = await supabase
+      .from('users')
+      .select(selectClause)
+      .match(criteria)
+      .limit(1)
+      .single();
+    
+    if (error && !error.message?.includes('No rows found')) {
+      console.error('Error finding first user:', error);
+      return null;
+    }
+    
+    return user;
   });
 }
 
 /**
- * Completely resets the Prisma connection to resolve prepared statement issues
- * @param delayMs Optional delay before reconnecting (in milliseconds)
+ * Waits to allow connection issues to resolve
+ * @param delayMs Optional delay (in milliseconds)
  */
 export async function resetConnection(delayMs = 1000) {
-  console.log(`Resetting Prisma connection with ${delayMs}ms delay`);
+  console.log(`Resetting connection with ${delayMs}ms delay`);
   try {
-    // First disconnect
-    await prisma.$disconnect();
-    
     // Wait for the specified delay
     if (delayMs > 0) {
       await new Promise(resolve => setTimeout(resolve, delayMs));
     }
     
-    // Then reconnect
-    await prisma.$connect();
-    console.log('Prisma connection reset successful');
+    console.log('Connection reset successful');
   } catch (error) {
-    console.error('Error resetting Prisma connection:', error);
+    console.error('Error resetting connection:', error);
     // If reconnection fails, we need to ensure we still attempt to reconnect next time
     hasDisconnectedOnce = true;
   }

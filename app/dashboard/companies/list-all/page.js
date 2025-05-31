@@ -8,14 +8,15 @@ export const dynamic = 'force-dynamic';
 export default async function ListAllCompaniesPage() {
   try {
     // Get all companies from the database
-    const companies = await supabase.from('users').select('*').{
-      where: {
-        role: "COMPANY",
-      },
-      orderBy: {
-        name: 'asc'
-      }
-    });
+    const { data: companies, error } = await supabase
+      .from('users')
+      .select('*')
+      .eq('role', "COMPANY");
+    
+    if (error) {
+      console.error('Error fetching companies:', error);
+      return <div className="p-8">Error loading companies. Please try again later.</div>;
+    }
 
     return (
       <div className="container mx-auto px-4 py-8">

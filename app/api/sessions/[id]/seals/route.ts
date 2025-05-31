@@ -98,25 +98,17 @@ export async function GET(
       console.log("[API DEBUG] Session found, retrieving activity logs");
 
       // Get all activity logs for this session
-      const activityLogs = await supabase.from('activityLogs').select('*').{
-        where: {
-          targetResourceId: sessionId,
-          targetResourceType: 'session',
-        },
-        include: {
-          user: {
-            select: {
-              id: true,
-              name: true,
-              role: true,
-              subrole: true,
-            },
-          },
-        },
-        orderBy: {
-          createdAt: 'desc',
-        },
-      });
+      const { data: activityLogs, error: logsError } = await supabase
+        .from('activityLogs')
+        .select('*')
+        .eq('targetResourceId', sessionId)
+        .eq('targetResourceType', 'session')
+        .order('createdAt', { ascending: false });
+      
+      if (logsError) {
+        console.error('Error fetching activity logs:', logsError);
+        return NextResponse.json({ error: 'Failed to fetch activity logs' }, { status: 500 });
+      }
 
       console.log(`[API DEBUG] Found ${activityLogs.length} activity logs for session`);
 

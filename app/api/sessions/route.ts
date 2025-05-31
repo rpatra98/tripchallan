@@ -149,41 +149,21 @@ async function handler(req: NextRequest) {
         whereClause = {};
       } else if (userRole === UserRole.ADMIN) {
         // Admin can only see sessions from companies they created
-        const companiesCreatedByAdmin = await supabase.from('users').select('*').{
-          where: {
-            role: UserRole.COMPANY,
-            createdById: userId,
-          },
-          select: {
-            id: true,
-            companyId: true,
-          }
-        });
+        const { data: companiesCreated, error: companiesError } = await supabase
+          .from('users')
+          .select('id')
+          .eq('role', UserRole.COMPANY)
+          .eq('createdById', userId);
         
-        const companyIds = companiesCreatedByAdmin
-          .filter((company: { companyId?: string }) => company.companyId)
-          .map((company: { companyId?: string }) => company.companyId as string);
-          
-        const companyUserIds = companiesCreatedByAdmin.map((company: { id: string }) => company.id);
-        
-        if (companyIds.length === 0 && companyUserIds.length === 0) {
-          // No companies found, return empty results instead of attempting a query
-          return NextResponse.json({
-            sessions: [],
-            pagination: {
-              total: 0,
-              page,
-              limit,
-              pages: 0
-            }
-          });
+        if (companiesError) {
+          console.error('Error fetching companies created by admin:', companiesError);
+          return NextResponse.json({ error: 'Failed to fetch companies' }, { status: 500 });
         }
         
-        whereClause = {
-          companyId: {
-            in: [...new Set([...companyIds, ...companyUserIds])].filter(Boolean)
-          }
-        };
+        const companyIds = companiesCreated.map(c => c.id);
+        whereClause = companyIds.length > 0 
+          ? { companyId: { in: companyIds } } 
+          : { createdById: userId };
       } else if (userRole === UserRole.COMPANY) {
         // Company user should see all sessions associated with their company
         console.log("[API DEBUG] Fetching sessions for company user:", userId);
@@ -330,41 +310,22 @@ async function handler(req: NextRequest) {
     }
     
     // Get sessions with pagination
-    const sessions = await supabase.from('sessions').select('*').{
-      where: whereClause,
-      include: {
-        seal: {
-          select: {
-            id: true,
-            barcode: true,
-            verified: true,
-            scannedAt: true
-          }
-        },
-        company: {
-          select: {
-            id: true,
-            name: true
-          }
-        },
-        createdBy: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            subrole: true
-          }
-        }
-      },
-      orderBy: {
-        createdAt: 'desc'
-      },
-      skip: (page - 1) * limit,
-      take: limit
-    }).catch((error: Error) => {
-      console.error("Error fetching sessions:", error);
-      return [];
-    });
+    const { data: sessions, error: sessionsError, count } = await supabase
+      .from('sessions')
+      .select(`
+        *,
+        seal:id(*),
+        company:companyId(*),
+        createdBy:createdById(*)
+      `, { count: 'exact' })
+      .eq(whereClause.field, whereClause.value)
+      .order(orderBy, { ascending: orderDirection === 'asc' })
+      .range((page - 1) * limit, page * limit - 1);
+    
+    if (sessionsError) {
+      console.error('Error fetching sessions:', sessionsError);
+      return NextResponse.json({ error: 'Failed to fetch sessions' }, { status: 500 });
+    }
     
     // Log the results for debugging
     if (userRole === UserRole.EMPLOYEE && session.user.subrole === EmployeeSubrole.GUARD) {
@@ -383,24 +344,17 @@ async function handler(req: NextRequest) {
         // If no sessions were found, check without the seal filter to see if that's the issue
         console.log("[API DEBUG] No sessions found with current filter. Checking DB for any IN_PROGRESS sessions for this company...");
         
-        supabase.from('sessions').select('*').{
-          where: {
-            companyId: whereClause.companyId,
-            status: "IN_PROGRESS"
-          },
-          include: { seal: true },
-          take: 5
-        }).then((checkSessions: any[]) => {
-          console.log(`[API DEBUG] Found ${checkSessions.length} IN_PROGRESS sessions for company without seal filter`);
-          checkSessions.forEach((checkSession: any) => {
-            console.log(`[API DEBUG] Check session ${checkSession.id}:`, {
-              hasSeal: !!checkSession.seal,
-              sealVerified: checkSession.seal?.verified
-            });
-          });
-        }).catch((error: Error) => {
-          console.error("[API DEBUG] Error checking sessions without seal filter:", error);
-        });
+        const { data: inProgressSessions, error: progressError } = await supabase
+          .from('sessions')
+          .select('*')
+          .eq('companyId', whereClause.companyId)
+          .eq('status', "IN_PROGRESS");
+        
+        if (progressError) {
+          console.error('Error checking IN_PROGRESS sessions:', progressError);
+        } else {
+          console.log(`[API DEBUG] Found ${inProgressSessions?.length || 0} IN_PROGRESS sessions for this company`);
+        }
       }
     }
     
@@ -417,18 +371,17 @@ async function handler(req: NextRequest) {
     }
     
     // Get activity logs for trip details
-    const activityLogs = await supabase.from('activityLogs').select('*').{
-      where: {
-        targetResourceId: {
-          in: sessions.map((s: { id: string }) => s.id)
-        },
-        targetResourceType: 'session',
-        action: 'CREATE'
-      }
-    }).catch((error: Error) => {
-      console.error("Error fetching activity logs:", error);
-      return [];
-    });
+    const { data: activityLogs, error: logsError } = await supabase
+      .from('activityLogs')
+      .select('*')
+      .in('targetResourceId', sessions.map((s: { id: string }) => s.id))
+      .eq('targetResourceType', 'session')
+      .order('createdAt', { ascending: false });
+    
+    if (logsError) {
+      console.error('Error fetching activity logs:', logsError);
+      // Continue without logs
+    }
     
     // Enhance sessions with trip details
     const enhancedSessions = sessions.map((session: any) => {
@@ -450,38 +403,31 @@ async function handler(req: NextRequest) {
       const guardCompanyId = whereClause.companyId;
       
       // Look up all employees in this company
-      supabase.from('users').select('*').{
-        where: {
-          companyId: guardCompanyId,
-          role: UserRole.EMPLOYEE
-        },
-        select: {
-          id: true,
-          name: true,
-          email: true,
-          role: true,
-          subrole: true,
-          companyId: true
-        }
-      }).then((employees: any[]) => {
-        console.log(`[API DEBUG] Found ${employees.length} employees in company ${guardCompanyId}`);
-        
-        // Count how many operators and guards
-        const operators = employees.filter(emp => emp.subrole === EmployeeSubrole.OPERATOR);
-        const guards = employees.filter(emp => emp.subrole === EmployeeSubrole.GUARD);
-        
-        console.log(`[API DEBUG] Company has ${operators.length} operators and ${guards.length} guards`);
-        
-        if (operators.length > 0) {
-          console.log("[API DEBUG] Operators in this company:", operators.map(op => ({
-            id: op.id,
-            name: op.name,
-            email: op.email
-          })));
-        }
-      }).catch((error: Error) => {
-        console.error("[API DEBUG] Error checking company employees:", error);
-      });
+      const { data: employees, error: employeesError } = await supabase
+        .from('users')
+        .select('*')
+        .eq('companyId', guardCompanyId)
+        .eq('role', UserRole.EMPLOYEE);
+      
+      if (employeesError) {
+        console.error('Error fetching employees:', employeesError);
+      } else {
+        console.log(`[API DEBUG] Found ${employees.length} employees in guard's company (company ID: ${guardCompanyId})`);
+      }
+      
+      // Count how many operators and guards
+      const operators = employees.filter(emp => emp.subrole === EmployeeSubrole.OPERATOR);
+      const guards = employees.filter(emp => emp.subrole === EmployeeSubrole.GUARD);
+      
+      console.log(`[API DEBUG] Company has ${operators.length} operators and ${guards.length} guards`);
+      
+      if (operators.length > 0) {
+        console.log("[API DEBUG] Operators in this company:", operators.map(op => ({
+          id: op.id,
+          name: op.name,
+          email: op.email
+        })));
+      }
     }
     
     return NextResponse.json({

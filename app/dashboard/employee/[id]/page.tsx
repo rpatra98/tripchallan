@@ -51,36 +51,15 @@ export default async function EmployeeDetailPage({ params }: { params: { id: str
   }
 
   // Get transaction history for this employee
-  const transactions = await supabase.from('coinTransactions').select('*').{
-    where: {
-      OR: [
-        { fromUserId: employee.id },
-        { toUserId: employee.id }
-      ]
-    },
-    include: {
-      fromUser: {
-        select: {
-          id: true,
-          name: true,
-          email: true,
-          role: true,
-        }
-      },
-      toUser: {
-        select: {
-          id: true,
-          name: true,
-          email: true,
-          role: true,
-        }
-      }
-    },
-    orderBy: {
-      createdAt: "desc"
-    },
-    take: 10, // Limit to most recent 10 transactions
-  });
+  const { data: transactions, error: transactionsError } = await supabase
+    .from('coinTransactions')
+    .select('*')
+    .or(`fromUserId.eq.${employee.id},toUserId.eq.${employee.id}`)
+    .order('createdAt', { ascending: false });
+  
+  if (transactionsError) {
+    console.error('Error fetching transactions:', transactionsError);
+  }
 
   return (
     <div className="container mx-auto px-4 py-8">

@@ -88,15 +88,17 @@ async function handler(
     }
 
     // Fetch all activity logs for this session to ensure we find trip details and images
-    const activityLogs = await supabase.from('activityLogs').select('*').{
-      where: {
-        targetResourceId: id,
-        targetResourceType: 'session',
-      },
-      orderBy: {
-        createdAt: 'desc',
-      },
-    });
+    const { data: activityLogs, error: logsError } = await supabase
+      .from('activityLogs')
+      .select('*')
+      .eq('targetResourceId', id)
+      .eq('targetResourceType', 'session')
+      .order('createdAt', { ascending: false });
+    
+    if (logsError) {
+      console.error('Error fetching activity logs:', logsError);
+      // Continue without logs
+    }
     
     console.log(`[API DEBUG] Found ${activityLogs.length} activity logs for session ${id}`);
     
@@ -117,31 +119,18 @@ async function handler(
     console.log(`[API DEBUG] Found trip details log: ${!!tripDetailsLog}, Found images log: ${!!imagesLog}`);
     
     // Fetch verification activity logs
-    const verificationLogs = await supabase.from('activityLogs').select('*').{
-      where: {
-        targetResourceId: id,
-        targetResourceType: 'session',
-        action: 'UPDATE',
-      },
-      orderBy: {
-        createdAt: 'desc',
-      },
-      select: {
-        id: true,
-        action: true,
-        details: true,
-        createdAt: true,
-        userId: true,
-        user: {
-          select: {
-            id: true,
-            name: true,
-            role: true,
-            subrole: true
-          }
-        }
-      }
-    });
+    const { data: verificationLogs, error: verificationError } = await supabase
+      .from('activityLogs')
+      .select('*')
+      .eq('targetResourceId', id)
+      .eq('targetResourceType', 'session')
+      .eq('action', 'VERIFY_SEAL')
+      .order('createdAt', { ascending: false });
+    
+    if (verificationError) {
+      console.error('Error fetching verification logs:', verificationError);
+      // Continue without verification logs
+    }
     
     // Filter logs post-query to only include those with verification data
     const filteredVerificationLogs = verificationLogs.filter(
@@ -256,19 +245,19 @@ async function handler(
     if (userRole === UserRole.ADMIN) {
       try {
         // Find companies created by this admin
-        const companiesCreatedByAdmin = await supabase.from('users').select('*').{
-          where: {
-            role: UserRole.COMPANY,
-            createdById: userId,
-          },
-          select: {
-            id: true,
-            companyId: true,
-          }
-        });
+        const { data: companiesCreatedByAdmin, error: companiesError } = await supabase
+          .from('users')
+          .select('id, companyId')
+          .eq('role', UserRole.COMPANY)
+          .eq('createdById', userId);
+        
+        if (companiesError) {
+          console.error('Error fetching companies created by admin:', companiesError);
+          return NextResponse.json({ error: 'Failed to fetch companies' }, { status: 500 });
+        }
         
         console.log("[API DEBUG] Admin user:", userId);
-        console.log("[API DEBUG] Companies created by admin:", companiesCreatedByAdmin.length);
+        console.log("[API DEBUG] Companies created by admin:", companiesCreatedByAdmin?.length || 0);
         
         // Get the company IDs for filtering
         const companyIds = companiesCreatedByAdmin
@@ -340,19 +329,15 @@ async function handler(
         
         // EMERGENCY BYPASS: Get all sessions for the company's dashboard view
         // This should match what they can see in the dashboard
-        const dashboardSessions = await supabase.from('sessions').select('*').{
-          where: {
-            OR: [
-              // Direct ID match
-              { companyId: userId as string },
-              // User's company ID match
-              { companyId: companyRecord?.companyId as string },
-              // Company user's created sessions
-              { createdById: userId as string }
-            ]
-          },
-          select: { id: true }
-        });
+        const { data: dashboardSessions, error: dashboardError } = await supabase
+          .from('sessions')
+          .select('id')
+          .or(`companyId.eq.${userId},companyId.eq.${companyRecord?.companyId || ''},createdById.eq.${userId}`);
+        
+        if (dashboardError) {
+          console.error('Error fetching dashboard sessions:', dashboardError);
+          return NextResponse.json({ error: 'Failed to fetch sessions' }, { status: 500 });
+        }
         
         const sessionIds = dashboardSessions.map((s: any) => s.id);
         console.log("[API DEBUG] Company dashboard sessions:", {

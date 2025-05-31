@@ -189,8 +189,10 @@ export const POST = withAuth(
             }
           }
           
-          // First create the company
-          const company = await supabase.from('companys').insert( {
+          // First create the company if needed
+          const { data: newCompany, error: companyError } = await supabase
+            .from('companies')
+            .insert({
               name: body.companyName || body.name,
               email: body.email,
               address: body.companyAddress || "",
@@ -200,22 +202,34 @@ export const POST = withAuth(
               logo: logoUrl,
               documents: documentUrls,
               isActive: true
-            }
-          });
+            })
+            .select()
+            .single();
           
+          if (companyError) {
+            console.error('Error creating company:', companyError);
+            return NextResponse.json({ error: 'Failed to create company' }, { status: 500 });
+          }
+
           // Then create the user with company reference
-          newUser = await supabase.from('users').insert( {
-              email: body.email,
+          const { data: newUser, error: userError } = await supabase
+            .from('users')
+            .insert({
               name: body.name,
+              email: body.email,
               password: hashedPassword,
-              role: body.role,
+              role: UserRole.COMPANY,
+              companyId: newCompany.id,
               createdById: userId,
-              companyId: company.id
-            },
-            include: {
-              company: true
-            }
-          });
+              isActive: true
+            })
+            .select()
+            .single();
+          
+          if (userError) {
+            console.error('Error creating user:', userError);
+            return NextResponse.json({ error: 'Failed to create user' }, { status: 500 });
+          }
         } catch (err) {
           console.error("Error creating company:", err);
           throw new Error(`Company creation failed: ${err instanceof Error ? err.message : String(err)}`);
@@ -319,48 +333,76 @@ export const POST = withAuth(
         }
         else {
           // For non-operator employees or operators without coin allocation, create normally
-          newUser = await supabase.from('users').insert( {
-              email: body.email,
-              name: body.name,
-              password: hashedPassword,
-              role: body.role,
-              createdById: userId,
-              companyId: body.companyId,
-              subrole: body.subrole || EmployeeSubrole.OPERATOR,
-              coins: body.coins || 0
-            },
-            include: {
-              company: true
+          try {
+            // Create the employee
+            const { data: newUser, error: userError } = await supabase
+              .from('users')
+              .insert({
+                name: body.name,
+                email: body.email,
+                password: hashedPassword,
+                role: UserRole.EMPLOYEE,
+                subrole: body.subrole || EmployeeSubrole.OPERATOR,
+                companyId: body.companyId,
+                createdById: session.user.id,
+                coins: body.coins || 0,
+                isActive: true
+              })
+              .select(`
+                *,
+                company:companyId(*)
+              `)
+              .single();
+            
+            if (userError) {
+              console.error('Error creating employee:', userError);
+              return NextResponse.json({ error: 'Failed to create employee' }, { status: 500 });
             }
-          });
-          
-          // If this is an operator without coins, still need to create permissions
-          if (body.subrole === EmployeeSubrole.OPERATOR) {
-            try {
-              // Validate that permissions are present for operators
-              if (!body.permissions) {
-                console.warn("No permissions provided for operator, using secure defaults");
-                body.permissions = {
-                  canCreate: false,
-                  canModify: false,
-                  canDelete: false
-                };
+            
+            // If this is an operator without coins, still need to create permissions
+            if (body.subrole === EmployeeSubrole.OPERATOR) {
+              try {
+                // Validate that permissions are present for operators
+                if (!body.permissions) {
+                  console.warn("No permissions provided for operator, using secure defaults");
+                  body.permissions = {
+                    canCreate: false,
+                    canModify: false,
+                    canDelete: false
+                  };
+                }
+                
+                // Create operator permissions if needed
+                try {
+                  const permissionsToCreate = {
+                    userId: newUser.id,
+                    canDelete: body.permissions?.canDelete || false,
+                    canModify: body.permissions?.canModify || false,
+                    canAccess: body.permissions?.canAccess || true,
+                    canViewImages: body.permissions?.canViewImages || true,
+                    allocatedCoins: body.coins || 0
+                  };
+                  
+                  const { error: permError } = await supabase
+                    .from('operatorPermissions')
+                    .insert(permissionsToCreate);
+                  
+                  if (permError) {
+                    console.error("Failed to create permissions for operator:", permError);
+                    // Don't throw error here, just log it and continue (user is already created)
+                  }
+                } catch (permErr) {
+                  console.error("Failed to create permissions for operator, but user was created:", permErr);
+                  // Don't throw error here, just log it and continue (user is already created)
+                }
+              } catch (permErr) {
+                console.error("Failed to create permissions for operator, but user was created:", permErr);
+                // Don't throw error here, just log it and continue (user is already created)
               }
-              
-              // Validate each permission field exists
-              const permissionsToCreate = {
-                userId: newUser.id,
-                canCreate: body.permissions.canCreate !== undefined ? body.permissions.canCreate : false,
-                canModify: body.permissions.canModify !== undefined ? body.permissions.canModify : false,
-                canDelete: body.permissions.canDelete !== undefined ? body.permissions.canDelete : false,
-              };
-              
-              await supabase.from('operatorPermissionss').insert( permissionsToCreate
-              });
-            } catch (permErr) {
-              console.error("Failed to create permissions for operator, but user was created:", permErr);
-              // Don't throw error here, just log it and continue (user is already created)
             }
+          } catch (err) {
+            console.error("Error creating employee:", err);
+            throw new Error(`Employee creation failed: ${err instanceof Error ? err.message : String(err)}`);
           }
         }
       } 
@@ -427,15 +469,25 @@ export const POST = withAuth(
           console.log(`Successfully created admin with ID ${newUser.id} and allocated ${coinsToAllocate} coins`);
         } else {
           // For other cases, create normally without a transaction
-          newUser = await supabase.from('users').insert( {
+          const { data: newUserData, error: userError } = await supabase
+            .from('users')
+            .insert({
               email: body.email,
               name: body.name,
               password: hashedPassword,
               role: body.role,
               createdById: userId,
               coins: body.coins || 0
-            }
-          });
+            })
+            .select()
+            .single();
+          
+          if (userError) {
+            console.error('Error creating user:', userError);
+            return NextResponse.json({ error: 'Failed to create user' }, { status: 500 });
+          }
+          
+          newUser = newUserData;
         }
       }
       

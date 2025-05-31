@@ -48,16 +48,32 @@ async function handler(req: NextRequest) {
     }
 
     // Update the seal status
-    const updatedSeal = await supabase.from('seals').update( {
+    const { data: updatedSeal, error: sealError } = await supabase
+      .from('seals')
+      .update({
         verified: true,
         verifiedById: session.user.id,
         scannedAt: new Date()
-      }
-    });
+      })
+      .eq('id', seal.id)
+      .select();
+
+    if (sealError) {
+      console.error('Error updating seal:', sealError);
+      return NextResponse.json({ error: 'Failed to update seal' }, { status: 500 });
+    }
 
     // Update the session status to COMPLETED
-    const updatedSession = await supabase.from('sessions').update( { status: SessionStatus.COMPLETED }
-    });
+    const { data: updatedSession, error: sessionError } = await supabase
+      .from('sessions')
+      .update({ status: SessionStatus.COMPLETED })
+      .eq('id', seal.sessionId)
+      .select();
+
+    if (sessionError) {
+      console.error('Error updating session:', sessionError);
+      return NextResponse.json({ error: 'Failed to update session' }, { status: 500 });
+    }
 
     return NextResponse.json(
       { 
@@ -124,16 +140,32 @@ export const POST = withAuth(
       }
 
       // Update the seal status
-      const updatedSeal = await supabase.from('seals').update( {
+      const { data: updatedSeal, error: sealError } = await supabase
+        .from('seals')
+        .update({
           verified: true,
           verifiedById: userId,
           scannedAt: new Date()
-        }
-      });
+        })
+        .eq('id', seal.id)
+        .select();
+
+      if (sealError) {
+        console.error('Error updating seal:', sealError);
+        return NextResponse.json({ error: 'Failed to update seal' }, { status: 500 });
+      }
 
       // Update the session status to COMPLETED
-      const updatedSession = await supabase.from('sessions').update( { status: SessionStatus.COMPLETED }
-      });
+      const { data: updatedSession, error: sessionError } = await supabase
+        .from('sessions')
+        .update({ status: SessionStatus.COMPLETED })
+        .eq('id', seal.sessionId)
+        .select();
+
+      if (sessionError) {
+        console.error('Error updating session:', sessionError);
+        return NextResponse.json({ error: 'Failed to update session' }, { status: 500 });
+      }
 
       return NextResponse.json(
         { 

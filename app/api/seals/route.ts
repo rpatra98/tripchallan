@@ -21,21 +21,22 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "Session ID is required" }, { status: 400 });
     }
 
-    const seal = await supabase.from('seals').findUnique({
-      where: { sessionId },
-      include: {
-        session: true,
-        verifiedBy: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-          },
-        },
-      },
-    });
+    const { data: seal, error } = await supabase
+      .from('seals')
+      .select(`
+        *,
+        session:sessionId(*),
+        verifiedBy:verifiedById(id, name, email)
+      `)
+      .eq('sessionId', sessionId)
+      .single();
 
-    return NextResponse.json(seal);
+    if (error && !error.message?.includes('No rows found')) {
+      console.error('Error fetching seal:', error);
+      return NextResponse.json({ error: 'Failed to fetch seal' }, { status: 500 });
+    }
+
+    return NextResponse.json(seal || null);
   } catch (error) {
     console.error("Error fetching seal:", error);
     return NextResponse.json(
@@ -53,7 +54,16 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const user = await supabase.from('users').select('*').eq('email', session.user.email).single();
+    const { data: user, error: userError } = await supabase
+      .from('users')
+      .select('*')
+      .eq('email', session.user.email)
+      .single();
+
+    if (userError) {
+      console.error('Error fetching user:', userError);
+      return NextResponse.json({ error: 'Failed to fetch user' }, { status: 500 });
+    }
 
     if (!user) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
@@ -77,13 +87,20 @@ export async function POST(req: NextRequest) {
     }
 
     // Check if the session exists
-    const existingSession = await supabase.from('sessions').findUnique({
-      where: { id: sessionId },
-      include: {
-        company: true,
-        createdBy: true
-      }
-    });
+    const { data: existingSession, error: sessionError } = await supabase
+      .from('sessions')
+      .select(`
+        *,
+        company:companyId(*),
+        createdBy:createdById(*)
+      `)
+      .eq('id', sessionId)
+      .single();
+
+    if (sessionError) {
+      console.error('Error fetching session:', sessionError);
+      return NextResponse.json({ error: 'Failed to fetch session' }, { status: 500 });
+    }
 
     if (!existingSession) {
       return NextResponse.json(
@@ -93,12 +110,22 @@ export async function POST(req: NextRequest) {
     }
 
     // Check if the session already has a seal
-    const existingSeal = await supabase.from('seals').select('*').eq('sessionId },
-    });
+    const { data: existingSeal, error: sealError } = await supabase
+      .from('seals')
+      .select('*')
+      .eq('sessionId', sessionId)
+      .single();
+
+    if (sealError && !sealError.message?.includes('No rows found')) {
+      console.error('Error checking existing seal:', sealError);
+      return NextResponse.json({ error: 'Failed to check existing seal' }, { status: 500 });
+    }
 
     if (existingSeal) {
       return NextResponse.json(
-        { error', "Session).single();
+        { error: "Session already has a seal" },
+        { status: 400 }
+      );
     }
 
     // Create the seal
@@ -115,18 +142,31 @@ export async function POST(req: NextRequest) {
       sealData.scannedAt = new Date();
       
       // Create the seal with verification
-    const seal = await supabase.from('seals').insert( sealData,
-        include: {
-          verifiedBy: true,
-      },
-    });
-      
+      const { data: seal, error: insertError } = await supabase
+        .from('seals')
+        .insert(sealData)
+        .select('*, verifiedBy:verifiedById(*)');
+        
+      if (insertError) {
+        console.error('Error creating seal:', insertError);
+        return NextResponse.json({ error: 'Failed to create seal' }, { status: 500 });
+      }
+        
       // Update session status to COMPLETED
-      await supabase.from('sessions').update( { status: "COMPLETED" },
-      });
-      
+      const { error: updateError } = await supabase
+        .from('sessions')
+        .update({ status: "COMPLETED" })
+        .eq('id', sessionId);
+        
+      if (updateError) {
+        console.error('Error updating session:', updateError);
+        return NextResponse.json({ error: 'Failed to update session' }, { status: 500 });
+      }
+        
       // Store verification data in activity log
-      await supabase.from('activityLogs').insert( {
+      const { error: logError } = await supabase
+        .from('activityLogs')
+        .insert({
           userId: user.id,
           action: "UPDATE",
           targetResourceId: sessionId,
@@ -134,25 +174,36 @@ export async function POST(req: NextRequest) {
           details: {
             verification: {
               timestamp: new Date().toISOString(),
-              sealId: seal.id,
+              sealId: seal ? seal.id : null,
               fieldVerifications: verificationData.fieldVerifications,
               imageVerifications: verificationData.imageVerifications,
               allMatch: verificationData.allMatch
             }
           }
-        }
-      });
+        });
+        
+      if (logError) {
+        console.error('Error creating activity log:', logError);
+        // Continue even if log creation fails
+      }
       
       // Get company email to send notification
       let companyEmail = existingSession.company?.email;
       
+      // Get company data
       if (!companyEmail && existingSession.company?.id) {
-        const company = await supabase.from('companys').findUnique({
-          where: { id: existingSession.company.id },
-          select: { email: true },
-        });
+        const { data: company, error: companyError } = await supabase
+          .from('companys')
+          .select('email')
+          .eq('id', existingSession.company.id)
+          .single();
         
-        companyEmail = company?.email;
+        if (companyError) {
+          console.error('Error fetching company:', companyError);
+          // Continue without email
+        } else {
+          companyEmail = company?.email;
+        }
       }
       
       // Send email notification if company email is available
@@ -186,14 +237,28 @@ export async function POST(req: NextRequest) {
       });
     } else {
       // Create a regular seal
-      const seal = await supabase.from('seals').insert( sealData,
-      });
+      const { data: seal, error: insertError } = await supabase
+        .from('seals')
+        .insert(sealData)
+        .select();
 
-    // Update session status to IN_PROGRESS
-    await supabase.from('sessions').update( { status: "IN_PROGRESS" },
-    });
+      if (insertError) {
+        console.error('Error creating seal:', insertError);
+        return NextResponse.json({ error: 'Failed to create seal' }, { status: 500 });
+      }
 
-    return NextResponse.json(seal);
+      // Update session status to IN_PROGRESS
+      const { error: updateError } = await supabase
+        .from('sessions')
+        .update({ status: "IN_PROGRESS" })
+        .eq('id', sessionId);
+
+      if (updateError) {
+        console.error('Error updating session:', updateError);
+        return NextResponse.json({ error: 'Failed to update session' }, { status: 500 });
+      }
+
+      return NextResponse.json(seal);
     }
   } catch (error) {
     console.error("Error creating seal:", error);
@@ -212,7 +277,16 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const user = await supabase.from('users').select('*').eq('email', session.user.email).single();
+    const { data: user, error: userError } = await supabase
+      .from('users')
+      .select('*')
+      .eq('email', session.user.email)
+      .single();
+
+    if (userError) {
+      console.error('Error fetching user:', userError);
+      return NextResponse.json({ error: 'Failed to fetch user' }, { status: 500 });
+    }
 
     if (!user) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
@@ -245,17 +319,23 @@ export async function PATCH(req: NextRequest) {
     }
 
     // Check if the seal exists
-    const existingSeal = await supabase.from('seals').findUnique({
-      where: { id: sealId },
-      include: { 
-        session: {
-          include: {
-            company: true,
-            createdBy: true
-          }
-        }
-      }
-    });
+    const { data: existingSeal, error: sealError } = await supabase
+      .from('seals')
+      .select(`
+        *,
+        session:sessionId(
+          *,
+          company:companyId(*),
+          createdBy:createdById(*)
+        )
+      `)
+      .eq('id', sealId)
+      .single();
+
+    if (sealError) {
+      console.error('Error fetching seal:', sealError);
+      return NextResponse.json({ error: 'Failed to fetch seal' }, { status: 500 });
+    }
 
     if (!existingSeal) {
       return NextResponse.json(
@@ -273,70 +353,83 @@ export async function PATCH(req: NextRequest) {
     }
 
     try {
-      // Start a transaction to ensure data consistency
-      const result = await prisma.$transaction(async (prismaClient: any) => {
-        // Type assertion for the transaction client
-        const tx = prismaClient as typeof prisma;
-
-    // Update the seal as verified
-        const updatedSeal = await tx.seal.update({
-      where: { id: sealId },
-      data: {
-        verified: true,
-        verifiedById: user.id,
-        scannedAt: new Date(),
-      },
-      include: {
-            verifiedBy: true,
-            session: {
-              include: {
-                company: true,
-                createdBy: true,
-              }
-            },
-      },
-    });
-
-    // Update session status to COMPLETED
-        await tx.session.update({
-      where: { id: updatedSeal.sessionId },
-      data: { 
-        status: "COMPLETED" 
-      },
-    });
-
-    // Store verification data in activity log
-        await tx.activityLog.create({
-      data: {
-        userId: user.id,
-        action: "UPDATE",
-        targetResourceId: updatedSeal.sessionId,
-        targetResourceType: "session",
-        details: {
-          verification: {
-            timestamp: new Date().toISOString(),
-            sealId: sealId,
-            fieldVerifications: verificationData.fieldVerifications,
-            imageVerifications: verificationData.imageVerifications,
-            allMatch: verificationData.allMatch
-          }
-        }
-      }
-    });
-
-        return updatedSeal;
-      });
-
-      // Get company email to send notification (after transaction completion)
-      let companyEmail = result.session?.company?.email;
+      // Update the seal as verified
+      const { data: updatedSeal, error: updateSealError } = await supabase
+        .from('seals')
+        .update({
+          verified: true,
+          verifiedById: user.id,
+          scannedAt: new Date()
+        })
+        .eq('id', sealId)
+        .select(`
+          *,
+          verifiedBy:verifiedById(*),
+          session:sessionId(
+            *,
+            company:companyId(*),
+            createdBy:createdById(*)
+          )
+        `)
+        .single();
       
-      if (!companyEmail && result.session?.company?.id) {
-        const company = await supabase.from('companys').findUnique({
-          where: { id: result.session.company.id },
-          select: { email: true },
+      if (updateSealError) {
+        console.error('Error updating seal:', updateSealError);
+        return NextResponse.json({ error: 'Failed to update seal' }, { status: 500 });
+      }
+
+      // Update session status to COMPLETED
+      const { error: updateSessionError } = await supabase
+        .from('sessions')
+        .update({ status: "COMPLETED" })
+        .eq('id', updatedSeal.sessionId);
+      
+      if (updateSessionError) {
+        console.error('Error updating session:', updateSessionError);
+        return NextResponse.json({ error: 'Failed to update session status' }, { status: 500 });
+      }
+
+      // Store verification data in activity log
+      const { error: logError } = await supabase
+        .from('activityLogs')
+        .insert({
+          userId: user.id,
+          action: "UPDATE",
+          targetResourceId: updatedSeal.sessionId,
+          targetResourceType: "session",
+          details: {
+            verification: {
+              timestamp: new Date().toISOString(),
+              sealId: sealId,
+              fieldVerifications: verificationData.fieldVerifications,
+              imageVerifications: verificationData.imageVerifications,
+              allMatch: verificationData.allMatch
+            }
+          }
         });
+      
+      if (logError) {
+        console.error('Error creating activity log:', logError);
+        // Continue even if log creation fails
+      }
+
+      // Get company email to send notification
+      let companyEmail = updatedSeal.session?.company?.email;
+      
+      // Get company data
+      if (!companyEmail && updatedSeal.session?.company?.id) {
+        const { data: company, error: companyError } = await supabase
+          .from('companys')
+          .select('email')
+          .eq('id', updatedSeal.session.company.id)
+          .single();
         
-        companyEmail = company?.email;
+        if (companyError) {
+          console.error('Error fetching company:', companyError);
+          // Continue without email
+        } else {
+          companyEmail = company?.email;
+        }
       }
       
       // Send email notification if company email is available
@@ -346,12 +439,12 @@ export async function PATCH(req: NextRequest) {
       if (companyEmail) {
         try {
           const emailResult = await sendVerificationEmail({
-            sessionId: result.sessionId,
-            sessionDetails: result.session,
+            sessionId: updatedSeal.sessionId,
+            sessionDetails: updatedSeal.session,
             companyEmail,
             guardName: user.name || 'Guard',
             verificationDetails: verificationData,
-            sealDetails: result,
+            sealDetails: updatedSeal,
             timestamp: new Date().toISOString(),
           });
           
@@ -373,7 +466,7 @@ export async function PATCH(req: NextRequest) {
       }
 
     return NextResponse.json({
-        ...result,
+        ...updatedSeal,
       verificationDetails: {
         allMatch: verificationData.allMatch,
         fieldVerifications: verificationData.fieldVerifications
@@ -381,10 +474,10 @@ export async function PATCH(req: NextRequest) {
         emailSent,
         emailError: emailError ? String(emailError) : null
       });
-    } catch (txError) {
-      console.error("Transaction error during verification:", txError);
+    } catch (error) {
+      console.error("Error verifying seal:", error);
       return NextResponse.json(
-        { error: "Failed to complete verification transaction" },
+        { error: "Failed to verify seal" },
         { status: 500 }
       );
     }

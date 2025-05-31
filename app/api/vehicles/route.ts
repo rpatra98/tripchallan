@@ -24,30 +24,25 @@ export async function GET(request: NextRequest) {
     
     // Build the query
     const query: any = {
-      where: {
-        companyId: session.user.companyId,
-      },
-      orderBy: {
-        createdAt: 'desc',
-      },
-      include: {
-        createdBy: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-          },
-        },
-      },
+      select: '*'
     };
     
-    // Add status filter if provided
+    // Apply filters if they exist
     if (status) {
-      query.where.status = status;
+      query.eq = { status };
     }
     
-    const vehicles = await supabase.from('vehicles').select('*').query);
+    if (session.user.companyId) {
+      query.eq = { ...query.eq, companyId: session.user.companyId };
+    }
     
+    const { data: vehicles, error } = await supabase.from('vehicles').select('*').apply(query);
+    
+    if (error) {
+      console.error('Error fetching vehicles:', error);
+      return NextResponse.json({ error: 'Failed to fetch vehicles' }, { status: 500 });
+    }
+
     return NextResponse.json({ vehicles });
   } catch (error) {
     console.error("Error fetching vehicles:", error);
@@ -93,19 +88,26 @@ export async function POST(request: NextRequest) {
     }
     
     // Create the vehicle
-    const vehicle = await supabase.from('vehicles').insert( {
+    const { data: vehicle, error: createError } = await supabase
+      .from('vehicles')
+      .insert({
         numberPlate: data.numberPlate,
         model: data.model || null,
         manufacturer: data.manufacturer || null,
         yearOfMake: data.yearOfMake ? parseInt(data.yearOfMake) : null,
         registrationCertificate: data.registrationCertificate || null,
         status: VehicleStatus.ACTIVE,
-        company: { connect: { id: session.user.companyId } },
-        createdBy: { connect: { id: session.user.id } },
-      },
-    });
+        companyId: session.user.companyId,
+        createdById: session.user.id
+      })
+      .select();
     
-    return NextResponse.json({ vehicle }, { status: 201 });
+    if (createError) {
+      console.error('Error creating vehicle:', createError);
+      return NextResponse.json({ error: 'Failed to create vehicle' }, { status: 500 });
+    }
+    
+    return NextResponse.json({ vehicle });
   } catch (error) {
     console.error("Error creating vehicle:", error);
     return NextResponse.json({ error: "Failed to create vehicle" }, { status: 500 });

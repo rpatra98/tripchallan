@@ -123,14 +123,21 @@ export const PUT = withAuth(
       delete updateData.companyId;
 
       // Update the session
-      const updatedSession = await supabase.from('sessions').update( updateData,
-        include: {
-          company: true,
-          createdBy: {
-            select: { id: true, name: true, email: true }
-          }
-        }
-      });
+      const { data: updatedSession, error: updateError } = await supabase
+        .from('sessions')
+        .update(updateData)
+        .eq('id', sessionId)
+        .select(`
+          *,
+          company:companyId(*),
+          createdBy:createdById(id, name, email)
+        `)
+        .single();
+      
+      if (updateError) {
+        console.error('Error updating session:', updateError);
+        return NextResponse.json({ error: 'Failed to update session' }, { status: 500 });
+      }
 
       // Log the activity
       await addActivityLog({
@@ -264,12 +271,23 @@ export const DELETE = withAuth(
         
         // Step 2: Delete the seal if it exists (it has a foreign key constraint)
         if (existingSession.seal) {
-          await supabase.from('seals').delete().eq('sessionId } 
-          });
-          console.log(`Deleted seal for session ${sessionId}`);
+          const { error: sealError } = await supabase
+            .from('seals')
+            .delete()
+            .eq('sessionId', sessionId);
+          
+          if (sealError) {
+            console.error(`Error deleting seal for session ${sessionId}:`, sealError);
+            // Continue with the deletion process
+          } else {
+            console.log(`Deleted seal for session ${sessionId}`);
+          }
         }
         
-        // Step 3', Delete);
+        // Step 3: Delete activity logs for the session
+        await prisma.activityLog.deleteMany({ 
+          where: { sessionId } 
+        });
         console.log(`Deleted activity logs for session ${sessionId}`);
         
         // Step 4: Finally delete the session itself

@@ -101,43 +101,26 @@ export async function PUT(
       }
     }
     
-    // Update session with new data
-    const updatedSession = await supabase.from('sessions').update( {
-        source: data.source,
-        destination: data.destination,
-        
-        // Only update tripDetails if provided
-        ...(data.tripDetails && {
-          tripDetails: {
-            update: {
-              data: {
-                ...data.tripDetails,
-              },
-            },
-          },
-        }),
-        
-        // Update images
-        images: {
-          gpsImeiPicture: imageUpdates.gpsImeiPicture || null,
-          vehicleNumberPlatePicture: imageUpdates.vehicleNumberPlatePicture || null,
-          driverPicture: imageUpdates.driverPicture || null,
-          sealingImages: imageUpdates.sealingImages || [],
-          vehicleImages: imageUpdates.vehicleImages || [],
-          additionalImages: imageUpdates.additionalImages || []
-        },
-        
-        // Update seal if needed
-        ...sealUpdates,
-        
+    // Update the session
+    const { data: updatedSession, error: updateError } = await supabase
+      .from('sessions')
+      .update({
+        ...data,
         // Record update timestamp
         updatedAt: new Date(),
-      },
-      include: {
-        company: true,
-        seal: true
-      },
-    });
+      })
+      .eq('id', sessionId)
+      .select(`
+        *,
+        company:companyId(*),
+        seal:id(*)
+      `)
+      .single();
+    
+    if (updateError) {
+      console.error('Error updating session:', updateError);
+      return NextResponse.json({ error: 'Failed to update session' }, { status: 500 });
+    }
     
     // Log activity
     await addActivityLog({

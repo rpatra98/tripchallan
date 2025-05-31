@@ -143,28 +143,17 @@ export const GET = withAuth(
       console.log(`Found trip activity log? ${tripActivityLog ? 'Yes (ID: ' + tripActivityLog.id + ')' : 'No'}`);
       
       // 3. Fetch verification logs
-      const verificationLogs = await supabase.from('activityLogs').select('*').{
-        where: {
-          targetResourceId: sessionId,
-          targetResourceType: 'session',
-          action: 'UPDATE',
-        },
-        orderBy: {
-          createdAt: 'desc',
-        },
-        select: {
-          id: true,
-          action: true,
-          details: true,
-          createdAt: true,
-          userId: true,
-          user: {
-            select: {
-              id: true, name: true, role: true, subrole: true
-            }
-          }
-        }
-      });
+      const { data: verificationLogs, error: verificationError } = await supabase
+        .from('activityLogs')
+        .select('*')
+        .eq('targetResourceId', sessionId)
+        .eq('targetResourceType', 'session')
+        .eq('action', 'VERIFY_SEAL')
+        .order('createdAt', { ascending: true });
+      
+      if (verificationError) {
+        console.error('Error fetching verification logs:', verificationError);
+      }
       
       // ======== DATA EXTRACTION SECTION ========
       

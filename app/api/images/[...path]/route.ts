@@ -263,17 +263,19 @@ export const GET_OLD = withAuth(
       // Try to get the image from the database
       // We need to find the activity log that contains the base64 image data
       // Get all activity logs for this session to ensure we find all data
-      const allLogs = await supabase.from('activityLogs').select('*').{
-        where: {
-          targetResourceId: sessionId,
-          targetResourceType: 'session',
-        },
-        orderBy: {
-          createdAt: 'desc',
-        },
-      });
+      const { data: allLogs, error: logsError } = await supabase
+        .from('activityLogs')
+        .select('*')
+        .eq('targetResourceId', sessionId)
+        .eq('targetResourceType', 'session')
+        .order('createdAt', { ascending: true });
       
-      console.log(`Found ${allLogs.length} activity logs for session ${sessionId}`);
+      if (logsError) {
+        console.error('Error fetching activity logs:', logsError);
+        // Continue to fallback
+      }
+      
+      console.log(`Found ${allLogs ? allLogs.length : 0} activity logs for session ${sessionId}`);
       
       // First, look for logs with direct imageBase64Data
       let activityLog = allLogs.find((log: any) => 

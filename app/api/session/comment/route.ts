@@ -57,24 +57,28 @@ async function handler(req: NextRequest) {
       );
     }
 
-    // Create the comment
-    const comment = await supabase.from('comments').insert( {
+    // Create comment
+    const { data: newComment, error: commentError } = await supabase
+      .from('sessionComments')
+      .insert({
         sessionId,
-        userId: session.user.id,
+        userId: userId,
         message,
-      },
-      include: {
-        user: {
-          select: {
-            id: true,
-            name: true,
-            role: true,
-          },
-        },
-      },
-    });
+      })
+      .select(`
+        *,
+        user:userId(
+          id, name, email, role, subrole
+        )
+      `)
+      .single();
+    
+    if (commentError) {
+      console.error('Error creating comment:', commentError);
+      return NextResponse.json({ error: 'Failed to create comment' }, { status: 500 });
+    }
 
-    return NextResponse.json(comment, { status: 201 });
+    return NextResponse.json(newComment, { status: 201 });
   } catch (error) {
     console.error("Error adding comment:", error);
     return NextResponse.json(
@@ -138,24 +142,28 @@ export const POST = withAuth(
         );
       }
 
-      // Create the comment
-      const comment = await supabase.from('comments').insert( {
+      // Create comment
+      const { data: newComment, error: commentError } = await supabase
+        .from('sessionComments')
+        .insert({
           sessionId,
-          userId: session.user.id,
+          userId: userId,
           message,
-        },
-        include: {
-          user: {
-            select: {
-              id: true,
-              name: true,
-              role: true,
-            },
-          },
-        },
-      });
+        })
+        .select(`
+          *,
+          user:userId(
+            id, name, email, role, subrole
+          )
+        `)
+        .single();
+      
+      if (commentError) {
+        console.error('Error creating comment:', commentError);
+        return NextResponse.json({ error: 'Failed to create comment' }, { status: 500 });
+      }
 
-      return NextResponse.json(comment, { status: 201 });
+      return NextResponse.json(newComment, { status: 201 });
     } catch (error) {
       console.error("Error adding comment:", error);
       return NextResponse.json(

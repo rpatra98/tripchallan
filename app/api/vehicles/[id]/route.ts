@@ -108,9 +108,17 @@ export async function PATCH(
     }
     
     // Update the vehicle
-    const updatedVehicle = await supabase.from('vehicles').update( updateData,
-    });
+    const { data: updatedVehicle, error: updateError } = await supabase
+      .from('vehicles')
+      .update(updateData)
+      .eq('id', vehicleId)
+      .select();
     
+    if (updateError) {
+      console.error('Error updating vehicle:', updateError);
+      return NextResponse.json({ error: 'Failed to update vehicle' }, { status: 500 });
+    }
+
     return NextResponse.json({ vehicle: updatedVehicle });
   } catch (error) {
     console.error("Error updating vehicle:", error);
@@ -171,10 +179,18 @@ export async function DELETE(
       });
     } else {
       // Soft delete by marking as INACTIVE
-      const deactivatedVehicle = await supabase.from('vehicles').update( { status: VehicleStatus.INACTIVE },
-      });
+      const { data: deactivatedVehicle, error: updateError } = await supabase
+        .from('vehicles')
+        .update({ status: VehicleStatus.INACTIVE })
+        .eq('id', vehicleId)
+        .select();
       
-      return NextResponse.json({ 
+      if (updateError) {
+        console.error('Error deactivating vehicle:', updateError);
+        return NextResponse.json({ error: 'Failed to deactivate vehicle' }, { status: 500 });
+      }
+
+      return NextResponse.json({
         message: "Vehicle deactivated successfully",
         vehicle: deactivatedVehicle
       });
