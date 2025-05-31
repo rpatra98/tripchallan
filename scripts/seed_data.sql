@@ -39,7 +39,7 @@ BEGIN
       -- Password: admin123 (hashed)
       '$2b$12$EixZaYVK1fsbw1ZfbX3OXePaWxn96p36WQoeG6Lruj3vjPGga31lW', 
       'ADMIN', 
-      50000,
+      1000,
       NOW(), NOW(), NOW(), NOW()
     )
     RETURNING id INTO admin_id;
@@ -51,7 +51,7 @@ BEGIN
       amount, from_user_id, to_user_id, notes, created_at, updated_at,
       "fromUserId", "toUserId", "createdAt", "updatedAt"
     ) VALUES (
-      50000, superadmin_id, admin_id, 'Initial coin allocation for new admin', NOW(), NOW(),
+      1000, superadmin_id, admin_id, 'Initial coin allocation for new admin', NOW(), NOW(),
       superadmin_id, admin_id, NOW(), NOW()
     );
     
@@ -86,7 +86,7 @@ BEGIN
         amount, from_user_id, to_user_id, notes, created_at, updated_at,
         "fromUserId", "toUserId", "createdAt", "updatedAt"
       ) VALUES (
-        5000, superadmin_id, admin_id, 'Bonus coins for performance', NOW() - INTERVAL '2 days', NOW() - INTERVAL '2 days',
+        500, superadmin_id, admin_id, 'Bonus coins for performance', NOW() - INTERVAL '2 days', NOW() - INTERVAL '2 days',
         superadmin_id, admin_id, NOW() - INTERVAL '2 days', NOW() - INTERVAL '2 days'
       );
       
@@ -95,7 +95,7 @@ BEGIN
         amount, from_user_id, to_user_id, notes, created_at, updated_at,
         "fromUserId", "toUserId", "createdAt", "updatedAt"
       ) VALUES (
-        1000, admin_id, superadmin_id, 'Reclaimed coins for unused allocation', NOW() - INTERVAL '1 day', NOW() - INTERVAL '1 day',
+        200, admin_id, superadmin_id, 'Reclaimed coins for unused allocation', NOW() - INTERVAL '1 day', NOW() - INTERVAL '1 day',
         admin_id, superadmin_id, NOW() - INTERVAL '1 day', NOW() - INTERVAL '1 day'
       );
     END LOOP;

@@ -273,10 +273,11 @@ export const POST = withAuth(
           }
           
           // Use a transaction to ensure atomicity
-          const result = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-            // 1. Create the operator - pass exact number of coins to ensure operator gets exactly what was requested
-            const operator = await tx.user.create({
-              data: {
+          try {
+            // 1. Create the operator
+            const { data: operator, error: operatorError } = await supabase
+              .from('users')
+              .insert({
                 email: body.email,
                 name: body.name,
                 password: hashedPassword,
@@ -285,30 +286,42 @@ export const POST = withAuth(
                 companyId: body.companyId,
                 subrole: body.subrole,
                 coins: coinsToAllocate // Exact amount requested
-              },
-              include: {
-                company: true
-              }
-            });
+              })
+              .select('*, company:companyId(*)')
+              .single();
+            
+            if (operatorError) {
+              throw new Error(`Failed to create operator: ${operatorError.message}`);
+            }
             
             // 2. Deduct only the allocated coins from admin
-            await tx.user.update({
-              where: { id: userId as string },
-              data: { coins: { decrement: totalCoinsNeeded } }
-            });
+            const { error: adminUpdateError } = await supabase
+              .from('users')
+              .update({ 
+                coins: admin.coins - totalCoinsNeeded,
+                updatedAt: new Date().toISOString()
+              })
+              .eq('id', userId);
+            
+            if (adminUpdateError) {
+              throw new Error(`Failed to update admin coins: ${adminUpdateError.message}`);
+            }
             
             // 3. Record the main transaction for the initial coins
-            await tx.coinTransaction.create({
-              data: {
-                fromUserId: userId as string,
-                toUserId: operator.id,
+            const { error: transactionError } = await supabase
+              .from('coin_transactions')
+              .insert({
+                from_user_id: userId,
+                to_user_id: operator.id,
                 amount: coinsToAllocate,
-                reason: TransactionReason.COIN_ALLOCATION,
-                reasonText: `Initial coins for new operator: ${operator.name}`
-              }
-            });
+                notes: `Initial coins for new operator: ${operator.name}`,
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString()
+              });
             
-            // Removed the SESSION_CREATION transaction - no longer needed
+            if (transactionError) {
+              throw new Error(`Failed to record transaction: ${transactionError.message}`);
+            }
             
             // 4. If needed, create operator permissions
             if (body.permissions) {
@@ -319,17 +332,23 @@ export const POST = withAuth(
                 canDelete: body.permissions.canDelete !== undefined ? body.permissions.canDelete : false,
               };
               
-              await tx.operatorPermissions.create({
-                data: permissionsToCreate
-              });
+              const { error: permissionsError } = await supabase
+                .from('operatorPermissions')
+                .insert(permissionsToCreate);
+              
+              if (permissionsError) {
+                console.error(`Failed to create operator permissions: ${permissionsError.message}`);
+                // Don't fail the transaction for permissions error
+              }
             }
             
-            return operator;
-          });
-          
-          // Set newUser to the created operator
-          newUser = result;
-          console.log(`Successfully created operator with ID ${newUser.id} and allocated ${coinsToAllocate} coins`);
+            // Set newUser to the created operator
+            newUser = operator;
+            console.log(`Successfully created operator with ID ${operator.id} and allocated ${coinsToAllocate} coins`);
+          } catch (error) {
+            console.error("Transaction failed:", error);
+            return NextResponse.json({ error: error instanceof Error ? error.message : 'Failed to create operator' }, { status: 500 });
+          }
         }
         else {
           // For non-operator employees or operators without coin allocation, create normally
@@ -430,43 +449,61 @@ export const POST = withAuth(
             );
           }
           
-          // Use a transaction to ensure atomicity for ADMIN creation with coins
-          const result = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+          try {
             // 1. Create the admin
-            const admin = await tx.user.create({
-              data: {
+            const { data: admin, error: adminError } = await supabase
+              .from('users')
+              .insert({
                 email: body.email,
                 name: body.name,
                 password: hashedPassword,
                 role: body.role,
                 createdById: userId,
                 coins: coinsToAllocate
-              }
-            });
+              })
+              .select()
+              .single();
+            
+            if (adminError) {
+              throw new Error(`Failed to create admin: ${adminError.message}`);
+            }
             
             // 2. Deduct coins from SUPERADMIN
-            await tx.user.update({
-              where: { id: userId as string },
-              data: { coins: { decrement: coinsToAllocate } }
-            });
+            const { error: updateError } = await supabase
+              .from('users')
+              .update({ 
+                coins: superAdmin.coins - coinsToAllocate,
+                updatedAt: new Date().toISOString()
+              })
+              .eq('id', userId);
+            
+            if (updateError) {
+              throw new Error(`Failed to update SUPERADMIN coins: ${updateError.message}`);
+            }
             
             // 3. Record the transaction
-            await tx.coinTransaction.create({
-              data: {
-                fromUserId: userId as string,
-                toUserId: admin.id,
+            const { error: transactionError } = await supabase
+              .from('coin_transactions')
+              .insert({
+                from_user_id: userId,
+                to_user_id: admin.id,
                 amount: coinsToAllocate,
-                reason: TransactionReason.COIN_ALLOCATION,
-                reasonText: `Initial coins for new admin: ${admin.name}`
-              }
-            });
+                notes: `Initial coins for new admin: ${admin.name}`,
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString()
+              });
             
-            return admin;
-          });
-          
-          // Set newUser to the created admin
-          newUser = result;
-          console.log(`Successfully created admin with ID ${newUser.id} and allocated ${coinsToAllocate} coins`);
+            if (transactionError) {
+              throw new Error(`Failed to record transaction: ${transactionError.message}`);
+            }
+            
+            // Set newUser to the created admin
+            newUser = admin;
+            console.log(`Successfully created admin with ID ${admin.id} and allocated ${coinsToAllocate} coins`);
+          } catch (error) {
+            console.error("Admin creation failed:", error);
+            return NextResponse.json({ error: error instanceof Error ? error.message : 'Failed to create admin' }, { status: 500 });
+          }
         } else {
           // For other cases, create normally without a transaction
           const { data: newUserData, error: userError } = await supabase

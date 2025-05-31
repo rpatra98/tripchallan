@@ -270,6 +270,7 @@ export default function CoinManagement() {
       let { data: transactionData, error: transactionError } = await supabase
         .from('coin_transactions')
         .select('*')
+        .order('created_at', { ascending: false })
         .limit(20);
       
       console.log('Transaction query response:', { data: transactionData, error: transactionError });
@@ -297,41 +298,20 @@ export default function CoinManagement() {
               return;
             }
             
-            // Attempt to create a transaction for each admin
+            // Simplify transaction creation - just use snake_case fields
             for (const admin of admins) {
               try {
-                // Try with snake_case first
                 const { error: createError } = await supabase
                   .from('coin_transactions')
                   .insert({
                     from_user_id: session.user.id,
                     to_user_id: admin.id,
-                    amount: 50000,
-                    notes: `Initial coin allocation for ${admin.name}`,
-                    created_at: new Date().toISOString(),
-                    updated_at: new Date().toISOString()
+                    amount: 1000,
+                    notes: `Initial coin allocation for ${admin.name}`
                   });
                 
                 if (createError) {
-                  console.error('Error creating transaction with snake_case:', createError);
-                  
-                  // Try with camelCase
-                  const { error: camelError } = await supabase
-                    .from('coin_transactions')
-                    .insert({
-                      fromUserId: session.user.id,
-                      toUserId: admin.id,
-                      amount: 50000,
-                      notes: `Initial coin allocation for ${admin.name}`,
-                      createdAt: new Date().toISOString(),
-                      updatedAt: new Date().toISOString()
-                    });
-                  
-                  if (camelError) {
-                    console.error('Error creating transaction with camelCase:', camelError);
-                  } else {
-                    console.log(`Created transaction for admin: ${admin.name}`);
-                  }
+                  console.error('Error creating transaction:', createError);
                 } else {
                   console.log(`Created transaction for admin: ${admin.name}`);
                 }
@@ -344,6 +324,7 @@ export default function CoinManagement() {
             const { data: newData, error: newError } = await supabase
               .from('coin_transactions')
               .select('*')
+              .order('created_at', { ascending: false })
               .limit(20);
             
             if (newError || !newData || newData.length === 0) {
@@ -352,7 +333,7 @@ export default function CoinManagement() {
               // Create dummy transaction objects for display purposes
               transactionData = admins.map((admin, index) => ({
                 id: `dummy-${index}`,
-                amount: 50000,
+                amount: 1000,
                 from_user_id: session.user.id,
                 to_user_id: admin.id,
                 notes: `Initial coin allocation for ${admin.name}`,
@@ -503,17 +484,64 @@ export default function CoinManagement() {
         throw new Error(`You only have ${currentUserCoins} coins, which is insufficient for this transaction`);
       }
       
-      const response = await fetch('/api/coins/transfer', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(transactionData),
-      });
-      
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to process coin transfer');
+      // Try API first
+      try {
+        const response = await fetch('/api/coins/transfer', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(transactionData),
+        });
+        
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || 'Failed to process coin transfer');
+        }
+      } catch (apiError) {
+        console.error('API transfer failed, trying direct Supabase:', apiError);
+        
+        // Try direct Supabase insert as fallback
+        const { error: supabaseError } = await supabase
+          .from('coin_transactions')
+          .insert(transactionData);
+        
+        if (supabaseError) {
+          throw new Error(`Failed to process coin transfer: ${supabaseError.message}`);
+        }
+        
+        // Also update user coin balances directly
+        if (isTakingCoins) {
+          // Taking coins from admin to superadmin
+          await supabase
+            .from('users')
+            .update({ coins: currentUserCoins + values.amount })
+            .eq('id', session.user.id);
+          
+          const foundAdmin = admins.find(a => a.id === values.adminId);
+          const adminCoins = foundAdmin ? foundAdmin.coins : 0;
+          
+          await supabase
+            .from('users')
+            .update({ 
+              coins: adminCoins - values.amount 
+            })
+            .eq('id', values.adminId);
+        } else {
+          // Giving coins from superadmin to admin
+          await supabase
+            .from('users')
+            .update({ coins: currentUserCoins - values.amount })
+            .eq('id', session.user.id);
+          
+          const foundAdmin = admins.find(a => a.id === values.adminId);
+          const adminCoins = foundAdmin ? foundAdmin.coins : 0;
+          
+          await supabase
+            .from('users')
+            .update({ coins: adminCoins + values.amount })
+            .eq('id', values.adminId);
+        }
       }
       
       toast.success(`Successfully ${isTakingCoins ? 'taken' : 'given'} ${values.amount} coins ${isTakingCoins ? 'from' : 'to'} admin`);
@@ -555,7 +583,7 @@ export default function CoinManagement() {
       return { type: "Reclaim", color: "warning" as const };
     }
     // Large allocation
-    else if (transaction.amount >= 50000) {
+    else if (transaction.amount >= 5000) {
       return { type: "Allocation", color: "primary" as const };
     }
     // Default

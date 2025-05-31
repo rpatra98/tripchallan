@@ -68,6 +68,19 @@ BEGIN
   FOR EACH ROW
   WHEN (NEW.from_user_id IS NOT NULL OR NEW.to_user_id IS NOT NULL OR NEW.created_at IS NOT NULL OR NEW.updated_at IS NOT NULL)
   EXECUTE FUNCTION sync_snake_to_camel();
+  
+  -- Create helper function to get table columns dynamically
+  CREATE OR REPLACE FUNCTION get_table_columns(table_name TEXT)
+  RETURNS TABLE (column_name TEXT, data_type TEXT) AS $$
+  BEGIN
+    RETURN QUERY
+    SELECT c.column_name::TEXT, c.data_type::TEXT
+    FROM information_schema.columns c
+    WHERE c.table_name = table_name
+    AND c.table_schema = current_schema()
+    ORDER BY c.ordinal_position;
+  END;
+  $$ LANGUAGE plpgsql SECURITY DEFINER;
 END $$;
 
 -- Add some sample transactions
@@ -89,7 +102,7 @@ BEGIN
       amount, from_user_id, to_user_id, notes, created_at, updated_at,
       "fromUserId", "toUserId", "createdAt", "updatedAt"
     ) VALUES (
-      50000, superadmin_id, admin_id, 'Initial coin allocation', NOW() - INTERVAL '3 days', NOW() - INTERVAL '3 days',
+      1000, superadmin_id, admin_id, 'Initial coin allocation', NOW() - INTERVAL '3 days', NOW() - INTERVAL '3 days',
       superadmin_id, admin_id, NOW() - INTERVAL '3 days', NOW() - INTERVAL '3 days'
     );
     
@@ -98,7 +111,7 @@ BEGIN
       amount, from_user_id, to_user_id, notes, created_at, updated_at,
       "fromUserId", "toUserId", "createdAt", "updatedAt"
     ) VALUES (
-      5000, superadmin_id, admin_id, 'Bonus coins', NOW() - INTERVAL '2 days', NOW() - INTERVAL '2 days',
+      1000, superadmin_id, admin_id, 'Bonus coins', NOW() - INTERVAL '2 days', NOW() - INTERVAL '2 days',
       superadmin_id, admin_id, NOW() - INTERVAL '2 days', NOW() - INTERVAL '2 days'
     );
     
@@ -107,7 +120,7 @@ BEGIN
       amount, from_user_id, to_user_id, notes, created_at, updated_at,
       "fromUserId", "toUserId", "createdAt", "updatedAt"
     ) VALUES (
-      1000, admin_id, superadmin_id, 'Reclaimed coins', NOW() - INTERVAL '1 day', NOW() - INTERVAL '1 day',
+      500, admin_id, superadmin_id, 'Reclaimed coins', NOW() - INTERVAL '1 day', NOW() - INTERVAL '1 day',
       admin_id, superadmin_id, NOW() - INTERVAL '1 day', NOW() - INTERVAL '1 day'
     );
   END IF;

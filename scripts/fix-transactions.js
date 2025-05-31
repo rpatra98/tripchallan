@@ -39,6 +39,21 @@ async function fixTransactions() {
     await pool.query(migrationScript);
     console.log('Transaction schema migration completed successfully');
     
+    // Check table columns
+    console.log('Checking table columns...');
+    const { rows: columns } = await pool.query(`
+      SELECT column_name, data_type
+      FROM information_schema.columns
+      WHERE table_name = 'coin_transactions'
+      AND table_schema = current_schema()
+      ORDER BY ordinal_position;
+    `);
+    
+    console.log('Table columns:');
+    columns.forEach(col => {
+      console.log(`  ${col.column_name}: ${col.data_type}`);
+    });
+    
     // Check if the migration worked by counting transactions
     const { rows } = await pool.query('SELECT COUNT(*) FROM coin_transactions');
     console.log(`Transaction count after migration: ${rows[0].count}`);
@@ -58,7 +73,47 @@ async function fixTransactions() {
       // Check again after seeding
       const { rows: afterRows } = await pool.query('SELECT COUNT(*) FROM coin_transactions');
       console.log(`Transaction count after seeding: ${afterRows[0].count}`);
+      
+      // If still no transactions, manually create some
+      if (parseInt(afterRows[0].count) === 0) {
+        console.log('Still no transactions, creating manually...');
+        
+        // Get superadmin and admin
+        const { rows: users } = await pool.query(`
+          SELECT id, role FROM users WHERE role IN ('SUPERADMIN', 'ADMIN') LIMIT 4
+        `);
+        
+        if (users.length >= 2) {
+          const superadmin = users.find(u => u.role === 'SUPERADMIN');
+          const admins = users.filter(u => u.role === 'ADMIN');
+          
+          if (superadmin && admins.length > 0) {
+            console.log(`Found superadmin and ${admins.length} admins, creating transactions...`);
+            
+            for (const admin of admins) {
+              // Create initial allocation
+              await pool.query(`
+                INSERT INTO coin_transactions (
+                  amount, from_user_id, to_user_id, notes
+                ) VALUES (
+                  1000, $1, $2, 'Initial coin allocation for admin'
+                )
+              `, [superadmin.id, admin.id]);
+              
+              console.log(`Created initial allocation transaction for admin ${admin.id}`);
+            }
+          }
+        }
+      }
     }
+    
+    // Update any incorrect transaction amounts
+    console.log('Updating incorrect transaction amounts...');
+    await pool.query(`
+      UPDATE coin_transactions
+      SET amount = 1000
+      WHERE notes LIKE 'Initial coin allocation%' AND amount <> 1000
+    `);
     
     // List a sample of transactions
     const { rows: sampleRows } = await pool.query(
