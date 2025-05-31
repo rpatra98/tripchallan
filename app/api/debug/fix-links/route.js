@@ -8,17 +8,17 @@ import { supabase } from "@/lib/supabase";
 export async function GET() {
   try {
     // Find all valid companies
-    const companies = await supabase.from('users').select('*').{
-      where: {
-        role: "COMPANY",
-      },
-      select: {
-        id: true,
-        name: true,
-      },
-    });
+    const { data: companies, error: companiesError } = await supabase
+      .from('users')
+      .select('id, name')
+      .eq('role', 'COMPANY');
 
-    if (companies.length === 0) {
+    if (companiesError) {
+      console.error('Error fetching companies:', companiesError);
+      return NextResponse.json({ error: 'Failed to fetch companies' }, { status: 500 });
+    }
+
+    if (!companies || companies.length === 0) {
       return NextResponse.json({
         message: "No companies found in the database",
         suggestion: "Create a company first by visiting /api/debug/setup"
@@ -26,83 +26,75 @@ export async function GET() {
     }
 
     // Find all sessions that reference non-existent companies
-    const sessionsWithMissingCompanies = await supabase.from('sessions').select('*').{
-      where: {
-        companyId: {
-          notIn: companies.map(c => c.id)
-        }
-      },
-      select: {
-        id: true,
-        companyId: true,
-      }
-    });
+    const { data: sessionsWithMissingCompanies, error: sessionsError } = await supabase
+      .from('sessions')
+      .select('id, companyId')
+      .not('companyId', 'in', `(${companies.map(c => c.id).join(',')})`);
+
+    if (sessionsError) {
+      console.error('Error fetching sessions with missing companies:', sessionsError);
+    }
 
     // Find all employees with missing company references
-    const employeesWithMissingCompanies = await supabase.from('users').select('*').{
-      where: {
-        role: "EMPLOYEE",
-        companyId: {
-          notIn: [...companies.map(c => c.id), null]
-        }
-      },
-      select: {
-        id: true,
-        name: true,
-        companyId: true,
-      }
-    });
+    const { data: employeesWithMissingCompanies, error: employeesError } = await supabase
+      .from('users')
+      .select('id, name, companyId')
+      .eq('role', 'EMPLOYEE')
+      .not('companyId', 'in', `(${companies.map(c => c.id).join(',')})`)
+      .not('companyId', 'is', null);
+
+    if (employeesError) {
+      console.error('Error fetching employees with missing companies:', employeesError);
+    }
 
     // Use the first valid company as fallback
     const fallbackCompany = companies[0];
     const updates = [];
 
     // Fix sessions with broken company references
-    if (sessionsWithMissingCompanies.length > 0) {
-      const updateSessions = await supabase.from('sessions').updateMany({
-        where: {
-          id: {
-            in: sessionsWithMissingCompanies.map(s => s.id)
-          }
-        },
-        data: {
-          companyId: fallbackCompany.id
-        }
-      });
+    if (sessionsWithMissingCompanies && sessionsWithMissingCompanies.length > 0) {
+      const sessionIds = sessionsWithMissingCompanies.map(s => s.id);
+      const { data: updateSessions, error: updateSessionsError } = await supabase
+        .from('sessions')
+        .update({ companyId: fallbackCompany.id })
+        .in('id', sessionIds);
       
-      updates.push({
-        type: "sessions",
-        count: updateSessions.count,
-        newCompanyId: fallbackCompany.id
-      });
+      if (updateSessionsError) {
+        console.error('Error updating sessions:', updateSessionsError);
+      } else {
+        updates.push({
+          type: "sessions",
+          count: sessionIds.length,
+          newCompanyId: fallbackCompany.id
+        });
+      }
     }
 
     // Fix employees with broken company references
-    if (employeesWithMissingCompanies.length > 0) {
-      const updateEmployees = await supabase.from('users').updateMany({
-        where: {
-          id: {
-            in: employeesWithMissingCompanies.map(e => e.id)
-          }
-        },
-        data: {
-          companyId: fallbackCompany.id
-        }
-      });
+    if (employeesWithMissingCompanies && employeesWithMissingCompanies.length > 0) {
+      const employeeIds = employeesWithMissingCompanies.map(e => e.id);
+      const { data: updateEmployees, error: updateEmployeesError } = await supabase
+        .from('users')
+        .update({ companyId: fallbackCompany.id })
+        .in('id', employeeIds);
       
-      updates.push({
-        type: "employees",
-        count: updateEmployees.count,
-        newCompanyId: fallbackCompany.id
-      });
+      if (updateEmployeesError) {
+        console.error('Error updating employees:', updateEmployeesError);
+      } else {
+        updates.push({
+          type: "employees",
+          count: employeeIds.length,
+          newCompanyId: fallbackCompany.id
+        });
+      }
     }
 
     return NextResponse.json({
       message: "Link check and repair complete",
       companies,
       fixes: {
-        sessionsFixed: sessionsWithMissingCompanies.length,
-        employeesFixed: employeesWithMissingCompanies.length,
+        sessionsFixed: sessionsWithMissingCompanies ? sessionsWithMissingCompanies.length : 0,
+        employeesFixed: employeesWithMissingCompanies ? employeesWithMissingCompanies.length : 0,
         updates
       },
       suggestion: "Visit /dashboard/companies/list-all to see valid companies",

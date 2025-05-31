@@ -19,37 +19,27 @@ export async function GET(req: NextRequest) {
     console.log("Direct database query for activity logs debugging");
     
     // Get all logs directly from database with no filtering
-    const logs = await supabase.from('activityLogs').select('*').{
-      orderBy: {
-        createdAt: "desc"
-      },
-      include: {
-        user: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            role: true
-          }
-        },
-        targetUser: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            role: true
-          }
-        }
-      }
-    });
+    const { data: logs, error } = await supabase
+      .from('activityLogs')
+      .select(`
+        *,
+        user:userId(id, name, email, role),
+        targetUser:targetUserId(id, name, email, role)
+      `)
+      .order('createdAt', { ascending: false });
+    
+    if (error) {
+      console.error('Error fetching activity logs:', error);
+      return NextResponse.json({ error: 'Failed to fetch activity logs' }, { status: 500 });
+    }
     
     return NextResponse.json({
-      logs,
+      logs: logs || [],
       meta: {
-        totalItems: logs.length,
+        totalItems: (logs || []).length,
         currentPage: 1,
         totalPages: 1,
-        itemsPerPage: logs.length,
+        itemsPerPage: (logs || []).length,
         hasNextPage: false,
         hasPrevPage: false
       }

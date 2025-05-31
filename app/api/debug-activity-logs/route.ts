@@ -24,44 +24,41 @@ export async function GET(req: NextRequest) {
     // Direct database query without any filtering
     const skip = (page - 1) * limit;
     
-    const [logs, totalCount] = await Promise.all([
-      supabase.from('activityLogs').select('*').{
-        orderBy: {
-          createdAt: "desc",
-        },
-        skip,
-        take: limit,
-        include: {
-          user: {
-            select: {
-              id: true,
-              name: true,
-              email: true,
-              role: true,
-            },
-          },
-          targetUser: {
-            select: {
-              id: true,
-              name: true,
-              email: true,
-              role: true,
-            },
-          },
-        },
-      }),
-      supabase.from('activity_logs').count(),
-    ]);
+    // Get logs with pagination
+    const { data: logs, error: logsError } = await supabase
+      .from('activityLogs')
+      .select(`
+        *,
+        user:userId(id, name, email, role),
+        targetUser:targetUserId(id, name, email, role)
+      `)
+      .order('createdAt', { ascending: false })
+      .range(skip, skip + limit - 1);
     
-    console.log(`Debug activity logs endpoint: Found ${logs.length} logs directly from database`);
+    if (logsError) {
+      console.error('Error fetching activity logs:', logsError);
+      return NextResponse.json({ error: 'Failed to fetch activity logs' }, { status: 500 });
+    }
     
-    if (logs.length === 0) {
+    // Get total count
+    const { count: totalCount, error: countError } = await supabase
+      .from('activityLogs')
+      .select('*', { count: 'exact', head: true });
+    
+    if (countError) {
+      console.error('Error counting activity logs:', countError);
+    }
+    
+    console.log(`Debug activity logs endpoint: Found ${logs ? logs.length : 0} logs directly from database`);
+    
+    if (!logs || logs.length === 0) {
       // Try to determine if there are any logs at all in the database
-      const anyLogs = await supabase.from('activity_logs').findFirst({
-        select: { id: true }
-      });
+      const { data: anyLogs, error: anyLogsError } = await supabase
+        .from('activityLogs')
+        .select('id')
+        .limit(1);
       
-      if (!anyLogs) {
+      if (anyLogsError || !anyLogs || anyLogs.length === 0) {
         console.log("No activity logs found in the database at all");
       } else {
         console.log("Database has logs, but none matched the query criteria");
@@ -70,13 +67,13 @@ export async function GET(req: NextRequest) {
     
     // Return with the same structure as the main activity logs endpoint
     return NextResponse.json({
-      logs,
+      logs: logs || [],
       meta: {
         currentPage: page,
-        totalPages: Math.ceil(totalCount / limit),
-        totalItems: totalCount,
+        totalPages: Math.ceil((totalCount || 0) / limit),
+        totalItems: totalCount || 0,
         itemsPerPage: limit,
-        hasNextPage: page < Math.ceil(totalCount / limit),
+        hasNextPage: page < Math.ceil((totalCount || 0) / limit),
         hasPrevPage: page > 1,
       }
     });

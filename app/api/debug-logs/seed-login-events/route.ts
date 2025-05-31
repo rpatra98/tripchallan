@@ -20,19 +20,19 @@ export async function GET(req: NextRequest) {
     }
     
     // Get all users
-    const users = await supabase.from('users').select('*').{
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        role: true
-      }
-    });
+    const { data: users, error: usersError } = await supabase
+      .from('users')
+      .select('id, name, email, role');
+    
+    if (usersError) {
+      console.error('Error fetching users:', usersError);
+      return NextResponse.json({ error: 'Failed to fetch users' }, { status: 500 });
+    }
     
     const results = [];
     
     // Generate login and logout events for each user
-    for (const user of users) {
+    for (const user of users || []) {
       // Create a login event from desktop
       const loginDesktop = await addActivityLog({
         userId: user.id,
@@ -91,7 +91,7 @@ export async function GET(req: NextRequest) {
     
     return NextResponse.json({
       success: true,
-      message: `Created test login/logout activities for ${users.length} users`,
+      message: `Created test login/logout activities for ${users ? users.length : 0} users`,
       results
     });
   } catch (error) {
