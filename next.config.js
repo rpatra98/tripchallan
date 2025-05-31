@@ -7,8 +7,8 @@ const nextConfig = {
     },
   },
   
-  // External packages configuration
-  serverExternalPackages: ['@prisma/client', 'bcrypt'],
+  // External packages configuration - remove Prisma
+  serverExternalPackages: ['bcrypt'],
   
   // Temporarily disable TypeScript checking
   typescript: {

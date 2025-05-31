@@ -32,5 +32,11 @@
       ]
     }
   ],
-  "crons": []
+  "crons": [],
+  "build": {
+    "env": {
+      "NEXT_PUBLIC_USE_SUPABASE": "true",
+      "FORCE_FIX_SCRIPTS": "true"
+    }
+  }
 } 

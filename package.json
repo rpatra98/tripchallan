@@ -12,7 +12,7 @@
     "db:seed": "node scripts/supabase-reset.js",
     "db:migrate": "node scripts/run-migrations.js",
     "db:create-admin": "node scripts/admin-setup.js",
-    "vercel-build": "node scripts/check-directories.js && node scripts/fix-enums-import.js && node scripts/fix-prisma-imports.js && next build",
+    "vercel-build": "node scripts/check-directories.js && node scripts/pre-build-hook.js && node scripts/direct-fix.js && node scripts/fix-all-enums.js && node scripts/fix-all-prisma.js && next build",
     "check-dirs": "node scripts/check-directories.js",
     "fix-images": "node scripts/fix-image-paths.js",
     "setup:supabase": "node scripts/setup-exec-function.js",
@@ -20,7 +20,8 @@
     "fix-superadmin": "node scripts/fix-superadmin.js",
     "fix-foreign-keys": "node scripts/fix-foreign-keys.js",
     "fix:enums": "node scripts/fix-enums-import.js",
-    "fix:prisma": "node scripts/fix-prisma-imports.js"
+    "fix:prisma": "node scripts/fix-prisma-imports.js",
+    "fix:all": "node scripts/fix-all-enums.js && node scripts/fix-all-prisma.js"
   },
   "dependencies": {
     "@emotion/react": "^11.14.0",
