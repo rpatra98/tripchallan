@@ -1,279 +1,137 @@
-import { NextResponse } from "next/server";
-import { supabase } from "@/lib/supabase";
+import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-options";
+import { withAuth } from "@/lib/auth";
+import { supabase } from "@/lib/supabase";
 import { UserRole } from "@/lib/enums";
 // Supabase types are used instead of Prisma types
 import prismaHelper from "@/lib/prisma-helper";
 
-export async function GET(
-  request: Request,
-  { params }: { params: { id: string } }
-) {
-  try {
-    const { id } = params;
-    const session = await getServerSession(authOptions);
-    
-    if (!session?.user) {
-      return NextResponse.json(
-        { error: "Unauthorized" },
-        { status: 401 }
-      );
-    }
-    
-    if (!id) {
-      return NextResponse.json(
-        { error: "Company ID is required" },
-        { status: 400 }
-      );
-    }
-
-    // Additional validation for the ID format
-    console.log(`API: Fetching company with ID: "${id}" - Length: ${id.length}`);
-    
-    // First, check if this is a direct company ID
-    let company = await prismaHelper.findCompanyById(id, true);
-
-    console.log(`API: Direct company lookup result:`, company ? "Found" : "Not Found");
-
-    // If not found, this might be a User ID with role=COMPANY, so look it up that way
-    if (!company) {
-      const companyUser = await prismaHelper.findFirstUser({
-        id,
-        role: UserRole.COMPANY
-      }, {
-        id: true,
-        name: true,
-        email: true,
-        companyId: true,
-        coins: true,
-        createdAt: true,
-        updatedAt: true
-      });
-
-      console.log(`API: Company user lookup result:`, companyUser ? `Found with companyId: ${companyUser?.companyId || 'null'}` : "Not Found");
-
-      // If we found a company user, get the actual company data if it has a companyId
-      if (companyUser) {
-        if (companyUser.companyId) {
-          company = await prismaHelper.findCompanyById(companyUser.companyId, true);
-            
-          console.log(`API: Related company lookup result:`, company ? "Found" : "Not Found");
-        }
-        
-        // If we still don't have a company record, create a synthetic one from the company user
-        if (!company) {
-          // Get employees for this company user
-          const employees = await prismaHelper.findUsers({
-            companyId: companyUser.id,
-            role: UserRole.EMPLOYEE
-          }, {
-            id: true,
-            name: true,
-            email: true,
-            role: true,
-            subrole: true,
-            coins: true,
-            createdAt: true
-          });
-          
-          // Create a synthetic company object from the user data
-          company = {
-            id: companyUser.id,
-            name: companyUser.name,
-            email: companyUser.email,
-            createdAt: companyUser.createdAt,
-            updatedAt: companyUser.updatedAt,
-            isActive: true,
-            coins: companyUser.coins,
-            employees: employees,
-            _synthetic: true
-          };
-          
-          console.log(`API: Created synthetic company from user`);
-        }
-      }
-    }
-    
-    // If we still have no company record, return an error
-    if (!company) {
-      return NextResponse.json(
-        { error: "Company not found" },
-        { status: 404 }
-      );
-    }
-    
-    // Return the company data
-    return NextResponse.json(company);
-  } catch (error) {
-    console.error("Error fetching company details:", error);
-    
-    // Check if this is a prepared statement error and try to handle it
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    const isPreparedStatementError = 
-      errorMessage.includes('prepared statement') || 
-      errorMessage.includes('42P05');
-    
-    if (isPreparedStatementError) {
-      try {
-        // Try to reset the connection
-        await prismaHelper.resetConnection();
-      } catch (resetError) {
-        console.error("Failed to reset connection:", resetError);
-      }
-    }
-    
-    return NextResponse.json(
-      { 
-        error: "Error fetching company details",
-        details: errorMessage
-      },
-      { status: 500 }
-    );
-  }
-}
-
-export async function PATCH(
-  request: Request,
-  { params }: { params: { id: string } }
-) {
-  try {
-    const { id } = params;
-    const session = await getServerSession(authOptions);
-    
-    if (!session?.user) {
-      return NextResponse.json(
-        { error: "Unauthorized" },
-        { status: 401 }
-      );
-    }
-    
-    // Only ADMIN and SUPERADMIN can update companies
-    if (session.user.role !== UserRole.ADMIN && session.user.role !== UserRole.SUPERADMIN) {
-      return NextResponse.json(
-        { error: "Only admins can update companies" },
-        { status: 403 }
-      );
-    }
-    
-    if (!id) {
-      return NextResponse.json(
-        { error: "Company ID is required" },
-        { status: 400 }
-      );
-    }
-    
-    const body = await request.json();
-    
-    // Check if company exists
-    let existingCompany = await supabase.from('companys').findUnique({
-      where: { id }
-    });
-    
-    let companyId = id;
-    
-    // If not found directly, check if it's a company user
-    if (!existingCompany) {
-      console.log(`API PATCH: Company not found directly, checking if it's a company user`);
-      
-      const companyUser = await supabase.from('users').findFirst({
-        where: {
-          id,
-          role: UserRole.COMPANY
-        },
-        select: {
-          id: true,
-          name: true,
-          email: true,
-          companyId: true
-        }
-      });
-      
-      // If this is a company user with a companyId, use that ID instead
-      if (companyUser && companyUser.companyId) {
-        console.log(`API PATCH: Found company user with companyId: ${companyUser.companyId}`);
-        
-        companyId = companyUser.companyId;
-        existingCompany = await supabase.from('companys').select('*').eq('id', companyUser.companyId).single();
+// GET: Fetch a company by ID
+export const GET = withAuth(
+  async (req: NextRequest, context: { params: Record<string, string> } | undefined) => {
+    try {
+      if (!context || !context.params) {
+        return NextResponse.json(
+          { error: "Invalid route parameters" },
+          { status: 400 }
+        );
       }
       
-      // If still no company found, check if we need to create one from the company user
-      if (!existingCompany && companyUser) {
-        console.log(`API PATCH: Creating company record for company user`);
-        
-        // Create a real company record for this user
-        existingCompany = await supabase.from('companys').insert( {
-            name: companyUser.name || `Company for ${companyUser.id}`,
-            email: companyUser.email || `company-${companyUser.id}@example.com`,
-            isActive: body.isActive !== undefined ? body.isActive : true,
-          }
-        });
-        
-        companyId = existingCompany.id;
-        
-        // Link the company user to this new company
-        await supabase.from('users').update( {
-            companyId: existingCompany.id
-          }
-        });
-        
-        console.log(`API PATCH: Created company with ID: ${existingCompany.id} for user: ${companyUser.id}`);
-        return NextResponse.json({
-          message: "Company created and linked successfully",
-          company: existingCompany
-        });
+      const { params } = context;
+      const companyId = params.id;
+      
+      if (!companyId) {
+        return NextResponse.json(
+          { error: "Company ID is required" },
+          { status: 400 }
+        );
       }
-    }
-    
-    if (!existingCompany) {
+      
+      const { data: company, error } = await supabase
+        .from('users')
+        .select('*')
+        .eq('id', companyId)
+        .eq('role', UserRole.COMPANY)
+        .single();
+      
+      if (error) {
+        console.error('Error fetching company:', error);
+        return NextResponse.json(
+          { error: "Company not found" },
+          { status: 404 }
+        );
+      }
+      
+      // Remove password from response
+      const { password, ...companyWithoutPassword } = company;
+      
+      return NextResponse.json(companyWithoutPassword);
+    } catch (error) {
+      console.error("Error fetching company:", error);
       return NextResponse.json(
-        { error: "Company not found" },
-        { status: 404 }
+        { error: "Failed to fetch company" },
+        { status: 500 }
       );
     }
-    
-    // Update company
-    const updatedCompany = await supabase.from('companys').update( {
-        isActive: body.isActive !== undefined ? body.isActive : existingCompany.isActive,
-        name: body.name || existingCompany.name,
-        email: body.email || existingCompany.email,
-        address: body.address !== undefined ? body.address : existingCompany.address,
-        phone: body.phone !== undefined ? body.phone : existingCompany.phone,
-        companyType: body.companyType || existingCompany.companyType,
-        gstin: body.gstin !== undefined ? body.gstin : existingCompany.gstin,
-        logo: body.logo !== undefined ? body.logo : existingCompany.logo,
-        documents: body.documents !== undefined ? body.documents : existingCompany.documents,
+  },
+  [UserRole.ADMIN, UserRole.SUPERADMIN]
+);
+
+// PUT: Update a company by ID
+export const PUT = withAuth(
+  async (req: NextRequest, context: { params: Record<string, string> } | undefined) => {
+    try {
+      if (!context || !context.params) {
+        return NextResponse.json(
+          { error: "Invalid route parameters" },
+          { status: 400 }
+        );
       }
-    });
-    
-    return NextResponse.json({
-      message: "Company updated successfully",
-      company: updatedCompany
-    });
-  } catch (error) {
-    console.error("Error updating company:", error);
-    
-    // Check if this is a prepared statement error and try to handle it
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    const isPreparedStatementError = 
-      errorMessage.includes('prepared statement') || 
-      errorMessage.includes('42P05');
-    
-    if (isPreparedStatementError) {
-      try {
-        // Try to reset the connection
-        await prismaHelper.resetConnection();
-      } catch (resetError) {
-        console.error("Failed to reset connection:", resetError);
+      
+      const { params } = context;
+      const companyId = params.id;
+      
+      if (!companyId) {
+        return NextResponse.json(
+          { error: "Company ID is required" },
+          { status: 400 }
+        );
       }
+      
+      const body = await req.json();
+      
+      // Check if company exists
+      const { data: existingCompany, error: checkError } = await supabase
+        .from('users')
+        .select('*')
+        .eq('id', companyId)
+        .eq('role', UserRole.COMPANY)
+        .single();
+      
+      if (checkError) {
+        console.error('Error fetching company:', checkError);
+        return NextResponse.json(
+          { error: "Company not found" },
+          { status: 404 }
+        );
+      }
+      
+      // Update company record
+      const { data: updatedCompany, error: updateError } = await supabase
+        .from('users')
+        .update({
+          name: body.name || existingCompany.name,
+          email: body.email || existingCompany.email,
+          isActive: body.isActive !== undefined ? body.isActive : existingCompany.isActive,
+          updatedAt: new Date().toISOString()
+        })
+        .eq('id', companyId)
+        .select('*')
+        .single();
+      
+      if (updateError) {
+        console.error('Error updating company:', updateError);
+        return NextResponse.json(
+          { error: "Failed to update company" },
+          { status: 500 }
+        );
+      }
+      
+      // Remove password from response
+      const { password, ...companyWithoutPassword } = updatedCompany;
+      
+      return NextResponse.json(companyWithoutPassword);
+    } catch (error) {
+      console.error("Error updating company:", error);
+      return NextResponse.json(
+        { error: "Failed to update company" },
+        { status: 500 }
+      );
     }
-    
-    return NextResponse.json(
-      { error: "Failed to update company", details: errorMessage },
-      { status: 500 }
-    );
-  }
-}
+  },
+  [UserRole.ADMIN, UserRole.SUPERADMIN]
+);
 
 export async function DELETE(
   request: Request,

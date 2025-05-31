@@ -31,7 +31,7 @@ export async function GET(req: NextRequest) {
 
     const { data: comments, error } = await supabase
       .from('comments')
-      .select('*')
+      .select('*, user:users(*)')
       .eq('sessionId', sessionId)
       .order('createdAt', { ascending: false });
 
@@ -55,9 +55,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const user = await supabase.from('users').select('*').eq('email', session.user.email).single();
+    const { data: user, error: userError } = await supabase
+      .from('users')
+      .select('*')
+      .eq('email', session.user.email)
+      .single();
 
-    if (!user) {
+    if (userError || !user) {
+      console.error('Error fetching user:', userError);
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
@@ -79,9 +84,14 @@ export async function POST(req: NextRequest) {
       }
       
       // Check if the session exists
-      const existingSession = await supabase.from('sessions').select('*').eq('id', sessionId).single();
+      const { data: existingSession, error: sessionError } = await supabase
+        .from('sessions')
+        .select('*')
+        .eq('id', sessionId)
+        .single();
       
-      if (!existingSession) {
+      if (sessionError || !existingSession) {
+        console.error('Error fetching session:', sessionError);
         return NextResponse.json(
           { error: "Session not found" },
           { status: 404 }
@@ -109,8 +119,6 @@ export async function POST(req: NextRequest) {
           const contentType = imageFile.type;
           
           // Store image data in a format compatible with your storage solution
-          // Here we're assuming you'll store the base64 data directly
-          // In a production app, you'd likely upload to a cloud storage service
           imageUrl = `data:${contentType};base64,${base64Data}`;
         } catch (error) {
           console.error("Error processing image:", error);
@@ -122,24 +130,23 @@ export async function POST(req: NextRequest) {
       }
       
       // Create the comment with image if available
-      const comment = await supabase.from('comments').insert( {
+      const { data: comment, error: commentError } = await supabase
+        .from('comments')
+        .insert([{
           sessionId,
           userId: user.id,
           message,
           imageUrl,
-          urgency: urgency as any || "NA",
-        },
-        include: {
-          user: {
-            select: {
-              id: true,
-              name: true,
-              email: true,
-              role: true,
-            },
-          },
-        },
-      });
+          urgency: urgency || "NA",
+          createdAt: new Date().toISOString()
+        }])
+        .select('*, user:users(*)')
+        .single();
+      
+      if (commentError) {
+        console.error('Error creating comment:', commentError);
+        return NextResponse.json({ error: 'Failed to create comment' }, { status: 500 });
+      }
       
       return NextResponse.json(comment);
     } else {
@@ -154,9 +161,14 @@ export async function POST(req: NextRequest) {
       }
       
       // Check if the session exists
-      const existingSession = await supabase.from('sessions').select('*').eq('id', sessionId).single();
+      const { data: existingSession, error: sessionError } = await supabase
+        .from('sessions')
+        .select('*')
+        .eq('id', sessionId)
+        .single();
       
-      if (!existingSession) {
+      if (sessionError || !existingSession) {
+        console.error('Error fetching session:', sessionError);
         return NextResponse.json(
           { error: "Session not found" },
           { status: 404 }
@@ -164,23 +176,22 @@ export async function POST(req: NextRequest) {
       }
       
       // Create the comment without image
-      const comment = await supabase.from('comments').insert( {
+      const { data: comment, error: commentError } = await supabase
+        .from('comments')
+        .insert([{
           sessionId,
           userId: user.id,
           message,
-          urgency: urgency as any || "NA",
-        },
-        include: {
-          user: {
-            select: {
-              id: true,
-              name: true,
-              email: true,
-              role: true,
-            },
-          },
-        },
-      });
+          urgency: urgency || "NA",
+          createdAt: new Date().toISOString()
+        }])
+        .select('*, user:users(*)')
+        .single();
+      
+      if (commentError) {
+        console.error('Error creating comment:', commentError);
+        return NextResponse.json({ error: 'Failed to create comment' }, { status: 500 });
+      }
       
       return NextResponse.json(comment);
     }

@@ -3,18 +3,10 @@ import { withAuth } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
 import { EmployeeSubrole, UserRole } from "@/lib/enums";
 
-interface Company {
-  id: string;
-  name: string;
-  email: string;
-}
-
-async function handler(
+export async function GET(
   req: NextRequest,
   context?: { params: Record<string, string> }
 ) {
-  console.log("🔍 Fetching sessions for admin");
-  
   try {
     if (!context || !context.params.id) {
       return NextResponse.json(
@@ -36,126 +28,101 @@ async function handler(
     const statusFilter = url.searchParams.get("status");
 
     // Get the admin user to check their role
-    const adminUser = await supabase.from('users').findUnique({
-      where: { id: adminId },
-      select: { role: true }
-    });
+    const { data: adminUser, error: adminError } = await supabase
+      .from('users')
+      .select('*')
+      .eq('id', adminId)
+      .single();
+    
+    if (adminError) {
+      console.error('Error fetching admin:', adminError);
+      return NextResponse.json({ error: 'Failed to fetch admin' }, { status: 500 });
+    }
     
     const isSuperAdmin = adminUser?.role === UserRole.SUPERADMIN;
     console.log(`🔍 Admin is SUPERADMIN: ${isSuperAdmin}`);
 
-    // Get all company IDs from different sources
-    const companyIds = new Set<string>();
-    // Get operator IDs created by this admin
-    const operatorIds = new Set<string>();
+    // Get companies created by this admin
+    const { data: createdCompanies, error: companiesError } = await supabase
+      .from('users')
+      .select('*')
+      .eq('role', UserRole.COMPANY)
+      .eq('createdById', adminId);
     
-    // Source 1: Companies created by this admin
-    const createdCompanies = await supabase.from('users').select('*').eq('role', UserRole.COMPANY).eq('createdById', adminId);
-    
-    if (createdCompanies.error) {
-      console.error('Error fetching created companies:', createdCompanies.error);
+    if (companiesError) {
+      console.error('Error fetching created companies:', companiesError);
       return NextResponse.json({ error: 'Failed to fetch created companies' }, { status: 500 });
     }
     
-    createdCompanies.data?.forEach((company: Company) => companyIds.add(company.id));
-    console.log(`🔍 Found ${createdCompanies.data?.length} companies created by admin`);
+    // Get operators created by this admin
+    const { data: operators, error: operatorsError } = await supabase
+      .from('users')
+      .select('*')
+      .eq('role', UserRole.EMPLOYEE)
+      .eq('subrole', EmployeeSubrole.OPERATOR)
+      .eq('createdById', adminId);
     
-    // Source 2: Companies the admin has access to via custom permissions
-    try {
-      const customPermissions = await supabase.from('custom_permissionss').select('*').eq('userId', adminId).eq('resourceType', 'COMPANY');
-      
-      customPermissions.data?.forEach((permission: { resourceId?: string }) => {
-        if (permission.resourceId) companyIds.add(permission.resourceId);
-      });
-      console.log(`🔍 Found ${customPermissions.data?.length} custom permission entries`);
-    } catch (error) {
-      console.log("Custom permissions table may not exist or other error:", error);
-      // Continue if the table doesn't exist
-    }
-    
-    // Source 3: Companies where the admin created employees
-    try {
-      const companiesWithEmployees = await supabase.from('users').select('*').eq('role', UserRole.EMPLOYEE).eq('createdById', adminId);
-      
-      companiesWithEmployees.data?.forEach((item: { companyId?: string }) => {
-        if (item.companyId) companyIds.add(item.companyId);
-      });
-      console.log(`🔍 Found ${companiesWithEmployees.data?.length} companies with employees created by admin`);
-    } catch (error) {
-      console.log("Error fetching companies with employees:", error);
-    }
-    
-    // Source 4: Find OPERATORS created by this admin
-    try {
-      const operatorsCreatedByAdmin = await supabase.from('users').select('*').eq('role', UserRole.EMPLOYEE).eq('subrole', EmployeeSubrole.OPERATOR).eq('createdById', adminId);
-      
-      operatorsCreatedByAdmin.data?.forEach((operator: { id: string }) => {
-        operatorIds.add(operator.id);
-      });
-      console.log(`🔍 Found ${operatorsCreatedByAdmin.data?.length} OPERATORS created by admin`);
-    } catch (error) {
-      console.log("Error fetching operators created by admin:", error);
-    }
-    
-    // Convert sets to arrays
-    const companyIdsArray = Array.from(companyIds);
-    const operatorIdsArray = Array.from(operatorIds);
-    console.log(`🔍 Total unique companies: ${companyIdsArray.length}`);
-    console.log(`🔍 Total unique operators: ${operatorIdsArray.length}`);
-
-    // Define the where clause based on available data
-    let whereClause: {
-      OR?: Array<{ companyId?: { in: string[] }; createdById?: { in: string[] } }>;
-      id?: string;
-      status?: string;
-    } = {};
-    
-    // Build the OR conditions
-    const orConditions = [];
-    
-    // Condition 1: Sessions from companies created by admin
-    if (companyIdsArray.length > 0) {
-      orConditions.push({ companyId: { in: companyIdsArray } });
-      console.log(`🔍 Adding filter for ${companyIdsArray.length} companies`);
-    }
-    
-    // Condition 2: Sessions created by operators who were created by this admin
-    if (operatorIdsArray.length > 0) {
-      orConditions.push({ createdById: { in: operatorIdsArray } });
-      console.log(`🔍 Adding filter for ${operatorIdsArray.length} operators`);
-    }
-    
-    // If we have any OR conditions, add them to the where clause
-    if (orConditions.length > 0) {
-      whereClause.OR = orConditions;
-    } else if (isSuperAdmin) {
-      // For superadmin with no companies or operators, show all sessions 
-      console.log("🔍 SUPERADMIN with no companies or operators, showing all sessions");
-      whereClause = {}; // Empty where clause to show all
-    } else {
-      // If admin has no companies/operators, show no sessions
-      console.log("🔍 Admin with no companies or operators, showing no sessions");
-      whereClause.id = "non-existent-id"; // This ensures no results
+    if (operatorsError) {
+      console.error('Error fetching operators:', operatorsError);
+      return NextResponse.json({ error: 'Failed to fetch operators' }, { status: 500 });
     }
 
+    // Extract IDs for filtering
+    const companyIds = createdCompanies?.map(company => company.id) || [];
+    const operatorIds = operators?.map(operator => operator.id) || [];
+    
+    console.log(`🔍 Found ${companyIds.length} companies created by admin`);
+    console.log(`🔍 Found ${operatorIds.length} operators created by admin`);
+
+    let sessionsQuery = supabase.from('sessions').select('*');
+    
+    // Apply filters if we have companies or operators
+    if (companyIds.length > 0) {
+      sessionsQuery = sessionsQuery.in('companyId', companyIds);
+    } else if (operatorIds.length > 0) {
+      sessionsQuery = sessionsQuery.in('createdById', operatorIds);
+    } else if (!isSuperAdmin) {
+      // If admin has no related entities and is not superadmin, return empty array
+      return NextResponse.json([]);
+    }
+    
     // Add status filter if provided
     if (statusFilter) {
-      whereClause.status = statusFilter;
+      sessionsQuery = sessionsQuery.eq('status', statusFilter);
+    }
+    
+    // Add pagination
+    const { data: sessions, error: sessionsError, count } = await sessionsQuery
+      .order('createdAt', { ascending: false })
+      .range(skip, skip + limit - 1)
+      .count();
+    
+    if (sessionsError) {
+      console.error('Error fetching sessions:', sessionsError);
+      return NextResponse.json({ error: 'Failed to fetch sessions' }, { status: 500 });
     }
 
-    console.log(`🔍 Using where clause:`, JSON.stringify(whereClause));
+    // Log for debugging
+    if (sessions && sessions.length > 0) {
+      console.log(`🔍 Found ${sessions.length} sessions for admin`);
+      console.log(`🔍 First session - ID: ${sessions[0].id}, Company: ${sessions[0].companyId || 'Unknown'}`);
+    } else {
+      console.log('No sessions found');
+    }
 
-    // Fetch sessions with pagination
-    const sessions = await supabase.from('sessions').select('*').eq('createdById', adminId).orderBy('createdAt', { ascending: false });
-
-    console.log(`🔍 Found ${sessions.length} sessions for admin`);
-
-    // Get total count for pagination
-    const totalCount = await supabase.from('sessions').count({
-      where: whereClause
+    return NextResponse.json({
+      sessions: sessions || [],
+      totalCount: count || 0,
+      page,
+      totalPages: Math.ceil((count || 0) / limit),
+      hasNextPage: page < Math.ceil((count || 0) / limit),
+      hasPrevPage: page > 1
     });
+  } catch (error) {
+    console.error('Error in admin sessions route:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
+}
 
-    // For debugging - show some session details
-    if (sessions.length > 0) {
-      console.log(`🔍 First session - ID: ${sessions[0].id}, Company: ${sessions[0].company?.name || 'Unknown'}`);
-      console.log(`
+// Only SuperAdmin can access admin details
+export const GET = withAuth(GET, [UserRole.SUPERADMIN]);

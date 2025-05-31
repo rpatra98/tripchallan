@@ -23,9 +23,15 @@ async function handler(req: NextRequest, context?: { params: Record<string, stri
     const companyId = context.params.id;
     
     // Check if the company exists
-    const company = await supabase.from('users').select('*').eq('id', companyId).single();
+    const { data: company, error: companyError } = await supabase
+      .from('users')
+      .select('*')
+      .eq('id', companyId)
+      .eq('role', UserRole.COMPANY)
+      .single();
     
-    if (!company) {
+    if (companyError || !company) {
+      console.error('Error fetching company:', companyError);
       return NextResponse.json(
         { error: "Company not found" },
         { status: 404 }
@@ -46,147 +52,56 @@ async function handler(req: NextRequest, context?: { params: Record<string, stri
     
     console.log(`Fetching employees for company ID: ${companyId}`);
     
-    // Get the company's email to filter out self-admin
-    const companyEmail = company.email;
+    // Get employees directly associated with this company
+    const { data: employees, error: employeesError } = await supabase
+      .from('users')
+      .select('*')
+      .eq('companyId', companyId)
+      .eq('role', UserRole.EMPLOYEE)
+      .in('subrole', [EmployeeSubrole.GUARD, EmployeeSubrole.OPERATOR])
+      .neq('email', company.email) // Exclude self-admin
+      .order('name');
     
-    // First, find the actual Company record if it exists
-    const companyRecord = await supabase.from('companys').findFirst({
-      where: {
-        OR: [
-          { id: companyId },
-          {
-            employees: {
-              some: {
-                id: companyId
-              }
-            }
-          }
-        ]
-      },
-      include: {
-        employees: {
-          where: {
-            role: UserRole.EMPLOYEE,
-            email: {
-              not: companyEmail // Exclude self-admin (matches company email)
-            },
-            subrole: {
-              in: [EmployeeSubrole.GUARD, EmployeeSubrole.OPERATOR] // Only include GUARD and OPERATOR
-            }
-          },
-          select: {
-            id: true
-          }
-        }
-      }
-    });
-    
-    console.log(`Company record found: ${!!companyRecord}, Employee count: ${companyRecord?.employees?.length || 0}`);
-    
-    // Get employee IDs from the company relationship if available
-    const employeeIdsFromCompany = companyRecord?.employees?.map((e: { id: string }) => e.id) || [];
-    
-    // Get all employees associated with this company through all possible paths
-    const employees = await supabase.from('users').select('*').{
-      where: {
-        AND: [
-          {
-            email: {
-              not: companyEmail // Exclude self-admin (matches company email)
-            }
-          },
-          {
-            subrole: {
-              in: [EmployeeSubrole.GUARD, EmployeeSubrole.OPERATOR] // Only include GUARD and OPERATOR
-            }
-          },
-          {
-            OR: [
-              // Direct association via companyId field
-              {
-                companyId: companyId,
-                role: UserRole.EMPLOYEE
-              },
-              // Indirect association via company.employees relation
-              {
-                company: {
-                  id: companyId
-                },
-                role: UserRole.EMPLOYEE
-              },
-              // Created by this company
-              {
-                createdById: companyId,
-                role: UserRole.EMPLOYEE
-              },
-              // Found through Company.employees relation
-              {
-                id: {
-                  in: employeeIdsFromCompany
-                }
-              }
-            ]
-          }
-        ]
-      },
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        role: true,
-        subrole: true,
-        coins: true,
-        createdAt: true,
-        companyId: true,
-        createdById: true,
-      },
-      orderBy: {
-        name: "asc",
-      },
-    });
-    
-    console.log(`Found ${employees.length} employees for company ${companyId}`);
-    
-    // If we still don't have any employees but we have a company record,
-    // try one more approach - get all employees where companyId matches the companyRecord.id
-    if (employees.length === 0 && companyRecord && companyRecord.id !== companyId) {
-      console.log(`Trying a fallback approach with company ID: ${companyRecord.id}`);
-      
-      const fallbackEmployees = await supabase.from('users').select('*').{
-        where: {
-          companyId: companyRecord.id,
-          role: UserRole.EMPLOYEE,
-          email: {
-            not: companyEmail // Exclude self-admin (matches company email)
-          },
-          subrole: {
-            in: [EmployeeSubrole.GUARD, EmployeeSubrole.OPERATOR] // Only include GUARD and OPERATOR
-          }
-        },
-        select: {
-          id: true,
-          name: true,
-          email: true,
-          role: true,
-          subrole: true,
-          coins: true,
-          createdAt: true,
-          companyId: true,
-          createdById: true,
-        },
-        orderBy: {
-          name: "asc",
-        },
-      });
-      
-      console.log(`Fallback found ${fallbackEmployees.length} employees`);
-      
-      if (fallbackEmployees.length > 0) {
-        return NextResponse.json(fallbackEmployees);
-      }
+    if (employeesError) {
+      console.error('Error fetching employees:', employeesError);
+      return NextResponse.json(
+        { error: "Failed to fetch employees" },
+        { status: 500 }
+      );
     }
     
-    return NextResponse.json(employees);
+    console.log(`Found ${employees?.length || 0} employees for company ${companyId}`);
+    
+    // Get employees created by this company
+    const { data: createdEmployees, error: createdError } = await supabase
+      .from('users')
+      .select('*')
+      .eq('createdById', companyId)
+      .eq('role', UserRole.EMPLOYEE)
+      .in('subrole', [EmployeeSubrole.GUARD, EmployeeSubrole.OPERATOR])
+      .neq('email', company.email) // Exclude self-admin
+      .order('name');
+    
+    if (createdError) {
+      console.error('Error fetching created employees:', createdError);
+      // Continue anyway, just log the error
+    }
+    
+    // Combine both sets of employees and deduplicate by ID
+    const allEmployees = [...(employees || [])];
+    
+    if (createdEmployees && createdEmployees.length > 0) {
+      console.log(`Found ${createdEmployees.length} employees created by company ${companyId}`);
+      
+      // Add employees not already in the list
+      createdEmployees.forEach(emp => {
+        if (!allEmployees.some(e => e.id === emp.id)) {
+          allEmployees.push(emp);
+        }
+      });
+    }
+    
+    return NextResponse.json(allEmployees);
   } catch (error) {
     console.error("Error fetching company employees:", error);
     return NextResponse.json(
