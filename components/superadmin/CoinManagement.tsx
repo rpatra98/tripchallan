@@ -52,11 +52,15 @@ interface AdminUser {
 interface Transaction {
   id: string;
   amount: number;
-  from_user_id: string;
-  to_user_id: string;
+  from_user_id?: string;
+  to_user_id?: string;
+  fromUserId?: string;
+  toUserId?: string;
   notes?: string;
-  created_at: string;
-  updated_at: string;
+  created_at?: string;
+  updated_at?: string;
+  createdAt?: string;
+  updatedAt?: string;
   fromUser?: {
     name: string;
     email: string;
@@ -249,11 +253,10 @@ export default function CoinManagement() {
       setLoadingTransactions(true);
       console.log('Fetching transactions from Supabase...');
       
-      // Simple approach: just get all transactions without any filtering
+      // Attempt to query transactions without specifying an order
       const { data: transactionData, error: transactionError } = await supabase
         .from('coin_transactions')
         .select('*')
-        .order('createdAt', { ascending: false })
         .limit(20);
       
       console.log('Transaction query response:', { data: transactionData, error: transactionError });
@@ -274,11 +277,15 @@ export default function CoinManagement() {
       
       console.log(`Found ${transactionData.length} transactions:`, transactionData);
       
-      // Collect all user IDs from transactions
+      // Collect all user IDs from transactions (handle both naming conventions)
       const userIds = new Set<string>();
       transactionData.forEach(transaction => {
-        if (transaction.from_user_id) userIds.add(transaction.from_user_id);
-        if (transaction.to_user_id) userIds.add(transaction.to_user_id);
+        // Support both naming conventions
+        const fromUserId = transaction.from_user_id || transaction.fromUserId;
+        const toUserId = transaction.to_user_id || transaction.toUserId;
+        
+        if (fromUserId) userIds.add(fromUserId);
+        if (toUserId) userIds.add(toUserId);
       });
       
       console.log('Collecting user details for IDs:', Array.from(userIds));
@@ -303,13 +310,23 @@ export default function CoinManagement() {
       
       // Combine transaction data with user details
       const enrichedTransactions = transactionData.map(transaction => {
-        const fromUser = transaction.from_user_id ? userMap.get(transaction.from_user_id) : null;
-        const toUser = transaction.to_user_id ? userMap.get(transaction.to_user_id) : null;
+        // Support both naming conventions
+        const fromUserId = transaction.from_user_id || transaction.fromUserId;
+        const toUserId = transaction.to_user_id || transaction.toUserId;
+        const createdAt = transaction.created_at || transaction.createdAt;
+        
+        const fromUser = fromUserId ? userMap.get(fromUserId) : null;
+        const toUser = toUserId ? userMap.get(toUserId) : null;
         
         return {
           ...transaction,
+          // Ensure we have both snake_case and camelCase fields for compatibility
+          from_user_id: fromUserId,
+          to_user_id: toUserId,
           fromUser,
-          toUser
+          toUser,
+          // Add a standardized created_at field
+          created_at: createdAt
         };
       });
       
@@ -398,8 +415,12 @@ export default function CoinManagement() {
 
   // Helper function to determine transaction type
   const getTransactionType = (transaction: Transaction) => {
+    // Support both naming conventions
+    const fromUserId = transaction.from_user_id || transaction.fromUserId;
+    const toUserId = transaction.to_user_id || transaction.toUserId;
+    
     // System transaction (same from/to)
-    if (transaction.from_user_id === transaction.to_user_id) {
+    if (fromUserId === toUserId) {
       return { type: "System", color: "info" as const };
     } 
     // Admin creation

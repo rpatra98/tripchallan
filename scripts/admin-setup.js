@@ -47,7 +47,7 @@ async function createTestAdmin() {
     const password = 'admin123';
     const hashedPassword = await bcrypt.hash(password, 12);
     
-    // Create a new admin user - NOTE: Both users and coin_transactions tables use camelCase
+    // Create a new admin user
     const adminEmail = `admin${Date.now()}@example.com`;
     const { data: newAdmin, error: createError } = await supabase
       .from('users')
@@ -70,26 +70,55 @@ async function createTestAdmin() {
     
     console.log(`Created admin user: ${adminEmail} with ID: ${newAdmin.id}`);
     
-    // Record the transaction for admin creation - NOTE: coin_transactions table uses snake_case
+    // Try to record the transaction with camelCase fields first
     const now = new Date().toISOString();
-    const { data: transaction, error: transactionError } = await supabase
-      .from('coin_transactions')
-      .insert({
-        from_user_id: superAdmin.id,
-        to_user_id: newAdmin.id,
-        amount: 50000,
-        notes: 'Initial coin allocation for new admin creation',
-        created_at: now,
-        updated_at: now
-      })
-      .select()
-      .single();
-    
-    if (transactionError) {
-      console.error('Error recording transaction:', transactionError);
-    } else {
-      console.log(`Recorded admin creation transaction with ID: ${transaction.id}`);
-      console.log(`${superAdmin.name} (SuperAdmin) transferred 50,000 coins to ${newAdmin.name} (Admin)`);
+    try {
+      const { data: camelTransaction, error: camelError } = await supabase
+        .from('coin_transactions')
+        .insert({
+          fromUserId: superAdmin.id,
+          toUserId: newAdmin.id,
+          amount: 50000,
+          notes: 'Initial coin allocation for new admin creation',
+          createdAt: now,
+          updatedAt: now
+        })
+        .select()
+        .single();
+
+      if (camelError) {
+        console.error('Error recording transaction with camelCase:', camelError);
+        
+        // Try with snake_case if camelCase fails
+        try {
+          const { data: snakeTransaction, error: snakeError } = await supabase
+            .from('coin_transactions')
+            .insert({
+              from_user_id: superAdmin.id,
+              to_user_id: newAdmin.id,
+              amount: 50000,
+              notes: 'Initial coin allocation for new admin creation',
+              created_at: now,
+              updated_at: now
+            })
+            .select()
+            .single();
+            
+          if (snakeError) {
+            console.error('Error recording transaction with snake_case:', snakeError);
+          } else {
+            console.log(`Recorded admin creation transaction with ID: ${snakeTransaction.id}`);
+            console.log(`${superAdmin.name} (SuperAdmin) transferred 50,000 coins to ${newAdmin.name} (Admin)`);
+          }
+        } catch (snakeException) {
+          console.error('Exception recording transaction with snake_case:', snakeException);
+        }
+      } else {
+        console.log(`Recorded admin creation transaction with ID: ${camelTransaction.id}`);
+        console.log(`${superAdmin.name} (SuperAdmin) transferred 50,000 coins to ${newAdmin.name} (Admin)`);
+      }
+    } catch (err) {
+      console.error('Exception recording transaction:', err);
     }
     
     // Update SuperAdmin's coin balance - NOTE: Users table uses camelCase
