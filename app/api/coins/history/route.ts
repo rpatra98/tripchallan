@@ -19,7 +19,7 @@ async function handler(req: NextRequest) {
         fromUser:users!coin_transactions_from_user_id_fkey(id, name, email),
         toUser:users!coin_transactions_to_user_id_fkey(id, name, email)
       `)
-      .order('created_at', { ascending: false })
+      .order('createdAt', { ascending: false })
       .limit(limit)
       .range(offset, offset + limit - 1);
     
@@ -48,9 +48,9 @@ async function handler(req: NextRequest) {
       to_user_id: transaction.to_user_id,
       reason: transaction.reason,
       notes: transaction.notes,
-      createdAt: transaction.created_at,
-      created_at: transaction.created_at,
-      updated_at: transaction.updated_at,
+      createdAt: transaction.createdAt,
+      created_at: transaction.createdAt,
+      updated_at: transaction.updatedAt,
       fromUser: transaction.fromUser,
       toUser: transaction.toUser
     })) || [];

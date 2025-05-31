@@ -173,8 +173,8 @@ async function handler(req: NextRequest) {
         to_user_id: to_user_id,
         amount: amount,
         notes: transactionNotes,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
       })
       .select()
       .single();

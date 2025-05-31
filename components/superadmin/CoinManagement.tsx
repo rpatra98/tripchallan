@@ -253,7 +253,7 @@ export default function CoinManagement() {
       const { data: transactionData, error: transactionError } = await supabase
         .from('coin_transactions')
         .select('*')
-        .order('created_at', { ascending: false })
+        .order('createdAt', { ascending: false })
         .limit(20);
       
       console.log('Transaction query response:', { data: transactionData, error: transactionError });
