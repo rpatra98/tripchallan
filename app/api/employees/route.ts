@@ -86,65 +86,50 @@ export async function GET(req: NextRequest) {
       
       try {
         // Find companies created by this admin
-        const createdCompanyUsers = await supabase.from('users').select('*').{
-          where: {
-            role: UserRole.COMPANY,
-            createdById: user.id,
-          },
-          select: {
-            companyId: true,
-          }
-        });
+        const { data: createdCompanyUsers, error: companyError } = await supabase
+          .from('users')
+          .select('companyId')
+          .eq('role', UserRole.COMPANY)
+          .eq('createdById', user.id);
+        
+        if (companyError) {
+          console.error('Error fetching companies created by admin:', companyError);
+          return NextResponse.json({ error: 'Failed to fetch companies' }, { status: 500 });
+        }
         
         // Get the company IDs associated with these users
-        const companyIds = createdCompanyUsers
+        const companyIds = (createdCompanyUsers || [])
           .filter(companyUser => companyUser.companyId)
           .map(companyUser => companyUser.companyId);
         
         // Find employees for these companies or directly created by admin
-        const adminEmployees = await supabase.from('users').select('*').{
-          where: {
-            role: UserRole.EMPLOYEE,
-            OR: [
-              // Employees whose company was created by this admin
-              {
-                companyId: {
-                  in: companyIds as string[]
-                }
-              },
-              // Employees directly created by this admin
-              {
-                createdById: user.id
-              }
-            ]
-          },
-          take: limit,
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            role: true,
-            subrole: true,
-            createdAt: true,
-            coins: true,
-            company: {
-              select: {
-                id: true,
-                name: true,
-                email: true,
-              },
-            },
-          },
-          orderBy: {
-            createdAt: "desc",
-          },
-        });
-        
-        console.log(`Found ${adminEmployees.length} employees for admin ${user.id}`);
-        return NextResponse.json(adminEmployees);
+        if (companyIds.length > 0) {
+          const { data: adminEmployees, error: employeesError } = await supabase
+            .from('users')
+            .select(`
+              id, name, email, role, subrole, createdAt, coins,
+              company:companyId(id, name, email)
+            `)
+            .eq('role', UserRole.EMPLOYEE)
+            .in('companyId', companyIds)
+            .order('createdAt', { ascending: false })
+            .limit(limit);
+          
+          if (employeesError) {
+            console.error('Error fetching admin employees:', employeesError);
+            return NextResponse.json({ error: 'Failed to fetch employees' }, { status: 500 });
+          }
+          
+          console.log(`Found ${adminEmployees ? adminEmployees.length : 0} employees for admin ${user.id}`);
+          return NextResponse.json({ employees: adminEmployees || [] });
+        } else {
+          // No companies found, return empty array
+          console.log(`No companies found for admin ${user.id}`);
+          return NextResponse.json({ employees: [] });
+        }
       } catch (dbError) {
         console.error("Database error fetching admin employees:", dbError);
-        throw dbError;
+        return NextResponse.json({ error: 'Database error' }, { status: 500 });
       }
     }
 

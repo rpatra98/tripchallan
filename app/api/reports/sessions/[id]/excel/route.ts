@@ -91,19 +91,21 @@ export const GET = withAuth(
       // Get activity logs for additional information
       let activityLogs = [];
       try {
-        activityLogs = await supabase.from('activityLogs').select('*').{
-          where: {
-            targetResourceId: sessionId,
-            targetResourceType: 'session',
-          },
-          orderBy: {
-            createdAt: 'desc',
-          },
-          take: 10, // Limit to recent logs
-        });
+        const { data: logs, error: logsError } = await supabase
+          .from('activityLogs')
+          .select('*')
+          .eq('targetResourceId', sessionId)
+          .eq('targetResourceType', 'session')
+          .order('createdAt', { ascending: true });
+        
+        if (logsError) {
+          console.error('Error fetching activity logs:', logsError);
+        } else {
+          activityLogs = logs || [];
+        }
       } catch (error) {
-        console.log(`[EXCEL REPORT] Error fetching activity logs:`, error);
-        // Continue without activity logs if there's an error
+        console.error("Error fetching activity logs:", error);
+        // Continue without activity logs
       }
       
       // Extract trip details from activity logs

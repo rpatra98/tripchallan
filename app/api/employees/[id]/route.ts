@@ -183,25 +183,47 @@ export async function PUT(
     // Update operator permissions if provided
     if (permissions && subrole === "OPERATOR") {
       // Check if permissions record exists
-      const existingPermissions = await supabase.from('operatorPermissionss').select('*').eq('userId', params.id).single();
+      const { data: existingPermissions, error: permissionError } = await supabase
+        .from('operatorPermissions')
+        .select('*')
+        .eq('employeeId', params.id)
+        .single();
+      
+      if (permissionError && !permissionError.message.includes('No rows found')) {
+        console.error('Error checking existing permissions:', permissionError);
+        return NextResponse.json({ error: 'Failed to check existing permissions' }, { status: 500 });
+      }
       
       if (existingPermissions) {
         // Update existing permissions
-        await supabase.from('operatorPermissionss').update( {
+        const { error: updateError } = await supabase
+          .from('operatorPermissions')
+          .update({
             canCreate: permissions.canCreate,
             canModify: permissions.canModify,
             canDelete: permissions.canDelete
-          }
-        });
+          })
+          .eq('employeeId', params.id);
+          
+        if (updateError) {
+          console.error('Error updating permissions:', updateError);
+          return NextResponse.json({ error: 'Failed to update permissions' }, { status: 500 });
+        }
       } else {
         // Create new permissions
-        await supabase.from('operatorPermissionss').insert( {
-            userId: params.id,
+        const { error: insertError } = await supabase
+          .from('operatorPermissions')
+          .insert({
+            employeeId: params.id,
             canCreate: permissions.canCreate,
             canModify: permissions.canModify,
             canDelete: permissions.canDelete
-          }
-        });
+          });
+          
+        if (insertError) {
+          console.error('Error creating permissions:', insertError);
+          return NextResponse.json({ error: 'Failed to create permissions' }, { status: 500 });
+        }
       }
     }
     

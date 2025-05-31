@@ -54,156 +54,46 @@ export async function GET(
         // Continue to file system fallback
       } else {
         // Find activity logs for this session that might contain image data
-        const activityLogs = await supabase.from('activityLogs').select('*').{
-          where: {
-            targetResourceId: sessionId,
-            targetResourceType: 'session',
-          },
-          orderBy: {
-            createdAt: 'desc',
-          },
-        });
+        const { data: activityLogs, error: logsError } = await supabase
+          .from('activityLogs')
+          .select('details')
+          .eq('targetResourceId', sessionId)
+          .eq('targetResourceType', 'session')
+          .contains('details', 'imageData');
         
-        // First look for a log with imageBase64Data (usually created during session creation)
-        // This is the most likely place to find the image data
-        for (const log of activityLogs) {
-          if (!log.details) continue;
-          
-          let details = log.details;
-          // If details is a string, parse it
-          if (typeof details === 'string') {
+        if (logsError) {
+          console.error('Error fetching activity logs:', logsError);
+          // Continue to file system fallback
+        } else if (activityLogs && activityLogs.length > 0) {
+          // Search for image data in activity logs
+          for (const log of activityLogs) {
             try {
-              details = JSON.parse(details);
-            } catch (error) {
-              continue; // Not valid JSON, skip this log
-            }
-          }
-          
-          // Check if this log has imageBase64Data
-          if (details.imageBase64Data) {
-            let imageData = null;
-            let contentType = 'image/jpeg';
-            
-            // Find the correct image based on type and index
-            if (imageType === 'gpsImei' && details.imageBase64Data.gpsImeiPicture) {
-              imageData = details.imageBase64Data.gpsImeiPicture.data;
-              contentType = details.imageBase64Data.gpsImeiPicture.contentType || contentType;
-            } else if (imageType === 'vehicleNumber' && details.imageBase64Data.vehicleNumberPlatePicture) {
-              imageData = details.imageBase64Data.vehicleNumberPlatePicture.data;
-              contentType = details.imageBase64Data.vehicleNumberPlatePicture.contentType || contentType;
-            } else if (imageType === 'driver' && details.imageBase64Data.driverPicture) {
-              imageData = details.imageBase64Data.driverPicture.data;
-              contentType = details.imageBase64Data.driverPicture.contentType || contentType;
-            } else if (imageType === 'sealing' && details.imageBase64Data.sealingImages && index !== null) {
-              const sealingImage = details.imageBase64Data.sealingImages[parseInt(index)];
-              if (sealingImage) {
-                imageData = sealingImage.data;
-                contentType = sealingImage.contentType || contentType;
-              }
-            } else if (imageType === 'vehicle' && details.imageBase64Data.vehicleImages && index !== null) {
-              const vehicleImage = details.imageBase64Data.vehicleImages[parseInt(index)];
-              if (vehicleImage) {
-                imageData = vehicleImage.data;
-                contentType = vehicleImage.contentType || contentType;
-              }
-            } else if (imageType === 'additional' && details.imageBase64Data.additionalImages && index !== null) {
-              const additionalImage = details.imageBase64Data.additionalImages[parseInt(index)];
-              if (additionalImage) {
-                imageData = additionalImage.data;
-                contentType = additionalImage.contentType || contentType;
-              }
-            }
-            
-            // If we found the image data, serve it
-            if (imageData && typeof imageData === 'string') {
-              console.log(`Found and serving image data for ${imageType}${index !== null ? ` at index ${index}` : ''}`);
-              try {
-                // Convert base64 to buffer
-                const buffer = Buffer.from(imageData, 'base64');
+              // Extract image data from log details
+              const details = log.details;
+              
+              if (details && details.imageData && details.imageName === imageType) {
+                console.log(`Found image ${imageType} in activity logs`);
                 
-                // Return the image
-                return new NextResponse(buffer, {
+                // Convert base64 to buffer
+                const imageBuffer = Buffer.from(details.imageData, 'base64');
+                
+                // Set appropriate content type
+                const contentType = 
+                  imageType.endsWith('.png') ? 'image/png' :
+                  imageType.endsWith('.jpg') || imageType.endsWith('.jpeg') ? 'image/jpeg' :
+                  'application/octet-stream';
+                
+                // Return the image data
+                return new Response(imageBuffer, {
                   headers: {
                     'Content-Type': contentType,
-                    'Cache-Control': 'public, max-age=86400', // Cache for 24 hours
+                    'Cache-Control': 'public, max-age=86400'
                   },
                 });
-              } catch (error) {
-                console.error(`Error converting base64 to buffer: ${error instanceof Error ? error.message : 'Unknown error'}`);
               }
-            }
-          }
-          
-          // If we didn't find image in imageBase64Data, check for other formats
-          // Some logs might store image data in other structures
-          for (const field of Object.keys(details)) {
-            const value = details[field];
-            if (!value || typeof value !== 'object') continue;
-            
-            // Look for the image in this field
-            if (imageType === 'gpsImei' && value.gpsImeiPicture && value.gpsImeiPicture.data) {
-              console.log(`Found gpsImeiPicture in ${field}`);
-              try {
-                const buffer = Buffer.from(value.gpsImeiPicture.data, 'base64');
-                return new NextResponse(buffer, {
-                  headers: {
-                    'Content-Type': value.gpsImeiPicture.contentType || 'image/jpeg',
-                    'Cache-Control': 'public, max-age=86400',
-                  },
-                });
-              } catch (error) {
-                console.error(`Error converting base64: ${error instanceof Error ? error.message : 'Unknown error'}`);
-              }
-            }
-            // Other image types...
-            // (Similar checks for other image types)
-          }
-        }
-        
-        // If we still haven't found the image, look for URL references
-        // Some logs might just have URLs to the images
-        for (const log of activityLogs) {
-          if (!log.details) continue;
-          
-          let details = log.details;
-          if (typeof details === 'string') {
-            try { details = JSON.parse(details); } 
-            catch (error) { continue; }
-          }
-          
-          // Check if this log has image URLs that we might need to convert
-          if (details.images) {
-            let imageUrl = null;
-            
-            // Find the right image URL based on type and index
-            if (imageType === 'gpsImei' && details.images.gpsImeiPicture) {
-              imageUrl = details.images.gpsImeiPicture;
-            } else if (imageType === 'vehicleNumber' && details.images.vehicleNumberPlatePicture) {
-              imageUrl = details.images.vehicleNumberPlatePicture;
-            } else if (imageType === 'driver' && details.images.driverPicture) {
-              imageUrl = details.images.driverPicture;
-            } else if (imageType === 'sealing' && details.images.sealingImages && index !== null) {
-              const sealingImages = details.images.sealingImages;
-              if (Array.isArray(sealingImages) && sealingImages.length > parseInt(index)) {
-                imageUrl = sealingImages[parseInt(index)];
-              }
-            } else if (imageType === 'vehicle' && details.images.vehicleImages && index !== null) {
-              const vehicleImages = details.images.vehicleImages;
-              if (Array.isArray(vehicleImages) && vehicleImages.length > parseInt(index)) {
-                imageUrl = vehicleImages[parseInt(index)];
-              }
-            } else if (imageType === 'additional' && details.images.additionalImages && index !== null) {
-              const additionalImages = details.images.additionalImages;
-              if (Array.isArray(additionalImages) && additionalImages.length > parseInt(index)) {
-                imageUrl = additionalImages[parseInt(index)];
-              }
-            }
-            
-            // If we found a URL, check if it's a relative URL to our API
-            // If it is, we need to extract the parameters and search again
-            if (imageUrl && typeof imageUrl === 'string' && imageUrl.startsWith('/api/images/')) {
-              // This is just a reference to another image, not the actual image data
-              console.log(`Found URL reference: ${imageUrl}, but need to find the actual image data`);
+            } catch (parseError) {
+              console.error('Error parsing activity log details:', parseError);
+              // Continue to next log
             }
           }
         }
