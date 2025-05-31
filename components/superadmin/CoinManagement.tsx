@@ -248,9 +248,11 @@ export default function CoinManagement() {
       setLoadingTransactions(true);
       
       // First get the transactions without foreign key relationships
+      // Make sure to get specifically admin creation and system transactions
       const { data: transactionData, error: transactionError } = await supabase
         .from('coin_transactions')
         .select('*')
+        .or(`reason.eq.SYSTEM,reason.eq.ADMIN_CREATION`)
         .order('created_at', { ascending: false })
         .limit(20);
       
@@ -261,12 +263,39 @@ export default function CoinManagement() {
         return;
       }
       
+      // If no transactions found, try fetching any available transactions as a fallback
       if (!transactionData || transactionData.length === 0) {
-        setTransactions([]);
-        setLoadingTransactions(false);
+        const { data: fallbackData, error: fallbackError } = await supabase
+          .from('coin_transactions')
+          .select('*')
+          .order('created_at', { ascending: false })
+          .limit(20);
+          
+        if (fallbackError || !fallbackData || fallbackData.length === 0) {
+          console.log('No transactions found in the system');
+          setTransactions([]);
+          setLoadingTransactions(false);
+          return;
+        }
+        
+        console.log('Found transactions through fallback:', fallbackData.length);
+        await processTransactions(fallbackData);
         return;
       }
       
+      console.log('Found admin/system transactions:', transactionData.length);
+      await processTransactions(transactionData);
+    } catch (err) {
+      console.error('Error fetching transactions:', err);
+      setTransactions([]);
+    } finally {
+      setLoadingTransactions(false);
+    }
+  };
+  
+  // Helper function to process transaction data
+  const processTransactions = async (transactionData: any[]) => {
+    try {
       // Collect all user IDs from transactions
       const userIds = new Set<string>();
       transactionData.forEach(transaction => {
@@ -277,7 +306,7 @@ export default function CoinManagement() {
       // Fetch user details separately
       const { data: usersData, error: usersError } = await supabase
         .from('users')
-        .select('id, name, email')
+        .select('id, name, email, role')
         .in('id', Array.from(userIds));
       
       if (usersError) {
@@ -301,10 +330,8 @@ export default function CoinManagement() {
       
       setTransactions(enrichedTransactions);
     } catch (err) {
-      console.error('Error fetching transactions:', err);
+      console.error('Error processing transactions:', err);
       setTransactions([]);
-    } finally {
-      setLoadingTransactions(false);
     }
   };
 
@@ -383,6 +410,16 @@ export default function CoinManagement() {
   };
 
   const getTransactionDescription = (transaction: Transaction): string => {
+    // Special handling for system transactions
+    if (transaction.reason === 'SYSTEM') {
+      return 'System Balance Adjustment';
+    }
+    
+    // Special handling for admin creation transactions
+    if (transaction.reason === 'ADMIN_CREATION') {
+      return `Admin Creation: ${transaction.toUser?.name || 'Unknown Admin'}`;
+    }
+    
     const isReceived = transaction.to_user_id === session?.user?.id;
     const otherParty = isReceived ? transaction.fromUser : transaction.toUser;
     
@@ -390,13 +427,68 @@ export default function CoinManagement() {
   };
 
   const getTransactionAmount = (transaction: Transaction): string => {
+    // For SYSTEM transactions, just show the amount
+    if (transaction.reason === 'SYSTEM' || transaction.reason === 'ADMIN_CREATION') {
+      return `${transaction.amount}`;
+    }
+    
     const isReceived = transaction.to_user_id === session?.user?.id;
     return `${isReceived ? '+' : '-'}${transaction.amount}`;
   };
 
   const getTransactionColor = (transaction: Transaction): string => {
+    // For SYSTEM transactions, use a neutral color
+    if (transaction.reason === 'SYSTEM') {
+      return 'info.main';
+    }
+    
+    // For admin creation, use a distinct color
+    if (transaction.reason === 'ADMIN_CREATION') {
+      return 'secondary.main';
+    }
+    
     const isReceived = transaction.to_user_id === session?.user?.id;
     return isReceived ? 'success.main' : 'error.main';
+  };
+
+  // Helper function to get a more descriptive reason text
+  const getTransactionReasonText = (transaction: Transaction): string => {
+    switch (transaction.reason) {
+      case 'SYSTEM':
+        return 'System Adjustment';
+      case 'ADMIN_CREATION':
+        return 'Admin Creation';
+      case 'ALLOCATION':
+        return 'Coin Allocation';
+      case 'ADJUSTMENT':
+        return 'Balance Adjustment';
+      case 'BONUS':
+        return 'Bonus Coins';
+      case 'CORRECTION':
+        return 'Correction';
+      default:
+        return transaction.reason;
+    }
+  };
+
+  // Helper function to get chip color based on transaction type
+  const getChipColor = (transaction: Transaction): "default" | "primary" | "secondary" | "error" | "info" | "success" | "warning" => {
+    switch (transaction.reason) {
+      case 'SYSTEM':
+        return 'info';
+      case 'ADMIN_CREATION':
+        return 'secondary';
+      case 'ALLOCATION':
+        return 'primary';
+      case 'ADJUSTMENT':
+        return 'warning';
+      case 'BONUS':
+        return 'success';
+      case 'CORRECTION':
+        return 'error';
+      default:
+        return 'default';
+    }
   };
 
   if (!session?.user) {
@@ -638,9 +730,9 @@ export default function CoinManagement() {
                       </TableCell>
                       <TableCell>
                         <Chip 
-                          label={transaction.reason} 
+                          label={getTransactionReasonText(transaction)} 
                           size="small" 
-                          color="default"
+                          color={getChipColor(transaction)}
                         />
                       </TableCell>
                     </TableRow>

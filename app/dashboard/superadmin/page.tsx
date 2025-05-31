@@ -64,6 +64,10 @@ export default function SuperAdminPage() {
 
   return (
     <div className="container mx-auto px-4 py-8">
+      <Typography variant="h4" component="h1" sx={{ fontWeight: 'bold', mb: 3 }}>
+        SuperAdmin Dashboard
+      </Typography>
+      
       <Box sx={{ display: 'flex', alignItems: 'center', mb: 4 }}>
         {checkingConnection ? (
           <Box sx={{ display: 'flex', alignItems: 'center' }}>

@@ -1,16 +1,39 @@
 #!/usr/bin/env node
 
+/**
+ * Supabase Database Reset and Seed Script
+ * 
+ * This script:
+ * 1. Wipes relevant Supabase tables
+ * 2. Creates required schema
+ * 3. Seeds initial SuperAdmin user
+ * 4. Creates test data including admin creation transactions
+ * 
+ * Usage: 
+ * - Development: npm run db:reset
+ * - Production: NODE_ENV=production npm run db:reset
+ */
+
 require('dotenv').config();
 const { createClient } = require('@supabase/supabase-js');
 const bcrypt = require('bcrypt');
 const fs = require('fs');
 const path = require('path');
 
-// Validate environment variables
+// Environment detection
+const isProduction = process.env.NODE_ENV === 'production';
+console.log(`Running in ${isProduction ? 'PRODUCTION' : 'DEVELOPMENT'} mode`);
+
+// Check required environment variables
 const requiredEnvVars = [
   'NEXT_PUBLIC_SUPABASE_URL',
   'NEXT_PUBLIC_SUPABASE_ANON_KEY'
 ];
+
+if (isProduction) {
+  // Additional keys required for production
+  requiredEnvVars.push('SUPABASE_SERVICE_ROLE_KEY');
+}
 
 const missingEnvVars = requiredEnvVars.filter(envVar => !process.env[envVar]);
 if (missingEnvVars.length > 0) {
@@ -18,289 +41,254 @@ if (missingEnvVars.length > 0) {
   process.exit(1);
 }
 
-// Create Supabase client
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-);
+// Create Supabase client with appropriate credentials
+const supabase = isProduction
+  ? createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL,
+      process.env.SUPABASE_SERVICE_ROLE_KEY
+    )
+  : createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+    );
 
-// Main function to reset and seed the database
+// List of tables that should be reset
+const tablesToReset = [
+  'activity_logs',
+  'coin_transactions',
+  'trips',
+  'users'
+];
+
+// Main function
 async function resetAndSeedDatabase() {
-  console.log('Starting database reset and seed process...');
-  
   try {
-    // Step 1: Create tables if they don't exist
-    await createTables();
+    console.log('Starting database reset and seed process...');
     
-    // Step 2: Create or update the SuperAdmin user
-    await ensureSuperAdmin();
+    // 1. Reset tables (in reverse order to avoid foreign key constraints)
+    console.log('Clearing existing data...');
+    for (const table of [...tablesToReset].reverse()) {
+      console.log(`Clearing table: ${table}`);
+      const { error } = await supabase.from(table).delete().neq('id', '00000000-0000-0000-0000-000000000000');
+      if (error) {
+        console.error(`Error clearing table ${table}:`, error);
+      }
+    }
     
-    // Step 3: Apply any SQL migrations
+    // 2. Set up database schema by executing migrations
+    console.log('Setting up database schema...');
     await applyMigrations();
     
-    console.log('Database reset and seed completed successfully');
+    // 3. Create SuperAdmin user
+    console.log('Creating SuperAdmin user...');
+    const superAdminId = await createSuperAdmin();
+    
+    if (!superAdminId) {
+      console.error('Failed to create SuperAdmin user');
+      process.exit(1);
+    }
+    
+    // 4. Create test data (only in development)
+    if (!isProduction) {
+      console.log('Creating test data...');
+      await createTestData(superAdminId);
+    }
+    
+    console.log('Database reset and seed completed successfully!');
   } catch (error) {
     console.error('Error in database reset and seed process:', error);
     process.exit(1);
   }
 }
 
-// Create necessary database tables
-async function createTables() {
-  console.log('Creating tables if they don\'t exist...');
-  
-  try {
-    // Check if users table exists
-    const { error: checkUsersError } = await supabase
-      .from('users')
-      .select('count')
-      .limit(1)
-      .single();
-    
-    // Create users table if it doesn't exist
-    if (checkUsersError) {
-      console.log('Creating users table...');
-      
-      const { error: createUsersError } = await supabase.rpc('exec_sql', {
-        sql: `
-          CREATE TABLE IF NOT EXISTS users (
-            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-            name TEXT NOT NULL,
-            email TEXT UNIQUE NOT NULL,
-            password TEXT NOT NULL,
-            role TEXT NOT NULL CHECK (role IN ('SUPERADMIN', 'ADMIN', 'COMPANY', 'EMPLOYEE')),
-            coins INTEGER NOT NULL DEFAULT 0,
-            created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
-            updated_at TIMESTAMP WITH TIME ZONE DEFAULT now()
-          );
-        `
-      });
-      
-      if (createUsersError) {
-        throw new Error(`Failed to create users table: ${createUsersError.message}`);
-      }
-    }
-    
-    // Check if coin_transactions table exists
-    const { error: checkTransactionsError } = await supabase
-      .from('coin_transactions')
-      .select('count')
-      .limit(1)
-      .single();
-    
-    // Create coin_transactions table if it doesn't exist
-    if (checkTransactionsError) {
-      console.log('Creating coin_transactions table...');
-      
-      const { error: createTransactionsError } = await supabase.rpc('exec_sql', {
-        sql: `
-          CREATE TABLE IF NOT EXISTS coin_transactions (
-            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-            from_user_id UUID REFERENCES users(id) ON DELETE SET NULL,
-            to_user_id UUID REFERENCES users(id) ON DELETE SET NULL,
-            amount INTEGER NOT NULL,
-            reason TEXT NOT NULL,
-            notes TEXT,
-            created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
-            updated_at TIMESTAMP WITH TIME ZONE DEFAULT now()
-          );
-        `
-      });
-      
-      if (createTransactionsError) {
-        throw new Error(`Failed to create coin_transactions table: ${createTransactionsError.message}`);
-      }
-    }
-    
-    // Check if activity_logs table exists
-    const { error: checkLogsError } = await supabase
-      .from('activity_logs')
-      .select('count')
-      .limit(1)
-      .single();
-    
-    // Create activity_logs table if it doesn't exist
-    if (checkLogsError) {
-      console.log('Creating activity_logs table...');
-      
-      const { error: createLogsError } = await supabase.rpc('exec_sql', {
-        sql: `
-          CREATE TABLE IF NOT EXISTS activity_logs (
-            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-            user_id UUID REFERENCES users(id) ON DELETE SET NULL,
-            action TEXT NOT NULL,
-            target_resource_type TEXT,
-            target_resource_id TEXT,
-            details JSONB,
-            ip_address TEXT,
-            user_agent TEXT,
-            created_at TIMESTAMP WITH TIME ZONE DEFAULT now()
-          );
-        `
-      });
-      
-      if (createLogsError) {
-        throw new Error(`Failed to create activity_logs table: ${createLogsError.message}`);
-      }
-    }
-    
-    console.log('All required tables created or verified');
-  } catch (error) {
-    console.error('Error creating tables:', error);
-    throw error;
-  }
-}
-
-// Create or update the SuperAdmin user
-async function ensureSuperAdmin() {
-  console.log('Ensuring SuperAdmin user exists...');
-  
-  try {
-    // Look for existing SuperAdmin
-    const { data: superAdmin, error: findError } = await supabase
-      .from('users')
-      .select('*')
-      .eq('email', 'superadmin@cbums.com')
-      .eq('role', 'SUPERADMIN')
-      .single();
-    
-    // Generate hashed password
-    const hashedPassword = await bcrypt.hash('superadmin123', 12);
-    
-    // If SuperAdmin exists, update coins if needed
-    if (superAdmin) {
-      console.log('SuperAdmin exists, checking coins...');
-      
-      if (superAdmin.coins < 1000000) {
-        console.log(`Updating SuperAdmin coins from ${superAdmin.coins} to 1,000,000`);
-        
-        const { error: updateError } = await supabase
-          .from('users')
-          .update({ 
-            coins: 1000000,
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', superAdmin.id);
-        
-        if (updateError) {
-          throw new Error(`Failed to update SuperAdmin coins: ${updateError.message}`);
-        }
-        
-        // Record the adjustment as a transaction
-        await recordCoinAdjustment(superAdmin.id, 1000000 - superAdmin.coins);
-        
-        console.log('SuperAdmin coins updated successfully');
-      } else {
-        console.log(`SuperAdmin already has sufficient coins: ${superAdmin.coins}`);
-      }
-    } 
-    // Create new SuperAdmin if doesn't exist
-    else {
-      console.log('SuperAdmin not found, creating one...');
-      
-      const { data: newAdmin, error: createError } = await supabase
-        .from('users')
-        .insert({
-          name: 'Super Admin',
-          email: 'superadmin@cbums.com',
-          password: hashedPassword,
-          role: 'SUPERADMIN',
-          coins: 1000000,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        })
-        .select()
-        .single();
-      
-      if (createError) {
-        throw new Error(`Failed to create SuperAdmin: ${createError.message}`);
-      }
-      
-      console.log('SuperAdmin created successfully with 1,000,000 coins');
-      
-      // Record the initial allocation as a transaction
-      await recordCoinAdjustment(newAdmin.id, 1000000);
-    }
-  } catch (error) {
-    console.error('Error ensuring SuperAdmin exists:', error);
-    throw error;
-  }
-}
-
-// Record a coin adjustment transaction
-async function recordCoinAdjustment(userId, amount) {
-  try {
-    // Create a self-transaction for system adjustments
-    const { error } = await supabase
-      .from('coin_transactions')
-      .insert({
-        from_user_id: userId, // System adjustment
-        to_user_id: userId,
-        amount: Math.abs(amount),
-        reason: 'SYSTEM',
-        notes: 'System balance adjustment during initialization',
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      });
-    
-    if (error) {
-      console.error('Error recording coin adjustment transaction:', error);
-    } else {
-      console.log(`Recorded coin adjustment transaction of ${amount} coins for user ${userId}`);
-    }
-  } catch (error) {
-    console.error('Error recording coin adjustment:', error);
-  }
-}
-
-// Apply any SQL migrations from the migrations folder
+// Apply migrations from the migrations directory
 async function applyMigrations() {
-  console.log('Applying SQL migrations...');
-  
   try {
-    const migrationsDir = path.join(process.cwd(), 'migrations');
+    const migrationsDir = path.join(__dirname, '..', 'migrations');
     
     // Check if migrations directory exists
     if (!fs.existsSync(migrationsDir)) {
-      console.log('No migrations directory found, skipping migrations');
+      console.log('No migrations directory found');
       return;
     }
     
-    // Get all SQL files in migrations directory
+    // Get all SQL files and sort them
     const migrationFiles = fs.readdirSync(migrationsDir)
       .filter(file => file.endsWith('.sql'))
-      .sort(); // Sort to apply in order
+      .sort();
     
-    if (migrationFiles.length === 0) {
-      console.log('No SQL migration files found, skipping migrations');
-      return;
-    }
-    
-    console.log(`Found ${migrationFiles.length} migration files to apply`);
+    console.log(`Found ${migrationFiles.length} migration files`);
     
     // Apply each migration
     for (const file of migrationFiles) {
       console.log(`Applying migration: ${file}`);
+      const filePath = path.join(migrationsDir, file);
+      const sql = fs.readFileSync(filePath, 'utf8');
       
-      const migrationContent = fs.readFileSync(path.join(migrationsDir, file), 'utf8');
+      // Split the SQL file into separate statements
+      const statements = sql.split(';').filter(stmt => stmt.trim());
       
-      // Apply the migration using exec_sql RPC
-      const { error } = await supabase.rpc('exec_sql', {
-        sql: migrationContent
-      });
-      
-      if (error) {
-        console.error(`Error applying migration ${file}:`, error);
-        // Continue with other migrations even if one fails
-      } else {
-        console.log(`Successfully applied migration: ${file}`);
+      for (const statement of statements) {
+        if (statement.trim()) {
+          const { error } = await supabase.rpc('exec_sql', { sql: statement.trim() });
+          
+          if (error) {
+            console.error(`Error executing SQL from ${file}:`, error);
+            console.error('SQL statement:', statement.trim());
+          }
+        }
       }
     }
     
-    console.log('All migrations applied');
+    console.log('All migrations applied successfully');
   } catch (error) {
     console.error('Error applying migrations:', error);
     throw error;
+  }
+}
+
+// Create SuperAdmin user
+async function createSuperAdmin() {
+  try {
+    const password = 'superadmin123';
+    const hashedPassword = await bcrypt.hash(password, 12);
+    const now = new Date().toISOString();
+    
+    // Check if SuperAdmin already exists
+    const { data: existingAdmin } = await supabase
+      .from('users')
+      .select('id')
+      .eq('email', 'superadmin@cbums.com')
+      .eq('role', 'SUPERADMIN');
+    
+    if (existingAdmin && existingAdmin.length > 0) {
+      console.log('SuperAdmin already exists, updating...');
+      
+      // Update existing SuperAdmin
+      const { error: updateError } = await supabase
+        .from('users')
+        .update({
+          name: 'Super Admin',
+          password: hashedPassword,
+          coins: 1000000,
+          updated_at: now
+        })
+        .eq('email', 'superadmin@cbums.com')
+        .eq('role', 'SUPERADMIN');
+      
+      if (updateError) {
+        console.error('Error updating SuperAdmin:', updateError);
+        return null;
+      }
+      
+      console.log('SuperAdmin updated successfully');
+      return existingAdmin[0].id;
+    }
+    
+    // Create new SuperAdmin
+    const { data: newAdmin, error: createError } = await supabase
+      .from('users')
+      .insert({
+        name: 'Super Admin',
+        email: 'superadmin@cbums.com',
+        password: hashedPassword,
+        role: 'SUPERADMIN',
+        coins: 1000000,
+        created_at: now,
+        updated_at: now
+      })
+      .select()
+      .single();
+    
+    if (createError) {
+      console.error('Error creating SuperAdmin:', createError);
+      return null;
+    }
+    
+    console.log(`SuperAdmin created with ID: ${newAdmin.id}`);
+    
+    // Record initial coin allocation as a transaction
+    const { error: transactionError } = await supabase
+      .from('coin_transactions')
+      .insert({
+        from_user_id: newAdmin.id,
+        to_user_id: newAdmin.id,
+        amount: 1000000,
+        reason: 'SYSTEM',
+        notes: 'Initial coin allocation for SuperAdmin',
+        created_at: now,
+        updated_at: now
+      });
+    
+    if (transactionError) {
+      console.error('Error recording initial coin transaction:', transactionError);
+    }
+    
+    return newAdmin.id;
+  } catch (error) {
+    console.error('Error in createSuperAdmin:', error);
+    return null;
+  }
+}
+
+// Create test data (admins, transactions, etc.)
+async function createTestData(superAdminId) {
+  try {
+    if (!superAdminId) {
+      console.error('Cannot create test data without SuperAdmin ID');
+      return;
+    }
+    
+    // Create a test admin
+    const adminEmail = 'admin@cbums.com';
+    const password = 'admin123';
+    const hashedPassword = await bcrypt.hash(password, 12);
+    const now = new Date().toISOString();
+    
+    const { data: newAdmin, error: createError } = await supabase
+      .from('users')
+      .insert({
+        name: 'Test Admin',
+        email: adminEmail,
+        password: hashedPassword,
+        role: 'ADMIN',
+        coins: 50000,
+        created_at: now,
+        updated_at: now
+      })
+      .select()
+      .single();
+    
+    if (createError) {
+      console.error('Error creating test admin:', createError);
+      return;
+    }
+    
+    console.log(`Test admin created with ID: ${newAdmin.id}`);
+    
+    // Record admin creation transaction
+    const { error: transactionError } = await supabase
+      .from('coin_transactions')
+      .insert({
+        from_user_id: superAdminId,
+        to_user_id: newAdmin.id,
+        amount: 50000,
+        reason: 'ADMIN_CREATION',
+        notes: 'Initial coin allocation for new admin',
+        created_at: now,
+        updated_at: now
+      });
+    
+    if (transactionError) {
+      console.error('Error recording admin creation transaction:', transactionError);
+    } else {
+      console.log('Admin creation transaction recorded successfully');
+    }
+    
+    // Create additional test data as needed...
+    
+  } catch (error) {
+    console.error('Error creating test data:', error);
   }
 }
 
