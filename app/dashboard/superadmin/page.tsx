@@ -11,6 +11,7 @@ import SystemStats from "@/components/superadmin/SystemStats";
 import TripManagement from "@/components/superadmin/TripManagement";
 import CoinManagement from "@/components/superadmin/CoinManagement";
 import ActivityLogsTab from "@/components/superadmin/ActivityLogsTab";
+import DashboardHeader from "@/components/dashboard/DashboardHeader";
 
 export default function SuperAdminPage() {
   const { data: session } = useSession();
@@ -64,11 +65,10 @@ export default function SuperAdminPage() {
 
   return (
     <div className="container mx-auto px-4 py-8">
+      {/* Add the dashboard header for displaying coins */}
+      <DashboardHeader />
+      
       <Box sx={{ display: 'flex', alignItems: 'center', mb: 4 }}>
-        <Typography variant="h4" component="h1" sx={{ fontWeight: 'bold', mr: 2 }}>
-          SuperAdmin Dashboard
-        </Typography>
-        
         {checkingConnection ? (
           <Box sx={{ display: 'flex', alignItems: 'center' }}>
             <CircularProgress size={20} sx={{ mr: 1 }} />

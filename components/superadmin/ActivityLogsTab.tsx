@@ -104,7 +104,14 @@ export default function ActivityLogsTab() {
       
       const { data, error, count } = await query;
       
-      if (error) throw new Error(error.message);
+      if (error) {
+        console.error('Error fetching activity logs:', error);
+        setError(error.message);
+        setLogs([]);
+        setTotalLogs(0);
+        setLoading(false);
+        return;
+      }
       
       setLogs(data || []);
       setTotalLogs(count || 0);
@@ -124,7 +131,10 @@ export default function ActivityLogsTab() {
         .select('action')
         .order('action');
       
-      if (actionError) throw new Error(actionError.message);
+      if (actionError) {
+        console.error('Error fetching actions:', actionError);
+        return;
+      }
       
       const uniqueActions = Array.from(new Set(actionData?.map(item => item.action) || []));
       setActions(uniqueActions);
@@ -135,7 +145,10 @@ export default function ActivityLogsTab() {
         .select('target_resource_type')
         .order('target_resource_type');
       
-      if (resourceTypeError) throw new Error(resourceTypeError.message);
+      if (resourceTypeError) {
+        console.error('Error fetching resource types:', resourceTypeError);
+        return;
+      }
       
       const uniqueResourceTypes = Array.from(new Set(resourceTypeData?.map(item => item.target_resource_type).filter(Boolean) || []));
       setResourceTypes(uniqueResourceTypes);

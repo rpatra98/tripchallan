@@ -1,6 +1,7 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from "next/server";
 import path from 'path';
 import fs from 'fs/promises';
+import { ensureSuperAdmin } from "@/lib/ensure-superadmin";
 
 // List of required directories for the application
 const REQUIRED_DIRECTORIES = [
@@ -25,6 +26,9 @@ export async function GET() {
       }
     }
     
+    // Also initialize SuperAdmin
+    await ensureSuperAdmin();
+    
     return NextResponse.json({ 
       status: 'success', 
       message: 'Server initialization completed successfully',
@@ -40,7 +44,31 @@ export async function GET() {
 }
 
 // Called automatically when the application starts up
-export async function POST() {
-  // Same functionality as GET
-  return GET();
+export async function POST(req: NextRequest) {
+  try {
+    // Create required directories
+    for (const dirPath of REQUIRED_DIRECTORIES) {
+      const fullPath = path.join(process.cwd(), ...dirPath);
+      
+      try {
+        await fs.mkdir(fullPath, { recursive: true });
+      } catch (err) {
+        console.error(`Failed to create directory: ${fullPath}`, err);
+      }
+    }
+    
+    // Make sure SuperAdmin exists with coins
+    await ensureSuperAdmin();
+    
+    return NextResponse.json({ 
+      success: true,
+      message: 'Server initialization completed successfully' 
+    });
+  } catch (error) {
+    console.error("Error in server initialization:", error);
+    return NextResponse.json(
+      { error: "Server initialization failed" },
+      { status: 500 }
+    );
+  }
 } 

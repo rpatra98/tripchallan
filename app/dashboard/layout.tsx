@@ -261,6 +261,18 @@ export default function DashboardLayout({
               )}
             </Box>
             <Box sx={{ flexGrow: 1 }} />
+            <Box sx={{ display: 'flex', alignItems: 'center' }}>
+              <Chip
+                label={`${currentCoinBalance?.toLocaleString() || 0} Coins`}
+                color="warning"
+                variant="outlined"
+                sx={{ 
+                  mr: 2, 
+                  fontWeight: 'bold',
+                  '& .MuiChip-label': { color: 'white' }
+                }}
+              />
+            </Box>
             {session?.user && (
               <>
                 {session.user.role !== "COMPANY" && session.user.subrole !== "GUARD" && (

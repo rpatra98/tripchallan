@@ -2,8 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-options";
 import { withAuth } from "@/lib/auth";
-import supabase from "@/lib/supabase";
-import supabaseAdmin from "@/lib/supabase-admin";
+import { supabase } from "@/lib/supabase";
 import { UserRole } from "@/lib/enums";
 import { addActivityLog } from "@/lib/activity-logger";
 import { ActivityAction } from "@/lib/enums";
@@ -36,13 +35,13 @@ async function handler(req: NextRequest) {
 
     // Parse request body
     const body = await req.json();
-    const { fromUserId, toUserId, amount, reason, notes } = body;
+    const { from_user_id, to_user_id, amount, reason, notes } = body;
     
-    // If fromUserId is not provided, use the current user's ID
-    const senderId = fromUserId || session.user.id;
+    // If from_user_id is not provided, use the current user's ID
+    const senderId = from_user_id || session.user.id;
     
     // Validate request data
-    if (!toUserId) {
+    if (!to_user_id) {
       return NextResponse.json(
         { error: "Recipient is required" },
         { status: 400 }
@@ -57,7 +56,7 @@ async function handler(req: NextRequest) {
     }
     
     // Cannot transfer to self
-    if (senderId === toUserId) {
+    if (senderId === to_user_id) {
       return NextResponse.json(
         { error: "Cannot transfer coins to yourself" },
         { status: 400 }
@@ -82,7 +81,7 @@ async function handler(req: NextRequest) {
     const { data: recipient, error: recipientError } = await supabase
       .from('users')
       .select('id, name, role, coins')
-      .eq('id', toUserId)
+      .eq('id', to_user_id)
       .single();
     
     if (recipientError || !recipient) {
@@ -121,11 +120,11 @@ async function handler(req: NextRequest) {
     
     // Start a transaction to ensure both operations succeed or fail together
     // 1. Deduct coins from sender
-    const { data: updatedSender, error: updateSenderError } = await supabaseAdmin
+    const { data: updatedSender, error: updateSenderError } = await supabase
       .from('users')
       .update({ 
         coins: sender.coins - amount,
-        updatedAt: new Date().toISOString()
+        updated_at: new Date().toISOString()
       })
       .eq('id', senderId)
       .select('id, coins')
@@ -140,19 +139,19 @@ async function handler(req: NextRequest) {
     }
     
     // 2. Add coins to recipient
-    const { data: updatedRecipient, error: updateRecipientError } = await supabaseAdmin
+    const { data: updatedRecipient, error: updateRecipientError } = await supabase
       .from('users')
       .update({
         coins: recipient.coins + amount,
-        updatedAt: new Date().toISOString()
+        updated_at: new Date().toISOString()
       })
-      .eq('id', toUserId)
+      .eq('id', to_user_id)
       .select('id, coins')
       .single();
     
     if (updateRecipientError) {
       // Revert the sender's coin deduction if adding to recipient fails
-      await supabaseAdmin
+      await supabase
         .from('users')
         .update({ coins: sender.coins })
         .eq('id', senderId);
@@ -168,11 +167,11 @@ async function handler(req: NextRequest) {
     const transactionReason = reason || TransactionReason.COIN_ALLOCATION;
     const transactionNotes = notes || `Transfer from ${sender.name} to ${recipient.name}`;
     
-    const { data: coinTransaction, error: transactionError } = await supabaseAdmin
+    const { data: coinTransaction, error: transactionError } = await supabase
       .from('coin_transactions')
       .insert({
         from_user_id: senderId,
-        to_user_id: toUserId,
+        to_user_id: to_user_id,
         amount: amount,
         reason: transactionReason,
         notes: transactionNotes,
@@ -196,7 +195,7 @@ async function handler(req: NextRequest) {
           amount,
           fromUserId: senderId,
           fromUserName: sender.name,
-          toUserId: toUserId,
+          toUserId: to_user_id,
           toUserName: recipient.name,
           reason: transactionReason,
           notes: transactionNotes
@@ -220,7 +219,7 @@ async function handler(req: NextRequest) {
           name: sender.name
         },
         to: {
-          id: toUserId,
+          id: to_user_id,
           name: recipient.name
         },
         createdAt: new Date().toISOString()

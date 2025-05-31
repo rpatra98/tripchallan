@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { withAuth } from "@/lib/auth";
-import supabase from "@/lib/supabase";
+import { supabase } from "@/lib/supabase";
 import { UserRole } from "@/lib/enums";
 
 async function handler(req: NextRequest) {
@@ -38,7 +38,7 @@ async function handler(req: NextRequest) {
       );
     }
     
-    // Transform the data to match the expected format
+    // Transform the data to include both snake_case and camelCase formats for backward compatibility
     const transactions = data?.map(transaction => ({
       id: transaction.id,
       amount: transaction.amount,

@@ -213,3 +213,46 @@ This project has been migrated from Neon/Prisma to Supabase with the following c
 2. Database schemas are defined in SQL migrations in the `migrations` folder
 3. All column names follow Supabase snake_case convention
 4. Authentication uses NextAuth with Supabase as the database provider
+
+## Supabase Equivalents for Neon/Prisma Scripts
+
+Here are the Supabase equivalents for the old Neon scripts:
+
+### Migrate Database (`npm run migrate`)
+
+In the Neon/Prisma version, this would run Prisma migrations. In the Supabase version, this runs:
+```bash
+node scripts/supabase-reset.js
+```
+
+This script applies all SQL migrations from the `migrations` folder and ensures database tables are correctly structured.
+
+### Seed Database (`npm run db:seed`)
+
+In the Neon/Prisma version, this would seed the database with initial data. In the Supabase version, this runs:
+```bash
+node scripts/supabase-reset.js
+```
+
+This script creates/updates the SuperAdmin user (email: superadmin@cbums.com, password: superadmin123) with 1,000,000 coins.
+
+### Development Server (`npm run dev`)
+
+This command starts the Next.js development server, which now:
+1. Checks required directories
+2. Automatically ensures the SuperAdmin user exists on startup
+3. Verifies database connections and relationships
+
+This allows the application to function reliably in both development and production environments, even when database connectivity has issues.
+
+### Fix Database Issues (`npm run fix-db`)
+
+A new script added to the Supabase version:
+```bash
+node scripts/fix-columns.js
+```
+
+This script:
+1. Checks and updates the SuperAdmin coins if needed
+2. Verifies table and column names are in the correct format (snake_case)
+3. Tests database relationships between tables

@@ -40,6 +40,7 @@ import {
 import { toast } from "react-hot-toast";
 import { supabase } from "@/lib/supabase";
 import { UserRole } from "@/lib/enums";
+import FixCoinsButton from "./FixCoinsButton";
 
 interface AdminUser {
   id: string;
@@ -101,13 +102,20 @@ export default function CoinManagement() {
     if (!session?.user?.id) return;
     
     try {
+      setLoading(true);
       const { data, error } = await supabase
         .from('users')
         .select('coins')
         .eq('id', session.user.id)
         .single();
       
-      if (error) throw error;
+      if (error) {
+        console.error('Error fetching current user:', error);
+        toast.error('Failed to fetch your coin balance');
+        setCurrentUserCoins(0);
+        setLoading(false);
+        return;
+      }
       
       setCurrentUserCoins(data.coins || 0);
       
@@ -117,12 +125,16 @@ export default function CoinManagement() {
           ...session,
           user: {
             ...session.user,
-            coins: data.coins
+            coins: data.coins || 0
           }
         });
       }
     } catch (err) {
       console.error('Error fetching current user:', err);
+      toast.error('Failed to fetch your coin balance');
+      setCurrentUserCoins(0);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -152,21 +164,62 @@ export default function CoinManagement() {
     try {
       setLoadingTransactions(true);
       
-      const { data, error } = await supabase
+      // First get the transactions without foreign key relationships
+      const { data: transactionData, error: transactionError } = await supabase
         .from('coin_transactions')
-        .select(`
-          *,
-          fromUser:users!coin_transactions_from_user_id_fkey(id, name, email),
-          toUser:users!coin_transactions_to_user_id_fkey(id, name, email)
-        `)
+        .select('*')
         .order('created_at', { ascending: false })
         .limit(20);
       
-      if (error) throw new Error(error.message);
+      if (transactionError) {
+        console.error('Error fetching transactions:', transactionError);
+        setTransactions([]);
+        setLoadingTransactions(false);
+        return;
+      }
       
-      setTransactions(data || []);
+      if (!transactionData || transactionData.length === 0) {
+        setTransactions([]);
+        setLoadingTransactions(false);
+        return;
+      }
+      
+      // Collect all user IDs from transactions
+      const userIds = new Set<string>();
+      transactionData.forEach(transaction => {
+        if (transaction.from_user_id) userIds.add(transaction.from_user_id);
+        if (transaction.to_user_id) userIds.add(transaction.to_user_id);
+      });
+      
+      // Fetch user details separately
+      const { data: usersData, error: usersError } = await supabase
+        .from('users')
+        .select('id, name, email')
+        .in('id', Array.from(userIds));
+      
+      if (usersError) {
+        console.error('Error fetching user details for transactions:', usersError);
+      }
+      
+      // Create a map of user id to user details
+      const userMap = new Map();
+      if (usersData) {
+        usersData.forEach(user => {
+          userMap.set(user.id, user);
+        });
+      }
+      
+      // Combine transaction data with user details
+      const enrichedTransactions = transactionData.map(transaction => ({
+        ...transaction,
+        fromUser: transaction.from_user_id ? userMap.get(transaction.from_user_id) : null,
+        toUser: transaction.to_user_id ? userMap.get(transaction.to_user_id) : null,
+      }));
+      
+      setTransactions(enrichedTransactions);
     } catch (err) {
       console.error('Error fetching transactions:', err);
+      setTransactions([]);
     } finally {
       setLoadingTransactions(false);
     }
@@ -289,6 +342,9 @@ export default function CoinManagement() {
           </Button>
         </Box>
       </Box>
+
+      {/* Add the fix coins button for SuperAdmin */}
+      {session?.user?.role === 'SUPERADMIN' && <FixCoinsButton />}
 
       {/* Current Coins Display */}
       <Card sx={{ mb: 4 }}>

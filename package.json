@@ -14,7 +14,10 @@
     "vercel-build": "node scripts/check-directories.js && next build",
     "check-dirs": "node scripts/check-directories.js",
     "fix-images": "node scripts/fix-image-paths.js",
-    "setup:supabase": "node scripts/setup-exec-function.js"
+    "setup:supabase": "node scripts/setup-exec-function.js",
+    "fix-db": "node scripts/fix-columns.js",
+    "fix-superadmin": "node scripts/fix-superadmin.js",
+    "fix-foreign-keys": "node scripts/fix-foreign-keys.js"
   },
   "dependencies": {
     "@emotion/react": "^11.14.0",

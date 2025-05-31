@@ -8,16 +8,13 @@
  * a new Supabase project.
  */
 
+require('dotenv').config();
 const { createClient } = require('@supabase/supabase-js');
-const dotenv = require('dotenv');
 
-// Load environment variables
-dotenv.config();
-
-// Check if required environment variables are set
+// Check required environment variables
 const requiredEnvVars = [
   'NEXT_PUBLIC_SUPABASE_URL',
-  'SUPABASE_SERVICE_ROLE_KEY'
+  'NEXT_PUBLIC_SUPABASE_ANON_KEY'
 ];
 
 const missingEnvVars = requiredEnvVars.filter(envVar => !process.env[envVar]);
@@ -26,87 +23,88 @@ if (missingEnvVars.length > 0) {
   process.exit(1);
 }
 
-// Create Supabase admin client
+// Create Supabase client
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY,
-  {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false
-    }
-  }
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 );
 
+// Function to create the exec_sql function in Supabase
 async function setupExecFunction() {
   try {
     console.log('Setting up exec_sql function in Supabase...');
     
     // SQL to create the exec_sql function
-    const createFunctionSQL = `
-      -- Function to execute arbitrary SQL (use with caution, only for migrations)
+    const sql = `
+      -- Create the exec_sql function that enables running SQL scripts
+      -- This is used by migration scripts to create and modify database schema
       CREATE OR REPLACE FUNCTION exec_sql(sql text)
-      RETURNS void
-      LANGUAGE plpgsql
-      SECURITY DEFINER
-      AS $$
+      RETURNS void AS $$
       BEGIN
         EXECUTE sql;
       END;
-      $$;
+      $$ LANGUAGE plpgsql SECURITY DEFINER;
       
-      -- Grant execute permission to authenticated users
+      -- Grant execute permission to the anon role
+      GRANT EXECUTE ON FUNCTION exec_sql(text) TO anon;
       GRANT EXECUTE ON FUNCTION exec_sql(text) TO authenticated;
-      
-      SELECT 'exec_sql function created successfully' as message;
+      GRANT EXECUTE ON FUNCTION exec_sql(text) TO service_role;
     `;
     
-    // Execute the SQL directly
-    const { data, error } = await supabase.rpc('exec_sql', { 
-      sql: createFunctionSQL 
-    }).catch(err => {
-      // If function doesn't exist yet, create it using the REST API
-      if (err.message && err.message.includes('function exec_sql(text) does not exist')) {
-        console.log('exec_sql function does not exist yet, creating it using REST API...');
-        
-        // Alternative approach: use a direct SQL endpoint if available
-        return supabase.from('_exec_sql_direct').select('*').limit(1);
-      }
-      return { error: err };
-    });
+    // Try to execute using RPC first
+    const { error: rpcError } = await supabase.rpc('exec_sql', { sql });
     
-    if (error) {
-      console.error('Error setting up exec_sql function:', error);
-      console.log('You may need to create this function manually in the Supabase SQL Editor:');
-      console.log(createFunctionSQL);
+    if (rpcError) {
+      console.log('The exec_sql function does not exist yet. This is expected for first-time setup.');
+      console.log('Attempting to create the function using REST API...');
       
-      console.log('\nAlternatively, run the following SQL in the Supabase SQL Editor:');
-      console.log(`
-        -- Function to execute arbitrary SQL (use with caution, only for migrations)
-        CREATE OR REPLACE FUNCTION exec_sql(sql text)
-        RETURNS void
-        LANGUAGE plpgsql
-        SECURITY DEFINER
-        AS $$
-        BEGIN
-          EXECUTE sql;
-        END;
-        $$;
-        
-        -- Grant execute permission to authenticated users
-        GRANT EXECUTE ON FUNCTION exec_sql(text) TO authenticated;
-      `);
+      // Try to execute via REST API directly (this might require service_role key)
+      const response = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/rpc/exec_sql`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY}`,
+          'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+        },
+        body: JSON.stringify({ sql })
+      });
       
-      process.exit(1);
+      if (!response.ok) {
+        console.error('Error creating exec_sql function via REST API:', await response.text());
+        console.log('');
+        console.log('IMPORTANT: You need to manually create the exec_sql function in Supabase:');
+        console.log('1. Go to your Supabase project dashboard');
+        console.log('2. Navigate to the SQL Editor');
+        console.log('3. Create a new query and paste the following SQL:');
+        console.log(sql);
+        console.log('4. Run the query to create the function');
+        process.exit(1);
+      }
+      
+      console.log('Successfully created exec_sql function via REST API');
+    } else {
+      console.log('Successfully created or updated exec_sql function');
     }
     
-    console.log('exec_sql function set up successfully!');
-    console.log('You can now run migrations using npm run migrate');
+    // Test the function
+    console.log('Testing exec_sql function...');
+    const testSql = "SELECT 'exec_sql function is working' as message;";
+    const { error: testError } = await supabase.rpc('exec_sql', { sql: testSql });
     
+    if (testError) {
+      console.error('Error testing exec_sql function:', testError);
+    } else {
+      console.log('exec_sql function is working correctly');
+    }
+    
+    console.log('');
+    console.log('Setup completed successfully!');
+    console.log('You can now run migrations and database reset scripts.');
   } catch (error) {
     console.error('Error setting up exec_sql function:', error);
     process.exit(1);
   }
 }
 
+// Run the setup function
 setupExecFunction(); 

@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-options";
-import supabase from "@/lib/supabase";
+import { supabase } from "@/lib/supabase";
+import { ensureSuperAdmin } from "@/lib/ensure-superadmin";
 
 // Remove the withAuth wrapper to diagnose session issues
 export async function GET(req: NextRequest) {
@@ -15,6 +16,11 @@ export async function GET(req: NextRequest) {
       );
     }
 
+    // Ensure SuperAdmin exists with correct coins
+    if (session.user.role === 'SUPERADMIN') {
+      await ensureSuperAdmin();
+    }
+
     // Fetch user data from Supabase
     const { data: user, error } = await supabase
       .from('users')
@@ -24,18 +30,6 @@ export async function GET(req: NextRequest) {
     
     if (error) {
       console.error("Error fetching user data:", error);
-      
-      // For SuperAdmin, provide default values if fetch fails
-      if (session.user.role === 'SUPERADMIN') {
-        return NextResponse.json({
-          id: session.user.id,
-          name: 'Super Admin',
-          email: session.user.email,
-          role: 'SUPERADMIN',
-          coins: 1000000
-        });
-      }
-      
       return NextResponse.json(
         { error: "Failed to fetch user data" },
         { status: 500 }
@@ -44,17 +38,6 @@ export async function GET(req: NextRequest) {
     
     // If user not found but we have session data
     if (!user && session.user.id) {
-      // For SuperAdmin, provide default values
-      if (session.user.role === 'SUPERADMIN') {
-        return NextResponse.json({
-          id: session.user.id,
-          name: 'Super Admin',
-          email: session.user.email,
-          role: 'SUPERADMIN',
-          coins: 1000000
-        });
-      }
-      
       return NextResponse.json(
         { error: "User not found" },
         { status: 404 }
