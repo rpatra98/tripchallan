@@ -67,13 +67,13 @@ async function ensureDirectoriesExist() {
 
 // Fix all company logo URLs in the database
 async function fixLogoUrls() {
-  const prisma = new PrismaClient();
+  
   
   try {
     console.log('Fixing company logo URLs...');
     
     // Get all companies with logos
-    const companies = await prisma.company.findMany({
+    const companies = await // TODO: Replace with Supabase clientcompany.findMany({
       where: {
         logo: {
           not: null
@@ -105,7 +105,7 @@ async function fixLogoUrls() {
         fixedLogo = `/${fixedLogo}`;
         
         // Update the company record
-        await prisma.company.update({
+        await // TODO: Replace with Supabase clientcompany.update({
           where: { id: company.id },
           data: { logo: fixedLogo }
         });
@@ -129,7 +129,7 @@ async function fixLogoUrls() {
   } catch (error) {
     console.error('Error fixing logo URLs:', error);
   } finally {
-    await prisma.$disconnect();
+    
   }
 }
 

@@ -15,7 +15,7 @@ async function handler(req: NextRequest) {
         { status: 401 }
       );
     }
-
+    
     // Get user ID from query params or use the current user's ID
     const url = new URL(req.url);
     const userId = url.searchParams.get('userId') || session.user.id;
@@ -51,9 +51,9 @@ async function handler(req: NextRequest) {
     }
     
     return NextResponse.json({
-      id: user.id,
-      name: user.name,
-      email: user.email,
+        id: user.id,
+        name: user.name,
+        email: user.email,
       coins: user.coins || 0
     });
   } catch (error: unknown) {

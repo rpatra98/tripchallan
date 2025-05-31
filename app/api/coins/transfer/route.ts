@@ -199,7 +199,7 @@ async function handler(req: NextRequest) {
         },
         targetResourceId: coinTransaction?.id,
         targetResourceType: "COIN_TRANSACTION"
-      });
+    });
     } catch (logError) {
       console.error("Error logging activity:", logError);
       // Don't fail the transfer if just the activity log fails

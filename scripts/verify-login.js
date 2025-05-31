@@ -4,10 +4,10 @@ const { PrismaClient } = require('@prisma/client');
 
 async function verifyCredentials() {
   // Create a Prisma client with retry logic for prepared statement errors
-  const prisma = new PrismaClient();
+  
   
   // Add middleware to handle prepared statement errors
-  prisma.$use(async (params, next) => {
+  // TODO: Replace with Supabase client$use(async (params, next) => {
     try {
       return await next(params);
     } catch (error) {
@@ -21,8 +21,8 @@ async function verifyCredentials() {
         
         // For this specific error, try reconnecting and retrying once
         try {
-          await prisma.$disconnect();
-          await prisma.$connect();
+          
+          
           return await next(params);
         } catch (retryError) {
           console.error('Error on retry after prepared statement issue:', retryError);
@@ -43,7 +43,7 @@ async function verifyCredentials() {
     
     console.log(`Looking for user with email: ${email}`);
     
-    const user = await prisma.user.findUnique({
+    const user = await // TODO: Replace with Supabase clientuser.findUnique({
       where: { email }
     });
     
@@ -71,7 +71,7 @@ async function verifyCredentials() {
   } catch (error) {
     console.error('Error verifying credentials:', error);
   } finally {
-    await prisma.$disconnect();
+    
   }
 }
 

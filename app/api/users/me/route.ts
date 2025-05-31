@@ -26,7 +26,7 @@ export async function GET(req: NextRequest) {
         { status: 401, headers }
       );
     }
-
+    
     console.log(`GET /api/users/me: Session found for user ${session.user.id}, role: ${session.user.role}`);
 
     // Special handling for SuperAdmin
@@ -37,7 +37,7 @@ export async function GET(req: NextRequest) {
       if (superAdmin) {
         console.log(`GET /api/users/me: Returning SuperAdmin data with ${superAdmin.coins} coins`);
         return NextResponse.json(superAdmin, { headers });
-      }
+    }
     }
 
     // Fetch user data from Supabase
@@ -60,12 +60,12 @@ export async function GET(req: NextRequest) {
         
         if (sqlError || !userData || !Array.isArray(userData) || userData.length === 0) {
           console.error("Error with SQL fallback:", sqlError);
-          return NextResponse.json(
+      return NextResponse.json(
             { error: "Failed to fetch user data" },
             { status: 500, headers }
-          );
-        }
-        
+      );
+    }
+    
         // Return the first row from the SQL query result
         console.log(`GET /api/users/me: SQL query successful, returning user with ${userData[0].coins} coins`);
         return NextResponse.json(userData[0], { headers });

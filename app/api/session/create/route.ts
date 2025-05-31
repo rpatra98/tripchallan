@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-options";
 import { withAuth } from "@/lib/auth";
-import supabase from "@/lib/supabase";
-import { ActivityAction, EmployeeSubrole, SessionStatus, TransactionReason, UserRole } from "@/prisma/enums";
+import { supabase } from "@/lib/supabase";
+import { ActivityAction, EmployeeSubrole, SessionStatus, TransactionReason, UserRole } from "@/lib/enums";
 import { addActivityLog } from "@/lib/activity-logger";
 
 async function handler(req: NextRequest) {

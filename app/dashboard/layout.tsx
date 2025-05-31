@@ -178,16 +178,16 @@ export default function DashboardLayout({
             localStorage.setItem('lastCoinBalance', String(data.coins || 0));
             localStorage.setItem('coinBalanceUpdatedAt', String(Date.now()));
             
-            await updateSession({
-              ...session,
-              user: {
-                ...session?.user,
+          await updateSession({
+            ...session,
+            user: {
+              ...session?.user,
                 name: data.name || session?.user?.name,
                 coins: data.coins || 0,
-              }
-            });
+            }
+          });
             
-            setLastBalanceUpdate(Date.now());
+          setLastBalanceUpdate(Date.now());
             return data.coins;
           }
         } catch (supabaseError) {

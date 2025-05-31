@@ -1,13 +1,13 @@
 // Script to fix logo URLs for existing companies by adding a leading slash if missing
 const { PrismaClient } = require('@prisma/client');
-const prisma = new PrismaClient();
+
 
 async function fixLogoUrls() {
   console.log('Starting to fix company logo URLs...');
   
   try {
     // Get all companies with logo URLs
-    const companies = await prisma.company.findMany({
+    const companies = await // TODO: Replace with Supabase clientcompany.findMany({
       where: {
         logo: {
           not: null
@@ -33,7 +33,7 @@ async function fixLogoUrls() {
         const fixedUrl = `/${logoUrl}`;
         
         // Update the company record
-        await prisma.company.update({
+        await // TODO: Replace with Supabase clientcompany.update({
           where: { id: company.id },
           data: { logo: fixedUrl }
         });
@@ -47,7 +47,7 @@ async function fixLogoUrls() {
   } catch (error) {
     console.error('Error fixing logo URLs:', error);
   } finally {
-    await prisma.$disconnect();
+    
   }
 }
 

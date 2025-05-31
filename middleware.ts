@@ -120,7 +120,7 @@ export async function middleware(request: NextRequest) {
         }
         
         // To avoid redirect loops on database errors, check if we're already on the login page
-        if (errorMsg.includes('database') || errorMsg.includes('prisma')) {
+        if (errorMsg.includes('database') || errorMsg.includes('supabase')) {
           return NextResponse.next();
         }
         
@@ -141,7 +141,7 @@ export async function middleware(request: NextRequest) {
                       errorMsg.includes('42P05') || 
                       errorMsg.includes('ConnectorError') ||
                       errorMsg.includes('database') ||
-                      errorMsg.includes('prisma');
+                      errorMsg.includes('supabase');
     
     // For database errors, just let the request proceed to avoid redirect loops
     if (isDbError) {
