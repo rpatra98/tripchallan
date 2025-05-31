@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { withAuth } from "@/lib/auth";
-import prisma from "@/lib/prisma";
-import { EmployeeSubrole, UserRole } from "@/prisma/enums";
+import { supabase } from "@/lib/supabase";
+import { EmployeeSubrole, UserRole } from "@/lib/enums";
 
 interface Company {
   id: string;
@@ -36,7 +36,7 @@ async function handler(
     const statusFilter = url.searchParams.get("status");
 
     // Get the admin user to check their role
-    const adminUser = await prisma.user.findUnique({
+    const adminUser = await supabase.from('users').findUnique({
       where: { id: adminId },
       select: { role: true }
     });
@@ -50,7 +50,7 @@ async function handler(
     const operatorIds = new Set<string>();
     
     // Source 1: Companies created by this admin
-    const createdCompanies = await prisma.user.findMany({
+    const createdCompanies = await supabase.from('users').select('*').{
       where: {
         role: UserRole.COMPANY,
         createdById: adminId,
@@ -67,7 +67,7 @@ async function handler(
     
     // Source 2: Companies the admin has access to via custom permissions
     try {
-      const customPermissions = await prisma.custom_permissions.findMany({
+      const customPermissions = await supabase.from('custom_permissionss').select('*').{
         where: {
           userId: adminId,
           resourceType: "COMPANY",
@@ -88,7 +88,7 @@ async function handler(
     
     // Source 3: Companies where the admin created employees
     try {
-      const companiesWithEmployees = await prisma.user.findMany({
+      const companiesWithEmployees = await supabase.from('users').select('*').{
         where: {
           role: {
             in: [UserRole.EMPLOYEE, "GUARD"]
@@ -111,7 +111,7 @@ async function handler(
     
     // Source 4: Find OPERATORS created by this admin
     try {
-      const operatorsCreatedByAdmin = await prisma.user.findMany({
+      const operatorsCreatedByAdmin = await supabase.from('users').select('*').{
         where: {
           role: UserRole.EMPLOYEE,
           subrole: EmployeeSubrole.OPERATOR,
@@ -179,7 +179,7 @@ async function handler(
     console.log(`🔍 Using where clause:`, JSON.stringify(whereClause));
 
     // Fetch sessions with pagination
-    const sessions = await prisma.session.findMany({
+    const sessions = await supabase.from('sessions').select('*').{
       skip,
       take: limit,
       orderBy: { createdAt: "desc" },
@@ -220,7 +220,7 @@ async function handler(
     console.log(`🔍 Found ${sessions.length} sessions for admin`);
 
     // Get total count for pagination
-    const totalCount = await prisma.session.count({
+    const totalCount = await supabase.from('sessions').count({
       where: whereClause
     });
 

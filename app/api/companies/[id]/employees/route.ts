@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import prisma from "@/lib/prisma";
+import { supabase } from "@/lib/supabase";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-options";
 import { withAuth } from "@/lib/auth";
-import { UserRole, EmployeeSubrole } from "@/prisma/enums";
+import { UserRole, EmployeeSubrole } from "@/lib/enums";
 
 async function handler(req: NextRequest, context?: { params: Record<string, string> }) {
   try {
@@ -23,12 +23,7 @@ async function handler(req: NextRequest, context?: { params: Record<string, stri
     const companyId = context.params.id;
     
     // Check if the company exists
-    const company = await prisma.user.findUnique({
-      where: { 
-        id: companyId,
-        role: UserRole.COMPANY 
-      },
-    });
+    const company = await supabase.from('users').select('*').eq('id', companyId).single();
     
     if (!company) {
       return NextResponse.json(
@@ -55,7 +50,7 @@ async function handler(req: NextRequest, context?: { params: Record<string, stri
     const companyEmail = company.email;
     
     // First, find the actual Company record if it exists
-    const companyRecord = await prisma.company.findFirst({
+    const companyRecord = await supabase.from('companys').findFirst({
       where: {
         OR: [
           { id: companyId },
@@ -92,7 +87,7 @@ async function handler(req: NextRequest, context?: { params: Record<string, stri
     const employeeIdsFromCompany = companyRecord?.employees?.map((e: { id: string }) => e.id) || [];
     
     // Get all employees associated with this company through all possible paths
-    const employees = await prisma.user.findMany({
+    const employees = await supabase.from('users').select('*').{
       where: {
         AND: [
           {
@@ -157,7 +152,7 @@ async function handler(req: NextRequest, context?: { params: Record<string, stri
     if (employees.length === 0 && companyRecord && companyRecord.id !== companyId) {
       console.log(`Trying a fallback approach with company ID: ${companyRecord.id}`);
       
-      const fallbackEmployees = await prisma.user.findMany({
+      const fallbackEmployees = await supabase.from('users').select('*').{
         where: {
           companyId: companyRecord.id,
           role: UserRole.EMPLOYEE,

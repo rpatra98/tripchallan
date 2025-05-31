@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-options";
-import { UserRole } from "@/prisma/enums";
-import prisma from "@/lib/prisma";
-import { Prisma } from "@prisma/client";
+import { UserRole } from "@/lib/enums";
+import { supabase } from "@/lib/supabase";
 
 export async function GET(req: NextRequest) {
   try {
@@ -14,13 +13,11 @@ export async function GET(req: NextRequest) {
     }
 
     // Verify that the requester is an admin or superadmin
-    const user = await prisma.user.findUnique({
-      where: { email: session.user.email },
-      select: {
-        id: true,
-        role: true,
-      },
-    });
+    const { data: user } = await supabase
+      .from('users')
+      .select('id, role')
+      .eq('email', session.user.email)
+      .single();
 
     if (!user) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
@@ -35,39 +32,33 @@ export async function GET(req: NextRequest) {
     const companyId = url.searchParams.get("companyId");
 
     // Build the query
-    const where: Prisma.UserWhereInput = {
-      role: UserRole.EMPLOYEE,
-    };
+    let query = supabase
+      .from('users')
+      .select(`
+        id, 
+        name, 
+        email, 
+        role, 
+        subrole, 
+        companyId, 
+        createdAt, 
+        coins,
+        company:companies(id, name, email)
+      `)
+      .eq('role', UserRole.EMPLOYEE)
+      .order('createdAt', { ascending: false });
 
     // Filter by company if specified
     if (companyId) {
-      where.companyId = companyId;
+      query = query.eq('companyId', companyId);
     }
 
     // Fetch all employees
-    const employees = await prisma.user.findMany({
-      where,
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        role: true,
-        subrole: true,
-        companyId: true,
-        createdAt: true,
-        coins: true,
-        company: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-          },
-        },
-      },
-      orderBy: {
-        createdAt: "desc",
-      },
-    });
+    const { data: employees, error } = await query;
+
+    if (error) {
+      throw error;
+    }
 
     console.log(`Found ${employees.length} employees`);
     

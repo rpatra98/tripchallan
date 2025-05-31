@@ -69,14 +69,6 @@ const nextConfig = {
         pathname: '/**',
       },
     ],
-  },
-  
-  // Increase maximum file upload size (default is 4MB)
-  api: {
-    bodyParser: {
-      sizeLimit: '10mb',
-    },
-    responseLimit: '10mb',
   }
 };
 

@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-options";
-import { UserRole } from "@/prisma/enums";
-import prisma from "@/lib/prisma";
+import { UserRole } from "@/lib/enums";
+import { supabase } from "@/lib/supabase";
 
 /**
  * Debug endpoint to directly fetch activity logs for testing
@@ -25,7 +25,7 @@ export async function GET(req: NextRequest) {
     const skip = (page - 1) * limit;
     
     const [logs, totalCount] = await Promise.all([
-      prisma.activityLog.findMany({
+      supabase.from('activityLogs').select('*').{
         orderBy: {
           createdAt: "desc",
         },
@@ -50,14 +50,14 @@ export async function GET(req: NextRequest) {
           },
         },
       }),
-      prisma.activityLog.count(),
+      supabase.from('activity_logs').count(),
     ]);
     
     console.log(`Debug activity logs endpoint: Found ${logs.length} logs directly from database`);
     
     if (logs.length === 0) {
       // Try to determine if there are any logs at all in the database
-      const anyLogs = await prisma.activityLog.findFirst({
+      const anyLogs = await supabase.from('activity_logs').findFirst({
         select: { id: true }
       });
       

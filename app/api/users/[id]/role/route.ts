@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-options";
-import prisma from "@/lib/prisma";
-import { UserRole } from "@/prisma/enums";
+import { supabase } from "@/lib/supabase";
+import { UserRole } from "@/lib/enums";
 
 export async function GET(
   req: NextRequest,
@@ -43,7 +43,7 @@ export async function GET(
     }
     
     // Fetch the user role and subrole
-    const user = await prisma.user.findUnique({
+    const user = await supabase.from('users').findUnique({
       where: { id: userId },
       select: {
         id: true,
@@ -80,7 +80,7 @@ export async function GET(
 
 // Helper function to check if a user can access another user's role
 async function canAccessUserRole(requesterId: string, targetUserId: string): Promise<boolean> {
-  const requester = await prisma.user.findUnique({
+  const requester = await supabase.from('users').findUnique({
     where: { id: requesterId },
     select: { role: true }
   });
@@ -90,7 +90,7 @@ async function canAccessUserRole(requesterId: string, targetUserId: string): Pro
   // For ADMIN users
   if (requester.role === UserRole.ADMIN) {
     // Check if the admin created this user
-    const targetUser = await prisma.user.findUnique({
+    const targetUser = await supabase.from('users').findUnique({
       where: { id: targetUserId },
       select: { createdById: true, companyId: true, role: true }
     });
@@ -101,7 +101,7 @@ async function canAccessUserRole(requesterId: string, targetUserId: string): Pro
     
     // Also allow access to employees of companies the admin manages
     if (targetUser?.role === UserRole.EMPLOYEE) {
-      const company = await prisma.user.findUnique({
+      const company = await supabase.from('users').findUnique({
         where: { id: targetUser.companyId || "" },
         select: { createdById: true }
       });
@@ -115,7 +115,7 @@ async function canAccessUserRole(requesterId: string, targetUserId: string): Pro
   // For COMPANY users
   if (requester.role === UserRole.COMPANY) {
     // Companies can access their employees' roles
-    const targetUser = await prisma.user.findUnique({
+    const targetUser = await supabase.from('users').findUnique({
       where: { id: targetUserId },
       select: { companyId: true, role: true }
     });

@@ -40,7 +40,7 @@ import {
   Edit
 } from "@mui/icons-material";
 import Link from "next/link";
-import { SessionStatus, EmployeeSubrole } from "@/prisma/enums";
+import { SessionStatus, EmployeeSubrole } from "@/lib/enums";
 import CommentSection from "@/app/components/sessions/CommentSection";
 import { jsPDF } from 'jspdf';
 

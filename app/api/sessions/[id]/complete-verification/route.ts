@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-options";
-import prisma from "@/lib/prisma";
-import { ActivityAction, EmployeeSubrole, SealStatus, SessionStatus, UserRole } from "@/prisma/enums";
+import { supabase } from "@/lib/supabase";
+import { ActivityAction, EmployeeSubrole, SealStatus, SessionStatus, UserRole } from "@/lib/enums";
 import { sendVerificationEmail } from "@/lib/email";
 
 export async function POST(
@@ -17,7 +17,7 @@ export async function POST(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const user = await prisma.user.findUnique({
+    const user = await supabase.from('users').findUnique({
       where: { email: session.user.email },
       select: { id: true, name: true, email: true, role: true, subrole: true }
     });
@@ -35,7 +35,7 @@ export async function POST(
     }
 
     // Get the session
-    const sessionData = await prisma.session.findUnique({
+    const sessionData = await supabase.from('sessions').findUnique({
       where: { id: params.id },
       include: {
         seal: true,
@@ -49,7 +49,7 @@ export async function POST(
     }
 
     // Get the seal tags for this session (from activity logs)
-    const activityLogs = await prisma.activityLog.findMany({
+    const activityLogs = await supabase.from('activityLogs').select('*').{
       where: {
         targetResourceId: params.id,
         targetResourceType: 'session',

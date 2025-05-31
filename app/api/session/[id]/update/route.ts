@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-options";
-import { prisma } from "@/lib/prisma";
+import { supabase } from "@/lib/supabase";
 import { addActivityLog } from "@/lib/activity-logger";
-import { UserRole, EmployeeSubrole, ActivityAction } from "@/prisma/enums";
+import { UserRole, EmployeeSubrole, ActivityAction } from "@/lib/enums";
 
 export async function PUT(
   request: NextRequest,
@@ -27,7 +27,7 @@ export async function PUT(
     const sessionId = params.id;
     
     // Check if session exists
-    const existingSession = await prisma.session.findUnique({
+    const existingSession = await supabase.from('sessions').findUnique({
       where: { id: sessionId },
       include: {
         company: true,
@@ -50,7 +50,7 @@ export async function PUT(
     // Only operators with edit permission can edit sessions
     if (userRole === UserRole.EMPLOYEE && userSubrole === EmployeeSubrole.OPERATOR) {
       // Check if operator has permission to edit sessions
-      const employee = await prisma.user.findUnique({
+      const employee = await supabase.from('users').findUnique({
         where: { id: userId },
         include: {
           operatorPermissions: true,
@@ -102,9 +102,7 @@ export async function PUT(
     }
     
     // Update session with new data
-    const updatedSession = await prisma.session.update({
-      where: { id: sessionId },
-      data: {
+    const updatedSession = await supabase.from('sessions').update( {
         source: data.source,
         destination: data.destination,
         

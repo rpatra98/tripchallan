@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { withAuth } from "@/lib/auth";
-import prisma from "@/lib/prisma";
-import { UserRole } from "@/prisma/enums";
+import { supabase } from "@/lib/supabase";
+import { UserRole } from "@/lib/enums";
 import { subDays } from 'date-fns';
 
 async function handler() {
@@ -11,19 +11,19 @@ async function handler() {
     const lastMonth = subDays(now, 30);
 
     // Get total users by role with explicit counts
-    const adminsCount = await prisma.user.count({
+    const adminsCount = await supabase.from('users').count({
       where: { role: UserRole.ADMIN }
     });
     
-    const superadminsCount = await prisma.user.count({
+    const superadminsCount = await supabase.from('users').count({
       where: { role: UserRole.SUPERADMIN }
     });
     
-    const companiesCount = await prisma.user.count({
+    const companiesCount = await supabase.from('users').count({
       where: { role: UserRole.COMPANY }
     });
     
-    const employeesCount = await prisma.user.count({
+    const employeesCount = await supabase.from('users').count({
       where: { role: UserRole.EMPLOYEE }
     });
     
@@ -31,22 +31,22 @@ async function handler() {
     const totalUsers = adminsCount + superadminsCount + companiesCount + employeesCount;
     
     // Get users by role
-    const usersByRole = await prisma.user.groupBy({
+    const usersByRole = await supabase.from('users').groupBy({
       by: ['role'],
       _count: true
     });
 
     // Get total sessions count
-    const totalSessions = await prisma.session.count();
+    const totalSessions = await supabase.from('sessions').count();
     
     // Get sessions by status
-    const sessionsByStatus = await prisma.session.groupBy({
+    const sessionsByStatus = await supabase.from('sessions').groupBy({
       by: ['status'],
       _count: true
     });
     
     // Get sessions created in the last 7 days
-    const recentSessions = await prisma.session.count({
+    const recentSessions = await supabase.from('sessions').count({
       where: {
         createdAt: {
           gte: lastWeek
@@ -67,7 +67,7 @@ async function handler() {
     const avgSessionDuration = sessionDurations[0]?.avg_duration || 0;
     
     // Get active users (users who have logged in within the last 7 days)
-    const activeUsers = await prisma.activityLog.groupBy({
+    const activeUsers = await supabase.from('activity_logs').groupBy({
       by: ['userId'],
       where: {
         createdAt: {
@@ -78,36 +78,36 @@ async function handler() {
     });
     
     // Get active vs inactive companies
-    const activeCompanies = await prisma.company.count({
+    const activeCompanies = await supabase.from('companys').count({
       where: {
         isActive: true
       }
     });
 
-    const inactiveCompanies = await prisma.company.count({
+    const inactiveCompanies = await supabase.from('companys').count({
       where: {
         isActive: false
       }
     });
     
     // Get total seals count
-    const totalSeals = await prisma.seal.count();
+    const totalSeals = await supabase.from('seals').count();
     
     // Get verified vs unverified seals
-    const sealsByVerification = await prisma.seal.groupBy({
+    const sealsByVerification = await supabase.from('seals').groupBy({
       by: ['verified'],
       _count: true
     });
 
     // Get total coins in the system
-    const totalCoins = await prisma.user.aggregate({
+    const totalCoins = await supabase.from('users').aggregate({
       _sum: {
         coins: true,
       },
     });
 
     // Get recent activity (last 24 hours)
-    const recentActivity = await prisma.activityLog.count({
+    const recentActivity = await supabase.from('activity_logs').count({
       where: {
         createdAt: {
           gte: subDays(now, 1)
@@ -127,7 +127,7 @@ async function handler() {
     `;
 
     // Get error rate from activity logs
-    const totalRequests = await prisma.activityLog.count({
+    const totalRequests = await supabase.from('activity_logs').count({
       where: {
         createdAt: {
           gte: lastWeek
@@ -135,7 +135,7 @@ async function handler() {
       }
     });
 
-    const errorRequests = await prisma.activityLog.count({
+    const errorRequests = await supabase.from('activity_logs').count({
       where: {
         createdAt: {
           gte: lastWeek

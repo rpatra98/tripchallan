@@ -1,6 +1,6 @@
 import { NextResponse, NextRequest } from "next/server";
 import { getToken } from "next-auth/jwt";
-import { ActivityAction } from "@/prisma/enums";
+import { ActivityAction } from "@/lib/enums";
 import { addActivityLog } from "@/lib/activity-logger";
 import { detectDevice } from "@/lib/utils";
 

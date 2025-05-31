@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import prisma from "@/lib/prisma";
+import { supabase } from "@/lib/supabase";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-options";
-import { VehicleStatus } from "@/prisma/enums";
+import { VehicleStatus } from "@/lib/enums";
 
 // GET /api/vehicles/[id] - Retrieve a specific vehicle
 export async function GET(
@@ -23,7 +23,7 @@ export async function GET(
     
     const vehicleId = params.id;
     
-    const vehicle = await prisma.vehicle.findUnique({
+    const vehicle = await supabase.from('vehicles').findUnique({
       where: {
         id: vehicleId,
         companyId: session.user.companyId, // Ensure vehicle belongs to user's company
@@ -69,9 +69,7 @@ export async function PATCH(
     
     // Check if user is an operator and has permission to modify
     if (session.user.role === "EMPLOYEE" && session.user.subrole === "OPERATOR") {
-      const permissions = await prisma.operatorPermissions.findUnique({
-        where: { userId: session.user.id },
-      });
+      const permissions = await supabase.from('operatorPermissionss').select('*').eq('userId', session.user.id).single();
       
       if (!permissions?.canModify) {
         return NextResponse.json({ error: "You don't have permission to update vehicles" }, { status: 403 });
@@ -81,12 +79,7 @@ export async function PATCH(
     const vehicleId = params.id;
     
     // Check if vehicle exists and belongs to user's company
-    const existingVehicle = await prisma.vehicle.findUnique({
-      where: {
-        id: vehicleId,
-        companyId: session.user.companyId,
-      },
-    });
+    const existingVehicle = await supabase.from('vehicles').select('*').eq('id', vehicleId).single();
     
     if (!existingVehicle) {
       return NextResponse.json({ error: "Vehicle not found" }, { status: 404 });
@@ -96,9 +89,7 @@ export async function PATCH(
     
     // Check for number plate uniqueness if it's being updated
     if (data.numberPlate && data.numberPlate !== existingVehicle.numberPlate) {
-      const vehicleWithSamePlate = await prisma.vehicle.findUnique({
-        where: { numberPlate: data.numberPlate },
-      });
+      const vehicleWithSamePlate = await supabase.from('vehicles').select('*').eq('numberPlate', data.numberPlate).single();
       
       if (vehicleWithSamePlate) {
         return NextResponse.json({ error: "Vehicle with this number plate already exists" }, { status: 409 });
@@ -117,9 +108,7 @@ export async function PATCH(
     }
     
     // Update the vehicle
-    const updatedVehicle = await prisma.vehicle.update({
-      where: { id: vehicleId },
-      data: updateData,
+    const updatedVehicle = await supabase.from('vehicles').update( updateData,
     });
     
     return NextResponse.json({ vehicle: updatedVehicle });
@@ -148,9 +137,7 @@ export async function DELETE(
     
     // Check if user is an operator and has permission to delete
     if (session.user.role === "EMPLOYEE" && session.user.subrole === "OPERATOR") {
-      const permissions = await prisma.operatorPermissions.findUnique({
-        where: { userId: session.user.id },
-      });
+      const permissions = await supabase.from('operatorPermissionss').select('*').eq('userId', session.user.id).single();
       
       if (!permissions?.canDelete) {
         return NextResponse.json({ error: "You don't have permission to deactivate or delete vehicles" }, { status: 403 });
@@ -160,12 +147,7 @@ export async function DELETE(
     const vehicleId = params.id;
     
     // Check if vehicle exists and belongs to user's company
-    const existingVehicle = await prisma.vehicle.findUnique({
-      where: {
-        id: vehicleId,
-        companyId: session.user.companyId,
-      },
-    });
+    const existingVehicle = await supabase.from('vehicles').select('*').eq('id', vehicleId).single();
     
     if (!existingVehicle) {
       return NextResponse.json({ error: "Vehicle not found" }, { status: 404 });
@@ -180,7 +162,7 @@ export async function DELETE(
     
     if (isPermanentDelete) {
       // Hard delete the vehicle from the database
-      await prisma.vehicle.delete({
+      await supabase.from('vehicles').delete({
         where: { id: vehicleId },
       });
       
@@ -189,9 +171,7 @@ export async function DELETE(
       });
     } else {
       // Soft delete by marking as INACTIVE
-      const deactivatedVehicle = await prisma.vehicle.update({
-        where: { id: vehicleId },
-        data: { status: VehicleStatus.INACTIVE },
+      const deactivatedVehicle = await supabase.from('vehicles').update( { status: VehicleStatus.INACTIVE },
       });
       
       return NextResponse.json({ 

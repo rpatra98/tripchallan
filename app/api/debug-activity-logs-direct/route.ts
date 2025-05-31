@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-options";
-import { UserRole } from "@/prisma/enums";
-import prisma from "@/lib/prisma";
+import { UserRole } from "@/lib/enums";
+import { supabase } from "@/lib/supabase";
 
 /**
  * Direct database access endpoint for activity logs debugging
@@ -19,7 +19,7 @@ export async function GET(req: NextRequest) {
     console.log("Direct database query for activity logs debugging");
     
     // Get all logs directly from database with no filtering
-    const logs = await prisma.activityLog.findMany({
+    const logs = await supabase.from('activityLogs').select('*').{
       orderBy: {
         createdAt: "desc"
       },

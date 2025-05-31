@@ -4,9 +4,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-options";
 import { withAuth } from "@/lib/auth";
-import prisma from "@/lib/prisma";
+import { supabase } from "@/lib/supabase";
 import prismaHelper from "@/lib/prisma-helper";
-import { UserRole } from "@/prisma/enums";
+import { UserRole } from "@/lib/enums";
 
 // Define the company type
 interface Company {
@@ -28,7 +28,7 @@ async function handler() {
 
     // Get the current user's details
     const currentUser = await prismaHelper.executePrismaWithRetry(async () => {
-      return prisma.user.findUnique({
+      return supabase.from('users').findUnique({
         where: { id: session.user.id },
         select: { id: true, role: true }
       });
@@ -44,7 +44,7 @@ async function handler() {
     // SUPERADMIN can see all companies
     if (currentUser.role === UserRole.SUPERADMIN) {
       companies = await prismaHelper.executePrismaWithRetry(async () => {
-        return prisma.company.findMany({
+        return supabase.from('companys').select('*').{
           select: {
             id: true,
             name: true,
@@ -61,7 +61,7 @@ async function handler() {
     else if (currentUser.role === UserRole.ADMIN) {
       // Find companies created by this admin
       const companyUsers = await prismaHelper.executePrismaWithRetry(async () => {
-        return prisma.user.findMany({
+        return supabase.from('users').select('*').{
           where: {
             role: UserRole.COMPANY,
             createdById: currentUser.id,
@@ -80,7 +80,7 @@ async function handler() {
       
       // Also find companies where the admin has created any users
       const adminEmployeeCreations = await prismaHelper.executePrismaWithRetry(async () => {
-        return prisma.user.findMany({
+        return supabase.from('users').select('*').{
           where: {
             role: UserRole.EMPLOYEE,
             createdById: currentUser.id,
@@ -138,7 +138,7 @@ async function handler() {
       // Get companies based on the combined IDs
       if (uniqueCompanyIds.length > 0) {
         companies = await prismaHelper.executePrismaWithRetry(async () => {
-          return prisma.company.findMany({
+          return supabase.from('companys').select('*').{
             where: {
               id: {
                 in: uniqueCompanyIds
@@ -161,7 +161,7 @@ async function handler() {
     else {
       if (currentUser.role === UserRole.COMPANY) {
         const companyUser = await prismaHelper.executePrismaWithRetry(async () => {
-          return prisma.user.findUnique({
+          return supabase.from('users').findUnique({
             where: { id: currentUser.id },
             select: { companyId: true }
           });
@@ -169,7 +169,7 @@ async function handler() {
         
         if (companyUser?.companyId) {
           const company = await prismaHelper.executePrismaWithRetry(async () => {
-            return prisma.company.findUnique({
+            return supabase.from('companys').findUnique({
               where: { id: companyUser.companyId },
               select: {
                 id: true,
@@ -194,7 +194,7 @@ async function handler() {
       companies.map(async (company) => {
         // Find the company user
         const companyUser = await prismaHelper.executePrismaWithRetry(async () => {
-          return prisma.user.findFirst({
+          return supabase.from('users').findFirst({
             where: {
               companyId: company.id,
               role: UserRole.COMPANY,
@@ -207,7 +207,7 @@ async function handler() {
 
         // Count employees for this company
         const employeeCount = await prismaHelper.executePrismaWithRetry(async () => {
-          return prisma.user.count({
+          return supabase.from('users').count({
             where: {
               companyId: company.id,
               role: UserRole.EMPLOYEE,

@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-options";
-import prisma from "@/lib/prisma";
+import { supabase } from "@/lib/supabase";
 import prismaHelper from "@/lib/prisma-helper";
 import { withAuth } from "@/lib/auth";
-import { UserRole } from "@/prisma/enums";
+import { UserRole } from "@/lib/enums";
 
 // Use this format that matches other API routes in the project
 export const GET = withAuth(
@@ -54,7 +54,7 @@ export const GET = withAuth(
       if (!canAccessUser && requesterRole === UserRole.ADMIN) {
         // Check if the target user was created by this admin
         const targetUser = await prismaHelper.executePrismaWithRetry(async () => {
-          return prisma.user.findUnique({
+          return supabase.from('users').findUnique({
             where: { id: targetUserId },
             select: { createdById: true, companyId: true, role: true }
           });
@@ -68,7 +68,7 @@ export const GET = withAuth(
         if (!canAccessUser && targetUser?.role === UserRole.EMPLOYEE) {
           // First check if the company was created by this admin
           const company = await prismaHelper.executePrismaWithRetry(async () => {
-            return prisma.user.findUnique({
+            return supabase.from('users').findUnique({
               where: { id: targetUser.companyId || "" },
               select: { createdById: true }
             });
@@ -83,7 +83,7 @@ export const GET = withAuth(
       if (!canAccessUser && requesterRole === UserRole.COMPANY) {
         // Companies can access their employees
         const targetUser = await prismaHelper.executePrismaWithRetry(async () => {
-          return prisma.user.findUnique({
+          return supabase.from('users').findUnique({
             where: { id: targetUserId },
             select: { companyId: true, role: true }
           });
@@ -103,7 +103,7 @@ export const GET = withAuth(
       
       // Fetch the user with appropriate related data
       const user = await prismaHelper.executePrismaWithRetry(async () => {
-        return prisma.user.findUnique({
+        return supabase.from('users').findUnique({
           where: { id: targetUserId },
           include: {
             company: {

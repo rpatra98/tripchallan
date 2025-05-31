@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-options";
 import { withAuth } from "@/lib/auth";
-import prisma from "@/lib/prisma";
-import { UserRole } from "@/prisma/enums";
+import { supabase } from "@/lib/supabase";
+import { UserRole } from "@/lib/enums";
 import * as ExcelJS from 'exceljs';
 
 // Simplified Excel report generator that matches PDF output
@@ -36,7 +36,7 @@ export const GET = withAuth(
       }
       
       // ======== FETCH SESSION DATA ========
-      const sessionData = await prisma.session.findUnique({
+      const sessionData = await supabase.from('sessions').findUnique({
         where: { id: sessionId },
         include: {
           createdBy: {
@@ -91,7 +91,7 @@ export const GET = withAuth(
       // Get activity logs for additional information
       let activityLogs = [];
       try {
-        activityLogs = await prisma.activityLog.findMany({
+        activityLogs = await supabase.from('activityLogs').select('*').{
           where: {
             targetResourceId: sessionId,
             targetResourceType: 'session',

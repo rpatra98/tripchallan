@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-options";
-import prisma from "@/lib/prisma";
-import { UserRole } from "@/prisma/enums";
+import { supabase } from "@/lib/supabase";
+import { UserRole } from "@/lib/enums";
 
 export async function GET(
   req: NextRequest,
@@ -12,16 +12,11 @@ export async function GET(
   
   try {
     // Find the company in the database
-    const company = await prisma.user.findUnique({
-      where: {
-        id: companyId,
-        role: UserRole.COMPANY,
-      },
-    });
+    const company = await supabase.from('users').select('*').eq('id', companyId).single();
 
     // Find a company by UUID format if not found
     const companyByFormat = !company 
-      ? await prisma.user.findFirst({
+      ? await supabase.from('users').findFirst({
           where: {
             role: UserRole.COMPANY,
             id: {
@@ -32,7 +27,7 @@ export async function GET(
       : null;
 
     // Check other database tables for any reference to this ID
-    const anyReference = await prisma.user.findFirst({
+    const anyReference = await supabase.from('users').findFirst({
       where: {
         id: companyId
       }

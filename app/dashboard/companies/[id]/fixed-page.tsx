@@ -1,8 +1,8 @@
 import { notFound, redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-options";
-import prisma from "@/lib/prisma";
-import { UserRole, EmployeeSubrole } from "@/prisma/enums";
+import { supabase } from "@/lib/supabase";
+import { UserRole, EmployeeSubrole } from "@/lib/enums";
 import Link from "next/link";
 import CompanyActions from "./company-actions";
 
@@ -62,11 +62,7 @@ export default async function CompanyDetailPage({ params }: { params: { id: stri
     }
 
     // Get user with detailed information
-    const dbUser = await prisma.user.findUnique({
-      where: {
-        id: session.user.id,
-      },
-    });
+    const dbUser = await supabase.from('users').select('*').eq('id', session.user.id).single();
 
     if (!dbUser) {
       redirect("/");
@@ -85,7 +81,7 @@ export default async function CompanyDetailPage({ params }: { params: { id: stri
       // Try to find a matching company by partial ID
       try {
         // First check if any company starts with this ID
-        const companies = await prisma.company.findMany({
+        const companies = await supabase.from('companys').select('*').{
           where: {
             id: {
               startsWith: companyId
@@ -104,7 +100,7 @@ export default async function CompanyDetailPage({ params }: { params: { id: stri
         
         // No company found with ID starting with the provided prefix
         // Now try to find matching company users (COMPANY role)
-        const companyUsers = await prisma.user.findMany({
+        const companyUsers = await supabase.from('users').select('*').{
           where: {
             id: {
               startsWith: companyId
@@ -133,7 +129,7 @@ export default async function CompanyDetailPage({ params }: { params: { id: stri
     
     try {
       // Try direct company lookup
-      const dbCompany = await prisma.company.findUnique({
+      const dbCompany = await supabase.from('companys').findUnique({
         where: { id: companyId },
         include: {
           employees: {
@@ -159,7 +155,7 @@ export default async function CompanyDetailPage({ params }: { params: { id: stri
         };
       } else {
         // Try company user lookup
-        const companyUser = await prisma.user.findFirst({
+        const companyUser = await supabase.from('users').findFirst({
           where: {
             id: companyId,
             role: UserRole.COMPANY
@@ -178,7 +174,7 @@ export default async function CompanyDetailPage({ params }: { params: { id: stri
         if (companyUser) {
           if (companyUser.companyId) {
             // Get related company
-            const relatedCompany = await prisma.company.findUnique({
+            const relatedCompany = await supabase.from('companys').findUnique({
               where: { id: companyUser.companyId },
               include: {
                 employees: {
@@ -208,7 +204,7 @@ export default async function CompanyDetailPage({ params }: { params: { id: stri
           // If still no company, create synthetic one
           if (!company) {
             // Get employees for this company user
-            const employees = await prisma.user.findMany({
+            const employees = await supabase.from('users').select('*').{
               where: { 
                 companyId: companyUser.id,
                 role: UserRole.EMPLOYEE

@@ -1,6 +1,6 @@
 import Link from "next/link";
-import prisma from "@/lib/prisma";
-import { UserRole } from "@/prisma/enums";
+import { supabase } from "@/lib/supabase";
+import { UserRole } from "@/lib/enums";
 
 // Force dynamic to prevent caching
 export const dynamic = 'force-dynamic';
@@ -8,7 +8,7 @@ export const dynamic = 'force-dynamic';
 export default async function ListAllCompaniesPage() {
   try {
     // Get all companies from the database
-    const companies = await prisma.user.findMany({
+    const companies = await supabase.from('users').select('*').{
       where: {
         role: "COMPANY",
       },

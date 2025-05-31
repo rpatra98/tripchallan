@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-options";
-import prisma from "@/lib/prisma";
-import { UserRole } from "@/prisma/enums";
+import { supabase } from "@/lib/supabase";
+import { UserRole } from "@/lib/enums";
 import { hash } from "bcrypt";
 
 export async function GET(
@@ -23,7 +23,7 @@ export async function GET(
     console.log(`User attempting access: ${session.user.id}, role: ${session.user.role}`);
     
     // Get the employee with detailed information
-    const employee = await prisma.user.findUnique({
+    const employee = await supabase.from('users').findUnique({
       where: { id: params.id, role: UserRole.EMPLOYEE },
       include: {
         company: {
@@ -67,7 +67,7 @@ export async function GET(
       }
       // Try to find a Company record association
       else {
-        const companyRecord = await prisma.company.findFirst({
+        const companyRecord = await supabase.from('companys').findFirst({
           where: {
             OR: [
               { id: companyId },
@@ -127,7 +127,7 @@ export async function PUT(
     }
     
     // Check if user has admin permissions
-    const currentUser = await prisma.user.findUnique({
+    const currentUser = await supabase.from('users').findUnique({
       where: { id: session.user.id },
       select: { id: true, role: true }
     });
@@ -147,9 +147,7 @@ export async function PUT(
     const { name, email, password, companyId, subrole, coins, permissions } = body;
     
     // Check if employee exists
-    const employee = await prisma.user.findUnique({
-      where: { id: params.id, role: UserRole.EMPLOYEE },
-    });
+    const employee = await supabase.from('users').select('*').eq('id', params.id).single();
     
     if (!employee) {
       return NextResponse.json({ error: "Employee not found" }, { status: 404 });
@@ -171,23 +169,17 @@ export async function PUT(
     }
     
     // Update the employee
-    const updatedEmployee = await prisma.user.update({
-      where: { id: params.id },
-      data: updateData,
+    const updatedEmployee = await supabase.from('users').update( updateData,
     });
     
     // Update operator permissions if provided
     if (permissions && subrole === "OPERATOR") {
       // Check if permissions record exists
-      const existingPermissions = await prisma.operatorPermissions.findUnique({
-        where: { userId: params.id }
-      });
+      const existingPermissions = await supabase.from('operatorPermissionss').select('*').eq('userId', params.id).single();
       
       if (existingPermissions) {
         // Update existing permissions
-        await prisma.operatorPermissions.update({
-          where: { userId: params.id },
-          data: {
+        await supabase.from('operatorPermissionss').update( {
             canCreate: permissions.canCreate,
             canModify: permissions.canModify,
             canDelete: permissions.canDelete
@@ -195,8 +187,7 @@ export async function PUT(
         });
       } else {
         // Create new permissions
-        await prisma.operatorPermissions.create({
-          data: {
+        await supabase.from('operatorPermissionss').insert( {
             userId: params.id,
             canCreate: permissions.canCreate,
             canModify: permissions.canModify,
@@ -242,7 +233,7 @@ export async function DELETE(
     }
     
     // Check if employee exists
-    const employee = await prisma.user.findUnique({
+    const employee = await supabase.from('users').findUnique({
       where: { 
         id: params.id, 
         role: UserRole.EMPLOYEE 
@@ -291,15 +282,11 @@ export async function DELETE(
     
     // Delete associated data first
     if (employee.operatorPermissions) {
-      await prisma.operatorPermissions.delete({
-        where: { userId: employee.id }
-      });
+      await supabase.from('operatorPermissionss').delete().eq('userId', employee.id);
     }
     
     // Delete the employee
-    await prisma.user.delete({
-      where: { id: params.id }
-    });
+    await supabase.from('users').delete().eq('id', params.id);
     
     console.log(`Successfully deleted employee ${employee.name} (${employee.id})`);
     

@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-options";
-import prisma from "@/lib/prisma";
+import { supabase } from "@/lib/supabase";
 import { withAuth } from "@/lib/auth";
-import { UserRole, EmployeeSubrole, SessionStatus, ActivityAction } from "@/prisma/enums";
+import { UserRole, EmployeeSubrole, SessionStatus, ActivityAction } from "@/lib/enums";
 import { addActivityLog } from "@/lib/activity-logger";
 import { GET as getSessionDetails } from "@/app/api/session/[id]/route";
 
@@ -40,13 +40,13 @@ export const PUT = withAuth(
       const userId = session.user.id;
       const userRole = session.user.role;
       const userSubrole = session.user.subrole;
-      const userDetails = await prisma.user.findUnique({
+      const userDetails = await supabase.from('users').findUnique({
         where: { id: userId },
         select: { companyId: true, subrole: true }
       });
 
       // Get the session to verify ownership
-      const existingSession = await prisma.session.findUnique({
+      const existingSession = await supabase.from('sessions').findUnique({
         where: { id: sessionId },
         include: { company: true }
       });
@@ -65,7 +65,7 @@ export const PUT = withAuth(
         canModify = true;
       } else if (userRole === UserRole.ADMIN) {
         // Admin can modify sessions from companies they created
-        const company = await prisma.user.findUnique({
+        const company = await supabase.from('users').findUnique({
           where: { id: existingSession.companyId },
           select: { createdById: true }
         });
@@ -94,9 +94,7 @@ export const PUT = withAuth(
         }
         
         // Check if the operator has modify permission
-        const permissions = await prisma.operatorPermissions.findUnique({
-          where: { userId: userId }
-        });
+        const permissions = await supabase.from('operatorPermissionss').select('*').eq('userId', userId).single();
         
         if (!permissions?.canModify) {
           return NextResponse.json(
@@ -125,9 +123,7 @@ export const PUT = withAuth(
       delete updateData.companyId;
 
       // Update the session
-      const updatedSession = await prisma.session.update({
-        where: { id: sessionId },
-        data: updateData,
+      const updatedSession = await supabase.from('sessions').update( updateData,
         include: {
           company: true,
           createdBy: {
@@ -182,13 +178,13 @@ export const DELETE = withAuth(
       const userId = session.user.id;
       const userRole = session.user.role;
       const userSubrole = session.user.subrole;
-      const userDetails = await prisma.user.findUnique({
+      const userDetails = await supabase.from('users').findUnique({
         where: { id: userId },
         select: { companyId: true, subrole: true }
       });
 
       // Get the session to verify ownership
-      const existingSession = await prisma.session.findUnique({
+      const existingSession = await supabase.from('sessions').findUnique({
         where: { id: sessionId },
         include: { 
           company: true,
@@ -210,7 +206,7 @@ export const DELETE = withAuth(
         canDelete = true;
       } else if (userRole === UserRole.ADMIN) {
         // Admin can delete sessions from companies they created
-        const company = await prisma.user.findUnique({
+        const company = await supabase.from('users').findUnique({
           where: { id: existingSession.companyId },
           select: { createdById: true }
         });
@@ -239,9 +235,7 @@ export const DELETE = withAuth(
         }
         
         // Check if the operator has delete permission
-        const permissions = await prisma.operatorPermissions.findUnique({
-          where: { userId: userId }
-        });
+        const permissions = await supabase.from('operatorPermissionss').select('*').eq('userId', userId).single();
         
         if (!permissions?.canDelete) {
           return NextResponse.json(
@@ -270,25 +264,16 @@ export const DELETE = withAuth(
         
         // Step 2: Delete the seal if it exists (it has a foreign key constraint)
         if (existingSession.seal) {
-          await prisma.seal.delete({ 
-            where: { sessionId } 
+          await supabase.from('seals').delete().eq('sessionId } 
           });
           console.log(`Deleted seal for session ${sessionId}`);
         }
         
-        // Step 3: Delete activity logs - use a simpler query
-        await prisma.activityLog.deleteMany({
-          where: {
-            targetResourceId: sessionId,
-            targetResourceType: 'session'
-          }
-        });
+        // Step 3', Delete);
         console.log(`Deleted activity logs for session ${sessionId}`);
         
         // Step 4: Finally delete the session itself
-        await prisma.session.delete({ 
-          where: { id: sessionId } 
-        });
+        await supabase.from('sessions').delete().eq('id', sessionId);
         console.log(`Deleted session ${sessionId}`);
 
         // Log the activity for the deletion

@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-options";
-import prisma from "@/lib/prisma";
+import { supabase } from "@/lib/supabase";
 import { withAuth } from "@/lib/auth";
-import { UserRole, EmployeeSubrole, ActivityAction } from "@/prisma/enums";
+import { UserRole, EmployeeSubrole, ActivityAction } from "@/lib/enums";
 import { addActivityLog } from "@/lib/activity-logger";
 
 // GET endpoint to fetch operator permissions
@@ -39,7 +39,7 @@ export const GET = withAuth(
       }
 
       // Fetch employee details to verify it's an operator
-      const employee = await prisma.user.findUnique({
+      const employee = await supabase.from('users').findUnique({
         where: { id: employeeId },
         include: {
           operatorPermissions: true
@@ -65,7 +65,7 @@ export const GET = withAuth(
       if (userRole === UserRole.ADMIN && !isSelfAccess) {
         if (employee.createdById !== userId) {
           // Check if admin created any company user linked to this employee
-          const employeeCompany = await prisma.user.findFirst({
+          const employeeCompany = await supabase.from('users').findFirst({
             where: {
               id: employee.companyId || "",
               createdById: userId
@@ -141,7 +141,7 @@ export const PUT = withAuth(
       }
 
       // Fetch employee details to verify it's an operator
-      const employee = await prisma.user.findUnique({
+      const employee = await supabase.from('users').findUnique({
         where: { id: employeeId },
         include: {
           operatorPermissions: true
@@ -167,7 +167,7 @@ export const PUT = withAuth(
       if (userRole === UserRole.ADMIN) {
         if (employee.createdById !== userId) {
           // Check if admin created any company user linked to this employee
-          const employeeCompany = await prisma.user.findFirst({
+          const employeeCompany = await supabase.from('users').findFirst({
             where: {
               id: employee.companyId || "",
               createdById: userId
@@ -188,9 +188,7 @@ export const PUT = withAuth(
       
       if (employee.operatorPermissions) {
         // Update existing permissions
-        updatedPermissions = await prisma.operatorPermissions.update({
-          where: { userId: employeeId },
-          data: {
+        updatedPermissions = await supabase.from('operatorPermissionss').update( {
             canCreate: permissions.canCreate,
             canModify: permissions.canModify,
             canDelete: permissions.canDelete,
@@ -198,8 +196,7 @@ export const PUT = withAuth(
         });
       } else {
         // Create new permissions
-        updatedPermissions = await prisma.operatorPermissions.create({
-          data: {
+        updatedPermissions = await supabase.from('operatorPermissionss').insert( {
             userId: employeeId,
             canCreate: permissions.canCreate,
             canModify: permissions.canModify,

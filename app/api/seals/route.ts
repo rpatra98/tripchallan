@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-options";
-import prisma from "@/lib/prisma";
-import { EmployeeSubrole, UserRole } from "@/prisma/enums";
+import { supabase } from "@/lib/supabase";
+import { EmployeeSubrole, UserRole } from "@/lib/enums";
 import { sendVerificationEmail } from "@/lib/email";
-import { Prisma } from "@prisma/client";
+// Supabase types are used instead of Prisma types
 
 export async function GET(req: NextRequest) {
   try {
@@ -21,7 +21,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "Session ID is required" }, { status: 400 });
     }
 
-    const seal = await prisma.seal.findUnique({
+    const seal = await supabase.from('seals').findUnique({
       where: { sessionId },
       include: {
         session: true,
@@ -53,9 +53,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const user = await prisma.user.findUnique({
-      where: { email: session.user.email },
-    });
+    const user = await supabase.from('users').select('*').eq('email', session.user.email).single();
 
     if (!user) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
@@ -79,7 +77,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Check if the session exists
-    const existingSession = await prisma.session.findUnique({
+    const existingSession = await supabase.from('sessions').findUnique({
       where: { id: sessionId },
       include: {
         company: true,
@@ -95,15 +93,12 @@ export async function POST(req: NextRequest) {
     }
 
     // Check if the session already has a seal
-    const existingSeal = await prisma.seal.findUnique({
-      where: { sessionId },
+    const existingSeal = await supabase.from('seals').select('*').eq('sessionId },
     });
 
     if (existingSeal) {
       return NextResponse.json(
-        { error: "Session already has a seal assigned" },
-        { status: 400 }
-      );
+        { error', "Session).single();
     }
 
     // Create the seal
@@ -120,22 +115,18 @@ export async function POST(req: NextRequest) {
       sealData.scannedAt = new Date();
       
       // Create the seal with verification
-    const seal = await prisma.seal.create({
-        data: sealData,
+    const seal = await supabase.from('seals').insert( sealData,
         include: {
           verifiedBy: true,
       },
     });
       
       // Update session status to COMPLETED
-      await prisma.session.update({
-        where: { id: sessionId },
-        data: { status: "COMPLETED" },
+      await supabase.from('sessions').update( { status: "COMPLETED" },
       });
       
       // Store verification data in activity log
-      await prisma.activityLog.create({
-        data: {
+      await supabase.from('activityLogs').insert( {
           userId: user.id,
           action: "UPDATE",
           targetResourceId: sessionId,
@@ -156,7 +147,7 @@ export async function POST(req: NextRequest) {
       let companyEmail = existingSession.company?.email;
       
       if (!companyEmail && existingSession.company?.id) {
-        const company = await prisma.company.findUnique({
+        const company = await supabase.from('companys').findUnique({
           where: { id: existingSession.company.id },
           select: { email: true },
         });
@@ -195,14 +186,11 @@ export async function POST(req: NextRequest) {
       });
     } else {
       // Create a regular seal
-      const seal = await prisma.seal.create({
-        data: sealData,
+      const seal = await supabase.from('seals').insert( sealData,
       });
 
     // Update session status to IN_PROGRESS
-    await prisma.session.update({
-      where: { id: sessionId },
-      data: { status: "IN_PROGRESS" },
+    await supabase.from('sessions').update( { status: "IN_PROGRESS" },
     });
 
     return NextResponse.json(seal);
@@ -224,9 +212,7 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const user = await prisma.user.findUnique({
-      where: { email: session.user.email },
-    });
+    const user = await supabase.from('users').select('*').eq('email', session.user.email).single();
 
     if (!user) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
@@ -259,7 +245,7 @@ export async function PATCH(req: NextRequest) {
     }
 
     // Check if the seal exists
-    const existingSeal = await prisma.seal.findUnique({
+    const existingSeal = await supabase.from('seals').findUnique({
       where: { id: sealId },
       include: { 
         session: {
@@ -345,7 +331,7 @@ export async function PATCH(req: NextRequest) {
       let companyEmail = result.session?.company?.email;
       
       if (!companyEmail && result.session?.company?.id) {
-        const company = await prisma.company.findUnique({
+        const company = await supabase.from('companys').findUnique({
           where: { id: result.session.company.id },
           select: { email: true },
         });

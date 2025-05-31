@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-options";
-import prisma from "@/lib/prisma";
+import { supabase } from "@/lib/supabase";
 import { fileToBase64 } from "@/lib/utils";
 
 // Configure larger payload size - 10MB
@@ -29,7 +29,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "Session ID is required" }, { status: 400 });
     }
 
-    const comments = await prisma.comment.findMany({
+    const comments = await supabase.from('comments').select('*').{
       where: { sessionId },
       orderBy: { createdAt: "desc" },
       include: {
@@ -62,9 +62,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const user = await prisma.user.findUnique({
-      where: { email: session.user.email },
-    });
+    const user = await supabase.from('users').select('*').eq('email', session.user.email).single();
 
     if (!user) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
@@ -88,9 +86,7 @@ export async function POST(req: NextRequest) {
       }
       
       // Check if the session exists
-      const existingSession = await prisma.session.findUnique({
-        where: { id: sessionId },
-      });
+      const existingSession = await supabase.from('sessions').select('*').eq('id', sessionId).single();
       
       if (!existingSession) {
         return NextResponse.json(
@@ -133,8 +129,7 @@ export async function POST(req: NextRequest) {
       }
       
       // Create the comment with image if available
-      const comment = await prisma.comment.create({
-        data: {
+      const comment = await supabase.from('comments').insert( {
           sessionId,
           userId: user.id,
           message,
@@ -166,9 +161,7 @@ export async function POST(req: NextRequest) {
       }
       
       // Check if the session exists
-      const existingSession = await prisma.session.findUnique({
-        where: { id: sessionId },
-      });
+      const existingSession = await supabase.from('sessions').select('*').eq('id', sessionId).single();
       
       if (!existingSession) {
         return NextResponse.json(
@@ -178,8 +171,7 @@ export async function POST(req: NextRequest) {
       }
       
       // Create the comment without image
-      const comment = await prisma.comment.create({
-        data: {
+      const comment = await supabase.from('comments').insert( {
           sessionId,
           userId: user.id,
           message,

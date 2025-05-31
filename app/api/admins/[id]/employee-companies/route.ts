@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-options";
 import { withAuth } from "@/lib/auth";
-import prisma from "@/lib/prisma";
-import { UserRole } from "@/prisma/enums";
+import { supabase } from "@/lib/supabase";
+import { UserRole } from "@/lib/enums";
 
 export const GET = withAuth(
   async (req: NextRequest, context: { params: Record<string, string> } | undefined) => {
@@ -28,7 +28,7 @@ export const GET = withAuth(
       }
       
       // Verify admin exists
-      const admin = await prisma.user.findFirst({
+      const admin = await supabase.from('users').findFirst({
         where: {
           id: adminId,
           role: UserRole.ADMIN
@@ -43,7 +43,7 @@ export const GET = withAuth(
       }
       
       // Get unique company IDs where the admin has created users
-      const companyUsersQuery = await prisma.user.findMany({
+      const companyUsersQuery = await supabase.from('users').select('*').{
         where: {
           createdById: adminId,
           NOT: {
@@ -63,7 +63,7 @@ export const GET = withAuth(
       // Get companies based on these IDs
       let companies = [];
       if (companyIds.length > 0) {
-        companies = await prisma.company.findMany({
+        companies = await supabase.from('companys').select('*').{
           where: {
             id: {
               in: companyIds as string[]

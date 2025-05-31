@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
-import prisma from "@/lib/prisma";
+import { supabase } from "@/lib/supabase";
 import bcrypt from "bcryptjs";
-import { UserRole } from "@/prisma/enums";
+import { UserRole } from "@/lib/enums";
 
 export async function GET() {
   try {
     // Check if we already have a company
-    const existingCompanies = await prisma.user.findMany({
+    const existingCompanies = await supabase.from('users').select('*').{
       where: {
         role: "COMPANY"
       },
@@ -29,8 +29,7 @@ export async function GET() {
     // Create a test company
     const hashedPassword = await bcrypt.hash("password123", 10);
     
-    const newCompany = await prisma.user.create({
-      data: {
+    const newCompany = await supabase.from('users').insert( {
         name: "Test Company",
         email: "test@company.com",
         password: hashedPassword,

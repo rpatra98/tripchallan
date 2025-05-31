@@ -2,9 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-options";
 import { withAuth } from "@/lib/auth";
-import prisma from "@/lib/prisma";
-import { UserRole, EmployeeSubrole } from "@/prisma/enums";
-import { Prisma } from "@prisma/client";
+import { supabase } from "@/lib/supabase";
+import { UserRole, EmployeeSubrole } from "@/lib/enums";
+// Supabase types are used instead of Prisma types
 import fs from 'fs';
 import path from 'path';
 
@@ -149,7 +149,7 @@ async function handler(req: NextRequest) {
         whereClause = {};
       } else if (userRole === UserRole.ADMIN) {
         // Admin can only see sessions from companies they created
-        const companiesCreatedByAdmin = await prisma.user.findMany({
+        const companiesCreatedByAdmin = await supabase.from('users').select('*').{
           where: {
             role: UserRole.COMPANY,
             createdById: userId,
@@ -190,7 +190,7 @@ async function handler(req: NextRequest) {
         
         // First, we need to get the actual company information for this company user
         // The user ID is NOT the same as the company ID in the sessions table
-        const companyUser = await prisma.user.findUnique({
+        const companyUser = await supabase.from('users').findUnique({
           where: { id: userId },
           select: { id: true, companyId: true }
         });
@@ -224,7 +224,7 @@ async function handler(req: NextRequest) {
         
         console.log("[API DEBUG] Company sessions whereClause:", JSON.stringify(whereClause, null, 2));
       } else if (userRole === UserRole.EMPLOYEE) {
-        const employee = await prisma.user.findUnique({
+        const employee = await supabase.from('users').findUnique({
           where: { id: userId },
           select: { companyId: true, subrole: true }
         });
@@ -309,7 +309,7 @@ async function handler(req: NextRequest) {
     }
     
     // Get total count for pagination
-    const total = await prisma.session.count({
+    const total = await supabase.from('sessions').count({
       where: whereClause
     }).catch((error: Error) => {
       console.error("Error counting sessions:", error);
@@ -330,7 +330,7 @@ async function handler(req: NextRequest) {
     }
     
     // Get sessions with pagination
-    const sessions = await prisma.session.findMany({
+    const sessions = await supabase.from('sessions').select('*').{
       where: whereClause,
       include: {
         seal: {
@@ -383,7 +383,7 @@ async function handler(req: NextRequest) {
         // If no sessions were found, check without the seal filter to see if that's the issue
         console.log("[API DEBUG] No sessions found with current filter. Checking DB for any IN_PROGRESS sessions for this company...");
         
-        prisma.session.findMany({
+        supabase.from('sessions').select('*').{
           where: {
             companyId: whereClause.companyId,
             status: "IN_PROGRESS"
@@ -417,7 +417,7 @@ async function handler(req: NextRequest) {
     }
     
     // Get activity logs for trip details
-    const activityLogs = await prisma.activityLog.findMany({
+    const activityLogs = await supabase.from('activityLogs').select('*').{
       where: {
         targetResourceId: {
           in: sessions.map((s: { id: string }) => s.id)
@@ -450,7 +450,7 @@ async function handler(req: NextRequest) {
       const guardCompanyId = whereClause.companyId;
       
       // Look up all employees in this company
-      prisma.user.findMany({
+      supabase.from('users').select('*').{
         where: {
           companyId: guardCompanyId,
           role: UserRole.EMPLOYEE
@@ -540,9 +540,7 @@ export const POST = withAuth(
 
       console.log("Checking operator permissions");
       // Check if the operator has permission to create sessions
-      const permissions = await prisma.operatorPermissions.findUnique({
-        where: { userId: userId }
-      });
+      const permissions = await supabase.from('operatorPermissionss').select('*').eq('userId', userId).single();
 
       if (!permissions?.canCreate) {
         return NextResponse.json(
@@ -651,7 +649,7 @@ export const POST = withAuth(
       // }
       
       // Get employee data to determine company association
-      const employee = await prisma.user.findUnique({
+      const employee = await supabase.from('users').findUnique({
         where: { id: userId },
         include: { company: true }
       });

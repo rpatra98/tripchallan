@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-options";
 import { withAuth } from "@/lib/auth";
-import { UserRole, ActivityAction } from "@/prisma/enums";
+import { UserRole, ActivityAction } from "@/lib/enums";
 import { addActivityLog } from "@/lib/activity-logger";
 import supabase from "@/lib/supabase";
 

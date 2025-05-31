@@ -1,14 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-options";
-import prisma from "@/lib/prisma";
-import { UserRole } from "@/prisma/enums";
+import { supabase } from "@/lib/supabase";
+import { UserRole } from "@/lib/enums";
 
 export async function GET(req: NextRequest) {
   try {
     // First check if there are any employees at all in the database
     try {
-      const totalEmployeeCount = await prisma.user.count({
+      const totalEmployeeCount = await supabase.from('users').count({
         where: {
           role: UserRole.EMPLOYEE,
         },
@@ -25,7 +25,7 @@ export async function GET(req: NextRequest) {
     }
 
     // Get the user from database to access all their properties
-    const user = await prisma.user.findUnique({
+    const user = await supabase.from('users').findUnique({
       where: { 
         id: session.user.id 
       },
@@ -63,7 +63,7 @@ export async function GET(req: NextRequest) {
       console.log("SuperAdmin fetching all employees");
       
       try {
-        const allEmployees = await prisma.user.findMany({
+        const allEmployees = await supabase.from('users').select('*').{
           where: {
             role: UserRole.EMPLOYEE,
           },
@@ -103,7 +103,7 @@ export async function GET(req: NextRequest) {
       
       try {
         // Find companies created by this admin
-        const createdCompanyUsers = await prisma.user.findMany({
+        const createdCompanyUsers = await supabase.from('users').select('*').{
           where: {
             role: UserRole.COMPANY,
             createdById: user.id,
@@ -119,7 +119,7 @@ export async function GET(req: NextRequest) {
           .map(companyUser => companyUser.companyId);
         
         // Find employees for these companies or directly created by admin
-        const adminEmployees = await prisma.user.findMany({
+        const adminEmployees = await supabase.from('users').select('*').{
           where: {
             role: UserRole.EMPLOYEE,
             OR: [
@@ -172,7 +172,7 @@ export async function GET(req: NextRequest) {
         // 1. Find the actual company ID since the user.id is not the company ID
         // 2. Find all employees associated with this company
         
-        const companyUser = await prisma.user.findFirst({
+        const companyUser = await supabase.from('users').findFirst({
           where: { 
             id: user.id,
             role: UserRole.COMPANY
@@ -204,7 +204,7 @@ export async function GET(req: NextRequest) {
 
     // If an admin requests specific company's employees, ensure they created that company
     if (user.role === UserRole.ADMIN && companyId) {
-      const companyUser = await prisma.user.findFirst({
+      const companyUser = await supabase.from('users').findFirst({
         where: {
           companyId: companyId,
           role: UserRole.COMPANY
@@ -235,7 +235,7 @@ export async function GET(req: NextRequest) {
     console.log("Fetching employees for company:", companyId);
 
     // Fetch employees for the company
-    const employees = await prisma.user.findMany({
+    const employees = await supabase.from('users').select('*').{
       where: {
         role: UserRole.EMPLOYEE,
         companyId: companyId,

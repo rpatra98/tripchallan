@@ -2,9 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-options";
 import { withAuth } from "@/lib/auth";
-import { UserRole, ActivityAction } from "@/prisma/enums";
+import { UserRole, ActivityAction } from "@/lib/enums";
 import { addActivityLog } from "@/lib/activity-logger";
-import prisma from "@/lib/prisma";
+import { supabase } from "@/lib/supabase";
 
 /**
  * Debug endpoint to seed login and logout events for all users
@@ -20,7 +20,7 @@ export async function GET(req: NextRequest) {
     }
     
     // Get all users
-    const users = await prisma.user.findMany({
+    const users = await supabase.from('users').select('*').{
       select: {
         id: true,
         name: true,

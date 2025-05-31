@@ -1,8 +1,8 @@
 ﻿import { notFound, redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-options";
-import prisma from "@/lib/prisma";
-import { UserRole, EmployeeSubrole } from "@/prisma/enums";
+import { supabase } from "@/lib/supabase";
+import { UserRole, EmployeeSubrole } from "@/lib/enums";
 import Link from "next/link";
 import { cookies } from "next/headers";
 import CompanyActions from "./company-actions";
@@ -81,7 +81,7 @@ export default async function CompanyDetailPage({ params }: { params: { id: stri
       
       // First check if this is a company user (which has role = COMPANY)
       const companyUser = await prismaHelper.executePrismaWithRetry(async () => {
-        return prisma.user.findUnique({
+        return supabase.from('users').findUnique({
           where: { 
             id: companyId,
             role: UserRole.COMPANY

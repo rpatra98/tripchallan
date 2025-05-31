@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import prisma from "@/lib/prisma";
+import { supabase } from "@/lib/supabase";
 
 /**
  * This endpoint scans for and attempts to fix broken company links in sessions and elsewhere.
@@ -8,7 +8,7 @@ import prisma from "@/lib/prisma";
 export async function GET() {
   try {
     // Find all valid companies
-    const companies = await prisma.user.findMany({
+    const companies = await supabase.from('users').select('*').{
       where: {
         role: "COMPANY",
       },
@@ -26,7 +26,7 @@ export async function GET() {
     }
 
     // Find all sessions that reference non-existent companies
-    const sessionsWithMissingCompanies = await prisma.session.findMany({
+    const sessionsWithMissingCompanies = await supabase.from('sessions').select('*').{
       where: {
         companyId: {
           notIn: companies.map(c => c.id)
@@ -39,7 +39,7 @@ export async function GET() {
     });
 
     // Find all employees with missing company references
-    const employeesWithMissingCompanies = await prisma.user.findMany({
+    const employeesWithMissingCompanies = await supabase.from('users').select('*').{
       where: {
         role: "EMPLOYEE",
         companyId: {
@@ -59,7 +59,7 @@ export async function GET() {
 
     // Fix sessions with broken company references
     if (sessionsWithMissingCompanies.length > 0) {
-      const updateSessions = await prisma.session.updateMany({
+      const updateSessions = await supabase.from('sessions').updateMany({
         where: {
           id: {
             in: sessionsWithMissingCompanies.map(s => s.id)
@@ -79,7 +79,7 @@ export async function GET() {
 
     // Fix employees with broken company references
     if (employeesWithMissingCompanies.length > 0) {
-      const updateEmployees = await prisma.user.updateMany({
+      const updateEmployees = await supabase.from('users').updateMany({
         where: {
           id: {
             in: employeesWithMissingCompanies.map(e => e.id)

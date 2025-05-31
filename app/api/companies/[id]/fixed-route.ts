@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
-import prisma from "@/lib/prisma";
+import { supabase } from "@/lib/supabase";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-options";
-import { UserRole } from "@/prisma/enums";
-import { Prisma } from "@prisma/client";
+import { UserRole } from "@/lib/enums";
+// Supabase types are used instead of Prisma types
 
 export async function GET(
   request: Request,
@@ -31,7 +31,7 @@ export async function GET(
     console.log(`API: Fetching company with ID: "${id}" - Length: ${id.length}`);
     
     // First, check if this is a direct company ID
-    let company = await prisma.company.findUnique({
+    let company = await supabase.from('companys').findUnique({
       where: { id },
       include: {
         employees: {
@@ -54,7 +54,7 @@ export async function GET(
 
     // If not found, this might be a User ID with role=COMPANY, so look it up that way
     if (!company) {
-      const companyUser = await prisma.user.findFirst({
+      const companyUser = await supabase.from('users').findFirst({
         where: {
           id,
           role: UserRole.COMPANY
@@ -75,7 +75,7 @@ export async function GET(
       // If we found a company user, get the actual company data if it has a companyId
       if (companyUser) {
         if (companyUser.companyId) {
-          company = await prisma.company.findUnique({
+          company = await supabase.from('companys').findUnique({
             where: { id: companyUser.companyId },
             include: {
               employees: {
@@ -101,7 +101,7 @@ export async function GET(
           console.log(`API: Creating synthetic company from user data`);
           
           // Get employees related to this company user
-          const employees = await prisma.user.findMany({
+          const employees = await supabase.from('users').select('*').{
             where: { 
               companyId: companyUser.id,
               role: UserRole.EMPLOYEE
@@ -195,7 +195,7 @@ export async function PATCH(
     const body = await request.json();
     
     // Check if company exists
-    let existingCompany = await prisma.company.findUnique({
+    let existingCompany = await supabase.from('companys').findUnique({
       where: { id }
     });
     
@@ -205,7 +205,7 @@ export async function PATCH(
     if (!existingCompany) {
       console.log(`API PATCH: Company not found directly, checking if it's a company user`);
       
-      const companyUser = await prisma.user.findFirst({
+      const companyUser = await supabase.from('users').findFirst({
         where: {
           id,
           role: UserRole.COMPANY
@@ -223,9 +223,7 @@ export async function PATCH(
         console.log(`API PATCH: Found company user with companyId: ${companyUser.companyId}`);
         
         companyId = companyUser.companyId;
-        existingCompany = await prisma.company.findUnique({
-          where: { id: companyUser.companyId }
-        });
+        existingCompany = await supabase.from('companys').select('*').eq('id', companyUser.companyId).single();
       }
       
       // If still no company found, check if we need to create one from the company user
@@ -233,8 +231,7 @@ export async function PATCH(
         console.log(`API PATCH: Creating company record for company user`);
         
         // Create a real company record for this user
-        existingCompany = await prisma.company.create({
-          data: {
+        existingCompany = await supabase.from('companys').insert( {
             name: companyUser.name || `Company for ${companyUser.id}`,
             email: companyUser.email || `company-${companyUser.id}@example.com`,
             isActive: body.isActive !== undefined ? body.isActive : true,
@@ -244,9 +241,7 @@ export async function PATCH(
         companyId = existingCompany.id;
         
         // Link the company user to this new company
-        await prisma.user.update({
-          where: { id: companyUser.id },
-          data: {
+        await supabase.from('users').update( {
             companyId: existingCompany.id
           }
         });
@@ -267,9 +262,7 @@ export async function PATCH(
     }
     
     // Update company
-    const updatedCompany = await prisma.company.update({
-      where: { id: companyId },
-      data: {
+    const updatedCompany = await supabase.from('companys').update( {
         isActive: body.isActive !== undefined ? body.isActive : existingCompany.isActive,
         name: body.name || existingCompany.name,
         email: body.email || existingCompany.email,
@@ -338,12 +331,8 @@ export async function DELETE(
     }
     
     // Check if company exists directly
-    let existingCompany = await prisma.company.findUnique({
-      where: { id },
-      include: {
-        employees: true
-      }
-    });
+    let existingCompany = await supabase.from('companys').select('*').eq('id },
+      include', {).single();
     
     let companyUserId = null;
     let companyId = id;
@@ -352,7 +341,7 @@ export async function DELETE(
     if (!existingCompany) {
       console.log(`API DELETE: Company not found directly, checking if it's a company user`);
       
-      const companyUser = await prisma.user.findFirst({
+      const companyUser = await supabase.from('users').findFirst({
         where: {
           id,
           role: UserRole.COMPANY
@@ -371,7 +360,7 @@ export async function DELETE(
           console.log(`API DELETE: Found company user with companyId: ${companyUser.companyId}`);
           
           companyId = companyUser.companyId;
-          existingCompany = await prisma.company.findUnique({
+          existingCompany = await supabase.from('companys').findUnique({
             where: { id: companyUser.companyId },
             include: {
               employees: true
@@ -414,7 +403,7 @@ export async function DELETE(
     }
     
     // Delete all company users (needed for referential integrity)
-    const companyUsers = await prisma.user.findMany({
+    const companyUsers = await supabase.from('users').select('*').{
       where: {
         companyId: existingCompany!.id,
         role: UserRole.COMPANY

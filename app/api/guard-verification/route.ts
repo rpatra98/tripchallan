@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-options";
 import { withAuth } from "@/lib/auth";
-import prisma from "@/lib/prisma";
-import { UserRole, EmployeeSubrole, SessionStatus } from "@/prisma/enums";
+import { supabase } from "@/lib/supabase";
+import { UserRole, EmployeeSubrole, SessionStatus } from "@/lib/enums";
 
 // Direct API route for GUARD users to get sessions that need verification
 // This bypasses complex filtering that might cause issues
@@ -29,7 +29,7 @@ async function handler(req: NextRequest) {
     }
 
     // Get the guard's user details including company
-    const guard = await prisma.user.findUnique({
+    const guard = await supabase.from('users').findUnique({
       where: { id: session.user.id },
       select: { 
         id: true,
@@ -70,7 +70,7 @@ async function handler(req: NextRequest) {
 
     try {
       // First approach: Try to find sessions with seal = {verified: false}
-      const sessions = await prisma.session.findMany({
+      const sessions = await supabase.from('sessions').select('*').{
         where: {
           companyId: guardCompanyId,
           status: SessionStatus.IN_PROGRESS,
@@ -110,7 +110,7 @@ async function handler(req: NextRequest) {
 
     try {
       // Fallback approach: Get all IN_PROGRESS sessions and filter them manually
-      const allInProgressSessions = await prisma.session.findMany({
+      const allInProgressSessions = await supabase.from('sessions').select('*').{
         where: {
           companyId: guardCompanyId,
           status: SessionStatus.IN_PROGRESS,

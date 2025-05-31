@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-options";
 import { withAuth } from "@/lib/auth";
-import prisma from "@/lib/prisma";
-import { UserRole } from "@/prisma/enums";
+import { supabase } from "@/lib/supabase";
+import { UserRole } from "@/lib/enums";
 
 async function handler(req: NextRequest) {
   try {
@@ -28,9 +28,7 @@ async function handler(req: NextRequest) {
     }
 
     // Check if the session exists
-    const sessionData = await prisma.session.findUnique({
-      where: { id: sessionId },
-    });
+    const sessionData = await supabase.from('sessions').select('*').eq('id', sessionId).single();
 
     if (!sessionData) {
       return NextResponse.json(
@@ -60,8 +58,7 @@ async function handler(req: NextRequest) {
     }
 
     // Create the comment
-    const comment = await prisma.comment.create({
-      data: {
+    const comment = await supabase.from('comments').insert( {
         sessionId,
         userId: session.user.id,
         message,
@@ -112,9 +109,7 @@ export const POST = withAuth(
       }
 
       // Check if the session exists
-      const sessionData = await prisma.session.findUnique({
-        where: { id: sessionId },
-      });
+      const sessionData = await supabase.from('sessions').select('*').eq('id', sessionId).single();
 
       if (!sessionData) {
         return NextResponse.json(
@@ -144,8 +139,7 @@ export const POST = withAuth(
       }
 
       // Create the comment
-      const comment = await prisma.comment.create({
-        data: {
+      const comment = await supabase.from('comments').insert( {
           sessionId,
           userId: session.user.id,
           message,

@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
 import { withAuth } from "@/lib/auth";
-import prisma from "@/lib/prisma";
-import { UserRole } from "@/prisma/enums";
+import { supabase } from "@/lib/supabase";
+import { UserRole } from "@/lib/enums";
 
 async function handler() {
   try {
     // Get recent sessions with status breakdown
-    const sessions = await prisma.session.findMany({
+    const sessions = await supabase.from('sessions').select('*').{
       take: 10,
       orderBy: { createdAt: "desc" },
       include: {
@@ -27,23 +27,23 @@ async function handler() {
     });
 
     // Get session status counts
-    const pendingCount = await prisma.session.count({
+    const pendingCount = await supabase.from('sessions').count({
       where: { status: "PENDING" },
     });
 
-    const inProgressCount = await prisma.session.count({
+    const inProgressCount = await supabase.from('sessions').count({
       where: { status: "IN_PROGRESS" },
     });
 
-    const completedCount = await prisma.session.count({
+    const completedCount = await supabase.from('sessions').count({
       where: { status: "COMPLETED" },
     });
 
     // Get total sessions count
-    const totalSessions = await prisma.session.count();
+    const totalSessions = await supabase.from('sessions').count();
 
     // Get coin transaction logs
-    const coinTransactions = await prisma.coinTransaction.findMany({
+    const coinTransactions = await supabase.from('coinTransactions').select('*').{
       take: 20,
       orderBy: { createdAt: "desc" },
       include: {
@@ -65,20 +65,20 @@ async function handler() {
     });
 
     // Get system stats - Use countAll() to ensure accurate counts
-    const totalAdmins = await prisma.user.count({
+    const totalAdmins = await supabase.from('users').count({
       where: { role: UserRole.ADMIN },
     });
 
-    const totalCompanies = await prisma.user.count({
+    const totalCompanies = await supabase.from('users').count({
       where: { role: UserRole.COMPANY },
     });
 
-    const totalEmployees = await prisma.user.count({
+    const totalEmployees = await supabase.from('users').count({
       where: { role: UserRole.EMPLOYEE },
     });
 
     // Count SuperAdmins too
-    const totalSuperAdmins = await prisma.user.count({
+    const totalSuperAdmins = await supabase.from('users').count({
       where: { role: UserRole.SUPERADMIN },
     });
 
@@ -86,7 +86,7 @@ async function handler() {
     const totalUsers = totalAdmins + totalCompanies + totalEmployees + totalSuperAdmins;
 
     // Total coins in the system
-    const totalCoins = await prisma.user.aggregate({
+    const totalCoins = await supabase.from('users').aggregate({
       _sum: {
         coins: true,
       },

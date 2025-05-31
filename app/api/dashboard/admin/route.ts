@@ -2,13 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-options";
 import { withAuth } from "@/lib/auth";
-import prisma from "@/lib/prisma";
-import { EmployeeSubrole, UserRole } from "@/prisma/enums";
+import { supabase } from "@/lib/supabase";
+import { EmployeeSubrole, UserRole } from "@/lib/enums";
 
 async function handler() {
   try {
     // Get companies data
-    const companies = await prisma.user.findMany({
+    const companies = await supabase.from('users').select('*').{
       where: { role: UserRole.COMPANY },
       select: {
         id: true,
@@ -22,7 +22,7 @@ async function handler() {
     // Add employee counts to each company
     const companiesWithCounts = await Promise.all(
       companies.map(async (company) => {
-        const employeeCount = await prisma.user.count({
+        const employeeCount = await supabase.from('users').count({
           where: {
             companyId: company.id,
             role: UserRole.EMPLOYEE
@@ -39,7 +39,7 @@ async function handler() {
     );
 
     // Get employees data with company information
-    const employees = await prisma.user.findMany({
+    const employees = await supabase.from('users').select('*').{
       where: { role: UserRole.EMPLOYEE },
       select: {
         id: true,
@@ -57,28 +57,28 @@ async function handler() {
     });
 
     // Get employee counts by subrole
-    const operatorCount = await prisma.user.count({
+    const operatorCount = await supabase.from('users').count({
       where: {
         role: UserRole.EMPLOYEE,
         subrole: EmployeeSubrole.OPERATOR,
       },
     });
 
-    const driverCount = await prisma.user.count({
+    const driverCount = await supabase.from('users').count({
       where: {
         role: UserRole.EMPLOYEE,
         subrole: EmployeeSubrole.DRIVER,
       },
     });
 
-    const transporterCount = await prisma.user.count({
+    const transporterCount = await supabase.from('users').count({
       where: {
         role: UserRole.EMPLOYEE,
         subrole: EmployeeSubrole.TRANSPORTER,
       },
     });
 
-    const guardCount = await prisma.user.count({
+    const guardCount = await supabase.from('users').count({
       where: {
         role: UserRole.EMPLOYEE,
         subrole: EmployeeSubrole.GUARD,
@@ -86,7 +86,7 @@ async function handler() {
     });
 
     // Get coin transactions summary
-    const coinTransactions = await prisma.coinTransaction.findMany({
+    const coinTransactions = await supabase.from('coinTransactions').select('*').{
       take: 10,
       orderBy: { createdAt: "desc" },
       include: {
@@ -108,7 +108,7 @@ async function handler() {
     });
 
     // Calculate total coins with companies
-    const companyCoins = await prisma.user.aggregate({
+    const companyCoins = await supabase.from('users').aggregate({
       where: { role: UserRole.COMPANY },
       _sum: {
         coins: true,
@@ -116,7 +116,7 @@ async function handler() {
     });
 
     // Get recent sessions
-    const recentSessions = await prisma.session.findMany({
+    const recentSessions = await supabase.from('sessions').select('*').{
       take: 5,
       orderBy: { createdAt: "desc" },
       include: {

@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import prisma from "@/lib/prisma";
+import { supabase } from "@/lib/supabase";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-options";
-import { VehicleStatus } from "@/prisma/enums";
+import { VehicleStatus } from "@/lib/enums";
 
 // GET /api/vehicles - Retrieve vehicles for the company
 export async function GET(request: NextRequest) {
@@ -46,7 +46,7 @@ export async function GET(request: NextRequest) {
       query.where.status = status;
     }
     
-    const vehicles = await prisma.vehicle.findMany(query);
+    const vehicles = await supabase.from('vehicles').select('*').query);
     
     return NextResponse.json({ vehicles });
   } catch (error) {
@@ -71,9 +71,7 @@ export async function POST(request: NextRequest) {
     
     // Check if user is an operator and has permission to create
     if (session.user.role === "EMPLOYEE" && session.user.subrole === "OPERATOR") {
-      const permissions = await prisma.operatorPermissions.findUnique({
-        where: { userId: session.user.id },
-      });
+      const permissions = await supabase.from('operatorPermissionss').select('*').eq('userId', session.user.id).single();
       
       if (!permissions?.canCreate) {
         return NextResponse.json({ error: "You don't have permission to create vehicles" }, { status: 403 });
@@ -88,17 +86,14 @@ export async function POST(request: NextRequest) {
     }
     
     // Check if vehicle with this number plate already exists
-    const existingVehicle = await prisma.vehicle.findUnique({
-      where: { numberPlate: data.numberPlate },
-    });
+    const existingVehicle = await supabase.from('vehicles').select('*').eq('numberPlate', data.numberPlate).single();
     
     if (existingVehicle) {
       return NextResponse.json({ error: "Vehicle with this number plate already exists" }, { status: 409 });
     }
     
     // Create the vehicle
-    const vehicle = await prisma.vehicle.create({
-      data: {
+    const vehicle = await supabase.from('vehicles').insert( {
         numberPlate: data.numberPlate,
         model: data.model || null,
         manufacturer: data.manufacturer || null,

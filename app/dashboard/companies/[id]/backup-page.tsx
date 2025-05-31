@@ -1,7 +1,7 @@
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import prisma from "@/lib/prisma";
-import { UserRole } from "@/prisma/enums";
+import { supabase } from "@/lib/supabase";
+import { UserRole } from "@/lib/enums";
 
 export const dynamic = "force-dynamic";
 
@@ -10,12 +10,7 @@ export default async function CompanyBackupPage({ params }: { params: { id: stri
   
   try {
     // Get company details directly without any authorization checks
-    const company = await prisma.user.findUnique({
-      where: {
-        id: companyId,
-        role: UserRole.COMPANY,
-      },
-    });
+    const company = await supabase.from('users').select('*').eq('id', companyId).single();
 
     if (!company) {
       return (

@@ -1,8 +1,8 @@
 import { notFound, redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-options";
-import prisma from "@/lib/prisma";
-import { UserRole, EmployeeSubrole } from "@/prisma/enums";
+import { supabase } from "@/lib/supabase";
+import { UserRole, EmployeeSubrole } from "@/lib/enums";
 import Link from "next/link";
 import PermissionsEditorWrapper from "@/app/components/PermissionsEditorWrapper";
 
@@ -14,11 +14,7 @@ export default async function EmployeeDetailPage({ params }: { params: { id: str
   }
 
   // Get user with detailed information
-  const dbUser = await prisma.user.findUnique({
-    where: {
-      id: session.user.id,
-    },
-  });
+  const dbUser = await supabase.from('users').select('*').eq('id', session.user.id).single();
 
   if (!dbUser) {
     redirect("/");
@@ -28,7 +24,7 @@ export default async function EmployeeDetailPage({ params }: { params: { id: str
   const isAdmin = dbUser.role === UserRole.ADMIN || dbUser.role === UserRole.SUPERADMIN;
 
   // Get employee details
-  const employee = await prisma.user.findUnique({
+  const employee = await supabase.from('users').findUnique({
     where: {
       id: params.id,
       role: UserRole.EMPLOYEE,
@@ -55,7 +51,7 @@ export default async function EmployeeDetailPage({ params }: { params: { id: str
   }
 
   // Get transaction history for this employee
-  const transactions = await prisma.coinTransaction.findMany({
+  const transactions = await supabase.from('coinTransactions').select('*').{
     where: {
       OR: [
         { fromUserId: employee.id },

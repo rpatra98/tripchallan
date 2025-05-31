@@ -4,12 +4,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-options";
 import { withAuth } from "@/lib/auth";
-import prisma from "@/lib/prisma";
-import { UserRole, EmployeeSubrole, ActivityAction } from "@/prisma/enums";
+import { supabase } from "@/lib/supabase";
+import { UserRole, EmployeeSubrole, ActivityAction } from "@/lib/enums";
 import { hash } from "bcrypt";
 import { addActivityLog } from "@/lib/activity-logger";
-import { TransactionReason } from "@/prisma/enums";
-import { Prisma } from "@prisma/client";
+import { TransactionReason } from "@/lib/enums";
+// Supabase types are used instead of Prisma types
 import path from "path";
 import fs from "fs/promises";
 
@@ -96,9 +96,7 @@ export const POST = withAuth(
       }
       
       // Check if user already exists
-      const existingUser = await prisma.user.findUnique({
-        where: { email: body.email }
-      });
+      const existingUser = await supabase.from('users').select('*').eq('email', body.email).single();
       
       if (existingUser) {
         return NextResponse.json(
@@ -192,8 +190,7 @@ export const POST = withAuth(
           }
           
           // First create the company
-          const company = await prisma.company.create({
-            data: {
+          const company = await supabase.from('companys').insert( {
               name: body.companyName || body.name,
               email: body.email,
               address: body.companyAddress || "",
@@ -207,8 +204,7 @@ export const POST = withAuth(
           });
           
           // Then create the user with company reference
-          newUser = await prisma.user.create({
-            data: {
+          newUser = await supabase.from('users').insert( {
               email: body.email,
               name: body.name,
               password: hashedPassword,
@@ -246,7 +242,7 @@ export const POST = withAuth(
           const totalCoinsNeeded = coinsToAllocate;
           
           // Check admin's balance before proceeding
-          const admin = await prisma.user.findUnique({
+          const admin = await supabase.from('users').findUnique({
             where: { id: userId as string },
             select: { 
               id: true,
@@ -323,8 +319,7 @@ export const POST = withAuth(
         }
         else {
           // For non-operator employees or operators without coin allocation, create normally
-          newUser = await prisma.user.create({
-            data: {
+          newUser = await supabase.from('users').insert( {
               email: body.email,
               name: body.name,
               password: hashedPassword,
@@ -360,8 +355,7 @@ export const POST = withAuth(
                 canDelete: body.permissions.canDelete !== undefined ? body.permissions.canDelete : false,
               };
               
-              await prisma.operatorPermissions.create({
-                data: permissionsToCreate
+              await supabase.from('operatorPermissionss').insert( permissionsToCreate
               });
             } catch (permErr) {
               console.error("Failed to create permissions for operator, but user was created:", permErr);
@@ -377,7 +371,7 @@ export const POST = withAuth(
           const coinsToAllocate = Number(body.coins);
           
           // Get SUPERADMIN's current balance
-          const superAdmin = await prisma.user.findUnique({
+          const superAdmin = await supabase.from('users').findUnique({
             where: { id: userId as string },
             select: { 
               id: true,
@@ -433,8 +427,7 @@ export const POST = withAuth(
           console.log(`Successfully created admin with ID ${newUser.id} and allocated ${coinsToAllocate} coins`);
         } else {
           // For other cases, create normally without a transaction
-          newUser = await prisma.user.create({
-            data: {
+          newUser = await supabase.from('users').insert( {
               email: body.email,
               name: body.name,
               password: hashedPassword,

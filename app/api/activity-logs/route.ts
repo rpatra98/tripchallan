@@ -2,9 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-options";
 import { withAuth } from "@/lib/auth";
-import { UserRole, ActivityAction } from "@/prisma/enums";
+import { UserRole, ActivityAction } from "@/lib/enums";
 import { getActivityLogs } from "@/lib/activity-logger";
-import prisma from "@/lib/prisma";
+import { supabase } from "@/lib/supabase";
 
 // Define the ActivityLog type here to match what's returned from the database
 type ActivityLog = {
@@ -88,12 +88,9 @@ async function handler(req: NextRequest) {
     else if (session.user.role === UserRole.ADMIN) {
       if (userId) {
         // Check if this admin created the requested user
-        const requestedUser = await prisma.user.findUnique({
-          where: { id: userId },
-          select: { createdById: true, role: true }
-        });
+        const requestedUser = await supabase.from('users').select('createdById, role').eq('id', userId);
         
-        if (requestedUser?.createdById === session.user.id) {
+        if (requestedUser.data[0]?.createdById === session.user.id) {
           userIds.push(userId);
         } else {
           // If they didn't create this user, they can't see their activity
@@ -111,16 +108,10 @@ async function handler(req: NextRequest) {
         }
       } else {
         // Get all users created by this admin (COMPANY and EMPLOYEE only)
-        const createdUsers = await prisma.user.findMany({
-          where: { 
-            createdById: session.user.id,
-            role: { in: [UserRole.COMPANY, UserRole.EMPLOYEE] }
-          },
-          select: { id: true }
-        });
+        const createdUsers = await supabase.from('users').select('id').eq('createdById', session.user.id).eq('role', { in: [UserRole.COMPANY, UserRole.EMPLOYEE] });
         
         // Add IDs of COMPANY and EMPLOYEE users they created
-        userIds.push(...createdUsers.map((user: { id: string }) => user.id));
+        userIds.push(...createdUsers.data.map((user: { id: string }) => user.id));
         
         // Important: Include the ADMIN's own ID to see their activities too
         // This lets admins see when they create users
@@ -131,16 +122,9 @@ async function handler(req: NextRequest) {
     else if (session.user.role === UserRole.COMPANY) {
       if (userId) {
         // Check if this employee belongs to this company
-        const employee = await prisma.user.findUnique({
-          where: { 
-            id: userId,
-            role: UserRole.EMPLOYEE,
-            companyId: session.user.companyId || undefined
-          },
-          select: { id: true }
-        });
+        const employee = await supabase.from('users').select('id').eq('id', userId).eq('role', UserRole.EMPLOYEE).eq('companyId', session.user.companyId || undefined);
         
-        if (employee) {
+        if (employee.data[0]) {
           userIds.push(userId);
         } else {
           // If this isn't their employee, they can only see their own non-login/logout activity
@@ -158,21 +142,15 @@ async function handler(req: NextRequest) {
         }
       } else {
         // Get all employees for this company
-        const employees = await prisma.user.findMany({
-          where: { 
-            role: UserRole.EMPLOYEE,
-            companyId: session.user.companyId || undefined
-          },
-          select: { id: true }
-        });
+        const employees = await supabase.from('users').select('id').eq('role', UserRole.EMPLOYEE).eq('companyId', session.user.companyId || undefined);
         
         // Only add IDs of employees (not the company itself) for login/logout events
         // For other types of activities, we need to include the company's ID
         if (action === "LOGIN" || action === "LOGOUT") {
-          userIds.push(...employees.map((emp: { id: string }) => emp.id));
+          userIds.push(...employees.data.map((emp: { id: string }) => emp.id));
         } else {
           // For non-login/logout activities, include the company's own ID too
-          userIds.push(session.user.id, ...employees.map((emp: { id: string }) => emp.id));
+          userIds.push(session.user.id, ...employees.data.map((emp: { id: string }) => emp.id));
         }
       }
     }

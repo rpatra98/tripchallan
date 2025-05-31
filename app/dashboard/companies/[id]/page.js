@@ -5,10 +5,10 @@ import { useSession } from "next-auth/react";
 import { redirect, notFound, useRouter } from "next/navigation";
 import Link from "next/link";
 import { Alert, Button, Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle } from "@mui/material";
-import { UserRole } from "@/prisma/enums";
+import { UserRole } from "@/lib/enums";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-options";
-import prisma from "@/lib/prisma";
+import { supabase } from "@/lib/supabase";
 import CompanyActions from "./company-actions";
 
 // Force dynamic rendering to bypass caching issues

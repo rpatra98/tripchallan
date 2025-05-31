@@ -1,8 +1,8 @@
 import { notFound, redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-options";
-import prisma from "@/lib/prisma";
-import { UserRole, EmployeeSubrole } from "@/prisma/enums";
+import { supabase } from "@/lib/supabase";
+import { UserRole, EmployeeSubrole } from "@/lib/enums";
 import Link from "next/link";
 import CompanyActions from "./company-actions";
 
@@ -52,11 +52,7 @@ export default async function CompanyDetailPage({ params }: { params: { id: stri
     }
 
     // Get user with detailed information
-    const dbUser = await prisma.user.findUnique({
-      where: {
-        id: session.user.id,
-      },
-    });
+    const dbUser = await supabase.from('users').select('*').eq('id', session.user.id).single();
 
     if (!dbUser) {
       redirect("/");
@@ -73,7 +69,7 @@ export default async function CompanyDetailPage({ params }: { params: { id: stri
     
     try {
       // Try direct company lookup
-      const dbCompany = await prisma.company.findUnique({
+      const dbCompany = await supabase.from('companys').findUnique({
         where: { id: companyId },
         include: {
           employees: {
@@ -99,7 +95,7 @@ export default async function CompanyDetailPage({ params }: { params: { id: stri
         };
       } else {
         // Try company user lookup
-        const companyUser = await prisma.user.findFirst({
+        const companyUser = await supabase.from('users').findFirst({
           where: {
             id: companyId,
             role: UserRole.COMPANY
@@ -117,7 +113,7 @@ export default async function CompanyDetailPage({ params }: { params: { id: stri
         
         if (companyUser) {
           // Get employees related to this company user
-          const employees = await prisma.user.findMany({
+          const employees = await supabase.from('users').select('*').{
             where: { 
               companyId: companyUser.id,
               role: UserRole.EMPLOYEE

@@ -1,8 +1,8 @@
 import { notFound, redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-options";
-import prisma from "@/lib/prisma";
-import { UserRole, EmployeeSubrole } from "@/prisma/enums";
+import { supabase } from "@/lib/supabase";
+import { UserRole, EmployeeSubrole } from "@/lib/enums";
 import Link from "next/link";
 import CompanyActions from "./company-actions";
 
@@ -52,11 +52,7 @@ export default async function CompanyDetailPage({ params }: { params: { id: stri
     }
 
     // Get user with detailed information
-    const dbUser = await prisma.user.findUnique({
-      where: {
-        id: session.user.id,
-      },
-    });
+    const dbUser = await supabase.from('users').select('*').eq('id', session.user.id).single();
 
     if (!dbUser) {
       redirect("/");
@@ -75,7 +71,7 @@ export default async function CompanyDetailPage({ params }: { params: { id: stri
     
     try {
       // First check if this is a company user (which has role = COMPANY)
-      const companyUser = await prisma.user.findFirst({
+      const companyUser = await supabase.from('users').findFirst({
         where: {
           id: companyId,
           role: UserRole.COMPANY
@@ -98,7 +94,7 @@ export default async function CompanyDetailPage({ params }: { params: { id: stri
       }
       
       // Try to get the actual company record with the updated ID
-      const dbCompany = await prisma.company.findUnique({
+      const dbCompany = await supabase.from('companys').findUnique({
         where: { id: actualCompanyId },
         include: {
           employees: {
@@ -128,7 +124,7 @@ export default async function CompanyDetailPage({ params }: { params: { id: stri
         const realCompanyId = companyUser.companyId || companyUser.id;
         
         // Get all employees associated with this company, regardless of whether we found the company record
-        const employees = await prisma.user.findMany({
+        const employees = await supabase.from('users').select('*').{
           where: {
             OR: [
               { companyId: companyUser.id },
@@ -161,13 +157,11 @@ export default async function CompanyDetailPage({ params }: { params: { id: stri
         isSynthetic = true;
       } else {
         // Last attempt - try to find the company directly
-        const directCompany = await prisma.company.findUnique({
-          where: { id: companyId }
-        });
+        const directCompany = await supabase.from('companys').select('*').eq('id', companyId).single();
         
         if (directCompany) {
           // Get employees for this company
-          const employees = await prisma.user.findMany({
+          const employees = await supabase.from('users').select('*').{
             where: {
               companyId: directCompany.id,
               role: UserRole.EMPLOYEE
@@ -194,7 +188,7 @@ export default async function CompanyDetailPage({ params }: { params: { id: stri
       // If we still have no company record, check for users with this companyId
       if (!company) {
         // See if any users have this as their companyId
-        const companyEmployees = await prisma.user.findMany({
+        const companyEmployees = await supabase.from('users').select('*').{
           where: {
             companyId: companyId,
             role: UserRole.EMPLOYEE

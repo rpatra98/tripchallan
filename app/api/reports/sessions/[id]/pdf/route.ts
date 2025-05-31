@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-options";
 import { withAuth } from "@/lib/auth";
-import prisma from "@/lib/prisma";
-import { UserRole } from "@/prisma/enums";
+import { supabase } from "@/lib/supabase";
+import { UserRole } from "@/lib/enums";
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
@@ -41,7 +41,7 @@ export const GET = withAuth(
       const sessionId = context.params.id;
       
       // Fetch session data
-      const sessionData = await prisma.session.findUnique({
+      const sessionData = await supabase.from('sessions').findUnique({
         where: { id: sessionId },
         include: {
           createdBy: {
@@ -94,7 +94,7 @@ export const GET = withAuth(
       }
 
       // Fetch activity log for trip details
-      const activityLog = await prisma.activityLog.findFirst({
+      const activityLog = await supabase.from('activity_logs').findFirst({
         where: {
           targetResourceId: sessionId,
           targetResourceType: 'session',

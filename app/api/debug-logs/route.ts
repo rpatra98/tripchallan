@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-options";
-import { UserRole, ActivityAction } from "@/prisma/enums";
+import { UserRole, ActivityAction } from "@/lib/enums";
 import { addActivityLog } from "@/lib/activity-logger";
-import prisma from "@/lib/prisma";
+import { supabase } from "@/lib/supabase";
 
 /**
  * Debug endpoint to check and create activity logs
@@ -18,7 +18,7 @@ export async function GET(req: NextRequest) {
     }
     
     // Check if there are any activity logs in the database
-    const logCount = await prisma.activityLog.count();
+    const logCount = await supabase.from('activity_logs').count();
     
     // Create sample activity logs if requested by query param
     const url = new URL(req.url);

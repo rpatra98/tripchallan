@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-options";
 import { withAuth } from "@/lib/auth";
-import prisma from "@/lib/prisma";
-import { EmployeeSubrole, SessionStatus, UserRole } from "@/prisma/enums";
+import { supabase } from "@/lib/supabase";
+import { EmployeeSubrole, SessionStatus, UserRole } from "@/lib/enums";
 
 async function handler(req: NextRequest) {
   try {
@@ -28,7 +28,7 @@ async function handler(req: NextRequest) {
     }
 
     // Find the seal by barcode
-    const seal = await prisma.seal.findFirst({
+    const seal = await supabase.from('seals').findFirst({
       where: { barcode },
       include: { session: true }
     });
@@ -48,9 +48,7 @@ async function handler(req: NextRequest) {
     }
 
     // Update the seal status
-    const updatedSeal = await prisma.seal.update({
-      where: { id: seal.id },
-      data: {
+    const updatedSeal = await supabase.from('seals').update( {
         verified: true,
         verifiedById: session.user.id,
         scannedAt: new Date()
@@ -58,9 +56,7 @@ async function handler(req: NextRequest) {
     });
 
     // Update the session status to COMPLETED
-    const updatedSession = await prisma.session.update({
-      where: { id: seal.sessionId },
-      data: { status: SessionStatus.COMPLETED }
+    const updatedSession = await supabase.from('sessions').update( { status: SessionStatus.COMPLETED }
     });
 
     return NextResponse.json(
@@ -108,7 +104,7 @@ export const POST = withAuth(
       }
 
       // Find the seal by barcode
-      const seal = await prisma.seal.findFirst({
+      const seal = await supabase.from('seals').findFirst({
         where: { barcode },
         include: { session: true }
       });
@@ -128,9 +124,7 @@ export const POST = withAuth(
       }
 
       // Update the seal status
-      const updatedSeal = await prisma.seal.update({
-        where: { id: seal.id },
-        data: {
+      const updatedSeal = await supabase.from('seals').update( {
           verified: true,
           verifiedById: userId,
           scannedAt: new Date()
@@ -138,9 +132,7 @@ export const POST = withAuth(
       });
 
       // Update the session status to COMPLETED
-      const updatedSession = await prisma.session.update({
-        where: { id: seal.sessionId },
-        data: { status: SessionStatus.COMPLETED }
+      const updatedSession = await supabase.from('sessions').update( { status: SessionStatus.COMPLETED }
       });
 
       return NextResponse.json(

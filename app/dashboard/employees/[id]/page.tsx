@@ -1,8 +1,8 @@
 import { notFound, redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-options";
-import prisma from "@/lib/prisma";
-import { UserRole, EmployeeSubrole } from "@/prisma/enums";
+import { supabase } from "@/lib/supabase";
+import { UserRole, EmployeeSubrole } from "@/lib/enums";
 import EmployeeDetailClient from "./client";
 import Link from "next/link";
 import prismaHelper from "@/lib/prisma-helper";
@@ -40,7 +40,7 @@ export default async function EmployeeDetailPage({ params, searchParams }: { par
 
     // Get user with detailed information using prisma helper
     const dbUser = await prismaHelper.executePrismaWithRetry(async () => {
-      return prisma.user.findUnique({
+      return supabase.from('users').findUnique({
         where: {
           id: session.user.id,
         },
@@ -71,7 +71,7 @@ export default async function EmployeeDetailPage({ params, searchParams }: { par
     
     // Get employee details with expanded company information
     const employee = await prismaHelper.executePrismaWithRetry(async () => {
-      return prisma.user.findUnique({
+      return supabase.from('users').findUnique({
         where: {
           id: params.id,
           role: UserRole.EMPLOYEE,
@@ -124,7 +124,7 @@ export default async function EmployeeDetailPage({ params, searchParams }: { par
       
       // 2. Check if employee is in company's employees list
       const companyRecord = await prismaHelper.executePrismaWithRetry(async () => {
-        return prisma.company.findFirst({
+        return supabase.from('companys').findFirst({
           where: {
             OR: [
               { id: companyIdToCheck },
@@ -182,7 +182,7 @@ export default async function EmployeeDetailPage({ params, searchParams }: { par
     
     // Get transaction history for this employee
     const transactions = await prismaHelper.executePrismaWithRetry(async () => {
-      return prisma.coinTransaction.findMany({
+      return supabase.from('coinTransactions').select('*').{
         where: {
           OR: [
             { fromUserId: employee.id },

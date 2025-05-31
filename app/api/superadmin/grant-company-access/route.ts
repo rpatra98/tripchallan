@@ -4,8 +4,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-options";
 import { withAuth } from "@/lib/auth";
-import prisma from "@/lib/prisma";
-import { UserRole, ActivityAction } from "@/prisma/enums";
+import { supabase } from "@/lib/supabase";
+import { UserRole, ActivityAction } from "@/lib/enums";
 import { addActivityLog } from "@/lib/activity-logger";
 
 // This endpoint allows a SuperAdmin to grant company access to an Admin
@@ -32,7 +32,7 @@ export const POST = withAuth(
       }
       
       // Verify admin exists and is an ADMIN
-      const admin = await prisma.user.findFirst({
+      const admin = await supabase.from('users').findFirst({
         where: {
           id: body.adminId,
           role: UserRole.ADMIN
@@ -47,11 +47,7 @@ export const POST = withAuth(
       }
       
       // Verify company exists
-      const company = await prisma.company.findUnique({
-        where: {
-          id: body.companyId
-        }
-      });
+      const company = await supabase.from('companys').select('*').eq('id', body.companyId).single();
       
       if (!company) {
         return NextResponse.json(

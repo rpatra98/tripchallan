@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { withAuth } from "@/lib/auth";
-import prisma from "@/lib/prisma";
+import { supabase } from "@/lib/supabase";
 import fs from 'fs';
 import path from 'path';
-import { UserRole } from "@/prisma/enums";
+import { UserRole } from "@/lib/enums";
 import fsPromises from 'fs/promises';
 
 // Directory for storing uploaded files
@@ -47,16 +47,14 @@ export async function GET(
     // Always try to get the image from the database first (most reliable source)
     try {
       // Verify the session exists
-      const session = await prisma.session.findUnique({
-        where: { id: sessionId },
-      });
+      const session = await supabase.from('sessions').select('*').eq('id', sessionId).single();
 
       if (!session) {
         console.error(`Session not found: ${sessionId}`);
         // Continue to file system fallback
       } else {
         // Find activity logs for this session that might contain image data
-        const activityLogs = await prisma.activityLog.findMany({
+        const activityLogs = await supabase.from('activityLogs').select('*').{
           where: {
             targetResourceId: sessionId,
             targetResourceType: 'session',
@@ -362,9 +360,7 @@ export const GET_OLD = withAuth(
       console.log(`Retrieving image for session ${sessionId}, type ${imageType}${index !== null ? `, index ${index}` : ''}`);
 
       // Get the session to verify it exists
-      const session = await prisma.session.findUnique({
-        where: { id: sessionId },
-      });
+      const session = await supabase.from('sessions').select('*').eq('id', sessionId).single();
 
       if (!session) {
         console.error(`Session not found: ${sessionId}`);
@@ -377,7 +373,7 @@ export const GET_OLD = withAuth(
       // Try to get the image from the database
       // We need to find the activity log that contains the base64 image data
       // Get all activity logs for this session to ensure we find all data
-      const allLogs = await prisma.activityLog.findMany({
+      const allLogs = await supabase.from('activityLogs').select('*').{
         where: {
           targetResourceId: sessionId,
           targetResourceType: 'session',

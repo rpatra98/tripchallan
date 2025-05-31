@@ -32,7 +32,7 @@ import {
   CloudUpload,
   Done as DoneIcon
 } from "@mui/icons-material";
-import { SealStatus } from "@/prisma/enums";
+import { SealStatus } from "@/lib/enums";
 
 interface SealVerificationProps {
   sessionId: string;

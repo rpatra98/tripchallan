@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-options";
 import { withAuth } from "@/lib/auth";
-import prisma from "@/lib/prisma";
-import { UserRole } from "@/prisma/enums";
+import { supabase } from "@/lib/supabase";
+import { UserRole } from "@/lib/enums";
 import { jsPDF } from 'jspdf';
 
 interface TripDetails {
@@ -76,7 +76,7 @@ export const GET = withAuth(
       // ======== DATA FETCHING SECTION ========
       
       // 1. Fetch the session with related data
-      const sessionData = await prisma.session.findUnique({
+      const sessionData = await supabase.from('sessions').findUnique({
         where: { id: sessionId },
         include: {
           createdBy: {
@@ -125,7 +125,7 @@ export const GET = withAuth(
         JSON.stringify(Object.keys(sessionData), null, 2));
       
       // 2. Fetch activity log with trip details (most reliable source)
-      const tripActivityLog = await prisma.activityLog.findFirst({
+      const tripActivityLog = await supabase.from('activity_logs').findFirst({
         where: {
           targetResourceId: sessionId,
           targetResourceType: 'session',
@@ -143,7 +143,7 @@ export const GET = withAuth(
       console.log(`Found trip activity log? ${tripActivityLog ? 'Yes (ID: ' + tripActivityLog.id + ')' : 'No'}`);
       
       // 3. Fetch verification logs
-      const verificationLogs = await prisma.activityLog.findMany({
+      const verificationLogs = await supabase.from('activityLogs').select('*').{
         where: {
           targetResourceId: sessionId,
           targetResourceType: 'session',

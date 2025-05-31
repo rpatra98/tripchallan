@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-options";
-import prisma from "@/lib/prisma";
-import { ActivityAction, EmployeeSubrole } from "@/prisma/enums";
+import { supabase } from "@/lib/supabase";
+import { ActivityAction, EmployeeSubrole } from "@/lib/enums";
 import { ActivityLog, User } from "@prisma/client";
 
 // Define types for our seal objects
@@ -68,7 +68,7 @@ export async function GET(
     
     try {
       // First, get the session to verify it exists
-      const sessionData = await prisma.session.findUnique({
+      const sessionData = await supabase.from('sessions').findUnique({
         where: { id: sessionId },
         include: {
           seal: {
@@ -98,7 +98,7 @@ export async function GET(
       console.log("[API DEBUG] Session found, retrieving activity logs");
 
       // Get all activity logs for this session
-      const activityLogs = await prisma.activityLog.findMany({
+      const activityLogs = await supabase.from('activityLogs').select('*').{
         where: {
           targetResourceId: sessionId,
           targetResourceType: 'session',

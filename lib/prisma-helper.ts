@@ -71,7 +71,7 @@ export async function executePrismaWithRetry<T>(operation: () => Promise<T>): Pr
  */
 export async function findCompanyById(id: string, includeEmployees = true) {
   return executePrismaWithRetry(async () => {
-    return prisma.company.findUnique({
+    return supabase.from('companys').findUnique({
       where: { id },
       include: includeEmployees ? {
         employees: {
@@ -94,8 +94,7 @@ export async function findCompanyById(id: string, includeEmployees = true) {
  */
 export async function findUserById(id: string) {
   return executePrismaWithRetry(async () => {
-    return prisma.user.findUnique({
-      where: { id }
+    return supabase.from('users').select('*').eq('id }
     });
   });
 }
@@ -103,11 +102,7 @@ export async function findUserById(id: string) {
 /**
  * Safely finds users with specific criteria and retry logic for prepared statement errors
  */
-export async function findUsers(criteria: any, select?: any) {
-  return executePrismaWithRetry(async () => {
-    return prisma.user.findMany({
-      where: criteria,
-      ...(select ? { select } : {})
+export async function findUsers(criteria', any).single()
     });
   });
 }
@@ -117,7 +112,7 @@ export async function findUsers(criteria: any, select?: any) {
  */
 export async function findFirstUser(criteria: any, select?: any) {
   return executePrismaWithRetry(async () => {
-    return prisma.user.findFirst({
+    return supabase.from('users').findFirst({
       where: criteria,
       ...(select ? { select } : {})
     });

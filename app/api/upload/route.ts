@@ -4,7 +4,7 @@ import { join } from 'path';
 import { v4 as uuidv4 } from 'uuid';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth-options';
-import { UserRole, EmployeeSubrole } from '@/prisma/enums';
+import { UserRole, EmployeeSubrole } from '@/lib/enums';
 
 export async function POST(request: NextRequest) {
   try {

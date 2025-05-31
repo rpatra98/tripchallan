@@ -1,19 +1,14 @@
 export const dynamic = 'force-dynamic';
 
 import { notFound } from "next/navigation";
-import prisma from "@/lib/prisma";
-import { UserRole } from "@/prisma/enums";
+import { supabase } from "@/lib/supabase";
+import { UserRole } from "@/lib/enums";
 
 export default async function CompanyDebugPage() {
   const companyId = "36615a10-15f3-48ab-b3b4-eecea1c39f66";
 
   // Check if the company exists
-  const company = await prisma.user.findUnique({
-    where: {
-      id: companyId,
-      role: UserRole.COMPANY,
-    },
-  });
+  const company = await supabase.from('users').select('*').eq('id', companyId).single();
 
   return (
     <div className="p-8">

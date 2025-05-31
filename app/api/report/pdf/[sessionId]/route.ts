@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { withAuth } from "@/lib/auth";
-import prisma from "@/lib/prisma";
-import { UserRole } from "@/prisma/enums";
+import { supabase } from "@/lib/supabase";
+import { UserRole } from "@/lib/enums";
 import { jsPDF } from "jspdf";
 
 // Helper function to format dates safely
@@ -35,7 +35,7 @@ async function handler(
     const sessionId = context.params.sessionId;
 
     // Get the session with all related data
-    const session = await prisma.session.findUnique({
+    const session = await supabase.from('sessions').findUnique({
       where: { id: sessionId },
       include: {
         company: true,

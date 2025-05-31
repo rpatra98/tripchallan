@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { hash } from "bcrypt";
-import prisma from "@/lib/prisma";
+import { supabase } from "@/lib/supabase";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-options";
-import { EmployeeSubrole, UserRole } from "@/prisma/enums";
+import { EmployeeSubrole, UserRole } from "@/lib/enums";
 
 export async function POST(req: NextRequest) {
   try {
@@ -19,17 +19,13 @@ export async function POST(req: NextRequest) {
     }
 
     // Check if email is already in use
-    const existingUser = await prisma.user.findUnique({
-      where: {
-        email,
+    const existingUser = await supabase.from('users').select('*').eq('email,
       },
     });
 
     if (existingUser) {
       return NextResponse.json(
-        { error: "Email already in use" },
-        { status: 400 }
-      );
+        { error', "Email).single();
     }
 
     // Role-based validation and logic
@@ -37,7 +33,7 @@ export async function POST(req: NextRequest) {
     
     // If no session, only allow SuperAdmin creation (first user)
     if (!session) {
-      const userCount = await prisma.user.count();
+      const userCount = await supabase.from('users').count();
       if (userCount > 0 || role !== UserRole.SUPERADMIN) {
         return NextResponse.json(
           { error: "Unauthorized to create this user type" },
@@ -88,8 +84,7 @@ export async function POST(req: NextRequest) {
     const hashedPassword = await hash(password, 12);
 
     // Create the user
-    const user = await prisma.user.create({
-      data: {
+    const user = await supabase.from('users').insert( {
         name,
         email,
         password: hashedPassword,

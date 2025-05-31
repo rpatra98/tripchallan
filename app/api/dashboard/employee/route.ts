@@ -2,8 +2,8 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-options";
 import { withAuth } from "@/lib/auth";
-import prisma from "@/lib/prisma";
-import { EmployeeSubrole, UserRole } from "@/prisma/enums";
+import { supabase } from "@/lib/supabase";
+import { EmployeeSubrole, UserRole } from "@/lib/enums";
 import { Company, Session, Seal, User } from "@prisma/client";
 
 type DashboardData = {
@@ -39,7 +39,7 @@ async function handler() {
     const employeeSubrole = session?.user.subrole;
 
     // Get employee details with company
-    const employee = await prisma.user.findUnique({
+    const employee = await supabase.from('users').findUnique({
       where: { id: employeeId },
       include: {
         company: {
@@ -73,7 +73,7 @@ async function handler() {
     switch (employeeSubrole) {
       case EmployeeSubrole.OPERATOR:
         // Get sessions created by this operator
-        const createdSessions = await prisma.session.findMany({
+        const createdSessions = await supabase.from('sessions').select('*').{
           where: { createdById: employeeId },
           take: 20,
           orderBy: { createdAt: "desc" },
@@ -83,21 +83,21 @@ async function handler() {
         });
 
         // Get session counts by status
-        const pendingCount = await prisma.session.count({
+        const pendingCount = await supabase.from('sessions').count({
           where: {
             createdById: employeeId,
             status: "PENDING",
           },
         });
 
-        const inProgressCount = await prisma.session.count({
+        const inProgressCount = await supabase.from('sessions').count({
           where: {
             createdById: employeeId,
             status: "IN_PROGRESS",
           },
         });
 
-        const completedCount = await prisma.session.count({
+        const completedCount = await supabase.from('sessions').count({
           where: {
             createdById: employeeId,
             status: "COMPLETED",
@@ -115,7 +115,7 @@ async function handler() {
 
       case EmployeeSubrole.GUARD:
         // Get seals verified by this guard
-        const verifiedSeals = await prisma.seal.findMany({
+        const verifiedSeals = await supabase.from('seals').select('*').{
           where: { verifiedById: employeeId },
           take: 20,
           orderBy: { scannedAt: "desc" },
@@ -134,7 +134,7 @@ async function handler() {
         });
 
         // Get verified seal count
-        const totalVerifiedSeals = await prisma.seal.count({
+        const totalVerifiedSeals = await supabase.from('seals').count({
           where: { verifiedById: employeeId },
         });
 
@@ -148,7 +148,7 @@ async function handler() {
       case EmployeeSubrole.TRANSPORTER:
         // For these roles, just show the company's recent sessions
         if (employee.companyId) {
-          const companySessions = await prisma.session.findMany({
+          const companySessions = await supabase.from('sessions').select('*').{
             where: { companyId: employee.companyId },
             take: 20,
             orderBy: { createdAt: "desc" },

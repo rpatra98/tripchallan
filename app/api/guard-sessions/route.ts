@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-options";
 import { withAuth } from "@/lib/auth";
-import prisma from "@/lib/prisma";
-import { UserRole, EmployeeSubrole, SessionStatus } from "@/prisma/enums";
+import { supabase } from "@/lib/supabase";
+import { UserRole, EmployeeSubrole, SessionStatus } from "@/lib/enums";
 
 // API route specifically for GUARD users to get sessions they should have access to
 async function handler(req: NextRequest) {
@@ -24,7 +24,7 @@ async function handler(req: NextRequest) {
     }
 
     // Get the guard's company ID
-    const guard = await prisma.user.findUnique({
+    const guard = await supabase.from('users').findUnique({
       where: { id: session.user.id },
       select: { 
         companyId: true,
@@ -60,7 +60,7 @@ async function handler(req: NextRequest) {
       : SessionStatus.IN_PROGRESS;
     
     // Query for sessions this guard should have access to
-    const sessions = await prisma.session.findMany({
+    const sessions = await supabase.from('sessions').select('*').{
       where: {
         companyId: guardCompanyId,
         status: statusParam
@@ -87,7 +87,7 @@ async function handler(req: NextRequest) {
       orderBy: { createdAt: "desc" }
     });
     
-    const totalCount = await prisma.session.count({
+    const totalCount = await supabase.from('sessions').count({
       where: {
         companyId: guardCompanyId,
         status: statusParam

@@ -15,7 +15,7 @@ import {
   Paper
 } from "@mui/material";
 import { Comment, Send } from "@mui/icons-material";
-import { UserRole } from "@/prisma/enums";
+import { UserRole } from "@/lib/enums";
 
 type UserType = {
   id: string;

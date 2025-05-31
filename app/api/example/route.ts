@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { withAuth } from "@/lib/auth";
-import { UserRole } from "@/prisma/enums";
+import { UserRole } from "@/lib/enums";
 import { withCreateLogging, withViewLogging, withUpdateLogging, withDeleteLogging } from "@/lib/api-logger";
 
 /**

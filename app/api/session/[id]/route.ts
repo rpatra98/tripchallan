@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-options";
 import { withAuth } from "@/lib/auth";
-import prisma from "@/lib/prisma";
-import { UserRole } from "@/prisma/enums";
+import { supabase } from "@/lib/supabase";
+import { UserRole } from "@/lib/enums";
 
 interface ActivityLogDetails {
   tripDetails?: Record<string, unknown>;
@@ -42,7 +42,7 @@ async function handler(
     const id = context.params.id;
 
     // Find the session with related data
-    const sessionData = await prisma.session.findUnique({
+    const sessionData = await supabase.from('sessions').findUnique({
       where: { id },
       include: {
         createdBy: {
@@ -88,7 +88,7 @@ async function handler(
     }
 
     // Fetch all activity logs for this session to ensure we find trip details and images
-    const activityLogs = await prisma.activityLog.findMany({
+    const activityLogs = await supabase.from('activityLogs').select('*').{
       where: {
         targetResourceId: id,
         targetResourceType: 'session',
@@ -117,7 +117,7 @@ async function handler(
     console.log(`[API DEBUG] Found trip details log: ${!!tripDetailsLog}, Found images log: ${!!imagesLog}`);
     
     // Fetch verification activity logs
-    const verificationLogs = await prisma.activityLog.findMany({
+    const verificationLogs = await supabase.from('activityLogs').select('*').{
       where: {
         targetResourceId: id,
         targetResourceType: 'session',
@@ -256,7 +256,7 @@ async function handler(
     if (userRole === UserRole.ADMIN) {
       try {
         // Find companies created by this admin
-        const companiesCreatedByAdmin = await prisma.user.findMany({
+        const companiesCreatedByAdmin = await supabase.from('users').select('*').{
           where: {
             role: UserRole.COMPANY,
             createdById: userId,
@@ -326,7 +326,7 @@ async function handler(
         // verify that by checking if this session appears in the sessions API
         
         // Get the full company record
-        const companyRecord = await prisma.user.findUnique({
+        const companyRecord = await supabase.from('users').findUnique({
           where: { id: userId as string },
           include: { company: true }
         });
@@ -340,7 +340,7 @@ async function handler(
         
         // EMERGENCY BYPASS: Get all sessions for the company's dashboard view
         // This should match what they can see in the dashboard
-        const dashboardSessions = await prisma.session.findMany({
+        const dashboardSessions = await supabase.from('sessions').select('*').{
           where: {
             OR: [
               // Direct ID match
@@ -396,7 +396,7 @@ async function handler(
       
       // Check if employee belongs to the same company as the session
       try {
-        const employeeData = await prisma.user.findUnique({
+        const employeeData = await supabase.from('users').findUnique({
           where: { id: userId as string },
           select: { companyId: true }
         });
@@ -416,7 +416,7 @@ async function handler(
         console.log("[API DEBUG] Checking GUARD company access");
         
         // Get the guard's company
-        const guardUser = await prisma.user.findUnique({
+        const guardUser = await supabase.from('users').findUnique({
           where: { id: userId as string },
           select: { 
             companyId: true,
@@ -476,7 +476,7 @@ async function handler(
     if (userRole === UserRole.EMPLOYEE && session?.user.subrole === 'GUARD') {
       try {
         // Try looking up all sessions for this company
-        const companySessions = await prisma.session.count({
+        const companySessions = await supabase.from('sessions').count({
           where: { 
             companyId: sessionData.companyId 
           }

@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-options";
-import prisma from "@/lib/prisma";
-import { ActivityAction, EmployeeSubrole, SealStatus, UserRole } from "@/prisma/enums";
+import { supabase } from "@/lib/supabase";
+import { ActivityAction, EmployeeSubrole, SealStatus, UserRole } from "@/lib/enums";
 
 export async function PATCH(
   req: NextRequest,
@@ -16,7 +16,7 @@ export async function PATCH(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const user = await prisma.user.findUnique({
+    const user = await supabase.from('users').findUnique({
       where: { email: session.user.email },
       select: { id: true, name: true, email: true, role: true, subrole: true }
     });
@@ -44,7 +44,7 @@ export async function PATCH(
     }
 
     // Get the current seal
-    const existingSeal = await prisma.seal.findUnique({
+    const existingSeal = await supabase.from('seals').findUnique({
       where: { id: params.sealId },
       include: { session: true }
     });
@@ -93,9 +93,7 @@ export async function PATCH(
     }
 
     // Update the seal status
-    const updatedSeal = await prisma.seal.update({
-      where: { id: params.sealId },
-      data: {
+    const updatedSeal = await supabase.from('seals').update( {
         status,
         statusComment: comment,
         statusUpdatedAt: new Date(),
@@ -118,8 +116,7 @@ export async function PATCH(
     });
 
     // Create activity log
-    await prisma.activityLog.create({
-      data: {
+    await supabase.from('activityLogs').insert( {
         action: ActivityAction.UPDATE,
         details: {
           previousStatus: existingSeal.status,

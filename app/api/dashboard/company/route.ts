@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-options";
 import { withAuth } from "@/lib/auth";
-import prisma from "@/lib/prisma";
-import { SessionStatus, UserRole } from "@/prisma/enums";
+import { supabase } from "@/lib/supabase";
+import { SessionStatus, UserRole } from "@/lib/enums";
 
 async function handler() {
   try {
@@ -11,7 +11,7 @@ async function handler() {
     const companyId = session?.user.id;
 
     // Get company details
-    const company = await prisma.user.findUnique({
+    const company = await supabase.from('users').findUnique({
       where: { id: companyId },
       select: {
         id: true,
@@ -30,7 +30,7 @@ async function handler() {
     }
 
     // Get employee count
-    const employeeCount = await prisma.user.count({
+    const employeeCount = await supabase.from('users').count({
       where: {
         companyId: companyId,
         role: UserRole.EMPLOYEE,
@@ -38,21 +38,21 @@ async function handler() {
     });
 
     // Get sessions by status
-    const pendingSessions = await prisma.session.count({
+    const pendingSessions = await supabase.from('sessions').count({
       where: {
         companyId: companyId,
         status: SessionStatus.PENDING,
       },
     });
 
-    const inProgressSessions = await prisma.session.count({
+    const inProgressSessions = await supabase.from('sessions').count({
       where: {
         companyId: companyId,
         status: SessionStatus.IN_PROGRESS,
       },
     });
 
-    const completedSessions = await prisma.session.count({
+    const completedSessions = await supabase.from('sessions').count({
       where: {
         companyId: companyId,
         status: SessionStatus.COMPLETED,
@@ -60,7 +60,7 @@ async function handler() {
     });
 
     // Get recent sessions
-    const recentSessions = await prisma.session.findMany({
+    const recentSessions = await supabase.from('sessions').select('*').{
       where: { companyId: companyId },
       take: 10,
       orderBy: { createdAt: "desc" },
@@ -77,14 +77,14 @@ async function handler() {
     });
 
     // Get seal stats
-    const verifiedSealsCount = await prisma.seal.count({
+    const verifiedSealsCount = await supabase.from('seals').count({
       where: {
         session: { companyId: companyId },
         verified: true,
       },
     });
 
-    const unverifiedSealsCount = await prisma.seal.count({
+    const unverifiedSealsCount = await supabase.from('seals').count({
       where: {
         session: { companyId: companyId },
         verified: false,
@@ -92,7 +92,7 @@ async function handler() {
     });
 
     // Get recent comments on company's sessions
-    const recentComments = await prisma.comment.findMany({
+    const recentComments = await supabase.from('comments').select('*').{
       where: {
         session: { companyId: companyId },
       },
@@ -117,7 +117,7 @@ async function handler() {
     });
 
     // Get coin transactions
-    const coinTransactions = await prisma.coinTransaction.findMany({
+    const coinTransactions = await supabase.from('coinTransactions').select('*').{
       where: {
         OR: [
           { fromUserId: companyId },

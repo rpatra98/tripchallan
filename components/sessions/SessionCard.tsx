@@ -25,7 +25,7 @@ import {
   Lock,
   CheckCircle
 } from "@mui/icons-material";
-import { SessionStatus, EmployeeSubrole } from "@/prisma/enums";
+import { SessionStatus, EmployeeSubrole } from "@/lib/enums";
 
 type SealType = {
   id: string;
