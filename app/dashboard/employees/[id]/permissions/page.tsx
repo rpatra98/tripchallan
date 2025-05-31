@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { UserRole, EmployeeSubrole } from "@/prisma/enums";
+import { UserRole, EmployeeSubrole } from "@/lib/enums";
 import Link from "next/link";
 
 interface PermissionsForm {

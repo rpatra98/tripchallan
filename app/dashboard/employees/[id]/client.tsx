@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { UserRole, EmployeeSubrole } from "@/prisma/enums";
+import { UserRole, EmployeeSubrole } from "@/lib/enums";
 import PermissionsEditorWrapper from "@/app/components/PermissionsEditorWrapper";
 import { 
   Button, 

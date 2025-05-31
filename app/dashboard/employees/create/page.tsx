@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useContext } from "react";
 import { useRouter } from "next/navigation";
-import { EmployeeSubrole, UserRole } from "@/prisma/enums";
+import { EmployeeSubrole, UserRole } from "@/lib/enums";
 import { FaEye, FaEyeSlash } from "react-icons/fa";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
