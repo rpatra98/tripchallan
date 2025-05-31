@@ -63,34 +63,17 @@ export async function GET(req: NextRequest) {
       console.log("SuperAdmin fetching all employees");
       
       try {
-        const allEmployees = await supabase.from('users').select('*').{
-          where: {
-            role: UserRole.EMPLOYEE,
-          },
-          take: limit,
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            role: true,
-            subrole: true,
-            createdAt: true,
-            coins: true,
-            company: {
-              select: {
-                id: true,
-                name: true,
-                email: true,
-              },
-            },
-          },
-          orderBy: {
-            createdAt: "desc",
-          },
-        });
-        
-        console.log(`Found ${allEmployees.length} employees total`);
-        return NextResponse.json(allEmployees);
+        const { data: allEmployees, error: employeesError } = await supabase
+          .from('users')
+          .select('*')
+          .eq('role', UserRole.EMPLOYEE);
+
+        if (employeesError) {
+          console.error('Error fetching employees:', employeesError);
+          return NextResponse.json({ error: 'Failed to fetch employees' }, { status: 500 });
+        }
+
+        return NextResponse.json({ employees: allEmployees || [] });
       } catch (dbError) {
         console.error("Database error fetching all employees:", dbError);
         throw dbError;

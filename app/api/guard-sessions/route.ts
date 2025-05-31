@@ -60,33 +60,17 @@ async function handler(req: NextRequest) {
       : SessionStatus.IN_PROGRESS;
     
     // Query for sessions this guard should have access to
-    const sessions = await supabase.from('sessions').select('*').{
-      where: {
-        companyId: guardCompanyId,
-        status: statusParam
-      },
-      include: {
-        createdBy: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            subrole: true,
-          },
-        },
-        company: {
-          select: {
-            id: true,
-            name: true,
-          },
-        },
-        seal: true,
-      },
-      skip,
-      take: limit,
-      orderBy: { createdAt: "desc" }
-    });
-    
+    const { data: sessions, error: sessionsError } = await supabase
+      .from('sessions')
+      .select('*')
+      .eq('companyId', guardCompanyId)
+      .eq('status', statusParam);
+
+    if (sessionsError) {
+      console.error('Error fetching guard sessions:', sessionsError);
+      return NextResponse.json({ error: 'Failed to fetch sessions' }, { status: 500 });
+    }
+
     const totalCount = await supabase.from('sessions').count({
       where: {
         companyId: guardCompanyId,

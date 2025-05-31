@@ -169,8 +169,16 @@ export async function PUT(
     }
     
     // Update the employee
-    const updatedEmployee = await supabase.from('users').update( updateData,
-    });
+    const { data: updatedEmployee, error: updateError } = await supabase
+      .from('users')
+      .update(updateData)
+      .eq('id', params.id)
+      .select();
+
+    if (updateError) {
+      console.error('Error updating employee:', updateError);
+      return NextResponse.json({ error: 'Failed to update employee' }, { status: 500 });
+    }
     
     // Update operator permissions if provided
     if (permissions && subrole === "OPERATOR") {

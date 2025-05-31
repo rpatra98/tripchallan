@@ -78,7 +78,16 @@ export async function GET(req: NextRequest) {
     
     // Create each test log
     for (const logData of testLogs) {
-      const log = await supabase.from('activityLogs').insert( logData });
+      const { data: log, error: insertError } = await supabase
+        .from('activityLogs')
+        .insert(logData)
+        .select();
+
+      if (insertError) {
+        console.error('Error creating test log:', insertError);
+        continue;
+      }
+
       createdLogs.push(log);
       console.log(`Created activity log: ${logData.action}`);
     }

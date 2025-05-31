@@ -188,21 +188,39 @@ export const PUT = withAuth(
       
       if (employee.operatorPermissions) {
         // Update existing permissions
-        updatedPermissions = await supabase.from('operatorPermissionss').update( {
+        const { data: updatedPermissions, error: updateError } = await supabase
+          .from('operatorPermissions')
+          .update({
             canCreate: permissions.canCreate,
+            canRead: permissions.canRead,
+            canUpdate: permissions.canUpdate,
             canModify: permissions.canModify,
             canDelete: permissions.canDelete,
-          }
-        });
+          })
+          .eq('employeeId', employeeId);
+
+        if (updateError) {
+          console.error('Error updating permissions:', updateError);
+          return NextResponse.json({ error: 'Failed to update permissions' }, { status: 500 });
+        }
       } else {
         // Create new permissions
-        updatedPermissions = await supabase.from('operatorPermissionss').insert( {
-            userId: employeeId,
+        const { data: newPermissions, error: insertError } = await supabase
+          .from('operatorPermissions')
+          .insert({
+            employeeId,
             canCreate: permissions.canCreate,
+            canRead: permissions.canRead,
+            canUpdate: permissions.canUpdate,
             canModify: permissions.canModify,
             canDelete: permissions.canDelete,
-          }
-        });
+          })
+          .select();
+
+        if (insertError) {
+          console.error('Error creating permissions:', insertError);
+          return NextResponse.json({ error: 'Failed to create permissions' }, { status: 500 });
+        }
       }
 
       // Log the activity
