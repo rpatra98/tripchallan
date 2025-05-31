@@ -169,10 +169,17 @@ async function handler(req: NextRequest) {
     const { data: coinTransaction, error: transactionError } = await supabase
       .from('coin_transactions')
       .insert({
+        // Include both naming conventions for maximum compatibility
         from_user_id: senderId,
         to_user_id: to_user_id,
+        fromUserId: senderId,
+        toUserId: to_user_id,
         amount: amount,
         notes: transactionNotes,
+        reason: 'MANUAL_TRANSFER',
+        reasonText: 'Manual Transfer',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
       })

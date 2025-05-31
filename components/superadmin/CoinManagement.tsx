@@ -298,16 +298,21 @@ export default function CoinManagement() {
               return;
             }
             
-            // Simplify transaction creation - just use snake_case fields
+            // Simplify transaction creation - use both snake_case and camelCase fields
             for (const admin of admins) {
               try {
                 const { error: createError } = await supabase
                   .from('coin_transactions')
                   .insert({
+                    // Include both snake_case and camelCase fields for maximum compatibility
                     from_user_id: session.user.id,
                     to_user_id: admin.id,
+                    fromUserId: session.user.id,
+                    toUserId: admin.id,
                     amount: 1000,
-                    notes: `Initial coin allocation for ${admin.name}`
+                    notes: `Initial coin allocation for ${admin.name}`,
+                    reason: 'ALLOCATION',
+                    reasonText: 'Initial Allocation'
                   });
                 
                 if (createError) {
@@ -462,9 +467,14 @@ export default function CoinManagement() {
       // Prepare the payload
       const transactionData = {
         amount: values.amount,
+        // Include both snake_case and camelCase fields for maximum compatibility
         from_user_id: isTakingCoins ? values.adminId : session.user.id,
         to_user_id: isTakingCoins ? session.user.id : values.adminId,
-        notes: values.notes || undefined
+        fromUserId: isTakingCoins ? values.adminId : session.user.id,
+        toUserId: isTakingCoins ? session.user.id : values.adminId,
+        notes: values.notes || undefined,
+        reason: values.reason,
+        reasonText: values.reason || 'Manual Transfer'
       };
 
       // Check if the admin has enough coins when taking coins
