@@ -2,7 +2,7 @@
 
 import { useState, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { UserRole } from "@/prisma/enums";
+import { UserRole } from "@/lib/enums";
 import { 
   Box, 
   TextField, 

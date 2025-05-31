@@ -30,7 +30,7 @@ import {
   PhotoCamera,
   Flag
 } from "@mui/icons-material";
-import { UserRole } from "@/prisma/enums";
+import { UserRole } from "@/lib/enums";
 
 type UserType = {
   id: string;

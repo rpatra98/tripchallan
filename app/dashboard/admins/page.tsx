@@ -25,7 +25,7 @@ import { format } from "date-fns";
 import toast from "react-hot-toast";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
-import { UserRole } from "@/prisma/enums";
+import { UserRole } from "@/lib/enums";
 import { SearchableTable } from "@/components/ui/searchable-table";
 
 interface AdminUser {
