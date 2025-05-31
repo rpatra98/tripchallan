@@ -29,28 +29,21 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "Session ID is required" }, { status: 400 });
     }
 
-    const comments = await supabase.from('comments').select('*').{
-      where: { sessionId },
-      orderBy: { createdAt: "desc" },
-      include: {
-        user: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            role: true,
-          },
-        },
-      },
-    });
+    const { data: comments, error } = await supabase
+      .from('comments')
+      .select('*')
+      .eq('sessionId', sessionId)
+      .order('createdAt', { ascending: false });
 
-    return NextResponse.json(comments);
+    if (error) {
+      console.error('Error fetching comments:', error);
+      return NextResponse.json({ error: 'Failed to fetch comments' }, { status: 500 });
+    }
+
+    return NextResponse.json(comments || []);
   } catch (error) {
-    console.error("Error fetching comments:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch comments" },
-      { status: 500 }
-    );
+    console.error('Error in comments route:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
 
@@ -192,9 +185,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(comment);
     }
   } catch (error) {
-    console.error("Error creating comment:", error);
+    console.error('Error in comments route:', error);
     return NextResponse.json(
-      { error: "Failed to create comment" },
+      { error: 'Internal server error' },
       { status: 500 }
     );
   }

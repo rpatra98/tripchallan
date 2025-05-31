@@ -42,101 +42,51 @@ export const GET = withAuth(
         );
       }
       
-      // Find companies created by this admin
-      const companyUsers = await supabase.from('users').select('*').{
-        where: {
-          role: UserRole.COMPANY,
-          createdById: adminId,
-        },
-        select: {
-          id: true,
-          companyId: true,
-        }
-      });
+      // Get companies created by this admin
+      const { data: companyUsers, error: companyError } = await supabase
+        .from('users')
+        .select('*')
+        .eq('role', UserRole.COMPANY)
+        .eq('createdById', adminId);
       
-      // Get the company IDs associated with these users
-      const companyIds = companyUsers
-        .filter((user: { companyId?: string }) => user.companyId)
-        .map((user: { companyId?: string }) => user.companyId);
-      
-      // Also find companies where the admin has created any users
-      const adminEmployeeCreations = await supabase.from('users').select('*').{
-        where: {
-          role: UserRole.EMPLOYEE,
-          createdById: adminId,
-          NOT: {
-            companyId: null
-          }
-        },
-        select: {
-          companyId: true
-        },
-        distinct: ['companyId']
-      });
-      
-      // Add company IDs from employee creation relationships
-      const employeeCompanyIds = adminEmployeeCreations
-        .filter((user: { companyId?: string }) => user.companyId)
-        .map((user: { companyId?: string }) => user.companyId);
-      
-      // Combine both sets of company IDs without duplicates
-      const uniqueCompanyIds = [...new Set([...companyIds, ...employeeCompanyIds])];
-      
-      // Also check for custom permissions if that table exists
-      try {
-        const customPermCheck = await prisma.$queryRaw`
-          SELECT EXISTS (
-            SELECT 1 FROM information_schema.tables 
-            WHERE table_name = 'custom_permissions'
-          )`;
-          
-        if (customPermCheck && customPermCheck[0] && customPermCheck[0].exists) {
-          const customPerms = await prisma.$queryRaw`
-            SELECT resource_id FROM custom_permissions 
-            WHERE permission_type = 'ADMIN_COMPANY' 
-            AND user_id = ${adminId}`;
-            
-          if (customPerms && customPerms.length > 0) {
-            // Add these company IDs to the list
-            customPerms.forEach((perm: { resource_id?: string }) => {
-              if (perm.resource_id && !uniqueCompanyIds.includes(perm.resource_id)) {
-                uniqueCompanyIds.push(perm.resource_id);
-              }
-            });
-          }
-        }
-      } catch (err) {
-        console.error("Error checking custom permissions for companies:", err);
-        // Continue without failing
+      if (companyError) {
+        console.error('Error fetching companies:', companyError);
+        return NextResponse.json({ error: 'Failed to fetch companies' }, { status: 500 });
       }
       
-      // Get companies based on the combined IDs
-      let companies = [];
-      if (uniqueCompanyIds.length > 0) {
-        companies = await supabase.from('companys').select('*').{
-          where: {
-            id: {
-              in: uniqueCompanyIds as string[]
-            }
-          },
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            createdAt: true,
-            updatedAt: true,
-          },
-          orderBy: { name: "asc" },
-        });
+      // Get companies where admin has created employees
+      const { data: employeeUsers, error: employeeError } = await supabase
+        .from('users')
+        .select('companyId')
+        .eq('role', UserRole.EMPLOYEE)
+        .eq('createdById', adminId);
+      
+      if (employeeError) {
+        console.error('Error fetching employee companies:', employeeError);
+        return NextResponse.json({ error: 'Failed to fetch employee companies' }, { status: 500 });
       }
       
-      return NextResponse.json({ companies });
+      // Combine and deduplicate company IDs
+      const companyIds = new Set([
+        ...(companyUsers?.map(user => user.id) || []),
+        ...(employeeUsers?.map(user => user.companyId).filter(Boolean) || [])
+      ]);
+      
+      // Get full company details
+      const { data: companies, error: companiesError } = await supabase
+        .from('users')
+        .select('*')
+        .in('id', Array.from(companyIds));
+      
+      if (companiesError) {
+        console.error('Error fetching company details:', companiesError);
+        return NextResponse.json({ error: 'Failed to fetch company details' }, { status: 500 });
+      }
+      
+      return NextResponse.json(companies || []);
     } catch (error) {
-      console.error("Error fetching admin accessible companies:", error);
-      return NextResponse.json(
-        { error: "Failed to fetch admin accessible companies" },
-        { status: 500 }
-      );
+      console.error('Error in accessible companies route:', error);
+      return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
     }
   },
   [UserRole.SUPERADMIN]

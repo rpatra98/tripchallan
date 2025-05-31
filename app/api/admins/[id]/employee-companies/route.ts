@@ -42,51 +42,41 @@ export const GET = withAuth(
         );
       }
       
-      // Get unique company IDs where the admin has created users
-      const companyUsersQuery = await supabase.from('users').select('*').{
-        where: {
-          createdById: adminId,
-          NOT: {
-            companyId: null
-          }
-        },
-        select: {
-          companyId: true
-        },
-        distinct: ['companyId']
-      });
+      // Get companies where admin has created employees
+      const { data: employeeUsers, error: employeeError } = await supabase
+        .from('users')
+        .select('companyId')
+        .eq('role', UserRole.EMPLOYEE)
+        .eq('createdById', adminId);
       
-      const companyIds = companyUsersQuery
-        .filter((item: { companyId?: string }) => item.companyId)
-        .map((item: { companyId?: string }) => item.companyId);
-      
-      // Get companies based on these IDs
-      let companies = [];
-      if (companyIds.length > 0) {
-        companies = await supabase.from('companys').select('*').{
-          where: {
-            id: {
-              in: companyIds as string[]
-            }
-          },
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            createdAt: true,
-            updatedAt: true,
-          },
-          orderBy: { name: "asc" },
-        });
+      if (employeeError) {
+        console.error('Error fetching employee companies:', employeeError);
+        return NextResponse.json({ error: 'Failed to fetch employee companies' }, { status: 500 });
       }
       
-      return NextResponse.json({ companies });
+      // Get unique company IDs
+      const companyIds = [...new Set(employeeUsers?.map(user => user.companyId).filter(Boolean) || [])];
+      
+      if (companyIds.length === 0) {
+        return NextResponse.json([]);
+      }
+      
+      // Get company details
+      const { data: companies, error: companiesError } = await supabase
+        .from('users')
+        .select('*')
+        .in('id', companyIds)
+        .eq('role', UserRole.COMPANY);
+      
+      if (companiesError) {
+        console.error('Error fetching company details:', companiesError);
+        return NextResponse.json({ error: 'Failed to fetch company details' }, { status: 500 });
+      }
+      
+      return NextResponse.json(companies || []);
     } catch (error) {
-      console.error("Error fetching admin employee companies:", error);
-      return NextResponse.json(
-        { error: "Failed to fetch companies" },
-        { status: 500 }
-      );
+      console.error('Error in employee companies route:', error);
+      return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
     }
   },
   [UserRole.SUPERADMIN]

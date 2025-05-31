@@ -50,37 +50,24 @@ async function handler(
     const operatorIds = new Set<string>();
     
     // Source 1: Companies created by this admin
-    const createdCompanies = await supabase.from('users').select('*').{
-      where: {
-        role: UserRole.COMPANY,
-        createdById: adminId,
-      },
-      select: {
-        id: true,
-        name: true,
-        email: true
-      },
-    });
+    const createdCompanies = await supabase.from('users').select('*').eq('role', UserRole.COMPANY).eq('createdById', adminId);
     
-    createdCompanies.forEach((company: Company) => companyIds.add(company.id));
-    console.log(`🔍 Found ${createdCompanies.length} companies created by admin`);
+    if (createdCompanies.error) {
+      console.error('Error fetching created companies:', createdCompanies.error);
+      return NextResponse.json({ error: 'Failed to fetch created companies' }, { status: 500 });
+    }
+    
+    createdCompanies.data?.forEach((company: Company) => companyIds.add(company.id));
+    console.log(`🔍 Found ${createdCompanies.data?.length} companies created by admin`);
     
     // Source 2: Companies the admin has access to via custom permissions
     try {
-      const customPermissions = await supabase.from('custom_permissionss').select('*').{
-        where: {
-          userId: adminId,
-          resourceType: "COMPANY",
-        },
-        select: {
-          resourceId: true,
-        },
-      });
+      const customPermissions = await supabase.from('custom_permissionss').select('*').eq('userId', adminId).eq('resourceType', 'COMPANY');
       
-      customPermissions.forEach((permission: { resourceId?: string }) => {
+      customPermissions.data?.forEach((permission: { resourceId?: string }) => {
         if (permission.resourceId) companyIds.add(permission.resourceId);
       });
-      console.log(`🔍 Found ${customPermissions.length} custom permission entries`);
+      console.log(`🔍 Found ${customPermissions.data?.length} custom permission entries`);
     } catch (error) {
       console.log("Custom permissions table may not exist or other error:", error);
       // Continue if the table doesn't exist
@@ -88,44 +75,24 @@ async function handler(
     
     // Source 3: Companies where the admin created employees
     try {
-      const companiesWithEmployees = await supabase.from('users').select('*').{
-        where: {
-          role: {
-            in: [UserRole.EMPLOYEE, "GUARD"]
-          },
-          createdById: adminId,
-        },
-        select: {
-          companyId: true
-        },
-        distinct: ['companyId']
-      });
+      const companiesWithEmployees = await supabase.from('users').select('*').eq('role', UserRole.EMPLOYEE).eq('createdById', adminId);
       
-      companiesWithEmployees.forEach((item: { companyId?: string }) => {
+      companiesWithEmployees.data?.forEach((item: { companyId?: string }) => {
         if (item.companyId) companyIds.add(item.companyId);
       });
-      console.log(`🔍 Found ${companiesWithEmployees.length} companies with employees created by admin`);
+      console.log(`🔍 Found ${companiesWithEmployees.data?.length} companies with employees created by admin`);
     } catch (error) {
       console.log("Error fetching companies with employees:", error);
     }
     
     // Source 4: Find OPERATORS created by this admin
     try {
-      const operatorsCreatedByAdmin = await supabase.from('users').select('*').{
-        where: {
-          role: UserRole.EMPLOYEE,
-          subrole: EmployeeSubrole.OPERATOR,
-          createdById: adminId,
-        },
-        select: {
-          id: true,
-        }
-      });
+      const operatorsCreatedByAdmin = await supabase.from('users').select('*').eq('role', UserRole.EMPLOYEE).eq('subrole', EmployeeSubrole.OPERATOR).eq('createdById', adminId);
       
-      operatorsCreatedByAdmin.forEach((operator: { id: string }) => {
+      operatorsCreatedByAdmin.data?.forEach((operator: { id: string }) => {
         operatorIds.add(operator.id);
       });
-      console.log(`🔍 Found ${operatorsCreatedByAdmin.length} OPERATORS created by admin`);
+      console.log(`🔍 Found ${operatorsCreatedByAdmin.data?.length} OPERATORS created by admin`);
     } catch (error) {
       console.log("Error fetching operators created by admin:", error);
     }
@@ -179,43 +146,7 @@ async function handler(
     console.log(`🔍 Using where clause:`, JSON.stringify(whereClause));
 
     // Fetch sessions with pagination
-    const sessions = await supabase.from('sessions').select('*').{
-      skip,
-      take: limit,
-      orderBy: { createdAt: "desc" },
-      include: {
-        createdBy: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            subrole: true,
-            createdBy: {
-              select: {
-                id: true,
-                name: true,
-                email: true
-              }
-            }
-          },
-        },
-        company: {
-          select: {
-            id: true,
-            name: true,
-          },
-        },
-        seal: {
-          select: {
-            id: true,
-            barcode: true,
-            verified: true,
-            scannedAt: true,
-          },
-        },
-      },
-      where: whereClause
-    });
+    const sessions = await supabase.from('sessions').select('*').eq('createdById', adminId).orderBy('createdAt', { ascending: false });
 
     console.log(`🔍 Found ${sessions.length} sessions for admin`);
 
@@ -227,25 +158,4 @@ async function handler(
     // For debugging - show some session details
     if (sessions.length > 0) {
       console.log(`🔍 First session - ID: ${sessions[0].id}, Company: ${sessions[0].company?.name || 'Unknown'}`);
-      console.log(`🔍 Created by: ${sessions[0].createdBy?.name}, Subrole: ${sessions[0].createdBy?.subrole}`);
-    }
-
-    return NextResponse.json({
-      sessions,
-      totalCount,
-      page,
-      totalPages: Math.ceil(totalCount / limit),
-      hasNextPage: page < Math.ceil(totalCount / limit),
-      hasPrevPage: page > 1
-    });
-  } catch (error: unknown) {
-    console.error("Error fetching admin sessions:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch sessions" },
-      { status: 500 }
-    );
-  }
-}
-
-// Only SuperAdmin can access admin details
-export const GET = withAuth(handler, [UserRole.SUPERADMIN]); 
+      console.log(`

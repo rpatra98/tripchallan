@@ -19,13 +19,25 @@ export async function POST(req: NextRequest) {
     }
 
     // Check if email is already in use
-    const existingUser = await supabase.from('users').select('*').eq('email,
-      },
-    });
+    const { data: existingUser, error: checkError } = await supabase
+      .from('users')
+      .select('*')
+      .eq('email', email)
+      .single();
+
+    if (checkError && checkError.code !== 'PGRST116') {
+      console.error('Error checking existing user:', checkError);
+      return NextResponse.json(
+        { error: 'Failed to check existing user' },
+        { status: 500 }
+      );
+    }
 
     if (existingUser) {
       return NextResponse.json(
-        { error', "Email).single();
+        { error: 'Email already in use' },
+        { status: 400 }
+      );
     }
 
     // Role-based validation and logic
@@ -84,16 +96,30 @@ export async function POST(req: NextRequest) {
     const hashedPassword = await hash(password, 12);
 
     // Create the user
-    const user = await supabase.from('users').insert( {
-        name,
-        email,
-        password: hashedPassword,
-        role,
-        subrole: role === UserRole.EMPLOYEE ? subrole as EmployeeSubrole : null,
-        companyId: role === UserRole.EMPLOYEE ? companyId : null,
-        createdById: session?.user.id,
-      },
-    });
+    const { data: user, error: createError } = await supabase
+      .from('users')
+      .insert([
+        {
+          name,
+          email,
+          password: hashedPassword,
+          role,
+          subrole: role === UserRole.EMPLOYEE ? subrole as EmployeeSubrole : null,
+          companyId: role === UserRole.EMPLOYEE ? companyId : null,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        }
+      ])
+      .select()
+      .single();
+
+    if (createError) {
+      console.error('Error creating user:', createError);
+      return NextResponse.json(
+        { error: 'Failed to create user' },
+        { status: 500 }
+      );
+    }
 
     // Remove password from response
     const { password: _password, ...userWithoutPassword } = user;
