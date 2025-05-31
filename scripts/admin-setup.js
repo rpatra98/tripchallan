@@ -78,8 +78,7 @@ async function createTestAdmin() {
         from_user_id: superAdmin.id,
         to_user_id: newAdmin.id,
         amount: 50000,
-        reason: 'ADMIN_CREATION',
-        notes: 'Initial coin allocation for new admin',
+        notes: 'Initial coin allocation for new admin creation',
         created_at: now,
         updated_at: now
       })

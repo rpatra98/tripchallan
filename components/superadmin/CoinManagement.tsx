@@ -61,11 +61,14 @@ interface Transaction {
   fromUser?: {
     name: string;
     email: string;
+    role?: string;
   };
   toUser?: {
     name: string;
     email: string;
+    role?: string;
   };
+  transactionType?: string;
 }
 
 // Transaction schema for form validation
@@ -247,12 +250,10 @@ export default function CoinManagement() {
     try {
       setLoadingTransactions(true);
       
-      // First get the transactions without foreign key relationships
-      // Make sure to get specifically admin creation and system transactions
+      // Just get all transactions and handle the filtering in the UI
       const { data: transactionData, error: transactionError } = await supabase
         .from('coin_transactions')
         .select('*')
-        .or(`reason.eq.SYSTEM,reason.eq.ADMIN_CREATION`)
         .order('created_at', { ascending: false })
         .limit(20);
       
@@ -263,27 +264,14 @@ export default function CoinManagement() {
         return;
       }
       
-      // If no transactions found, try fetching any available transactions as a fallback
       if (!transactionData || transactionData.length === 0) {
-        const { data: fallbackData, error: fallbackError } = await supabase
-          .from('coin_transactions')
-          .select('*')
-          .order('created_at', { ascending: false })
-          .limit(20);
-          
-        if (fallbackError || !fallbackData || fallbackData.length === 0) {
-          console.log('No transactions found in the system');
-          setTransactions([]);
-          setLoadingTransactions(false);
-          return;
-        }
-        
-        console.log('Found transactions through fallback:', fallbackData.length);
-        await processTransactions(fallbackData);
+        console.log('No transactions found in the system');
+        setTransactions([]);
+        setLoadingTransactions(false);
         return;
       }
       
-      console.log('Found admin/system transactions:', transactionData.length);
+      console.log('Found transactions:', transactionData.length);
       await processTransactions(transactionData);
     } catch (err) {
       console.error('Error fetching transactions:', err);
@@ -326,6 +314,8 @@ export default function CoinManagement() {
         ...transaction,
         fromUser: transaction.from_user_id ? userMap.get(transaction.from_user_id) : null,
         toUser: transaction.to_user_id ? userMap.get(transaction.to_user_id) : null,
+        // Add a derived transaction type based on pattern matching
+        transactionType: getTransactionTypeFromData(transaction)
       }));
       
       setTransactions(enrichedTransactions);
@@ -333,6 +323,29 @@ export default function CoinManagement() {
       console.error('Error processing transactions:', err);
       setTransactions([]);
     }
+  };
+
+  // Helper function to determine transaction type based on transaction data patterns
+  const getTransactionTypeFromData = (transaction: any): string => {
+    // Check for system transactions (self-transactions with same user ID)
+    if (transaction.from_user_id === transaction.to_user_id) {
+      return 'SYSTEM';
+    }
+    
+    // Check for pattern of admin creation (from SuperAdmin to an Admin)
+    if (transaction.from_user_id === session?.user?.id && 
+        transaction.to_user_id && 
+        transaction.notes && 
+        transaction.notes.toLowerCase().includes('admin')) {
+      return 'ADMIN_CREATION';
+    }
+    
+    // Default transaction types based on the amount
+    if (transaction.amount >= 50000) {
+      return 'ALLOCATION';
+    }
+    
+    return 'TRANSFER';
   };
 
   const handleTransferSubmit = async (values: any, { resetForm, setSubmitting }: any) => {
@@ -411,12 +424,14 @@ export default function CoinManagement() {
 
   const getTransactionDescription = (transaction: Transaction): string => {
     // Special handling for system transactions
-    if (transaction.reason === 'SYSTEM') {
+    if (transaction.from_user_id === transaction.to_user_id) {
       return 'System Balance Adjustment';
     }
     
-    // Special handling for admin creation transactions
-    if (transaction.reason === 'ADMIN_CREATION') {
+    // Check if it looks like an admin creation (from SuperAdmin to Admin with significant amount)
+    if (transaction.from_user_id === session?.user?.id && 
+        transaction.toUser?.role === 'ADMIN' && 
+        transaction.amount >= 10000) {
       return `Admin Creation: ${transaction.toUser?.name || 'Unknown Admin'}`;
     }
     
@@ -427,8 +442,15 @@ export default function CoinManagement() {
   };
 
   const getTransactionAmount = (transaction: Transaction): string => {
-    // For SYSTEM transactions, just show the amount
-    if (transaction.reason === 'SYSTEM' || transaction.reason === 'ADMIN_CREATION') {
+    // For system transactions, just show the amount
+    if (transaction.from_user_id === transaction.to_user_id) {
+      return `${transaction.amount}`;
+    }
+    
+    // For admin creation, just show the amount
+    if (transaction.from_user_id === session?.user?.id && 
+        transaction.toUser?.role === 'ADMIN' && 
+        transaction.amount >= 10000) {
       return `${transaction.amount}`;
     }
     
@@ -437,13 +459,15 @@ export default function CoinManagement() {
   };
 
   const getTransactionColor = (transaction: Transaction): string => {
-    // For SYSTEM transactions, use a neutral color
-    if (transaction.reason === 'SYSTEM') {
+    // For system transactions, use a neutral color
+    if (transaction.from_user_id === transaction.to_user_id) {
       return 'info.main';
     }
     
     // For admin creation, use a distinct color
-    if (transaction.reason === 'ADMIN_CREATION') {
+    if (transaction.from_user_id === session?.user?.id && 
+        transaction.toUser?.role === 'ADMIN' && 
+        transaction.amount >= 10000) {
       return 'secondary.main';
     }
     
@@ -453,42 +477,62 @@ export default function CoinManagement() {
 
   // Helper function to get a more descriptive reason text
   const getTransactionReasonText = (transaction: Transaction): string => {
-    switch (transaction.reason) {
-      case 'SYSTEM':
-        return 'System Adjustment';
-      case 'ADMIN_CREATION':
-        return 'Admin Creation';
-      case 'ALLOCATION':
-        return 'Coin Allocation';
-      case 'ADJUSTMENT':
-        return 'Balance Adjustment';
-      case 'BONUS':
-        return 'Bonus Coins';
-      case 'CORRECTION':
-        return 'Correction';
-      default:
-        return transaction.reason;
+    // For system transactions (self transactions)
+    if (transaction.from_user_id === transaction.to_user_id) {
+      return 'System Adjustment';
     }
+    
+    // For admin creation (from SuperAdmin to Admin with large amount)
+    if (transaction.from_user_id === session?.user?.id && 
+        transaction.toUser?.role === 'ADMIN' && 
+        transaction.amount >= 10000) {
+      return 'Admin Creation';
+    }
+    
+    // For large amounts (allocation)
+    if (transaction.amount >= 50000) {
+      return 'Coin Allocation';
+    }
+    
+    // Check notes for hints
+    if (transaction.notes) {
+      const notesLower = transaction.notes.toLowerCase();
+      if (notesLower.includes('bonus')) return 'Bonus Coins';
+      if (notesLower.includes('correction')) return 'Correction';
+      if (notesLower.includes('adjustment')) return 'Balance Adjustment';
+    }
+    
+    return 'Coin Transfer';
   };
 
   // Helper function to get chip color based on transaction type
   const getChipColor = (transaction: Transaction): "default" | "primary" | "secondary" | "error" | "info" | "success" | "warning" => {
-    switch (transaction.reason) {
-      case 'SYSTEM':
-        return 'info';
-      case 'ADMIN_CREATION':
-        return 'secondary';
-      case 'ALLOCATION':
-        return 'primary';
-      case 'ADJUSTMENT':
-        return 'warning';
-      case 'BONUS':
-        return 'success';
-      case 'CORRECTION':
-        return 'error';
-      default:
-        return 'default';
+    // For system transactions (self transactions)
+    if (transaction.from_user_id === transaction.to_user_id) {
+      return 'info';
     }
+    
+    // For admin creation (from SuperAdmin to Admin with large amount)
+    if (transaction.from_user_id === session?.user?.id && 
+        transaction.toUser?.role === 'ADMIN' && 
+        transaction.amount >= 10000) {
+      return 'secondary';
+    }
+    
+    // For large amounts (allocation)
+    if (transaction.amount >= 50000) {
+      return 'primary';
+    }
+    
+    // Check notes for hints
+    if (transaction.notes) {
+      const notesLower = transaction.notes.toLowerCase();
+      if (notesLower.includes('bonus')) return 'success';
+      if (notesLower.includes('correction')) return 'error';
+      if (notesLower.includes('adjustment')) return 'warning';
+    }
+    
+    return 'default';
   };
 
   if (!session?.user) {

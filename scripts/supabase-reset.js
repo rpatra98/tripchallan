@@ -214,7 +214,6 @@ async function createSuperAdmin() {
         from_user_id: newAdmin.id,
         to_user_id: newAdmin.id,
         amount: 1000000,
-        reason: 'SYSTEM',
         notes: 'Initial coin allocation for SuperAdmin',
         created_at: now,
         updated_at: now
@@ -273,8 +272,7 @@ async function createTestData(superAdminId) {
         from_user_id: superAdminId,
         to_user_id: newAdmin.id,
         amount: 50000,
-        reason: 'ADMIN_CREATION',
-        notes: 'Initial coin allocation for new admin',
+        notes: 'Initial coin allocation for new admin creation',
         created_at: now,
         updated_at: now
       });

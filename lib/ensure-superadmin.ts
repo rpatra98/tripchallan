@@ -230,7 +230,6 @@ async function recordCoinAdjustment(userId: string, amount: number) {
         from_user_id: userId, // System adjustment
         to_user_id: userId,
         amount: Math.abs(amount),
-        reason: 'SYSTEM',
         notes: 'System balance adjustment during initialization',
         created_at: now,
         updated_at: now
