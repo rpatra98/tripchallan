@@ -9,7 +9,7 @@ import TransactionHistory from "../coins/TransactionHistory";
 import VehicleForm, { VehicleFormData } from "../vehicles/VehicleForm";
 import { useSession } from "next-auth/react";
 import { SessionUpdateContext } from "@/app/dashboard/layout";
-import { EmployeeSubrole } from "@/prisma/enums";
+import { EmployeeSubrole } from "@/lib/enums";
 import { 
   Snackbar, 
   Alert, 

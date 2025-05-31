@@ -18,7 +18,7 @@ import {
   Input
 } from '@mui/material';
 import { Close, CloudUpload } from '@mui/icons-material';
-import { VehicleStatus } from '@/prisma/enums';
+import { VehicleStatus } from '@/lib/enums';
 
 interface VehicleFormProps {
   open: boolean;

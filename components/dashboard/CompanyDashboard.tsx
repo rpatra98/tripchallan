@@ -7,7 +7,7 @@ import { CompanyDashboardProps } from "./types";
 import { CircularProgress, Chip, Card, CardContent, Typography, Box, List, ListItem, ListItemText, Divider, Alert, Button, Tabs, Tab, Collapse, IconButton, Grid } from "@mui/material";
 import { Person, Work, LocalAtm, People, ErrorOutline, LocationOn, DirectionsCar, AccessTime, Lock, CheckCircle, Refresh, KeyboardArrowDown, KeyboardArrowUp } from "@mui/icons-material";
 import { format } from "date-fns";
-import { SessionStatus } from "@/prisma/enums";
+import { SessionStatus } from "@/lib/enums";
 
 interface EmployeeData {
   id: string;

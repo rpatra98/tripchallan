@@ -2,7 +2,7 @@ import { useState, useEffect, useContext } from 'react';
 import { Formik, Form, Field, ErrorMessage } from 'formik';
 import * as Yup from 'yup';
 import { useSession } from 'next-auth/react';
-import { TransactionReason, UserRole, EmployeeSubrole } from '@/prisma/enums';
+import { TransactionReason, UserRole, EmployeeSubrole } from '@/lib/enums';
 import { toast } from 'react-hot-toast';
 import { SessionUpdateContext } from '@/app/dashboard/layout';
 
