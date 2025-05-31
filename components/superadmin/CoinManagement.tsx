@@ -249,13 +249,16 @@ export default function CoinManagement() {
   const fetchTransactions = async () => {
     try {
       setLoadingTransactions(true);
+      console.log('Fetching transactions from Supabase...');
       
-      // Just get all transactions and handle the filtering in the UI
+      // Simple approach: just get all transactions without any filtering
       const { data: transactionData, error: transactionError } = await supabase
         .from('coin_transactions')
         .select('*')
         .order('created_at', { ascending: false })
         .limit(20);
+      
+      console.log('Transaction query response:', { data: transactionData, error: transactionError });
       
       if (transactionError) {
         console.error('Error fetching transactions:', transactionError);
@@ -265,25 +268,14 @@ export default function CoinManagement() {
       }
       
       if (!transactionData || transactionData.length === 0) {
-        console.log('No transactions found in the system');
+        console.log('No transactions found in the database');
         setTransactions([]);
         setLoadingTransactions(false);
         return;
       }
       
-      console.log('Found transactions:', transactionData.length);
-      await processTransactions(transactionData);
-    } catch (err) {
-      console.error('Error fetching transactions:', err);
-      setTransactions([]);
-    } finally {
-      setLoadingTransactions(false);
-    }
-  };
-  
-  // Helper function to process transaction data
-  const processTransactions = async (transactionData: any[]) => {
-    try {
+      console.log(`Found ${transactionData.length} transactions:`, transactionData);
+      
       // Collect all user IDs from transactions
       const userIds = new Set<string>();
       transactionData.forEach(transaction => {
@@ -291,7 +283,9 @@ export default function CoinManagement() {
         if (transaction.to_user_id) userIds.add(transaction.to_user_id);
       });
       
-      // Fetch user details separately
+      console.log('Collecting user details for IDs:', Array.from(userIds));
+      
+      // Fetch user details for all IDs
       const { data: usersData, error: usersError } = await supabase
         .from('users')
         .select('id, name, email, role')
@@ -310,42 +304,25 @@ export default function CoinManagement() {
       }
       
       // Combine transaction data with user details
-      const enrichedTransactions = transactionData.map(transaction => ({
-        ...transaction,
-        fromUser: transaction.from_user_id ? userMap.get(transaction.from_user_id) : null,
-        toUser: transaction.to_user_id ? userMap.get(transaction.to_user_id) : null,
-        // Add a derived transaction type based on pattern matching
-        transactionType: getTransactionTypeFromData(transaction)
-      }));
+      const enrichedTransactions = transactionData.map(transaction => {
+        const fromUser = transaction.from_user_id ? userMap.get(transaction.from_user_id) : null;
+        const toUser = transaction.to_user_id ? userMap.get(transaction.to_user_id) : null;
+        
+        return {
+          ...transaction,
+          fromUser,
+          toUser
+        };
+      });
       
+      console.log('Enriched transactions with user details:', enrichedTransactions);
       setTransactions(enrichedTransactions);
     } catch (err) {
-      console.error('Error processing transactions:', err);
+      console.error('Exception in fetchTransactions:', err);
       setTransactions([]);
+    } finally {
+      setLoadingTransactions(false);
     }
-  };
-
-  // Helper function to determine transaction type based on transaction data patterns
-  const getTransactionTypeFromData = (transaction: any): string => {
-    // Check for system transactions (self-transactions with same user ID)
-    if (transaction.from_user_id === transaction.to_user_id) {
-      return 'SYSTEM';
-    }
-    
-    // Check for pattern of admin creation (from SuperAdmin to an Admin)
-    if (transaction.from_user_id === session?.user?.id && 
-        transaction.to_user_id && 
-        transaction.notes && 
-        transaction.notes.toLowerCase().includes('admin')) {
-      return 'ADMIN_CREATION';
-    }
-    
-    // Default transaction types based on the amount
-    if (transaction.amount >= 50000) {
-      return 'ALLOCATION';
-    }
-    
-    return 'TRANSFER';
   };
 
   const handleTransferSubmit = async (values: any, { resetForm, setSubmitting }: any) => {
@@ -420,119 +397,6 @@ export default function CoinManagement() {
     } catch (error) {
       return dateString;
     }
-  };
-
-  const getTransactionDescription = (transaction: Transaction): string => {
-    // Special handling for system transactions
-    if (transaction.from_user_id === transaction.to_user_id) {
-      return 'System Balance Adjustment';
-    }
-    
-    // Check if it looks like an admin creation (from SuperAdmin to Admin with significant amount)
-    if (transaction.from_user_id === session?.user?.id && 
-        transaction.toUser?.role === 'ADMIN' && 
-        transaction.amount >= 10000) {
-      return `Admin Creation: ${transaction.toUser?.name || 'Unknown Admin'}`;
-    }
-    
-    const isReceived = transaction.to_user_id === session?.user?.id;
-    const otherParty = isReceived ? transaction.fromUser : transaction.toUser;
-    
-    return `${isReceived ? 'Received from' : 'Sent to'} ${otherParty?.name || 'Unknown'}`;
-  };
-
-  const getTransactionAmount = (transaction: Transaction): string => {
-    // For system transactions, just show the amount
-    if (transaction.from_user_id === transaction.to_user_id) {
-      return `${transaction.amount}`;
-    }
-    
-    // For admin creation, just show the amount
-    if (transaction.from_user_id === session?.user?.id && 
-        transaction.toUser?.role === 'ADMIN' && 
-        transaction.amount >= 10000) {
-      return `${transaction.amount}`;
-    }
-    
-    const isReceived = transaction.to_user_id === session?.user?.id;
-    return `${isReceived ? '+' : '-'}${transaction.amount}`;
-  };
-
-  const getTransactionColor = (transaction: Transaction): string => {
-    // For system transactions, use a neutral color
-    if (transaction.from_user_id === transaction.to_user_id) {
-      return 'info.main';
-    }
-    
-    // For admin creation, use a distinct color
-    if (transaction.from_user_id === session?.user?.id && 
-        transaction.toUser?.role === 'ADMIN' && 
-        transaction.amount >= 10000) {
-      return 'secondary.main';
-    }
-    
-    const isReceived = transaction.to_user_id === session?.user?.id;
-    return isReceived ? 'success.main' : 'error.main';
-  };
-
-  // Helper function to get a more descriptive reason text
-  const getTransactionReasonText = (transaction: Transaction): string => {
-    // For system transactions (self transactions)
-    if (transaction.from_user_id === transaction.to_user_id) {
-      return 'System Adjustment';
-    }
-    
-    // For admin creation (from SuperAdmin to Admin with large amount)
-    if (transaction.from_user_id === session?.user?.id && 
-        transaction.toUser?.role === 'ADMIN' && 
-        transaction.amount >= 10000) {
-      return 'Admin Creation';
-    }
-    
-    // For large amounts (allocation)
-    if (transaction.amount >= 50000) {
-      return 'Coin Allocation';
-    }
-    
-    // Check notes for hints
-    if (transaction.notes) {
-      const notesLower = transaction.notes.toLowerCase();
-      if (notesLower.includes('bonus')) return 'Bonus Coins';
-      if (notesLower.includes('correction')) return 'Correction';
-      if (notesLower.includes('adjustment')) return 'Balance Adjustment';
-    }
-    
-    return 'Coin Transfer';
-  };
-
-  // Helper function to get chip color based on transaction type
-  const getChipColor = (transaction: Transaction): "default" | "primary" | "secondary" | "error" | "info" | "success" | "warning" => {
-    // For system transactions (self transactions)
-    if (transaction.from_user_id === transaction.to_user_id) {
-      return 'info';
-    }
-    
-    // For admin creation (from SuperAdmin to Admin with large amount)
-    if (transaction.from_user_id === session?.user?.id && 
-        transaction.toUser?.role === 'ADMIN' && 
-        transaction.amount >= 10000) {
-      return 'secondary';
-    }
-    
-    // For large amounts (allocation)
-    if (transaction.amount >= 50000) {
-      return 'primary';
-    }
-    
-    // Check notes for hints
-    if (transaction.notes) {
-      const notesLower = transaction.notes.toLowerCase();
-      if (notesLower.includes('bonus')) return 'success';
-      if (notesLower.includes('correction')) return 'error';
-      if (notesLower.includes('adjustment')) return 'warning';
-    }
-    
-    return 'default';
   };
 
   if (!session?.user) {
@@ -738,49 +602,78 @@ export default function CoinManagement() {
               <Table>
                 <TableHead>
                   <TableRow>
-                    <TableCell>Transaction</TableCell>
+                    <TableCell>Type</TableCell>
+                    <TableCell>User</TableCell>
                     <TableCell>Amount</TableCell>
                     <TableCell>Date</TableCell>
-                    <TableCell>Reason</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {transactions.map((transaction) => (
-                    <TableRow key={transaction.id}>
-                      <TableCell>
-                        <Typography variant="body2" fontWeight="medium">
-                          {getTransactionDescription(transaction)}
-                        </Typography>
-                        <Typography variant="caption" color="text.secondary">
-                          {transaction.toUser?.email || transaction.fromUser?.email || 'Unknown'}
-                        </Typography>
-                      </TableCell>
-                      <TableCell>
-                        <Typography 
-                          variant="body2" 
-                          fontWeight="bold" 
-                          color={getTransactionColor(transaction)}
-                        >
-                          {getTransactionAmount(transaction)}
-                        </Typography>
-                      </TableCell>
-                      <TableCell>
-                        <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                          <Calendar size={14} style={{ marginRight: '4px' }} />
-                          <Typography variant="body2">
-                            {formatDate(transaction.created_at)}
+                  {transactions.map((transaction) => {
+                    // Determine transaction type
+                    let transactionType = "Transfer";
+                    let chipColor: "default" | "primary" | "secondary" | "error" | "info" | "success" | "warning" = "default";
+                    
+                    // System transaction (same from/to)
+                    if (transaction.from_user_id === transaction.to_user_id) {
+                      transactionType = "System";
+                      chipColor = "info";
+                    } 
+                    // Admin creation (check note content)
+                    else if (transaction.notes && transaction.notes.toLowerCase().includes('admin creation')) {
+                      transactionType = "Admin Creation";
+                      chipColor = "secondary";
+                    }
+                    // Large allocation
+                    else if (transaction.amount >= 50000) {
+                      transactionType = "Allocation";
+                      chipColor = "primary";
+                    }
+                    
+                    // Determine if the transaction is incoming or outgoing relative to the current user
+                    const isReceived = transaction.to_user_id === session?.user?.id;
+                    const isOutgoing = transaction.from_user_id === session?.user?.id;
+                    
+                    // Get the other party in the transaction
+                    const otherPartyUser = isReceived ? transaction.fromUser : transaction.toUser;
+                    const otherParty = otherPartyUser ? otherPartyUser.name || otherPartyUser.email : 'Unknown';
+                    
+                    return (
+                      <TableRow key={transaction.id}>
+                        <TableCell>
+                          <Chip 
+                            label={transactionType} 
+                            size="small" 
+                            color={chipColor}
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <Typography variant="body2" fontWeight="medium">
+                            {isReceived ? `From: ${otherParty}` : 
+                             isOutgoing ? `To: ${otherParty}` : 
+                             transactionType === "System" ? "System Adjustment" : otherParty}
                           </Typography>
-                        </Box>
-                      </TableCell>
-                      <TableCell>
-                        <Chip 
-                          label={getTransactionReasonText(transaction)} 
-                          size="small" 
-                          color={getChipColor(transaction)}
-                        />
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                        </TableCell>
+                        <TableCell>
+                          <Typography 
+                            variant="body2" 
+                            fontWeight="bold" 
+                            color={isReceived ? 'success.main' : isOutgoing ? 'error.main' : 'text.primary'}
+                          >
+                            {isReceived ? '+' : isOutgoing ? '-' : ''}{transaction.amount}
+                          </Typography>
+                        </TableCell>
+                        <TableCell>
+                          <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                            <Calendar size={14} style={{ marginRight: '4px' }} />
+                            <Typography variant="body2">
+                              {formatDate(transaction.created_at)}
+                            </Typography>
+                          </Box>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
                 </TableBody>
               </Table>
             </TableContainer>

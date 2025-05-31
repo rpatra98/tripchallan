@@ -35,7 +35,7 @@ async function handler(req: NextRequest) {
 
     // Parse request body
     const body = await req.json();
-    const { from_user_id, to_user_id, amount, reason, notes } = body;
+    const { from_user_id, to_user_id, amount, notes } = body;
     
     // If from_user_id is not provided, use the current user's ID
     const senderId = from_user_id || session.user.id;
@@ -164,7 +164,6 @@ async function handler(req: NextRequest) {
     }
     
     // 3. Record the transaction
-    const transactionReason = reason || TransactionReason.COIN_ALLOCATION;
     const transactionNotes = notes || `Transfer from ${sender.name} to ${recipient.name}`;
     
     const { data: coinTransaction, error: transactionError } = await supabase
@@ -173,7 +172,6 @@ async function handler(req: NextRequest) {
         from_user_id: senderId,
         to_user_id: to_user_id,
         amount: amount,
-        reason: transactionReason,
         notes: transactionNotes,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
@@ -197,7 +195,6 @@ async function handler(req: NextRequest) {
           fromUserName: sender.name,
           toUserId: to_user_id,
           toUserName: recipient.name,
-          reason: transactionReason,
           notes: transactionNotes
         },
         targetResourceId: coinTransaction?.id,
