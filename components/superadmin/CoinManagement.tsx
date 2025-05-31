@@ -103,6 +103,48 @@ export default function CoinManagement() {
     
     try {
       setLoading(true);
+      
+      // First try API approach for more reliable data
+      try {
+        const response = await fetch('/api/users/me', { 
+          cache: 'no-store',
+          headers: {
+            'pragma': 'no-cache',
+            'cache-control': 'no-cache'
+          }
+        });
+        
+        if (response.ok) {
+          const userData = await response.json();
+          console.log('Fetched user data from API:', userData);
+          
+          // Update local state
+          setCurrentUserCoins(userData.coins || 0);
+          
+          // Update session
+          if (session?.user) {
+            await updateSession({
+              ...session,
+              user: {
+                ...session.user,
+                coins: userData.coins || 0
+              }
+            });
+          }
+          
+          // Also save to localStorage for components that use it
+          localStorage.setItem('lastCoinBalance', String(userData.coins || 0));
+          localStorage.setItem('coinBalanceUpdatedAt', String(Date.now()));
+          
+          setLoading(false);
+          return;
+        }
+      } catch (apiErr) {
+        console.error('Error fetching from API:', apiErr);
+        // Continue to fallback method
+      }
+      
+      // Fallback to direct Supabase query
       const { data, error } = await supabase
         .from('users')
         .select('coins')
@@ -111,12 +153,48 @@ export default function CoinManagement() {
       
       if (error) {
         console.error('Error fetching current user:', error);
+        
+        // Check localStorage as a last resort
+        try {
+          const lastCoinBalance = localStorage.getItem('lastCoinBalance');
+          const updatedAt = localStorage.getItem('coinBalanceUpdatedAt');
+          
+          if (lastCoinBalance && updatedAt) {
+            const updateTime = parseInt(updatedAt);
+            const now = Date.now();
+            
+            // Only use if recent (within 5 minutes)
+            if ((now - updateTime) < 300000) {
+              const coins = parseInt(lastCoinBalance);
+              console.log('Using recent coin balance from localStorage:', coins);
+              setCurrentUserCoins(coins);
+              
+              // Update session
+              if (session?.user) {
+                await updateSession({
+                  ...session,
+                  user: {
+                    ...session.user,
+                    coins: coins
+                  }
+                });
+              }
+              setLoading(false);
+              return;
+            }
+          }
+        } catch (localErr) {
+          console.error('Error checking localStorage:', localErr);
+        }
+        
+        // If we reached here, all methods failed
         toast.error('Failed to fetch your coin balance');
-        setCurrentUserCoins(0);
+        setCurrentUserCoins(session?.user?.coins || 0);
         setLoading(false);
         return;
       }
       
+      console.log('Fetched user data from Supabase:', data);
       setCurrentUserCoins(data.coins || 0);
       
       // Update session
@@ -129,10 +207,16 @@ export default function CoinManagement() {
           }
         });
       }
+      
+      // Also save to localStorage for components that use it
+      localStorage.setItem('lastCoinBalance', String(data.coins || 0));
+      localStorage.setItem('coinBalanceUpdatedAt', String(Date.now()));
     } catch (err) {
       console.error('Error fetching current user:', err);
       toast.error('Failed to fetch your coin balance');
-      setCurrentUserCoins(0);
+      
+      // Use session data as a last resort
+      setCurrentUserCoins(session?.user?.coins || 0);
     } finally {
       setLoading(false);
     }
@@ -354,25 +438,49 @@ export default function CoinManagement() {
               <Typography variant="body2" color="text.secondary">
                 Your Coin Balance
               </Typography>
-              <Typography variant="h4" sx={{ color: 'warning.main', fontWeight: 'bold' }}>
-                {currentUserCoins.toLocaleString()} Coins
-              </Typography>
-              <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-                Available for distribution
-              </Typography>
+              {loading ? (
+                <Box sx={{ display: 'flex', alignItems: 'center', mt: 1 }}>
+                  <CircularProgress size={20} sx={{ mr: 1 }} />
+                  <Typography variant="body1" color="text.secondary">
+                    Loading balance...
+                  </Typography>
+                </Box>
+              ) : (
+                <>
+                  <Typography variant="h4" sx={{ color: 'warning.main', fontWeight: 'bold' }}>
+                    {currentUserCoins.toLocaleString()} Coins
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                    Available for distribution
+                  </Typography>
+                </>
+              )}
             </Box>
-            <Box
-              sx={{
-                backgroundColor: 'warning.light',
-                borderRadius: '50%',
-                width: 56,
-                height: 56,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-            >
-              <Coins color="#ed6c02" size={28} />
+            <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+              <Box
+                sx={{
+                  backgroundColor: 'warning.light',
+                  borderRadius: '50%',
+                  width: 56,
+                  height: 56,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  mb: 1
+                }}
+              >
+                <Coins color="#ed6c02" size={28} />
+              </Box>
+              <Button
+                variant="outlined"
+                color="warning"
+                size="small"
+                startIcon={<RefreshCcw size={14} />}
+                onClick={fetchCurrentUser}
+                disabled={loading}
+              >
+                Refresh
+              </Button>
             </Box>
           </Box>
         </CardContent>
