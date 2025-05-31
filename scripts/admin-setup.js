@@ -47,7 +47,7 @@ async function createTestAdmin() {
     const password = 'admin123';
     const hashedPassword = await bcrypt.hash(password, 12);
     
-    // Create a new admin user
+    // Create a new admin user - NOTE: Both users and coin_transactions tables use camelCase
     const adminEmail = `admin${Date.now()}@example.com`;
     const { data: newAdmin, error: createError } = await supabase
       .from('users')
@@ -57,8 +57,8 @@ async function createTestAdmin() {
         password: hashedPassword,
         role: 'ADMIN',
         coins: 50000, // Initial coins
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
       })
       .select()
       .single();
@@ -70,17 +70,17 @@ async function createTestAdmin() {
     
     console.log(`Created admin user: ${adminEmail} with ID: ${newAdmin.id}`);
     
-    // Record the transaction for admin creation
+    // Record the transaction for admin creation - NOTE: coin_transactions table uses camelCase
     const now = new Date().toISOString();
     const { data: transaction, error: transactionError } = await supabase
       .from('coin_transactions')
       .insert({
-        from_user_id: superAdmin.id,
-        to_user_id: newAdmin.id,
+        fromUserId: superAdmin.id,
+        toUserId: newAdmin.id,
         amount: 50000,
         notes: 'Initial coin allocation for new admin creation',
-        created_at: now,
-        updated_at: now
+        createdAt: now,
+        updatedAt: now
       })
       .select()
       .single();
@@ -92,12 +92,12 @@ async function createTestAdmin() {
       console.log(`${superAdmin.name} (SuperAdmin) transferred 50,000 coins to ${newAdmin.name} (Admin)`);
     }
     
-    // Update SuperAdmin's coin balance
+    // Update SuperAdmin's coin balance - NOTE: Users table uses camelCase
     const { error: updateError } = await supabase
       .from('users')
       .update({ 
         coins: superAdmin.coins - 50000,
-        updated_at: now
+        updatedAt: now
       })
       .eq('id', superAdmin.id);
     

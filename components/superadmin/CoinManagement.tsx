@@ -52,12 +52,11 @@ interface AdminUser {
 interface Transaction {
   id: string;
   amount: number;
-  from_user_id: string;
-  to_user_id: string;
-  reason: string;
+  fromUserId: string;
+  toUserId: string;
   notes?: string;
-  created_at: string;
-  updated_at: string;
+  createdAt: string;
+  updatedAt: string;
   fromUser?: {
     name: string;
     email: string;
@@ -68,7 +67,6 @@ interface Transaction {
     email: string;
     role?: string;
   };
-  transactionType?: string;
 }
 
 // Transaction schema for form validation
@@ -255,7 +253,7 @@ export default function CoinManagement() {
       const { data: transactionData, error: transactionError } = await supabase
         .from('coin_transactions')
         .select('*')
-        .order('created_at', { ascending: false })
+        .order('createdAt', { ascending: false })
         .limit(20);
       
       console.log('Transaction query response:', { data: transactionData, error: transactionError });
@@ -279,8 +277,8 @@ export default function CoinManagement() {
       // Collect all user IDs from transactions
       const userIds = new Set<string>();
       transactionData.forEach(transaction => {
-        if (transaction.from_user_id) userIds.add(transaction.from_user_id);
-        if (transaction.to_user_id) userIds.add(transaction.to_user_id);
+        if (transaction.fromUserId) userIds.add(transaction.fromUserId);
+        if (transaction.toUserId) userIds.add(transaction.toUserId);
       });
       
       console.log('Collecting user details for IDs:', Array.from(userIds));
@@ -305,8 +303,8 @@ export default function CoinManagement() {
       
       // Combine transaction data with user details
       const enrichedTransactions = transactionData.map(transaction => {
-        const fromUser = transaction.from_user_id ? userMap.get(transaction.from_user_id) : null;
-        const toUser = transaction.to_user_id ? userMap.get(transaction.to_user_id) : null;
+        const fromUser = transaction.fromUserId ? userMap.get(transaction.fromUserId) : null;
+        const toUser = transaction.toUserId ? userMap.get(transaction.toUserId) : null;
         
         return {
           ...transaction,
@@ -338,9 +336,8 @@ export default function CoinManagement() {
       // Prepare the payload
       const transactionData = {
         amount: values.amount,
-        from_user_id: isTakingCoins ? values.adminId : session.user.id,
-        to_user_id: isTakingCoins ? session.user.id : values.adminId,
-        reason: values.reason,
+        fromUserId: isTakingCoins ? values.adminId : session.user.id,
+        toUserId: isTakingCoins ? session.user.id : values.adminId,
         notes: values.notes || undefined
       };
 
@@ -615,7 +612,7 @@ export default function CoinManagement() {
                     let chipColor: "default" | "primary" | "secondary" | "error" | "info" | "success" | "warning" = "default";
                     
                     // System transaction (same from/to)
-                    if (transaction.from_user_id === transaction.to_user_id) {
+                    if (transaction.fromUserId === transaction.toUserId) {
                       transactionType = "System";
                       chipColor = "info";
                     } 
@@ -631,8 +628,8 @@ export default function CoinManagement() {
                     }
                     
                     // Determine if the transaction is incoming or outgoing relative to the current user
-                    const isReceived = transaction.to_user_id === session?.user?.id;
-                    const isOutgoing = transaction.from_user_id === session?.user?.id;
+                    const isReceived = transaction.toUserId === session?.user?.id;
+                    const isOutgoing = transaction.fromUserId === session?.user?.id;
                     
                     // Get the other party in the transaction
                     const otherPartyUser = isReceived ? transaction.fromUser : transaction.toUser;
@@ -667,7 +664,7 @@ export default function CoinManagement() {
                           <Box sx={{ display: 'flex', alignItems: 'center' }}>
                             <Calendar size={14} style={{ marginRight: '4px' }} />
                             <Typography variant="body2">
-                              {formatDate(transaction.created_at)}
+                              {formatDate(transaction.createdAt)}
                             </Typography>
                           </Box>
                         </TableCell>
