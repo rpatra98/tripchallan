@@ -176,8 +176,12 @@ export async function DELETE(
     }
     
     // Check if company exists directly
-    let existingCompany = await supabase.from('companys').select('*').eq('id },
-      include', {).single();
+    const { data: existingCompany, error: companyError } = await supabase
+      .from('users')
+      .select('*')
+      .eq('id', id)
+      .eq('role', UserRole.COMPANY)
+      .single();
     
     let companyUserId = null;
     let companyId = id;
@@ -186,16 +190,13 @@ export async function DELETE(
     if (!existingCompany) {
       console.log(`API DELETE: Company not found directly, checking if it's a company user`);
       
-      const companyUser = await supabase.from('users').findFirst({
-        where: {
-          id,
-          role: UserRole.COMPANY
-        },
-        select: {
-          id: true,
-          companyId: true
-        }
-      });
+      // Check for a company user with this ID
+      const { data: companyUser, error: userError } = await supabase
+        .from('users')
+        .select('id, companyId')
+        .eq('id', id)
+        .eq('role', UserRole.COMPANY)
+        .single();
       
       // If this is a company user with a companyId, use that ID instead
       if (companyUser) {
@@ -205,12 +206,16 @@ export async function DELETE(
           console.log(`API DELETE: Found company user with companyId: ${companyUser.companyId}`);
           
           companyId = companyUser.companyId;
-          existingCompany = await supabase.from('companys').findUnique({
-            where: { id: companyUser.companyId },
-            include: {
-              employees: true
-            }
-          });
+          const { data: company, error: companyLookupError } = await supabase
+            .from('users')
+            .select('*')
+            .eq('id', companyUser.companyId)
+            .eq('role', UserRole.COMPANY)
+            .single();
+          
+          if (!companyLookupError) {
+            existingCompany = company;
+          }
         }
       }
     }
@@ -227,20 +232,33 @@ export async function DELETE(
     if (!existingCompany && companyUserId) {
       console.log(`API DELETE: No company record found, deleting company user: ${companyUserId}`);
       
-      // Use a transaction to ensure atomicity
-      await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-        // Delete all related employees
-        await tx.user.deleteMany({
-          where: {
-            companyId: companyUserId
-          }
-        });
-        
-        // Delete the company user
-        await tx.user.delete({
-          where: { id: companyUserId }
-        });
-      });
+      // Delete all related employees
+      const { error: deleteEmployeesError } = await supabase
+        .from('users')
+        .delete()
+        .eq('companyId', companyUserId);
+      
+      if (deleteEmployeesError) {
+        console.error('Error deleting employees:', deleteEmployeesError);
+        return NextResponse.json(
+          { error: "Failed to delete company employees" },
+          { status: 500 }
+        );
+      }
+      
+      // Delete the company user
+      const { error: deleteUserError } = await supabase
+        .from('users')
+        .delete()
+        .eq('id', companyUserId);
+      
+      if (deleteUserError) {
+        console.error('Error deleting company user:', deleteUserError);
+        return NextResponse.json(
+          { error: "Failed to delete company user" },
+          { status: 500 }
+        );
+      }
       
       return NextResponse.json({
         message: "Company user deleted successfully"
@@ -248,27 +266,43 @@ export async function DELETE(
     }
     
     // Delete all company users (needed for referential integrity)
-    const companyUsers = await supabase.from('users').select('*').{
-      where: {
-        companyId: existingCompany!.id,
-        role: UserRole.COMPANY
-      }
-    });
+    const { data: companyUsers, error: getUsersError } = await supabase
+      .from('users')
+      .select('*')
+      .eq('companyId', existingCompany!.id)
+      .eq('role', UserRole.COMPANY);
     
-    // Use a transaction to ensure atomicity
-    await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-      // Delete all company employees
-      await tx.user.deleteMany({
-        where: {
-          companyId: existingCompany!.id
-        }
-      });
-      
-      // Delete the company
-      await tx.company.delete({
-        where: { id: existingCompany!.id }
-      });
-    });
+    if (getUsersError) {
+      console.error('Error getting company users:', getUsersError);
+    }
+    
+    // Delete all company employees
+    const { error: deleteEmployeesError } = await supabase
+      .from('users')
+      .delete()
+      .eq('companyId', existingCompany!.id);
+    
+    if (deleteEmployeesError) {
+      console.error('Error deleting employees:', deleteEmployeesError);
+      return NextResponse.json(
+        { error: "Failed to delete company employees" },
+        { status: 500 }
+      );
+    }
+    
+    // Delete the company user
+    const { error: deleteCompanyError } = await supabase
+      .from('users')
+      .delete()
+      .eq('id', existingCompany!.id);
+    
+    if (deleteCompanyError) {
+      console.error('Error deleting company:', deleteCompanyError);
+      return NextResponse.json(
+        { error: "Failed to delete company" },
+        { status: 500 }
+      );
+    }
     
     return NextResponse.json({
       message: "Company deleted successfully"
@@ -278,18 +312,6 @@ export async function DELETE(
     
     // Check if this is a prepared statement error and try to handle it
     const errorMessage = error instanceof Error ? error.message : String(error);
-    const isPreparedStatementError = 
-      errorMessage.includes('prepared statement') || 
-      errorMessage.includes('42P05');
-    
-    if (isPreparedStatementError) {
-      try {
-        // Try to reset the connection
-        await prismaHelper.resetConnection();
-      } catch (resetError) {
-        console.error("Failed to reset connection:", resetError);
-      }
-    }
     
     return NextResponse.json(
       { error: "Failed to delete company", details: errorMessage },

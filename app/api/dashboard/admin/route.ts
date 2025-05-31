@@ -8,133 +8,107 @@ import { EmployeeSubrole, UserRole } from "@/lib/enums";
 async function handler() {
   try {
     // Get companies data
-    const companies = await supabase.from('users').select('*').{
-      where: { role: UserRole.COMPANY },
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        coins: true,
-        createdAt: true,
-      },
-    });
+    const { data: companies, error: companiesError } = await supabase
+      .from('users')
+      .select('id, name, email, coins, createdAt')
+      .eq('role', UserRole.COMPANY);
+    
+    if (companiesError) {
+      console.error('Error fetching companies:', companiesError);
+      return NextResponse.json({ error: 'Failed to fetch companies' }, { status: 500 });
+    }
 
     // Add employee counts to each company
     const companiesWithCounts = await Promise.all(
-      companies.map(async (company) => {
-        const employeeCount = await supabase.from('users').count({
-          where: {
-            companyId: company.id,
-            role: UserRole.EMPLOYEE
-          }
-        });
+      (companies || []).map(async (company) => {
+        const { count: employeeCount, error: countError } = await supabase
+          .from('users')
+          .select('*', { count: 'exact', head: true })
+          .eq('companyId', company.id)
+          .eq('role', UserRole.EMPLOYEE);
 
         return {
           ...company,
           _count: {
-            employees: employeeCount
+            employees: employeeCount || 0
           }
         };
       })
     );
 
     // Get employees data with company information
-    const employees = await supabase.from('users').select('*').{
-      where: { role: UserRole.EMPLOYEE },
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        subrole: true,
-        createdAt: true,
-        company: {
-          select: {
-            id: true,
-            name: true,
-          },
-        },
-      },
-    });
+    const { data: employees, error: employeesError } = await supabase
+      .from('users')
+      .select('id, name, email, subrole, createdAt, company:companyId(id, name)')
+      .eq('role', UserRole.EMPLOYEE);
+    
+    if (employeesError) {
+      console.error('Error fetching employees:', employeesError);
+      return NextResponse.json({ error: 'Failed to fetch employees' }, { status: 500 });
+    }
 
     // Get employee counts by subrole
-    const operatorCount = await supabase.from('users').count({
-      where: {
-        role: UserRole.EMPLOYEE,
-        subrole: EmployeeSubrole.OPERATOR,
-      },
-    });
-
-    const driverCount = await supabase.from('users').count({
-      where: {
-        role: UserRole.EMPLOYEE,
-        subrole: EmployeeSubrole.DRIVER,
-      },
-    });
-
-    const transporterCount = await supabase.from('users').count({
-      where: {
-        role: UserRole.EMPLOYEE,
-        subrole: EmployeeSubrole.TRANSPORTER,
-      },
-    });
-
-    const guardCount = await supabase.from('users').count({
-      where: {
-        role: UserRole.EMPLOYEE,
-        subrole: EmployeeSubrole.GUARD,
-      },
-    });
+    const { count: operatorCount, error: opCountError } = await supabase
+      .from('users')
+      .select('*', { count: 'exact', head: true })
+      .eq('role', UserRole.EMPLOYEE)
+      .eq('subrole', EmployeeSubrole.OPERATOR);
+    
+    const { count: driverCount, error: driverCountError } = await supabase
+      .from('users')
+      .select('*', { count: 'exact', head: true })
+      .eq('role', UserRole.EMPLOYEE)
+      .eq('subrole', EmployeeSubrole.DRIVER);
+    
+    const { count: transporterCount, error: transporterCountError } = await supabase
+      .from('users')
+      .select('*', { count: 'exact', head: true })
+      .eq('role', UserRole.EMPLOYEE)
+      .eq('subrole', EmployeeSubrole.TRANSPORTER);
+    
+    const { count: guardCount, error: guardCountError } = await supabase
+      .from('users')
+      .select('*', { count: 'exact', head: true })
+      .eq('role', UserRole.EMPLOYEE)
+      .eq('subrole', EmployeeSubrole.GUARD);
 
     // Get coin transactions summary
-    const coinTransactions = await supabase.from('coinTransactions').select('*').{
-      take: 10,
-      orderBy: { createdAt: "desc" },
-      include: {
-        fromUser: {
-          select: {
-            id: true,
-            name: true,
-            role: true,
-          },
-        },
-        toUser: {
-          select: {
-            id: true,
-            name: true,
-            role: true,
-          },
-        },
-      },
-    });
+    const { data: coinTransactions, error: transactionsError } = await supabase
+      .from('coinTransactions')
+      .select('*, fromUser:fromUserId(id, name, role), toUser:toUserId(id, name, role)')
+      .order('createdAt', { ascending: false })
+      .limit(10);
+    
+    if (transactionsError) {
+      console.error('Error fetching coin transactions:', transactionsError);
+      return NextResponse.json({ error: 'Failed to fetch coin transactions' }, { status: 500 });
+    }
 
     // Calculate total coins with companies
-    const companyCoins = await supabase.from('users').aggregate({
-      where: { role: UserRole.COMPANY },
-      _sum: {
-        coins: true,
-      },
-    });
+    const { data: companyCoinsData, error: coinsError } = await supabase
+      .from('users')
+      .select('coins')
+      .eq('role', UserRole.COMPANY);
+    
+    if (coinsError) {
+      console.error('Error fetching company coins:', coinsError);
+      return NextResponse.json({ error: 'Failed to fetch company coins' }, { status: 500 });
+    }
+    
+    // Sum up the coins manually
+    const totalCompanyCoins = (companyCoinsData || []).reduce((sum, company) => sum + (company.coins || 0), 0);
 
     // Get recent sessions
-    const recentSessions = await supabase.from('sessions').select('*').{
-      take: 5,
-      orderBy: { createdAt: "desc" },
-      include: {
-        company: {
-          select: {
-            id: true,
-            name: true,
-          },
-        },
-        createdBy: {
-          select: {
-            id: true,
-            name: true,
-            subrole: true,
-          },
-        },
-      },
-    });
+    const { data: recentSessions, error: sessionsError } = await supabase
+      .from('sessions')
+      .select('*, company:companyId(id, name), createdBy:createdById(id, name, subrole)')
+      .order('createdAt', { ascending: false })
+      .limit(5);
+    
+    if (sessionsError) {
+      console.error('Error fetching recent sessions:', sessionsError);
+      return NextResponse.json({ error: 'Failed to fetch recent sessions' }, { status: 500 });
+    }
 
     return NextResponse.json({
       companies: {
@@ -142,20 +116,20 @@ async function handler() {
         count: companiesWithCounts.length,
       },
       employees: {
-        list: employees,
+        list: employees || [],
         bySubrole: {
-          operator: operatorCount,
-          driver: driverCount,
-          transporter: transporterCount,
-          guard: guardCount,
-          total: employees.length,
+          operator: operatorCount || 0,
+          driver: driverCount || 0,
+          transporter: transporterCount || 0,
+          guard: guardCount || 0,
+          total: (employees || []).length,
         },
       },
       coins: {
-        transactions: coinTransactions,
-        totalWithCompanies: companyCoins._sum.coins || 0,
+        transactions: coinTransactions || [],
+        totalWithCompanies: totalCompanyCoins,
       },
-      recentSessions,
+      recentSessions: recentSessions || [],
     });
   } catch (error) {
     console.error("Error fetching admin dashboard:", error);

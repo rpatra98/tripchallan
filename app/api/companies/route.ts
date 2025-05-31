@@ -18,7 +18,7 @@ interface Company {
   isActive?: boolean;
 }
 
-async function handler() {
+async function handler(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
     
@@ -26,15 +26,15 @@ async function handler() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { searchParams } = new URL(req.url);
+    const url = new URL(req.url);
     
     // Get pagination parameters
-    const page = parseInt(searchParams.get("page") || "1");
-    const limit = parseInt(searchParams.get("limit") || "10");
+    const page = parseInt(url.searchParams.get("page") || "1");
+    const limit = parseInt(url.searchParams.get("limit") || "10");
     const skip = (page - 1) * limit;
     
     // Get search parameters
-    const search = searchParams.get("search") || "";
+    const search = url.searchParams.get("search") || "";
     
     // Get current user's role
     const { data: currentUser, error: userError } = await supabase

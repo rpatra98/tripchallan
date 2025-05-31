@@ -11,18 +11,14 @@ async function handler() {
     const companyId = session?.user.id;
 
     // Get company details
-    const company = await supabase.from('users').findUnique({
-      where: { id: companyId },
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        coins: true,
-        createdAt: true,
-      },
-    });
+    const { data: company, error: companyError } = await supabase
+      .from('users')
+      .select('id, name, email, coins, createdAt')
+      .eq('id', companyId)
+      .single();
 
-    if (!company) {
+    if (companyError) {
+      console.error('Error fetching company:', companyError);
       return NextResponse.json(
         { error: "Company not found" },
         { status: 404 }
@@ -30,127 +26,107 @@ async function handler() {
     }
 
     // Get employee count
-    const employeeCount = await supabase.from('users').count({
-      where: {
-        companyId: companyId,
-        role: UserRole.EMPLOYEE,
-      },
-    });
+    const { count: employeeCount, error: countError } = await supabase
+      .from('users')
+      .select('*', { count: 'exact', head: true })
+      .eq('companyId', companyId)
+      .eq('role', UserRole.EMPLOYEE);
 
     // Get sessions by status
-    const pendingSessions = await supabase.from('sessions').count({
-      where: {
-        companyId: companyId,
-        status: SessionStatus.PENDING,
-      },
-    });
+    const { count: pendingSessions, error: pendingError } = await supabase
+      .from('sessions')
+      .select('*', { count: 'exact', head: true })
+      .eq('companyId', companyId)
+      .eq('status', SessionStatus.PENDING);
 
-    const inProgressSessions = await supabase.from('sessions').count({
-      where: {
-        companyId: companyId,
-        status: SessionStatus.IN_PROGRESS,
-      },
-    });
+    const { count: inProgressSessions, error: inProgressError } = await supabase
+      .from('sessions')
+      .select('*', { count: 'exact', head: true })
+      .eq('companyId', companyId)
+      .eq('status', SessionStatus.IN_PROGRESS);
 
-    const completedSessions = await supabase.from('sessions').count({
-      where: {
-        companyId: companyId,
-        status: SessionStatus.COMPLETED,
-      },
-    });
+    const { count: completedSessions, error: completedError } = await supabase
+      .from('sessions')
+      .select('*', { count: 'exact', head: true })
+      .eq('companyId', companyId)
+      .eq('status', SessionStatus.COMPLETED);
 
     // Get recent sessions
-    const recentSessions = await supabase.from('sessions').select('*').{
-      where: { companyId: companyId },
-      take: 10,
-      orderBy: { createdAt: "desc" },
-      include: {
-        createdBy: {
-          select: {
-            id: true,
-            name: true,
-            subrole: true,
-          },
-        },
-        seal: true,
-      },
-    });
+    const { data: recentSessions, error: sessionsError } = await supabase
+      .from('sessions')
+      .select('*, createdBy:createdById(id, name, subrole), seal:id(*)') // Adjusted to get seals via a relation
+      .eq('companyId', companyId)
+      .order('createdAt', { ascending: false })
+      .limit(10);
+      
+    if (sessionsError) {
+      console.error('Error fetching recent sessions:', sessionsError);
+    }
 
     // Get seal stats
-    const verifiedSealsCount = await supabase.from('seals').count({
-      where: {
-        session: { companyId: companyId },
-        verified: true,
-      },
-    });
+    const { count: verifiedSealsCount, error: verifiedError } = await supabase
+      .from('seals')
+      .select('*', { count: 'exact', head: true })
+      .eq('verified', true)
+      .eq('sessionCompanyId', companyId); // Assuming there's a sessionCompanyId column
 
-    const unverifiedSealsCount = await supabase.from('seals').count({
-      where: {
-        session: { companyId: companyId },
-        verified: false,
-      },
-    });
+    const { count: unverifiedSealsCount, error: unverifiedError } = await supabase
+      .from('seals')
+      .select('*', { count: 'exact', head: true })
+      .eq('verified', false)
+      .eq('sessionCompanyId', companyId); // Assuming there's a sessionCompanyId column
 
     // Get recent comments on company's sessions
-    const recentComments = await supabase.from('comments').select('*').{
-      where: {
-        session: { companyId: companyId },
-      },
-      take: 5,
-      orderBy: { createdAt: "desc" },
-      include: {
-        user: {
-          select: {
-            id: true,
-            name: true,
-            role: true,
-          },
-        },
-        session: {
-          select: {
-            id: true,
-            source: true,
-            destination: true,
-          },
-        },
-      },
-    });
+    const { data: recentComments, error: commentsError } = await supabase
+      .from('comments')
+      .select(`
+        *,
+        user:userId(id, name, role),
+        session:sessionId(id, source, destination)
+      `)
+      .eq('sessionCompanyId', companyId) // Assuming there's a sessionCompanyId column or join
+      .order('createdAt', { ascending: false })
+      .limit(5);
+      
+    if (commentsError) {
+      console.error('Error fetching recent comments:', commentsError);
+    }
 
     // Get coin transactions
-    const coinTransactions = await supabase.from('coinTransactions').select('*').{
-      where: {
-        OR: [
-          { fromUserId: companyId },
-          { toUserId: companyId },
-        ],
-      },
-      take: 10,
-      orderBy: { createdAt: "desc" },
-    });
+    const { data: coinTransactions, error: transactionsError } = await supabase
+      .from('coinTransactions')
+      .select('*')
+      .or(`fromUserId.eq.${companyId},toUserId.eq.${companyId}`)
+      .order('createdAt', { ascending: false })
+      .limit(10);
+      
+    if (transactionsError) {
+      console.error('Error fetching coin transactions:', transactionsError);
+    }
 
     return NextResponse.json({
       company,
       employees: {
-        count: employeeCount,
+        count: employeeCount || 0,
       },
       sessions: {
         summary: {
-          pending: pendingSessions,
-          inProgress: inProgressSessions,
-          completed: completedSessions,
-          total: pendingSessions + inProgressSessions + completedSessions,
+          pending: pendingSessions || 0,
+          inProgress: inProgressSessions || 0,
+          completed: completedSessions || 0,
+          total: (pendingSessions || 0) + (inProgressSessions || 0) + (completedSessions || 0),
         },
-        recent: recentSessions,
+        recent: recentSessions || [],
       },
       seals: {
-        verified: verifiedSealsCount,
-        unverified: unverifiedSealsCount,
-        total: verifiedSealsCount + unverifiedSealsCount,
+        verified: verifiedSealsCount || 0,
+        unverified: unverifiedSealsCount || 0,
+        total: (verifiedSealsCount || 0) + (unverifiedSealsCount || 0),
       },
-      comments: recentComments,
+      comments: recentComments || [],
       coins: {
-        balance: company.coins,
-        recentTransactions: coinTransactions,
+        balance: company.coins || 0,
+        recentTransactions: coinTransactions || [],
       },
     });
   } catch (error) {
