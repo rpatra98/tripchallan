@@ -32,6 +32,7 @@ import {
   History 
 } from "@mui/icons-material";
 import { useRouter } from "next/navigation";
+import { supabase } from "@/lib/supabase";
 
 // Create a context to update coin balance
 export const SessionUpdateContext = createContext({
@@ -141,6 +142,10 @@ export default function DashboardLayout({
         // Immediately update the local state with the latest coin balance
         setCurrentCoinBalance(userData.coins);
         
+        // Save to localStorage for other components to use
+        localStorage.setItem('lastCoinBalance', String(userData.coins || 0));
+        localStorage.setItem('coinBalanceUpdatedAt', String(Date.now()));
+        
         // Then update NextAuth session with the latest data
         await updateSession({
           ...session,
@@ -158,39 +163,41 @@ export default function DashboardLayout({
       } else {
         console.error('Failed to fetch updated user data:', response.status);
         
-        // For SuperAdmin, show proper name even if API call fails
-        if (session?.user?.role === 'SUPERADMIN') {
-          await updateSession({
-            ...session,
-            user: {
-              ...session?.user,
-              name: 'Super Admin',
-              coins: 1000000,
-            }
-          });
-          setCurrentCoinBalance(1000000);
-          setLastBalanceUpdate(Date.now());
+        // Try direct Supabase query as backup
+        try {
+          const { data, error } = await supabase
+            .from('users')
+            .select('id, name, email, role, coins')
+            .eq('id', session?.user?.id)
+            .single();
+            
+          if (!error && data) {
+            setCurrentCoinBalance(data.coins || 0);
+            
+            // Save to localStorage for other components to use
+            localStorage.setItem('lastCoinBalance', String(data.coins || 0));
+            localStorage.setItem('coinBalanceUpdatedAt', String(Date.now()));
+            
+            await updateSession({
+              ...session,
+              user: {
+                ...session?.user,
+                name: data.name || session?.user?.name,
+                coins: data.coins || 0,
+              }
+            });
+            
+            setLastBalanceUpdate(Date.now());
+            return data.coins;
+          }
+        } catch (supabaseError) {
+          console.error('Error with direct Supabase query:', supabaseError);
         }
         
         return null;
       }
     } catch (error) {
       console.error('Error refreshing user session:', error);
-      
-      // For SuperAdmin, show proper name even if API call fails
-      if (session?.user?.role === 'SUPERADMIN') {
-        await updateSession({
-          ...session,
-          user: {
-            ...session?.user,
-            name: 'Super Admin',
-            coins: 1000000,
-          }
-        });
-        setCurrentCoinBalance(1000000);
-        setLastBalanceUpdate(Date.now());
-      }
-      
       return null;
     }
   };
@@ -261,18 +268,6 @@ export default function DashboardLayout({
               )}
             </Box>
             <Box sx={{ flexGrow: 1 }} />
-            <Box sx={{ display: 'flex', alignItems: 'center' }}>
-              <Chip
-                label={`${currentCoinBalance?.toLocaleString() || 0} Coins`}
-                color="warning"
-                variant="outlined"
-                sx={{ 
-                  mr: 2, 
-                  fontWeight: 'bold',
-                  '& .MuiChip-label': { color: 'white' }
-                }}
-              />
-            </Box>
             {session?.user && (
               <>
                 {session.user.role !== "COMPANY" && session.user.subrole !== "GUARD" && (
